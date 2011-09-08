@@ -28,7 +28,7 @@
 
 #include "roxiereadahead.ipp"
 
-//We could use an enum instead of separate booleans for seen eog and seen eof, but it make abort handling much harder
+//This enumeration combines eog and eof handling into a single byte
 enum { RAstart, RAstarted, RArow, RAeog, RAeof };
 typedef byte ReadAheadState;
 
@@ -43,16 +43,16 @@ public:
         nextToRead = 0;
     }
 
-    bool fill(IInputBase * input, ReadAheadState & ownerState)
+    bool fill(IInputBase * input, ReadAheadState & inputState)
     {
         //Use a local variable to reduce memory access
-        ReadAheadState state = ownerState;
+        ReadAheadState state = inputState;
         if (state == RAeof)
             return false;
 
+        unsigned cnt;
         try
         {
-            unsigned cnt;
             for (cnt=0; cnt < readahead; )
             {
                 const void * next = input->nextInGroup();
@@ -71,16 +71,20 @@ public:
                 else
                     state = RArow;
             }
-            ownerState = state;
-            nextToRead = 0;
-            available = cnt;
-            return (cnt != 0);
         }
-        catch (IException *)
+        catch (IException * e)
         {
-            //MORE: Should this be saved away in the buffer, and then thrown when that row is requested?
-            throw;
+            //Saved the exception away in the buffer (and add a null row), read to be thrown when that row is requested.
+            assertex(cnt != readahead);
+            cached[cnt++] = NULL;
+            savedException.setown(e);
+            state = RAeof;
         }
+        inputState = state;
+        nextToRead = 0;
+        available = cnt;
+        assertex(cnt != 0);
+        return (cnt != 0);
     }
 
     void init(unsigned _readahead)
@@ -94,6 +98,7 @@ public:
     {
         available = 0;
         nextToRead = 0;
+        savedException.clear();
     }
 
     void done()
@@ -111,9 +116,18 @@ public:
 
     inline bool hasRowAvailable() const { return nextToRead < available; }
 
-    inline const void * next() { return cached[nextToRead++]; }
+    inline const void * next()
+    {
+        const void * row = cached[nextToRead++];
+        if (row || !savedException || nextToRead != available)
+            return row;
+        //MORE: Should this only throw this once.  I.e. throw savedException.getClear():
+        nextToRead--;
+        throw LINK(savedException);
+    }
 
 protected:
+    Owned<IException> savedException;
     const void * * cached;
     unsigned readahead;
     unsigned available;
@@ -237,6 +251,7 @@ class ParallelReadahead : public CInterface, implements IInputBase, implements I
             buffers[i].kill();
         delete [] buffers;
         buffers = NULL;
+        numBlocks = 0;
     }
 
     void abort()
@@ -376,7 +391,8 @@ class ParallelExecutor : public CInterface, implements IInputBase
         }
         void noteComplete()
         {
-            enqueueRow(NULL);
+            if (!isEof() && !isEog())
+                enqueueRow(NULL);
         }
         void enqueueRow(const void * row)
         {
@@ -434,6 +450,7 @@ class ParallelExecutor : public CInterface, implements IInputBase
     };
 
     //MORE: Is it a problem restarting thread objects?
+    //Should it create CThreaded objects in ready() instead?
     class ReaderThread : public IInputBase, public Thread
     {
     public:
@@ -449,7 +466,7 @@ class ParallelExecutor : public CInterface, implements IInputBase
                     const void * next = processor->nextInGroup();
                     if (!next)
                         return 1;
-                    assertex(track);
+                    assertex(track);        // if null implies a record was returned before reading input
                     track->enqueueRow(next);
                 }
             }
@@ -463,7 +480,7 @@ class ParallelExecutor : public CInterface, implements IInputBase
             }
         }
 
-        //When acting as an input that is passed to the
+        //When acting as an input that is passed to the processing activity
         virtual const void * nextInGroup()
         {
             return owner->readNextInput(*this);
@@ -471,7 +488,7 @@ class ParallelExecutor : public CInterface, implements IInputBase
 
         virtual IOutputMetaData * queryOutputMeta() const
         {
-            return owner->input->queryOutputMeta();
+            return owner->queryInputMeta();
         }
 
         inline void finishedInputRow()
@@ -596,6 +613,7 @@ public:
                 }
                 else
                     track->noteEog();
+                reader.finishedInputRow();
             }
         }
         catch (IException * e)
@@ -688,5 +706,3 @@ protected:
     ReadAheadState readState;       // only accessed from read code
     bool forceAbort;
 };
-
-//MORE: What about exceptionns + failures to join
