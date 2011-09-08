@@ -50,14 +50,14 @@ public:
         if (state == RAeof)
             return false;
 
-        unsigned cnt;
+        unsigned count;
         try
         {
-            for (cnt=0; cnt < readahead; )
+            for (count=0; count < readahead; )
             {
                 const void * next = input->nextInGroup();
-                //Always include null entiries in the buffer, so make it simpler to process end of file.
-                cached[cnt++] = next;
+                //Always include null entries in the buffer, so make it simpler to process end of file.
+                cached[count++] = next;
                 if (!next)
                 {
                     if (state == RAeog)
@@ -75,40 +75,42 @@ public:
         catch (IException * e)
         {
             //Saved the exception away in the buffer (and add a null row), read to be thrown when that row is requested.
-            assertex(cnt != readahead);
-            cached[cnt++] = NULL;
+            assertex(count != readahead);
+            cached[count++] = NULL;
             savedException.setown(e);
             state = RAeof;
         }
         inputState = state;
         nextToRead = 0;
-        available = cnt;
-        assertex(cnt != 0);
-        return (cnt != 0);
+        available = count;
+        assertex(count != 0);
+        return (count != 0);
     }
 
-    void init(unsigned _readahead)
+    void onCreate(unsigned _readahead)
     {
         cached = new const void * [readahead];
         available = 0;
         nextToRead = 0;
     }
 
-    void ready()
+    void start()
     {
         available = 0;
         nextToRead = 0;
         savedException.clear();
     }
 
-    void done()
+    void reset()
     {
         for (;(nextToRead != available); nextToRead++)
             ReleaseRoxieRow(cached[nextToRead]);
     }
 
-    void kill()
+    void onDestroy()
     {
+        available = 0;
+        nextToRead = 0;
         readahead = 0;
         delete [] cached;
         cached = NULL;
@@ -136,40 +138,39 @@ protected:
 
 
 // Sequential blocked read ahead class
-// - supports max readeahead.
+// - supports max readahead.
 // - supports grouping.
 // Could combine eof and eog into a single state, but it is then hard to implement abort safely
 class SequentialReadahead : public CInterface, implements IInputBase
 {
-    SequentialReadahead(IInputBase * _input)
-        : input(_input)
+public:
+    SequentialReadahead() : input(NULL)
     {
         inputState = RAstart;
         forceAbort = true;
     }
 
-    virtual IOutputMetaData * queryOutputMeta() const { return input->queryOutputMeta(); }
-
-    void init(unsigned _readahead)
+    void onCreate(IInputBase * _input, unsigned _readahead)
     {
-        buffer.init(_readahead);
+        input = _input;
+        buffer.onCreate(_readahead);
     }
 
-    void ready()
+    void start()
     {
-        buffer.ready();
+        buffer.start();
         inputState = RAstart;
         forceAbort = false;
     }
 
-    void done()
+    void reset()
     {
-        buffer.done();
+        buffer.reset();
     }
 
-    void kill()
+    void onDestroy()
     {
-        buffer.kill();
+        buffer.onDestroy();
     }
 
     void abort()
@@ -177,6 +178,7 @@ class SequentialReadahead : public CInterface, implements IInputBase
         forceAbort = true;
     }
 
+    //interface IInputBase
     virtual const void * nextInGroup()
     {
         if (forceAbort)
@@ -188,6 +190,9 @@ class SequentialReadahead : public CInterface, implements IInputBase
         }
         return buffer.next();
     }
+
+    virtual IOutputMetaData * queryOutputMeta() const { return input->queryOutputMeta(); }
+
 
 protected:
 //    Linked<IInputBase> input;
@@ -203,27 +208,33 @@ protected:
 // - supports block size for signaling, and restarting the reading thead.
 // - supports grouping.
 // Read and write to separate blocks of records to avoid needing to lock on each access.
+// I assume there is one reader and one writer?
 
 class ParallelReadahead : public CInterface, implements IInputBase, implements IThreaded
 {
-    ParallelReadahead(IInputBase * _input)
-        : input(_input)
+public:
+    ParallelReadahead() : input(NULL)
     {
         inputState = RAstart;
+        readState = RAeof;
         forceAbort = true;
+        buffers = NULL;
+        nextReadBlock = 0;
+        nextWriteBlock = 0;
+        numBlocks = 0;
+        blockSize = 0;
     }
 
-    virtual IOutputMetaData * queryOutputMeta() const { return input->queryOutputMeta(); }
-
-    void init(unsigned _readahead, unsigned _numBlocks)
+    void onCreate(IInputBase * _input, unsigned _readahead, unsigned _numBlocks)
     {
+        input = _input;
         setReadAhead(_readahead, _numBlocks);
         buffers = new ReadAheadBuffer[numBlocks];
         for (unsigned i=0; i < numBlocks; i++)
-            buffers[i].init(blockSize);
+            buffers[i].onCreate(blockSize);
     }
 
-    void ready()
+    void start()
     {
         inputState = RAstart;
         readState = RAstart;
@@ -233,22 +244,22 @@ class ParallelReadahead : public CInterface, implements IInputBase, implements I
         writeAvailable.reinit(numBlocks);
         readAvailable.reinit(0);
         for (unsigned i = 0; i < numBlocks; i++)
-            buffers[i].ready();
-        readThread.setown(new CThreaded("RoxieReadAheadThread", this));
-        readThread->start();
+            buffers[i].start();
+        readAheadThread.setown(new CThreaded("RoxieReadAheadThread", this));
+        readAheadThread->start();
     }
 
-    void done()
+    void reset()
     {
-        readThread->join();
+        readAheadThread->join();
         for (unsigned i = 0; i < numBlocks; i++)
-            buffers[i].done();
+            buffers[i].reset();
     }
 
-    void kill()
+    void onDestroy()
     {
         for (unsigned i = 0; i < numBlocks; i++)
-            buffers[i].kill();
+            buffers[i].onDestroy();
         delete [] buffers;
         buffers = NULL;
         numBlocks = 0;
@@ -259,7 +270,8 @@ class ParallelReadahead : public CInterface, implements IInputBase, implements I
         forceAbort = true;
     }
 
-    void main()
+    // interface IThreaded...
+    virtual void main()  // called from readThread
     {
         while (!forceAbort || inputState != RAeof)
         {
@@ -274,6 +286,7 @@ class ParallelReadahead : public CInterface, implements IInputBase, implements I
             readAvailable.signal();
     }
 
+    // interface IInputBase
     virtual const void * nextInGroup()
     {
         if (!forceAbort && (readState == RAstart))
@@ -309,6 +322,9 @@ class ParallelReadahead : public CInterface, implements IInputBase, implements I
         }
     }
 
+    virtual IOutputMetaData * queryOutputMeta() const { return input->queryOutputMeta(); }
+
+
 private:
     //This should work with (1,1) - useful test case, but not recommended.
     void setReadAhead(unsigned readahead, unsigned _numBlocks)
@@ -326,7 +342,7 @@ private:
 protected:
     IInputBase * input;
 //    Linked<IInputBase> input;
-    Owned<Thread> readThread;
+    Owned<Thread> readAheadThread;
     ReadAheadBuffer * buffers;
     Semaphore writeAvailable;
     Semaphore readAvailable;
@@ -363,14 +379,14 @@ class ParallelExecutor : public CInterface, implements IInputBase
     public:
         InputTrack() { readTrackAvailableSemaphore = NULL; }
 
-        void ready()
+        void start()
         {
             exception.clear();
             resultAvailable.reinit(0);
             state = RAstart;
             notifiedTrackAvailable = false;
         }
-        void init(Semaphore & _readTrackAvailableSemaphore)
+        void onCreate(Semaphore & _readTrackAvailableSemaphore)
         {
             readTrackAvailableSemaphore = &_readTrackAvailableSemaphore;
         }
@@ -450,13 +466,14 @@ class ParallelExecutor : public CInterface, implements IInputBase
     };
 
     //MORE: Is it a problem restarting thread objects?
-    //Should it create CThreaded objects in ready() instead?
-    class ReaderThread : public IInputBase, public Thread
+    //Should it create CThreaded objects in start() instead?
+    class ParallelReader : implements IInputBase, implements IThreaded
     {
     public:
-        ReaderThread(ParallelExecutor * _owner) : owner(_owner) {}
+        ParallelReader(ParallelExecutor * _owner) : owner(_owner) {}
 
-        virtual int run()
+    //interface IThreaded
+        virtual void main()
         {
             track = NULL;
             try
@@ -465,7 +482,7 @@ class ParallelExecutor : public CInterface, implements IInputBase
                 {
                     const void * next = processor->nextInGroup();
                     if (!next)
-                        return 1;
+                        return;
                     assertex(track);        // if null implies a record was returned before reading input
                     track->enqueueRow(next);
                 }
@@ -480,6 +497,7 @@ class ParallelExecutor : public CInterface, implements IInputBase
             }
         }
 
+    //interface IInputBase
         //When acting as an input that is passed to the processing activity
         virtual const void * nextInGroup()
         {
@@ -521,6 +539,7 @@ public:
     ParallelExecutor(IInputBase * _input, IOutputMetaData * _outputMeta) : input(_input), outputMeta(_outputMeta)
     {
         tracks = NULL;
+        readers = NULL;
         threads = NULL;
     }
 
@@ -535,54 +554,65 @@ public:
     }
 
 
-    void init(unsigned _numThreads, unsigned _numTracks)
+    void onCreate(unsigned _numThreads, unsigned _numTracks)
     {
         numThreads = numThreads;
         numTracks = _numTracks ? _numTracks : numThreads * 4;
         assertex(numThreads && numThreads >= numTracks);
         tracks = new InputTrack[numTracks];
         for (unsigned i1=0; i1 < numTracks; i1++)
-            tracks[i1].init(readTrackAvailable);
-        threads = new ReaderThread * [numThreads];
+            tracks[i1].onCreate(readTrackAvailable);
+        readers = new ParallelReader * [numThreads];
+        threads = new CThreaded * [numThreads];
         for (unsigned i2=0; i2 < numThreads; i2++)
-            threads[i2] = new ReaderThread(this);
+        {
+            readers[i2] = new ParallelReader(this);
+            threads[i2] = NULL;
+        }
     }
 
-    void ready()
+    void start()
     {
         inputException.clear();
         processException.clear();
         for (unsigned i1=0; i1 < numTracks; i1++)
-            tracks[i1].ready();
+            tracks[i1].start();
         for (unsigned i2=0; i2 < numThreads; i2++)
+        {
+            threads[i2] = new CThreaded("ParallelReaderThread", readers[i2]);
             threads[i2]->start();
+        }
     }
 
-    void done()
+    void reset()
     {
         for (unsigned i2=0; i2 < numTracks; i2++)
+        {
             threads[i2]->join();
+            threads[i2] = NULL;
+        }
     }
 
-    void kill()
+    void onDestroy()
     {
         for (unsigned i1=0; i1 < numThreads; i1++)
-            threads[i1]->Release();
+            delete readers[i1];
         delete [] tracks;
+        delete [] readers;
         delete [] threads;
     }
 
     IInputBase * queryInput(unsigned whichThread)
     {
-        return threads[whichThread];
+        return readers[whichThread];
     }
 
     void setProcessor(unsigned whichThread, IInputBase * processor)
     {
-        threads[whichThread]->processor = processor;
+        readers[whichThread]->processor = processor;
     }
 
-    const void * readNextInput(ReaderThread & reader)
+    const void * readNextInput(ParallelReader & reader)
     {
         CriticalBlock block(inputCrit);
         reader.finishedInputRow();
@@ -694,7 +724,8 @@ protected:
     Owned<IException> processException;
     IOutputMetaData * outputMeta;
     InputTrack * tracks;
-    ReaderThread * * threads;
+    ParallelReader * * readers;
+    CThreaded * * threads;
     Semaphore writeTrackAvailable;
     Semaphore readTrackAvailable;
     CriticalSection inputCrit;
