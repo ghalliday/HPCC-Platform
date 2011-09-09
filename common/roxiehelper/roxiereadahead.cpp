@@ -173,7 +173,7 @@ public:
         buffer.onDestroy();
     }
 
-    void abort()
+    void stop(bool abort)
     {
         forceAbort = true;
     }
@@ -265,7 +265,7 @@ public:
         numBlocks = 0;
     }
 
-    void abort()
+    void stop(bool abort)
     {
         forceAbort = true;
     }
@@ -373,27 +373,33 @@ protected:
 class ParallelExecutor : public CInterface, implements IInputBase
 {
     //This class is used to keep track of the results that are returned from a single input record.
-    //Avoid signalling results for a new input are available until they can be consumed.
+    //MORE: We could only signal every <n> rows, or when finished and have associated logic in the reader to
+    //reduce the number of wait() calls.  Especially since NULL is appended for end of results.
+    //MORE: Should we use a different mechanism/state for end of results so the output from the process can be grouped?
     class InputTrack
     {
     public:
-        InputTrack() { readTrackAvailableSemaphore = NULL; }
+        InputTrack() { }
 
         void start()
         {
             exception.clear();
             resultAvailable.reinit(0);
             state = RAstart;
-            notifiedTrackAvailable = false;
         }
-        void onCreate(Semaphore & _readTrackAvailableSemaphore)
+        void onCreate()
         {
-            readTrackAvailableSemaphore = &_readTrackAvailableSemaphore;
+        }
+        void reset()
+        {
+            state = RAstart;
+            exception.clear();
+            while (rows.ordinality())
+                ReleaseRoxieRow(rows.dequeue());
         }
         inline void beginProcessing()
         {
             state = RAstart;
-            notifiedTrackAvailable = false;
         }
         void noteEof()
         {
@@ -437,19 +443,6 @@ class ParallelExecutor : public CInterface, implements IInputBase
         inline void signalResult()
         {
             resultAvailable.signal();
-
-            //Is this complication worth it??
-            //Signal this semaphore after the result semaphore to reduce blocking.
-            //Previous tracks may not have signalled yet, but if so the reader will block on
-            //the result available semaphore.
-            {
-                CriticalBlock block(cs);
-                if (notifiedTrackAvailable)
-                    return;
-                notifiedTrackAvailable = true;
-            }
-
-            readTrackAvailableSemaphore->signal();
         }
 
         inline bool isEof() const { return state == RAeof; }
@@ -458,11 +451,9 @@ class ParallelExecutor : public CInterface, implements IInputBase
     private:
         Owned<IException> exception;
         Semaphore resultAvailable;
-        Semaphore * readTrackAvailableSemaphore;
         CriticalSection cs;
         QueueOf<const void, true> rows;
         ReadAheadState state;
-        bool notifiedTrackAvailable;
     };
 
     //MORE: Is it a problem restarting thread objects?
@@ -509,6 +500,8 @@ class ParallelExecutor : public CInterface, implements IInputBase
             return owner->queryInputMeta();
         }
 
+        inline void reset() {}
+
         inline void finishedInputRow()
         {
             if (track)
@@ -536,11 +529,18 @@ class ParallelExecutor : public CInterface, implements IInputBase
 
 
 public:
-    ParallelExecutor(IInputBase * _input, IOutputMetaData * _outputMeta) : input(_input), outputMeta(_outputMeta)
+    ParallelExecutor(IOutputMetaData * _outputMeta) : input(NULL), outputMeta(_outputMeta)
     {
         tracks = NULL;
         readers = NULL;
         threads = NULL;
+        trackToRead = 0;
+        trackToWrite = 0;
+        numThreads = 0;
+        numTracks = 0;
+        inputState = RAeof;
+        readState = RAeof;
+        forceAbort = true;
     }
 
     virtual IOutputMetaData * queryOutputMeta() const
@@ -553,15 +553,15 @@ public:
         return input->queryOutputMeta();
     }
 
-
-    void onCreate(unsigned _numThreads, unsigned _numTracks)
+    void onCreate(IInputBase * _input, unsigned _numThreads, unsigned _numTracks)
     {
+        input = _input;
         numThreads = numThreads;
         numTracks = _numTracks ? _numTracks : numThreads * 4;
         assertex(numThreads && numThreads >= numTracks);
         tracks = new InputTrack[numTracks];
         for (unsigned i1=0; i1 < numTracks; i1++)
-            tracks[i1].onCreate(readTrackAvailable);
+            tracks[i1].onCreate();
         readers = new ParallelReader * [numThreads];
         threads = new CThreaded * [numThreads];
         for (unsigned i2=0; i2 < numThreads; i2++)
@@ -573,8 +573,14 @@ public:
 
     void start()
     {
+        trackToRead = 0;
+        trackToWrite = 0;
+        inputState = RAstart;
+        readState = RAstart;
+        forceAbort = false;
+
         inputException.clear();
-        processException.clear();
+        writeTrackAvailable.signal(numTracks);
         for (unsigned i1=0; i1 < numTracks; i1++)
             tracks[i1].start();
         for (unsigned i2=0; i2 < numThreads; i2++)
@@ -584,13 +590,28 @@ public:
         }
     }
 
+    void stop(bool abort)
+    {
+        //This will cause any calls to the nextInputRow to fail, and abort if within it
+        forceAbort = true;
+        writeTrackAvailable.signal();
+
+        //Need to ensure the readthread doesn't wait, so indicate all tracks at eof
+        CriticalBlock block(inputCrit);
+        for (unsigned i1=0; i1 < numTracks; i1++)
+            tracks[i1].noteEof();
+    }
+
     void reset()
     {
         for (unsigned i2=0; i2 < numTracks; i2++)
         {
             threads[i2]->join();
             threads[i2] = NULL;
+            readers[i2]->reset();
         }
+        for (unsigned i1=0; i1 < numTracks; i1++)
+            tracks[i1].reset();
     }
 
     void onDestroy()
@@ -622,13 +643,19 @@ public:
         {
             loop
             {
-                if (inputState == RAeof)
+                if (forceAbort || inputState == RAeof)
                 {
-                    reader.finishedProcessing();
+                    assertex(!reader.track);
                     return NULL;
                 }
 
                 InputTrack * track = allocateTrack();
+                if (!track)
+                {
+                    assertex(forceAbort && !reader.track);
+                    return NULL;
+                }
+
                 reader.setTrack(track);
                 const void * next = input->nextInGroup();
                 if (next)
@@ -656,6 +683,8 @@ public:
     InputTrack * allocateTrack()
     {
         writeTrackAvailable.wait();
+        if (forceAbort)
+            return NULL;
         InputTrack * track = &tracks[trackToWrite];
         trackToWrite = nextTrack(trackToWrite);
         track->beginProcessing();
@@ -664,8 +693,11 @@ public:
 
     void setException(IException * e)
     {
-        processException.set(e);
-        readTrackAvailable.signal();
+        //An exception that occurs before a row is read, is fed in as a normal result.
+        CriticalBlock block(inputCrit);
+        InputTrack * track = allocateTrack();
+        if (track)
+            track->setException(e);
     }
 
     virtual const void * nextInGroup()
@@ -675,16 +707,13 @@ public:
             if (forceAbort || (readState == RAeof))
                 return NULL;
 
-            if ((readState == RAstart) || (readState == RAeog))
-                readTrackAvailable.wait();
-
-            if (processException)
-                throw LINK(processException);
-
             InputTrack * curTrack = &tracks[trackToRead];
             curTrack->waitForResult();
             if (curTrack->isEof())
+            {
                 readState = RAeof;
+                return NULL;
+            }
             else if (curTrack->isEog())
             {
                 ReadAheadState prevState = readState;
@@ -707,7 +736,6 @@ public:
                 //Null marks the end of the generated rows a given input row.
                 trackToRead = nextTrack(trackToRead);
                 writeTrackAvailable.signal();
-                readTrackAvailable.wait();
             }
         }
     }
@@ -721,13 +749,11 @@ public:
 protected:
     IInputBase * input;
     Owned<IException> inputException;
-    Owned<IException> processException;
     IOutputMetaData * outputMeta;
     InputTrack * tracks;
     ParallelReader * * readers;
     CThreaded * * threads;
     Semaphore writeTrackAvailable;
-    Semaphore readTrackAvailable;
     CriticalSection inputCrit;
     unsigned trackToRead;         // only accessed from read code
     unsigned trackToWrite;        // only accessed from write code
