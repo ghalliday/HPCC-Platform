@@ -29,7 +29,7 @@
 #include "roxiereadahead.ipp"
 
 //This enumeration combines eog and eof handling into a single byte
-enum { RAstart, RAstarted, RArow, RAeog, RAeof };
+enum { RAstart, RAstarted, RArow, RAeog, RAeof, RAendblock };
 typedef byte ReadAheadState;
 
 class ReadAheadBuffer
@@ -376,10 +376,10 @@ class ParallelExecutor : public CInterface, implements IInputBase
     //MORE: We could only signal every <n> rows, or when finished and have associated logic in the reader to
     //reduce the number of wait() calls.  Especially since NULL is appended for end of results.
     //MORE: Should we use a different mechanism/state for end of results so the output from the process can be grouped?
-    class InputTrack
+    class StreamingInputTrack
     {
     public:
-        InputTrack() { }
+        StreamingInputTrack() { }
 
         void start()
         {
@@ -431,6 +431,7 @@ class ParallelExecutor : public CInterface, implements IInputBase
                 throw LINK(exception);
             return rows.dequeue();
         }
+        inline void waitForAnyResult() {}
         inline void waitForResult()
         {
             resultAvailable.wait();
@@ -456,6 +457,90 @@ class ParallelExecutor : public CInterface, implements IInputBase
         ReadAheadState state;
     };
 
+    //Second version - semaphore per block of results instead of per result.
+    //No results are read until writing is complete so need for a critical section to protect the queue.
+    class LightweightInputTrack
+    {
+    public:
+        LightweightInputTrack() { }
+
+        void start()
+        {
+            exception.clear();
+            resultAvailable.reinit(0);
+            state = RAstart;
+        }
+        void onCreate()
+        {
+        }
+        void reset()
+        {
+            state = RAstart;
+            exception.clear();
+            while (rows.ordinality())
+                ReleaseRoxieRow(rows.dequeue());
+        }
+        inline void beginProcessing()
+        {
+            state = RAstart;
+        }
+        void noteEof()
+        {
+            state = RAeof;
+            signalResults();
+        }
+        void noteEog()
+        {
+            state = RAeog;
+            signalResults();
+        }
+        void noteComplete()
+        {
+            if (!isEof() && !isEog())
+            {
+                enqueueRow(NULL);
+                signalResults();
+            }
+        }
+        void enqueueRow(const void * row)
+        {
+            rows.enqueue(row);
+        }
+        const void * dequeueRow()
+        {
+            if (rows.ordinality()==0 && exception)
+                throw LINK(exception);
+            return rows.dequeue();
+        }
+        inline void waitForAnyResult()
+        {
+            resultAvailable.wait();
+        }
+        inline void waitForResult()
+        {
+        }
+        inline void setException(IException * e)
+        {
+            exception.set(e);
+            signalResults();
+        }
+        inline void signalResults()
+        {
+            resultAvailable.signal();
+        }
+
+        inline bool isEof() const { return state == RAeof; }
+        inline bool isEog() const { return state == RAeog; }
+
+    private:
+        Owned<IException> exception;
+        Semaphore resultAvailable;
+        QueueOf<const void, true> rows;
+        ReadAheadState state;
+    };
+
+    typedef LightweightInputTrack InputTrack;
+//    typedef StreamingInputTrack InputTrack;
     //MORE: Is it a problem restarting thread objects?
     //Should it create CThreaded objects in start() instead?
     class ParallelReader : implements IInputBase, implements IThreaded
@@ -708,6 +793,8 @@ public:
                 return NULL;
 
             InputTrack * curTrack = &tracks[trackToRead];
+            if ((readState == RAstart) || (readState == RAeog) || (readState = RAendblock))
+                curTrack->waitForAnyResult();
             curTrack->waitForResult();
             if (curTrack->isEof())
             {
@@ -736,6 +823,8 @@ public:
                 //Null marks the end of the generated rows a given input row.
                 trackToRead = nextTrack(trackToRead);
                 writeTrackAvailable.signal();
+                //Ensure we wait on the next result's signal...
+                readState = RAendblock;
             }
         }
     }
