@@ -20,7 +20,9 @@
 #include "jsem.hpp"
 
 #include <string.h>
+
 #include "unicodelib.hpp"
+#ifdef _USE_ICU
 #include "unicode/usearch.h"
 #include "unicode/schriter.h"
 #include "unicode/locid.h"
@@ -28,15 +30,19 @@
 #include "unicode/stsearch.h"
 #include "unicode/translit.h"
 #include "unicode/rbbi.h"
+#endif
+
 #include "../stringlib/wildmatch.tpp"
 
 #define UNICODELIB_VERSION "UNICODELIB 1.1.05"
 
+#ifdef _USE_ICU
 UChar32 const u32comma = ',';
 UChar32 const u32space = ' ';
 UChar const u16asterisk = '*';
 UChar const u16query = '?';
 UChar const u16space = ' ';
+#endif
 
 const char * EclDefinition = 
 "export UnicodeLib := SERVICE\n"
@@ -116,6 +122,7 @@ namespace nsUnicodelib {
 
 IPluginContext * parentCtx = NULL;
 
+#ifdef _USE_ICU
 void doTrimRight(UnicodeString & source)
 {
         int32_t oldLength = source.length();
@@ -550,6 +557,7 @@ unsigned doCountWords(RuleBasedBreakIterator& bi, UnicodeString const & source)
     return count; 
 }
 
+#endif
 
 }//namespace
 
@@ -557,6 +565,7 @@ using namespace nsUnicodelib;
 
 UNICODELIB_API void setPluginContext(IPluginContext * _ctx) { parentCtx = _ctx; }
 
+#ifdef _USE_ICU
 UNICODELIB_API void UNICODELIB_CALL ulUnicodeFilterOut(unsigned & tgtLen, UChar * & tgt, unsigned srcLen, UChar const * src, unsigned hitLen, UChar const * hit)
 {
     UnicodeString const in(src, srcLen);
@@ -1078,4 +1087,5 @@ UNICODELIB_API void UNICODELIB_CALL ulUnicodeLocaleGetNthWord(unsigned & tgtLen,
         tgt = 0;
     }
 }
+#endif
 

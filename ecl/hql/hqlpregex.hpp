@@ -19,7 +19,12 @@
 #define __HQLPREGEX_HPP_
 
 #ifndef CHEAP_UCHAR_DEF
-#include "unicode/utf.h"
+#define CHEAP_UCHAR_DEF
+#ifdef _WIN32
+typedef wchar_t UChar;
+#else //__WIN32
+typedef unsigned short UChar;
+#endif //__WIN32
 #endif
 
 IHqlExpression * convertPatternToExpression(unsigned len, const char * text);

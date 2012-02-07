@@ -31,7 +31,6 @@
 
 #include "jregexp.hpp"
 #include "eclhelper.hpp"
-#include "unicode/utf.h"
 
 class THORHELPER_API CSVSplitter
 {

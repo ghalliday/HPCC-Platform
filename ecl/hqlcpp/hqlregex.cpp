@@ -31,7 +31,14 @@
 #include "thorrparse.ipp"
 #include "hqlthql.hpp"
 
+#ifdef _USE_ICU
 #include "unicode/uchar.h"
+#else
+inline unsigned u_foldCase(unsigned c, bool) { return (c <= 255) ? tolower(c) : c; }
+inline unsigned u_tolower(unsigned c) { return (c <= 255) ? tolower(c) : c; }
+inline unsigned u_toupper(unsigned c) { return (c <= 255) ? toupper(c) : c; }
+#define U_FOLD_CASE_DEFAULT true
+#endif
 
 //#define NEW_DFA_CALC
 //#define DEFAULT_DFA_COMPLEXITY    0

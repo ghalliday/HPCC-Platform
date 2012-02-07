@@ -19,7 +19,6 @@
 #ifndef __THORRPARSE_IPP_
 #define __THORRPARSE_IPP_
 
-#include "unicode/utf.h"
 #include "thorparse.ipp"
 #include "thorrparse.hpp"
 #include "eclhelper.hpp"

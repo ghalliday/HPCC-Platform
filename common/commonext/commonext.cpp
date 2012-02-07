@@ -16,13 +16,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ############################################################################## */
 
+#define AVOID_INCLUDE_ICU
+
 #include "platform.h"
-#define CHEAP_UCHAR_DEF
-#ifdef _WIN32
-typedef wchar_t UChar;
-#else 
-typedef unsigned short UChar;
-#endif 
 #include "eclhelper.hpp"
 
 #include "jmisc.hpp"

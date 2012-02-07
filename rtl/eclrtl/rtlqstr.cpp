@@ -27,14 +27,7 @@
 #include "jptree.hpp"
 #include "eclrtl.hpp"
 #include "bcd.hpp"
-#include "unicode/uchar.h"
-#include "unicode/ucol.h"
-#include "unicode/ustring.h"
-#include "unicode/ucnv.h"
-#include "unicode/schriter.h"
-#include "unicode/regex.h"
-#include "unicode/normlzr.h"
-#include "unicode/locid.h"
+
 #include "jlog.hpp"
 #include "jmd5.hpp"
 

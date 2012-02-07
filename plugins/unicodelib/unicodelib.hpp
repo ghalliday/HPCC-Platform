@@ -32,10 +32,23 @@
 #endif
 
 #ifndef CHEAP_UCHAR_DEF
+#if defined(AVOID_INCLUDE_ICU) || !defined(_USE_ICU)
+
+#define CHEAP_UCHAR_DEF
+#if __WIN32
+typedef wchar_t UChar;
+#else //__WIN32
+typedef unsigned short UChar;
+#endif //__WIN32
+
+#else
+
 #ifndef U_OVERRIDE_CXX_ALLOCATION
 #define U_OVERRIDE_CXX_ALLOCATION 0 // Enabling this forces all allocation of ICU objects to ICU's heap, but is incompatible with jmemleak
 #endif //U_OVERRIDE_CXX_ALLOCATION
 #include "unicode/utf.h"
+
+#endif // AVOID_INCLUDE_ICU
 #endif //CHEAP_UCHAR_DEF
 
 #include "hqlplugins.hpp"

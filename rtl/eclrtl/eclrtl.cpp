@@ -32,6 +32,8 @@
 #include "eclrtl.hpp"
 #include "bcd.hpp"
 #include "eclrtl_imp.hpp"
+
+#ifdef _USE_ICU
 #include "unicode/uchar.h"
 #include "unicode/ucol.h"
 #include "unicode/ustring.h"
@@ -40,6 +42,11 @@
 #include "unicode/regex.h"
 #include "unicode/normlzr.h"
 #include "unicode/locid.h"
+#else
+inline bool u_isspace(unsigned c) { return (c == ' '); }
+inline bool u_isUWhiteSpace(unsigned c) { return c <= 255 && isspace(c); }
+#endif
+
 #include "jlog.hpp"
 #include "jmd5.hpp"
 #include "rtlqstr.ipp"
@@ -125,6 +132,7 @@ ECLRTL_API byte * * rtlLinkRowset(byte * * rowset)
 
 void escapeUnicode(unsigned inlen, UChar const * in, StringBuffer & out)
 {
+#ifdef _USE_ICU
     UCharCharacterIterator iter(in, inlen);
     for(iter.first32(); iter.hasNext(); iter.next32())
     {
@@ -136,10 +144,36 @@ void escapeUnicode(unsigned inlen, UChar const * in, StringBuffer & out)
         else
             out.appendf("\\U%08X", c);
     }
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
-// locales and collators
+bool rtlGetNormalizedUnicodeLocaleName(unsigned len, char const * in, char * out)
+{
+    bool isPrimary = true;
+    bool ok = true;
+    unsigned i;
+    for(i=0; i<len; i++)
+        if(in[i] == '_')
+        {
+            out[i] = '_';
+            isPrimary = false;
+        }
+        else if(isalpha(in[i]))
+        {
+            out[i] = (isPrimary ? tolower(in[i]) : toupper(in[i]));
+        }
+        else
+        {
+            out[i] = 0;
+            ok = false;
+        }
+    return ok;
+}
 
+#ifdef _USE_ICU
+// locales and collators
 static unsigned const unicodeStrengthLimit = 5;
 
 static UCollationStrength unicodeStrength[unicodeStrengthLimit] =
@@ -200,30 +234,7 @@ MODULE_EXIT()
     delete localeMap;
 }
 
-bool rtlGetNormalizedUnicodeLocaleName(unsigned len, char const * in, char * out)
-{
-    bool isPrimary = true;
-    bool ok = true;
-    unsigned i;
-    for(i=0; i<len; i++)
-        if(in[i] == '_')
-        {
-            out[i] = '_';
-            isPrimary = false;
-        }
-        else if(isalpha(in[i]))
-        {
-            out[i] = (isPrimary ? tolower(in[i]) : toupper(in[i]));
-        }
-        else
-        {
-            out[i] = 0;
-            ok = false;
-        }
-    return ok;
-}
-
-RTLLocale * queryRTLLocale(char const * locale)
+static RTLLocale * queryRTLLocale(char const * locale)
 {
     CriticalBlock b(localeCrit);
     RTLLocale * loc = localeMap->getValue(locale);
@@ -278,7 +289,7 @@ MODULE_EXIT()
 }
 
 
-RTLUnicodeConverter * queryRTLUnicodeConverter(char const * codepage)
+static RTLUnicodeConverter * queryRTLUnicodeConverter(char const * codepage)
 {
     CriticalBlock b(ucmCrit);
     RTLUnicodeConverter * conv = unicodeConverterMap->getValue(codepage);
@@ -387,6 +398,30 @@ void normalizeUnicodeString(UnicodeString const & in, UnicodeString & out)
     Normalizer::compose(in, false, 0, out, err);
     assertex(U_SUCCESS(err));
 }
+#else
+void unicodeEnsureIsNormalized(unsigned len, UChar * str)
+{
+}
+
+void vunicodeEnsureIsNormalized(unsigned len, UChar * str)
+{
+}
+
+void unicodeEnsureIsNormalizedX(unsigned & len, UChar * & str)
+{
+}
+
+void vunicodeEnsureIsNormalizedX(unsigned inlen, UChar * & str)
+{
+    UNIMPLEMENTED_X("Unicode not supported");
+}
+
+void unicodeNormalizedCopy(UChar * out, UChar * in, unsigned len)
+{
+    UNIMPLEMENTED_X("Unicode not supported");
+}
+
+#endif
 
 // padding
 
@@ -1413,6 +1448,7 @@ void rtlConcatVStr(char * * tgt, ...)
 
 void rtlConcatUnicode(unsigned & tlen, UChar * * tgt, ...)
 {
+#ifdef _USE_ICU
     va_list args;
 
     unsigned totalLength = 0;
@@ -1444,10 +1480,14 @@ void rtlConcatUnicode(unsigned & tlen, UChar * * tgt, ...)
 
     *tgt = buffer;
     tlen = idx;
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlConcatVUnicode(UChar * * tgt, ...)
 {
+#ifdef _USE_ICU
     va_list args;
 
     unsigned totalLength = 0;
@@ -1479,6 +1519,9 @@ void rtlConcatVUnicode(UChar * * tgt, ...)
 
     buffer[idx++] = 0x0000;
     *tgt = buffer;
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 //List of strings with length of -1 to mark the end...
@@ -1531,6 +1574,7 @@ void rtlConcatVStrF(unsigned tlen, char * tgt, ...)
 
 void rtlConcatUnicodeF(unsigned tlen, UChar * tgt, ...)
 {
+#ifdef _USE_ICU
     va_list args;
     unsigned idx = 0;
     UErrorCode err = U_ZERO_ERROR;
@@ -1548,11 +1592,15 @@ void rtlConcatUnicodeF(unsigned tlen, UChar * tgt, ...)
 
     while (idx < tlen)
         tgt[idx++] = ' ';
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 
 void rtlConcatVUnicodeF(unsigned tlen, UChar * tgt, ...)
 {
+#ifdef _USE_ICU
     va_list args;
     unsigned idx = 0;
     UErrorCode err = U_ZERO_ERROR;
@@ -1571,6 +1619,9 @@ void rtlConcatVUnicodeF(unsigned tlen, UChar * tgt, ...)
     while (idx < tlen)
         tgt[idx++] = 0;
     tgt[tlen] = 0;
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 
@@ -1614,8 +1665,13 @@ void rtlConcatVStrToVStr(unsigned tlen, void * _tgt, const char * src)
 
 unsigned rtlConcatUnicodeToUnicode(unsigned tlen, UChar * tgt, unsigned idx, unsigned slen, UChar const * src)
 {
+#ifdef _USE_ICU
     UErrorCode err = U_ZERO_ERROR;
     return unorm_concatenate(tgt, idx, src, slen, tgt, tlen, UNORM_NFC, 0, &err);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+    return 0;
+#endif
 }
 
 unsigned rtlConcatVUnicodeToUnicode(unsigned tlen, UChar * tgt, unsigned idx, UChar const * src)
@@ -1854,12 +1910,17 @@ unsigned rtlTrimUnicodeStrLen(size32_t l, UChar const * t)
 {
     if (!l)
         return 0;
+#ifdef _USE_ICU
     UCharCharacterIterator iter(t, l);
     for(iter.last32(); iter.hasPrevious(); iter.previous32())
         if(!u_isspace(iter.current32()))
             break;
     if(u_isspace(iter.current32())) return iter.getIndex(); // required as the reverse iteration above doesn't hit the first character
     return iter.getIndex() + 1;
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+    return 0;
+#endif
 }
 
 inline size32_t rtlQuickTrimUnicode(size32_t len, UChar const * str)
@@ -1897,11 +1958,16 @@ inline unsigned rtlLeftTrimStrStart(size32_t slen, const char * src)
 
 inline unsigned rtlLeftTrimUnicodeStrStart(size32_t slen, UChar const * src)
 {
+#ifdef _USE_ICU
     UCharCharacterIterator iter(src, slen);
     for(iter.first32(); iter.hasNext(); iter.next32())
         if(!u_isspace(iter.current32()))
             break;
     return iter.getIndex();
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+    return 0;
+#endif
 }
 
 inline unsigned rtlLeftTrimVStrStart(const char * src)
@@ -2215,6 +2281,7 @@ void rtlTrimAll(unsigned & tlen, char * & tgt, unsigned slen, const char * src)
 
 void rtlTrimUnicodeAll(unsigned & tlen, UChar * & tgt, unsigned slen, const UChar * src)
 {
+#ifdef _USE_ICU
     UnicodeString rawStr;
     UCharCharacterIterator iter(src, slen);
     for(iter.first32(); iter.hasNext(); iter.next32())
@@ -2226,6 +2293,9 @@ void rtlTrimUnicodeAll(unsigned & tlen, UChar * & tgt, unsigned slen, const UCha
     tgt = (UChar *)malloc((tlen+1)*2);
     tgtStr.extract(0, tlen, tgt);
     tgt[tlen] = 0x0000;
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlTrimVAll(unsigned & tlen, char * & tgt, const char * src)
@@ -2493,14 +2563,22 @@ int rtlCompareUnicodeUnicode(unsigned l1, UChar const * p1, unsigned l2, UChar c
 {
     while(l1 && u_isUWhiteSpace(p1[l1-1])) l1--;
     while(l2 && u_isUWhiteSpace(p2[l2-1])) l2--;
+#ifdef _USE_ICU
     return ucol_strcoll(queryRTLLocale(locale)->queryCollator(), p1, l1, p2, l2);
+#else
+    return rtlCompareDataData(l1 * sizeof(UChar), p1, l2 * sizeof(UChar), p2);
+#endif
 }
 
 int rtlCompareUnicodeUnicodeStrength(unsigned l1, UChar const * p1, unsigned l2, UChar const * p2, char const * locale, unsigned strength)
 {
     while(l1 && u_isUWhiteSpace(p1[l1-1])) l1--;
     while(l2 && u_isUWhiteSpace(p2[l2-1])) l2--;
+#ifdef _USE_ICU
     return ucol_strcoll(queryRTLLocale(locale)->queryCollator(strength), p1, l1, p2, l2);
+#else
+    return rtlCompareDataData(l1 * sizeof(UChar), p1, l2 * sizeof(UChar), p2);
+#endif
 }
 
 int rtlCompareVUnicodeVUnicode(UChar const * p1, UChar const * p2, char const * locale)
@@ -2515,20 +2593,28 @@ int rtlCompareVUnicodeVUnicodeStrength(UChar const * p1, UChar const * p2, char 
 
 void rtlKeyUnicodeX(unsigned & tlen, void * & tgt, unsigned slen, const UChar * src, const char * locale)
 {
+#ifdef _USE_ICU
     while(slen && u_isUWhiteSpace(src[slen-1])) slen--;
     UCollator * coll = queryRTLLocale(locale)->queryCollator();
     tlen = ucol_getSortKey(coll, src, slen, 0, 0);
     tgt = malloc(tlen);
     ucol_getSortKey(coll, src, slen, (unsigned char *)tgt, tlen);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlKeyUnicodeStrengthX(unsigned & tlen, void * & tgt, unsigned slen, const UChar * src, const char * locale, unsigned strength)
 {
+#ifdef _USE_ICU
     while(slen && u_isUWhiteSpace(src[slen-1])) slen--;
     UCollator * coll = queryRTLLocale(locale)->queryCollator(strength);
     tlen = ucol_getSortKey(coll, src, slen, 0, 0);
     tgt = malloc(tlen);
     ucol_getSortKey(coll, src, slen, (unsigned char *)tgt, tlen);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 ECLRTL_API int rtlPrefixDiffStr(unsigned l1, const char * p1, unsigned l2, const char * p2)
@@ -2556,6 +2642,7 @@ ECLRTL_API int rtlPrefixDiffStr(unsigned l1, const char * p1, unsigned l2, const
 //MORE: I'm not sure this can really be implemented....
 ECLRTL_API int rtlPrefixDiffUnicode(unsigned l1, const UChar * p1, unsigned l2, const UChar * p2, char const * locale)
 {
+#ifdef _USE_ICU
     while(l1 && u_isUWhiteSpace(p1[l1-1])) l1--;
     while(l2 && u_isUWhiteSpace(p2[l2-1])) l2--;
     unsigned len = l1 < l2 ? l1 : l2;
@@ -2575,6 +2662,9 @@ ECLRTL_API int rtlPrefixDiffUnicode(unsigned l1, const UChar * p1, unsigned l2, 
     if (l1 != l2)
         return (l1 < l2) ? -(int)(len+1) : (int)(len + 1);
     return 0;
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 
@@ -2594,26 +2684,38 @@ void rtlStringToUpper(size32_t l, char * t)
 
 void rtlUnicodeToLower(size32_t l, UChar * t, char const * locale)
 {
+#ifdef _USE_ICU
     UChar * buff = (UChar *)malloc(l*2);
     UErrorCode err = U_ZERO_ERROR;
     u_strToLower(buff, l, t, l, locale, &err);
     unicodeNormalizedCopy(buff, t, l);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlUnicodeToLowerX(size32_t & lenout, UChar * & out, size32_t l, const UChar * t, char const * locale)
 {
+#ifdef _USE_ICU
     out = (UChar *)malloc(l*2);
     lenout = l;
     UErrorCode err = U_ZERO_ERROR;
     u_strToLower(out, l, t, l, locale, &err);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlUnicodeToUpper(size32_t l, UChar * t, char const * locale)
 {
+#ifdef _USE_ICU
     UChar * buff = (UChar *)malloc(l*2);
     UErrorCode err = U_ZERO_ERROR;
     u_strToUpper(buff, l, t, l, locale, &err);
     unicodeNormalizedCopy(buff, t, l);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 //=============================================================================
@@ -2769,6 +2871,7 @@ int rtlNewSearchStringTable(unsigned count, unsigned elemlen, char * * table, un
 
 int rtlNewSearchUnicodeTable(unsigned count, unsigned elemlen, UChar * * table, unsigned width, const UChar * search, const char * locale)
 {
+#ifdef _USE_ICU
     UCollator * coll = queryRTLLocale(locale)->queryCollator();
     int left = 0;
     int right = count;
@@ -2788,11 +2891,15 @@ int rtlNewSearchUnicodeTable(unsigned count, unsigned elemlen, UChar * * table, 
             return mid;
     } while (left < right);
 
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
     return -1;
 }
 
 int rtlNewSearchVUnicodeTable(unsigned count, UChar * * table, const UChar * search, const char * locale)
 {
+#ifdef _USE_ICU
     UCollator * coll = queryRTLLocale(locale)->queryCollator();
     int left = 0;
     int right = count;
@@ -2809,6 +2916,9 @@ int rtlNewSearchVUnicodeTable(unsigned count, UChar * * table, const UChar * sea
             return mid;
     } while (left < right);
 
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
     return -1;
 }
 
@@ -2954,6 +3064,7 @@ void rtlStrToEStr(unsigned outlen, char *out, unsigned inlen, const char *in)
 
 void rtlCodepageToUnicode(unsigned outlen, UChar * out, unsigned inlen, char const * in, char const * codepage)
 {
+#ifdef _USE_ICU
     //If the input contains a character which doesn't exist in its claimed codepage, this will
     //generate U+FFFD (substitution character). This most likely won't be displayed.
     UConverter * conv = queryRTLUnicodeConverter(codepage)->query();
@@ -2961,10 +3072,14 @@ void rtlCodepageToUnicode(unsigned outlen, UChar * out, unsigned inlen, char con
     unsigned len = ucnv_toUChars(conv, out, outlen, in, inlen, &err);
     while(len<outlen) out[len++] = 0x0020;
     unicodeEnsureIsNormalized(outlen, out);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlCodepageToVUnicode(unsigned outlen, UChar * out, unsigned inlen, char const * in, char const * codepage)
 {
+#ifdef _USE_ICU
     //If the input contains a character which doesn't exist in its claimed codepage, this will
     //generate U+FFFD (substitution character). This most likely won't be displayed.
     UConverter * conv = queryRTLUnicodeConverter(codepage)->query();
@@ -2973,6 +3088,9 @@ void rtlCodepageToVUnicode(unsigned outlen, UChar * out, unsigned inlen, char co
     if (len >= outlen) len = outlen-1;
     out[len] = 0;
     vunicodeEnsureIsNormalized(outlen, out);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlVCodepageToUnicode(unsigned outlen, UChar * out, char const * in, char const * codepage)
@@ -2987,6 +3105,7 @@ void rtlVCodepageToVUnicode(unsigned outlen, UChar * out, char const * in, char 
 
 void rtlCodepageToUnicodeUnescape(unsigned outlen, UChar * out, unsigned inlen, char const * in, char const * codepage)
 {
+#ifdef _USE_ICU
     //If the input contains a character which doesn't exist in its claimed codepage, this will
     //generate U+FFFD (substitution character). This most likely won't be displayed.
     UnicodeString raw(in, inlen, codepage);
@@ -2998,10 +3117,14 @@ void rtlCodepageToUnicodeUnescape(unsigned outlen, UChar * out, unsigned inlen, 
     else if((unsigned)normalized.length()<outlen)
         normalized.padTrailing(outlen);
     normalized.extract(0, outlen, out);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlUnicodeToCodepage(unsigned outlen, char * out, unsigned inlen, UChar const * in, char const * codepage)
 {
+#ifdef _USE_ICU
     //If the unicode contains a character which doesn't exist in the destination codepage,
     //this will generate the SUBstitute control code (ASCII: 0x1A, EBCDIC-US: 0x3F). There's
     //no telling how your terminal may display this (I've seen a divide sign and a right
@@ -3011,10 +3134,14 @@ void rtlUnicodeToCodepage(unsigned outlen, char * out, unsigned inlen, UChar con
     unsigned len = ucnv_fromUChars(conv, (char *)out, outlen, in, inlen, &err);
     if(len<outlen)
         codepageBlankFill(codepage, out+len, outlen-len);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlUnicodeToData(unsigned outlen, void * out, unsigned inlen, UChar const * in)
 {
+#ifdef _USE_ICU
     //If the unicode contains a character which doesn't exist in the destination codepage,
     //this will generate the SUBstitute control code (ASCII: 0x1A, EBCDIC-US: 0x3F). There's
     //no telling how your terminal may display this (I've seen a divide sign and a right
@@ -3024,10 +3151,14 @@ void rtlUnicodeToData(unsigned outlen, void * out, unsigned inlen, UChar const *
     unsigned len = ucnv_fromUChars(conv, (char *)out, outlen, in, inlen, &err);
     if(len<outlen)
         memset((char *)out+len, 0, outlen-len);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlUnicodeToVCodepage(unsigned outlen, char * out, unsigned inlen, UChar const * in, char const * codepage)
 {
+#ifdef _USE_ICU
     //If the unicode contains a character which doesn't exist in the destination codepage,
     //this will generate the SUBstitute control code (ASCII: 0x1A, EBCDIC-US: 0x3F). There's
     //no telling how your terminal may display this (I've seen a divide sign and a right
@@ -3037,6 +3168,9 @@ void rtlUnicodeToVCodepage(unsigned outlen, char * out, unsigned inlen, UChar co
     unsigned len = ucnv_fromUChars(conv, (char *)out, outlen-1, in, inlen, &err);
     if (len >= outlen) len = outlen-1;
     out[len] = 0;
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlVUnicodeToCodepage(unsigned outlen, char * out, UChar const * in, char const * codepage)
@@ -3056,6 +3190,7 @@ void rtlVUnicodeToVCodepage(unsigned outlen, char * out, UChar const * in, char 
 
 void rtlCodepageToUnicodeX(unsigned & outlen, UChar * & out, unsigned inlen, char const * in, char const * codepage)
 {
+#ifdef _USE_ICU
     //If the input contains a character which doesn't exist in its claimed codepage, this will
     //generate U+FFFD (substitution character). This most likely won't be displayed.
     UConverter * conv = queryRTLUnicodeConverter(codepage)->query();
@@ -3064,10 +3199,14 @@ void rtlCodepageToUnicodeX(unsigned & outlen, UChar * & out, unsigned inlen, cha
     if(err==U_BUFFER_OVERFLOW_ERROR) err = U_ZERO_ERROR;
     out = (UChar *)malloc(outlen*2);
     ucnv_toUChars(conv, out, outlen, in, inlen, &err);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 UChar * rtlCodepageToVUnicodeX(unsigned inlen, char const * in, char const * codepage)
 {
+#ifdef _USE_ICU
     //If the input contains a character which doesn't exist in its claimed codepage, this will
     //generate U+FFFD (substitution character). This most likely won't be displayed.
     UConverter * conv = queryRTLUnicodeConverter(codepage)->query();
@@ -3079,6 +3218,9 @@ UChar * rtlCodepageToVUnicodeX(unsigned inlen, char const * in, char const * cod
     out[outlen] = 0x0000;
     vunicodeEnsureIsNormalizedX(outlen, out);
     return out;
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlVCodepageToUnicodeX(unsigned & outlen, UChar * & out, char const * in, char const * codepage)
@@ -3093,6 +3235,7 @@ UChar * rtlVCodepageToVUnicodeX(char const * in, char const * codepage)
 
 void rtlCodepageToUnicodeXUnescape(unsigned & outlen, UChar * & out, unsigned inlen, char const * in, char const * codepage)
 {
+#ifdef _USE_ICU
     //If the input contains a character which doesn't exist in its claimed codepage, this will
     //generate U+FFFD (substitution character). This most likely won't be displayed.
     UnicodeString raw(in, inlen, codepage);
@@ -3102,10 +3245,14 @@ void rtlCodepageToUnicodeXUnescape(unsigned & outlen, UChar * & out, unsigned in
     outlen = normalized.length();
     out = (UChar *)malloc(outlen*2);
     normalized.extract(0, outlen, out);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlUnicodeToCodepageX(unsigned & outlen, char * & out, unsigned inlen, UChar const * in, char const * codepage)
 {
+#ifdef _USE_ICU
     //If the unicode contains a character which doesn't exist in the destination codepage,
     //this will generate the SUBstitute control code (ASCII: 0x1A, EBCDIC-US: 0x3F). There's
     //no telling how your terminal may display this (I've seen a divide sign and a right
@@ -3116,6 +3263,9 @@ void rtlUnicodeToCodepageX(unsigned & outlen, char * & out, unsigned inlen, UCha
     if(err == U_BUFFER_OVERFLOW_ERROR) err = U_ZERO_ERROR;
     out = (char *)malloc(outlen);
     ucnv_fromUChars(conv, out, outlen, in, inlen, &err);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlUnicodeToDataX(unsigned & outlen, void * & out, unsigned inlen, UChar const * in)
@@ -3125,6 +3275,7 @@ void rtlUnicodeToDataX(unsigned & outlen, void * & out, unsigned inlen, UChar co
 
 char * rtlUnicodeToVCodepageX(unsigned inlen, UChar const * in, char const * codepage)
 {
+#ifdef _USE_ICU
     //If the unicode contains a character which doesn't exist in the destination codepage,
     //this will generate the SUBstitute control code (ASCII: 0x1A, EBCDIC-US: 0x3F). There's
     //no telling how your terminal may display this (I've seen a divide sign and a right
@@ -3137,6 +3288,9 @@ char * rtlUnicodeToVCodepageX(unsigned inlen, UChar const * in, char const * cod
     ucnv_fromUChars(conv, out, outlen, in, inlen, &err);
     out[outlen] = 0x00;
     return out;
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void rtlVUnicodeToCodepageX(unsigned & outlen, char * & out, UChar const * in, char const * codepage)
@@ -3180,16 +3334,21 @@ void rtlUnicodeToEscapedStrX(unsigned & outlen, char * & out, unsigned inlen, UC
 
 void rtlUnicodeToQuotedUTF8X(unsigned & outlen, char * & out, unsigned inlen, UChar const * in)
 {
+#ifdef _USE_ICU
     UnicodeString unicode(in, inlen);
     unicode.findAndReplace("'", "\\'");
     //pre-flight length - may be more efficient to guess length and only re-extract if guess no good, but what to guess?
     outlen = unicode.extract(0, unicode.length(), 0, 0, UTF8_CODEPAGE);
     out = (char *)malloc(outlen);
     unicode.extract(0, unicode.length(), out, outlen, UTF8_CODEPAGE);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 bool rtlCodepageToCodepage(unsigned outlen, char * out, unsigned inlen, char const * in, char const * outcodepage, char const * incodepage)
 {
+#ifdef _USE_ICU
     UConverter * inconv = queryRTLUnicodeConverter(incodepage)->query();
     UConverter * outconv = queryRTLUnicodeConverter(outcodepage)->query();
     UErrorCode err = U_ZERO_ERROR;
@@ -3199,10 +3358,14 @@ bool rtlCodepageToCodepage(unsigned outlen, char * out, unsigned inlen, char con
     if(len < outlen)
         codepageBlankFill(outcodepage, target, outlen-len);
     return U_SUCCESS(err);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 bool rtlCodepageToCodepageX(unsigned & outlen, char * & out, unsigned maxoutlen, unsigned inlen, char const * in, char const * outcodepage, char const * incodepage)
 {
+#ifdef _USE_ICU
     UConverter * inconv = queryRTLUnicodeConverter(incodepage)->query();
     UConverter * outconv = queryRTLUnicodeConverter(outcodepage)->query();
     UErrorCode err = U_ZERO_ERROR;
@@ -3222,10 +3385,14 @@ bool rtlCodepageToCodepageX(unsigned & outlen, char * & out, unsigned maxoutlen,
             out = tempBuffer;
     }
     return U_SUCCESS(err);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 int rtlSingleUtf8ToCodepage(char * out, unsigned inlen, char const * in, char const * outcodepage)
 {
+#ifdef _USE_ICU
     if(!U8_IS_LEAD(*in))
         return -1;
     uint8_t trailbytes = U8_COUNT_TRAIL_BYTES(*in);
@@ -3234,6 +3401,9 @@ int rtlSingleUtf8ToCodepage(char * out, unsigned inlen, char const * in, char co
     if(!rtlCodepageToCodepage(1, out, trailbytes+1, in, outcodepage, UTF8_CODEPAGE))
         return -1;
     return static_cast<int>(trailbytes); //cast okay as is certainly 0--3
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 //---------------------------------------------------------------------------
@@ -4134,7 +4304,14 @@ void rtlDecPushUnicode(size32_t len, UChar const * data)
 
 unsigned rtlUnicodeStrlen(UChar const * str)
 {
+#ifdef _USE_ICU
     return u_strlen(str);
+#else
+    unsigned len = 0;
+    while (*str++)
+        len++;
+    return len;
+#endif
 }
 
 //---------------------------------------------------------------------------
@@ -4435,6 +4612,7 @@ ECLRTL_API void rtlUtf8ToLower(size32_t l, char * t, char const * locale)
 
 ECLRTL_API void rtlConcatUtf8(unsigned & tlen, char * * tgt, ...)
 {
+#ifdef _USE_ICU
     //Going to have to go via unicode because of normalization.  However, it might be worth optimizing the case where no special characters are present
     va_list args;
 
@@ -4473,6 +4651,9 @@ ECLRTL_API void rtlConcatUtf8(unsigned & tlen, char * * tgt, ...)
     va_end(args);
 
     rtlUnicodeToUtf8X(tlen, *tgt, idx, result.getustr());
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 ECLRTL_API unsigned rtlConcatUtf8ToUtf8(unsigned tlen, char * tgt, unsigned offset, unsigned slen, const char * src)
@@ -4703,6 +4884,8 @@ ECLRTL_API void rtlDestroyStrRegExprFindInstance(IStrRegExprFindInstance * findI
 
 //---------------------------------------------------------------------------
 
+#ifdef _USE_ICU
+
 // RegEx Compiler for unicode strings 
 
 class CUStrRegExprFindInstance : implements IUStrRegExprFindInstance
@@ -4854,6 +5037,21 @@ ECLRTL_API void rtlDestroyUStrRegExprFindInstance(IUStrRegExprFindInstance * fin
     if (findInst)
         delete (CUStrRegExprFindInstance*)findInst;
 }
+#else
+ECLRTL_API ICompiledUStrRegExpr * rtlCreateCompiledUStrRegExpr(const UChar * regExpr, bool isCaseSensitive)
+{
+    UNIMPLEMENTED_X("Unicode not supported");
+    return NULL;
+}
+
+ECLRTL_API void rtlDestroyCompiledUStrRegExpr(ICompiledUStrRegExpr * compiledExpr)
+{
+}
+
+ECLRTL_API void rtlDestroyUStrRegExprFindInstance(IUStrRegExprFindInstance * findInst)
+{
+}
+#endif
 
 #else // _USE_BOOST_REGEX not set
 ECLRTL_API ICompiledStrRegExpr * rtlCreateCompiledStrRegExpr(const char * regExpr, bool isCaseSensitive)
@@ -5064,6 +5262,8 @@ ECLRTL_API size32_t rtlCountToSize(unsigned count, const void * data, IRecordSiz
 
 //---------------------------------------------------------------------------
 
+#ifdef _USE_ICU
+
 class rtlCodepageConverter
 {
 public:
@@ -5144,6 +5344,29 @@ unsigned rtlCodepageConvert(void * converter, unsigned targetLength, char * targ
 {
     return ((rtlCodepageConverter *)converter)->convert(targetLength, target, sourceLength, source, failed);
 }
+
+#else
+
+void * rtlOpenCodepageConverter(char const * sourceName, char const * targetName, bool & failed)
+{
+    UNIMPLEMENTED_X("Unicode not supported");
+}
+
+void rtlCloseCodepageConverter(void * converter)
+{
+}
+
+void rtlCodepageConvertX(void * converter, unsigned & targetLength, char * & target, unsigned sourceLength, char const * source, bool & failed, bool preflight)
+{
+    UNIMPLEMENTED_X("Unicode not supported");
+}
+
+unsigned rtlCodepageConvert(void * converter, unsigned targetLength, char * target, unsigned sourceLength, char const * source, bool & failed)
+{
+    UNIMPLEMENTED_X("Unicode not supported");
+}
+
+#endif
 
 //---------------------------------------------------------------------------
 

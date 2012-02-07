@@ -15,9 +15,7 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ############################################################################## */
-#ifndef U_OVERRIDE_CXX_ALLOCATION
-#define U_OVERRIDE_CXX_ALLOCATION 0 // Enabling this forces all allocation of ICU objects to ICU's heap, but is incompatible with jmemleak
-#endif
+
 #include "jliball.hpp"
 #include "hqlexpr.hpp"
 #include "hqlcerrors.hpp"
@@ -31,8 +29,6 @@
 #include "hqlutil.hpp"
 #include "hqltcppc.hpp"
 #include "hqlcpputil.hpp"
-
-#include "unicode/uchar.h"
 
 #define DEFAULT_NLP_DETAIL              1
 #define DEFAULT_PATTERN_MAX_LENGTH      4096

@@ -23,10 +23,14 @@
 #include "junicode.hpp"
 #include "eclhelper.hpp"
 
-#include "unicode/uchar.h"
-
 #include "csvsplitter.hpp"
 #include "eclrtl.hpp"
+
+#ifdef _USE_ICU
+#include "unicode/uchar.h"
+#else
+inline bool u_isspace(unsigned c) { return (c == ' '); }
+#endif
 
 CSVSplitter::CSVSplitter()
 {

@@ -26,12 +26,13 @@
 #include "eclrtl.hpp"
 #include "thorcommon.ipp"
 
+#ifdef _USE_ICU
 #include "unicode/utf.h"
 #include "unicode/uchar.h"
 #include "unicode/schriter.h"
 #include "unicode/coll.h"
 #include "unicode/ustring.h"
-
+#endif
 
 #ifdef TRACE_REGEX
 #define MATCH   traceMatch
@@ -129,6 +130,7 @@ bool isUnicodeMatch(unsigned code, unsigned next)
 {
     switch (code)
     {
+#ifdef _USE_ICU
     case RCCalnum: return u_isalnum(next) != 0;
     case RCCcntrl: return u_iscntrl(next) != 0;
     case RCClower: return u_islower(next) != 0;
@@ -141,6 +143,7 @@ bool isUnicodeMatch(unsigned code, unsigned next)
     case RCCgraph: return u_isprint(next) && !u_isspace(next);
     case RCCpunct: return u_isprint(next) && !(u_isspace(next) || u_isalnum(next));
     case RCCxdigit: return (next < 128) && isxdigit(next);          // should be good enough.
+#endif
     case RCCany:   return true;
     default:
         UNIMPLEMENTED;
@@ -858,12 +861,16 @@ RegexMatchAction RegexEndRecursivePattern::beginMatch(RegexState & state)
 
 void encodeUnicode(StringBuffer & out, size32_t len, const UChar * text)
 {
+#ifdef _USE_ICU
     UnicodeString unicode(text, len);
     unsigned len8 = unicode.extract(0, unicode.length(), 0, 0, "UTF-8");
     char * text8 = (char *)malloc(len8);
     unicode.extract(0, unicode.length(), text8, len8, "UTF-8");
     encodeXML(text8, out, ENCODE_WHITESPACE, len8, true);
     free(text8);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 
@@ -925,6 +932,7 @@ RegexMatchAction RegexUnicodePattern::beginMatch(RegexState & state)
 
 RegexUnicodeIPattern::RegexUnicodeIPattern(unsigned _len, const UChar * _text)
 {
+#ifdef _USE_ICU
     UChar * curLower = (UChar *)lower.allocate(_len*2);
     UChar * curUpper = (UChar *)upper.allocate(_len*2);
     for (unsigned i = 0; i< _len; i++)
@@ -932,7 +940,9 @@ RegexUnicodeIPattern::RegexUnicodeIPattern(unsigned _len, const UChar * _text)
         curLower[i] = (UChar)u_tolower(_text[i]);
         curUpper[i] = (UChar)u_toupper(_text[i]);
     }
-
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void RegexUnicodeIPattern::serializePattern(MemoryBuffer & out)
@@ -1003,6 +1013,7 @@ RegexMatchAction RegexUnicodeIPattern::beginMatch(RegexState & state)
 
 RegexUnicodeFIPattern::RegexUnicodeFIPattern(unsigned _len, const UChar * _text)
 {
+#ifdef _USE_ICU
     MemoryBuffer foldedBuffer;
 
     UChar temp[2];
@@ -1013,10 +1024,14 @@ RegexUnicodeFIPattern::RegexUnicodeFIPattern(unsigned _len, const UChar * _text)
         foldedBuffer.append(foldLen, &temp);
     }
     folded.set(foldedBuffer.length(), foldedBuffer.toByteArray());
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 bool RegexUnicodeFIPattern::doMatch(RegexState & state)
 {
+#ifdef _USE_ICU
     const UChar * cur = (const UChar *)state.cur;
     const UChar * end = (const UChar *)state.end;
 
@@ -1045,6 +1060,9 @@ bool RegexUnicodeFIPattern::doMatch(RegexState & state)
             return true;
         }
     }
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
     return false;
 }
 
@@ -1123,6 +1141,7 @@ RegexMatchAction RegexUtf8Pattern::beginMatch(RegexState & state)
 
 RegexUtf8IPattern::RegexUtf8IPattern(unsigned _len, const char * _text)
 {
+#ifdef _USE_ICU
     //Store unicode lowercase and uppercase versions, and compare the incoming utf a character at a time.
     UChar * curLower = (UChar *)lower.allocate(_len*sizeof(UChar));
     UChar * curUpper = (UChar *)upper.allocate(_len*sizeof(UChar));
@@ -1134,7 +1153,9 @@ RegexUtf8IPattern::RegexUtf8IPattern(unsigned _len, const char * _text)
         curLower[i] = (UChar)u_tolower(next);
         curUpper[i] = (UChar)u_toupper(next);
     }
-
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void RegexUtf8IPattern::serializePattern(MemoryBuffer & out)
@@ -1336,6 +1357,7 @@ RegexUnicodeSetPattern::RegexUnicodeSetPattern(bool _caseSensitive)
 
 void RegexUnicodeSetPattern::addRange(unsigned low, unsigned high)
 {
+#ifdef _USE_ICU
     if (!caseSensitive)
     {
         //This isn't really good enough - probably need to use string for the high and low values to allow collation
@@ -1353,6 +1375,9 @@ void RegexUnicodeSetPattern::addRange(unsigned low, unsigned high)
     }
     from.append(low);
     to.append(high);
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
 }
 
 void RegexUnicodeSetPattern::setInvert(bool value)
@@ -1362,6 +1387,7 @@ void RegexUnicodeSetPattern::setInvert(bool value)
 
 bool RegexUnicodeSetPattern::doMatch(RegexState & state)
 {
+#ifdef _USE_ICU
     const byte * cur = (const byte *)state.cur;
     const byte * end = (const byte *)state.end;
 
@@ -1408,6 +1434,9 @@ bool RegexUnicodeSetPattern::doMatch(RegexState & state)
             return true;
         }
     }
+#else
+    UNIMPLEMENTED_X("Unicode not supported");
+#endif
     return false;
 }
 
