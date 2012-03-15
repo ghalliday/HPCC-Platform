@@ -3451,6 +3451,9 @@ void CHqlExpression::updateFlagsAfterOperands()
                 infoFlags |= HEFvolatile;
             break;
         }
+    case no_outofline:
+        infoFlags &= ~HEFunbound;
+        break;
     }
 
 #ifdef VERIFY_EXPR_INTEGRITY
@@ -3701,6 +3704,10 @@ void CHqlExpression::onAppendOperand(IHqlExpression & child, unsigned whichOpera
     case no_param:          // don't inherit attributes of default values in the function body.
     case no_nameof:
         updateFlags = false;
+        break;
+    case no_funcdef:
+        if (whichOperand == 1)
+            return;
         break;
 #ifdef _DEBUG
     case no_transform:

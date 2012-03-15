@@ -543,6 +543,8 @@ inline IHqlExpression * getGlobalSortOrder(IHqlExpression * expr)
 
 extern HQL_API IHqlExpression * mapJoinDistribution(TableProjectMapper & mapper, IHqlExpression * distribution, IHqlExpression * side)
 {
+    if (!distribution || !distribution->isFullyBound())
+        return NULL;
     bool doneAll = false;
     IHqlExpression * activeSelector = queryActiveTableSelector();
     OwnedHqlExpr mapped = mapper.collapseFields(distribution, activeSelector, activeSelector, side, &doneAll);
@@ -556,6 +558,8 @@ extern HQL_API IHqlExpression * mapDistribution(IHqlExpression * distribution, T
 {
     if (!distribution) 
         return NULL;
+    if (!distribution->isFullyBound())
+        return getUnknownAttribute();
 
     bool matchedAll = false;
     IHqlExpression * activeSelector = queryActiveTableSelector();
@@ -570,6 +574,8 @@ extern HQL_API IHqlExpression * mapSortOrder(IHqlExpression * order, TableProjec
 {
     if (!order)
         return NULL;
+    if (!order->isFullyBound())
+        return getUnknownSortlist();
 
     IHqlExpression * activeSelector = queryActiveTableSelector();
     HqlExprArray newComponents;
@@ -600,6 +606,8 @@ extern HQL_API IHqlExpression * mapGroup(IHqlExpression * grouping, TableProject
 {
     if (!grouping)
         return grouping;
+    if (!grouping->isFullyBound())
+        return LINK(grouping);
 
     assertex(grouping->getOperator() == no_sortlist);
     IHqlExpression * activeSelector = queryActiveTableSelector();
