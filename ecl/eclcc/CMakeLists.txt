@@ -27,6 +27,7 @@ project( eclcc )
 
 set (    SRCS
          eclcc.hpp
+         partition.cpp
          eclcc.cpp
     )
 

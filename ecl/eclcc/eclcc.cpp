@@ -406,6 +406,8 @@ protected:
 
 //=========================================================================================
 
+extern void testPartition();
+
 static int doSelfTest(int argc, const char *argv[])
 {
 #ifdef _USE_CPPUNIT
@@ -444,6 +446,12 @@ static int doMain(int argc, const char *argv[])
 {
     if (argc>=2 && stricmp(argv[1], "-selftest")==0)
         return doSelfTest(argc, argv);
+
+    if (argc>=2 && stricmp(argv[1], "-partition")==0)
+    {
+        testPartition();
+        return 0;
+    }
 
     EclCC processor(argc, argv);
     try
