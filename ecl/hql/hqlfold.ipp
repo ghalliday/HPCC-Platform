@@ -103,6 +103,8 @@ protected:
         return transform(transformed);
     }
 
+    IHqlExpression * doFoldMap(IHqlExpression * expr, IHqlExpression * original);
+
 private:
 //Null folder helpers.
     virtual IHqlExpression * removeParentNode(IHqlExpression * expr);

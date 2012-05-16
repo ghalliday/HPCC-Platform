@@ -1197,6 +1197,93 @@ void mergeWithins(node_operator op, HqlExprArray & transformedArgs)
     }
 }
 
+static bool containsBackReference(const char * text)
+{
+    const char * cur = text;
+    loop
+    {
+        byte next = *cur++;
+        if (!next)
+            return false;
+        if (next == '\\')
+        {
+            if (isdigit(*cur))
+                return true;
+            //Don't mis-interpret second '\' in a '\\'
+            if (*cur == '\\')
+                cur++;
+        }
+    }
+}
+
+bool isMergeableRegex(IHqlExpression * expr, IHqlExpression * search)
+{
+    //MORE: This should take into account whether the regexfind is used elsewhere.
+    if (expr->getOperator() != no_regex_find)
+        return false;
+
+    if (search && (expr->queryChild(1) != search))
+        return false;
+
+    assertex(expr->isBoolean());
+
+    IHqlExpression * pattern = expr->queryChild(0);
+    if (!pattern->queryValue())
+        return false;
+
+    //MORE: The code should also work with unicode strings.
+    if (pattern->queryType()->getTypeCode() != type_string)
+        return false;
+
+    //It doesn't matter if unicode is concerted to a string - a back reference still has the same format
+    StringBuffer patternText;
+    getStringValue(patternText, pattern, NULL);
+    if (containsBackReference(patternText.str()))
+        return false;
+    return true;
+}
+
+
+static void mergeRegexFind(HqlExprArray & args)
+{
+    for (unsigned idx = 0; idx < args.ordinality(); idx++)
+    {
+        IHqlExpression & cur = args.item(idx);
+        if (isMergeableRegex(&cur, NULL))
+        {
+            IHqlExpression * pattern = cur.queryChild(0);
+            IHqlExpression * search = cur.queryChild(1);
+            OwnedITypeInfo patternType = getStretchedType(UNKNOWN_LENGTH, pattern->queryType());
+            HqlExprArray patterns;
+
+            for (unsigned j = idx+1; j < args.ordinality(); )
+            {
+                IHqlExpression & next = args.item(j);
+                if (isMergeableRegex(&next, search))
+                {
+                    if (patterns.ordinality() == 0)
+                    {
+                        patterns.append(*createConstant(patternType->castFrom(1, "(")));
+                        patterns.append(*LINK(pattern));
+                    }
+                    patterns.append(*createConstant(patternType->castFrom(1, "|")));
+                    patterns.append(*LINK(next.queryChild(0)));
+                    args.remove(j);
+                }
+                else
+                    j++;
+            }
+
+            if (patterns.ordinality())
+            {
+                patterns.append(*createConstant(patternType->castFrom(1, ")")));
+                OwnedHqlExpr concat = createBalanced(no_concat, patternType, patterns);
+                OwnedHqlExpr regexfind = replaceChild(&cur, 0, concat);
+                args.replace(*regexfind.getClear(), idx);
+            }
+        }
+    }
+}
 
 IHqlExpression * foldOrExpr(IHqlExpression * expr, bool fold_x_op_not_x)
 {
@@ -1344,6 +1431,7 @@ IHqlExpression * foldOrExpr(IHqlExpression * expr, bool fold_x_op_not_x)
     }
 #endif
 
+    mergeRegexFind(transformedArgs);
     //mergeWithins(no_or, transformedArgs);
 
     if (arraysSame(args, transformedArgs))
@@ -1615,6 +1703,123 @@ static IHqlExpression * foldHashXX(IHqlExpression * expr)
     return createConstant(expr->queryType()->castFrom(true, (__int64)hashCode));
 }
 
+
+//---------------------------------------------------------------------------
+
+IHqlExpression * foldMapOperator(IHqlExpression * expr, unsigned foldOptions, ITemplateContext * templateContext)
+{
+    assertex(expr->numChildren()>=1);
+    unsigned num = expr->numChildren()-1;
+
+    LinkedHqlExpr defaultResult = expr->queryChild(num);
+    HqlExprArray args;
+    bool allAreIn = true;
+    bool changed = false;
+    IHqlExpression * allTestField = NULL;
+    for (unsigned idx = 0; idx < num; idx++)
+    {
+        IHqlExpression * child = expr->queryChild(idx);
+        IHqlExpression * cond = child->queryChild(0);
+        IValue * value = cond->queryValue();
+        if (value)
+        {
+            changed = true;
+            if (value->getBoolValue())
+            {
+                //New default condition - don't check any more arguments.
+                defaultResult.set(child->queryChild(1));
+                break;
+            }
+            //otherwise ignore that argument...
+        }
+        else if (isDuplicateMapCondition(args, cond))
+        {
+            //Can occur when other earlier conditions have been simplified by constant foldeding
+            changed = true;
+        }
+        else
+        {
+            if (allAreIn && (cond->getOperator() == no_in))
+            {
+                IHqlExpression * condSearch = cond->queryChild(0);
+                IHqlExpression * condSet = cond->queryChild(1);
+                if ((allTestField && (allTestField != condSearch)) || !condSet->isConstant() || (condSet->getOperator() != no_list))
+                    allAreIn = false;
+                else
+                    allTestField = condSearch;
+            }
+            else if (allAreIn && (cond->getOperator() == no_eq))
+            {
+                IHqlExpression * condSearch = cond->queryChild(0);
+                IHqlExpression * condSet = cond->queryChild(1);
+                if ((allTestField && (allTestField != condSearch)) || (condSet->getOperator() != no_constant))
+                    allAreIn = false;
+                else
+                    allTestField = condSearch;
+            }
+            else
+                allAreIn = false;
+
+            args.append(*LINK(child));
+        }
+    }
+
+    //If no conditions yet, then the true value is the result, otherwise it is the default...
+    if (args.ordinality() == 0 || areIndenticalMapResults(args, defaultResult))
+        return defaultResult.getLink();
+
+    if (allAreIn)
+    {
+        //Transform this map to a case - it will be much more efficient.
+        HqlExprArray args2;
+        CopyArray alreadyDone;
+        args2.append(*LINK(allTestField));
+        ForEachItemIn(i, args)
+        {
+            IHqlExpression & cur = args.item(i);
+            IHqlExpression * cond = cur.queryChild(0);
+            IHqlExpression * condValue = cond->queryChild(1);
+            IHqlExpression * mapValue = cur.queryChild(1);
+            if (cond->getOperator() == no_in)
+            {
+                ForEachChild(j, condValue)
+                {
+                    IHqlExpression * value = condValue->queryChild(j);
+                    if (alreadyDone.find(*value) == NotFound)
+                    {
+                        alreadyDone.append(*value);
+                        args2.append(*createValue(no_mapto, LINK(value), LINK(mapValue)));
+                    }
+                }
+            }
+            else
+            {
+                if (alreadyDone.find(*condValue) == NotFound)
+                {
+                    alreadyDone.append(*condValue);
+                    args2.append(*createValue(no_mapto, LINK(condValue), LINK(mapValue)));
+                }
+            }
+        }
+        args2.append(*defaultResult.getLink());
+        return createWrapper(no_case, expr->queryType(), args2);
+    }
+    if (changed)
+    {
+        args.append(*defaultResult.getLink());
+        return expr->clone(args);
+    }
+
+#if 0
+    //This is a sensible change - but it causes a bit too much code to be included in expressions at the moment
+    if (num == 1)
+    {
+        IHqlExpression * child = expr->queryChild(0);
+        return createIf(LINK(child->queryChild(0)), LINK(child->queryChild(1)), LINK(expr->queryChild(1)));
+    }
+#endif
+    return LINK(expr);
+}
 
 //---------------------------------------------------------------------------
 
@@ -2610,119 +2815,7 @@ IHqlExpression * foldConstantOperator(IHqlExpression * expr, unsigned foldOption
             break;
         }
     case no_map:
-        {
-            assertex(expr->numChildren()>=1);
-            unsigned num = expr->numChildren()-1; 
-            
-            LinkedHqlExpr defaultResult = expr->queryChild(num);
-            HqlExprArray args;
-            bool allAreIn = true;
-            bool changed = false;
-            IHqlExpression * allTestField = NULL;
-            for (unsigned idx = 0; idx < num; idx++)
-            {
-                IHqlExpression * child = expr->queryChild(idx);
-                IHqlExpression * cond = child->queryChild(0);
-                IValue * value = cond->queryValue();
-                if (value)
-                {
-                    changed = true;
-                    if (value->getBoolValue())
-                    {
-                        //New default condition - don't check any more arguments.
-                        defaultResult.set(child->queryChild(1));
-                        break;
-                    }
-                    //otherwise ignore that argument...
-                }
-                else if (isDuplicateMapCondition(args, cond))
-                {
-                    //Can occur when other earlier conditions have been simplified by constant foldeding
-                    changed = true;
-                }
-                else
-                {
-                    if (allAreIn && (cond->getOperator() == no_in))
-                    {
-                        IHqlExpression * condSearch = cond->queryChild(0);
-                        IHqlExpression * condSet = cond->queryChild(1);
-                        if ((allTestField && (allTestField != condSearch)) || !condSet->isConstant() || (condSet->getOperator() != no_list))
-                            allAreIn = false;
-                        else
-                            allTestField = condSearch;
-                    }
-                    else if (allAreIn && (cond->getOperator() == no_eq))
-                    {
-                        IHqlExpression * condSearch = cond->queryChild(0);
-                        IHqlExpression * condSet = cond->queryChild(1);
-                        if ((allTestField && (allTestField != condSearch)) || (condSet->getOperator() != no_constant))
-                            allAreIn = false;
-                        else
-                            allTestField = condSearch;
-                    }
-                    else
-                        allAreIn = false;
-
-                    args.append(*LINK(child));
-                }
-            }
-
-            //If no conditions yet, then the true value is the result, otherwise it is the default...
-            if (args.ordinality() == 0 || areIndenticalMapResults(args, defaultResult))
-                return defaultResult.getLink();
-
-            if (allAreIn)
-            {
-                //Transform this map to a case - it will be much more efficient.
-                HqlExprArray args2;
-                CopyArray alreadyDone;
-                args2.append(*LINK(allTestField));
-                ForEachItemIn(i, args)
-                {
-                    IHqlExpression & cur = args.item(i);
-                    IHqlExpression * cond = cur.queryChild(0);
-                    IHqlExpression * condValue = cond->queryChild(1);
-                    IHqlExpression * mapValue = cur.queryChild(1);
-                    if (cond->getOperator() == no_in)
-                    {
-                        ForEachChild(j, condValue)
-                        {
-                            IHqlExpression * value = condValue->queryChild(j);
-                            if (alreadyDone.find(*value) == NotFound)
-                            {
-                                alreadyDone.append(*value);
-                                args2.append(*createValue(no_mapto, LINK(value), LINK(mapValue)));
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (alreadyDone.find(*condValue) == NotFound)
-                        {
-                            alreadyDone.append(*condValue);
-                            args2.append(*createValue(no_mapto, LINK(condValue), LINK(mapValue)));
-                        }
-                    }
-                }
-                args2.append(*defaultResult.getLink());
-                return createWrapper(no_case, expr->queryType(), args2);
-            }
-            if (changed)
-            {
-                args.append(*defaultResult.getLink());
-                return expr->clone(args);
-            }
-
-#if 0
-            //This is a sensible change - but it causes a bit too much code to be included in expressions at the moment
-            if (num == 1)
-            {
-                IHqlExpression * child = expr->queryChild(0);
-                return createIf(LINK(child->queryChild(0)), LINK(child->queryChild(1)), LINK(expr->queryChild(1)));
-            }
-#endif
-            return LINK(expr);
-        }
+        return foldMapOperator(expr, foldOptions, templateContext);
     case no_between:
     case no_notbetween:
         {
@@ -4221,6 +4314,70 @@ void HqlConstantPercolator::initTransformer(IHqlExpression * selector, ConstantR
     }
 }
 
+//---------------------------------------------------------------------------------------------------------------------
+
+//Convert map(a=>true,b=>true,X) => a or b or X
+//Convert map(a=>false,b=>false,X) => !(a or b or !X)
+IHqlExpression * CExprFolderTransformer::doFoldMap(IHqlExpression * expr, IHqlExpression * original)
+{
+    if (!expr->isBoolean())
+        return LINK(expr);
+
+    unsigned numValues = expr->numChildren()-1;
+    if (numValues == 0)
+        return LINK(expr);
+
+    IHqlExpression * firstMap = expr->queryChild(0);
+    IHqlExpression * firstValue = firstMap->queryChild(1)->queryBody();
+    if (!firstValue->queryValue())
+        return LINK(expr);
+
+    for (unsigned i=1; i < numValues; i++)
+    {
+        IHqlExpression * mapto = expr->queryChild(i);
+        IHqlExpression * mapValue = mapto->queryChild(1);
+        if (mapValue->queryBody() != firstValue)
+            return LINK(expr);
+    }
+
+    //All of the form a=>sameValue.  Convert to (a || b || c || d)
+    bool invert = getBoolValue(firstValue, false) == false;
+    HqlExprArray values;
+    for (unsigned i1=0; i1 < numValues; i1++)
+    {
+        IHqlExpression * mapto = expr->queryChild(i1);
+        IHqlExpression * mapcond = mapto->queryChild(0);
+        values.append(*LINK(mapcond));
+    }
+
+    IHqlExpression * defaultValue = expr->queryChild(numValues);
+    LinkedHqlExpr mappedDefault;
+    if (invert)
+        mappedDefault.setown(getInverse(defaultValue));
+    else
+        mappedDefault.set(defaultValue);
+
+    if (mappedDefault->queryValue())
+    {
+        //If true then whole OR expression is true.
+        if (getBoolValue(mappedDefault, false))
+        {
+            if (invert)
+                return getInverse(mappedDefault);
+            return mappedDefault.getClear();
+        }
+        //If false then don't include in the OR
+    }
+    else
+        values.append(*LINK(defaultValue));
+
+    OwnedHqlExpr result = createBalanced(no_or, expr->queryType(), values);
+    if (invert)
+        return getInverse(result);
+    return result.getClear();
+}
+
+
 IHqlExpression * CExprFolderTransformer::doFoldTransformed(IHqlExpression * unfolded, IHqlExpression * original)
 {   
     IHqlExpression * nullFolded = foldNullDataset(unfolded);
@@ -4700,6 +4857,8 @@ IHqlExpression * CExprFolderTransformer::doFoldTransformed(IHqlExpression * unfo
         if (getBoolValue(expr->queryChild(0), false))
             return createValue(no_null, makeVoidType());
         break;
+    case no_map:
+        return doFoldMap(expr, original);
     }
 
     return LINK(expr);
