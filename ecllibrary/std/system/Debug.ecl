@@ -5,8 +5,8 @@
 /* Some internal functions implemented in the run time support library which can be useful */
 
 rtl := SERVICE
- unsigned4 msTick() :       eclrtl,library='eclrtl',entrypoint='rtlTick';
- unsigned4 sleep(unsigned4 _delay) : eclrtl,library='eclrtl',entrypoint='rtlSleep';
+ unsigned4 msTick() :       eclrtl,volatile,library='eclrtl',entrypoint='rtlTick';
+ unsigned4 sleep(unsigned4 _delay) : eclrtl,action,library='eclrtl',entrypoint='rtlSleep';
 END;
 
 import lib_parselib;

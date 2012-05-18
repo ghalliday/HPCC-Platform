@@ -678,8 +678,10 @@ public:
     void addActiveParameterOwn(const attribute & errpos, IHqlExpression * expr, IHqlExpression * defaultValue);
     void gatherActiveParameters(HqlExprCopyArray & target);
 
-
-    IHqlExpression * createUniqueId();  
+    IHqlExpression * createVolatileId() { return createUniqueId(_volatileId_Atom); }
+    IHqlExpression * createUniqueId() { return createUniqueId(_uid_Atom); }
+    IHqlExpression * createUniqueId(_ATOM name);
+    IHqlExpression * doCreateUniqueSelectorSequence();
 
     void onOpenBra();
     void onCloseBra();

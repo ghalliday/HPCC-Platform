@@ -1160,6 +1160,7 @@ public:
     void doBuildAssignUnicodeOrder(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr);
     void doBuildAssignRegexFindReplace(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr);
     void doBuildAssignSubString(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr);
+    void doBuildAssignSysFunc(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr, IAtom * funcName);
     void doBuildAssignToXml(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr);
     void doBuildAssignTrim(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr);
     void doBuildAssignWhich(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr);
@@ -1313,6 +1314,7 @@ public:
     void buildWorkflowPersistCheck(BuildCtx & ctx, IHqlExpression * expr);
 
     IHqlExpression * cvtGetEnvToCall(IHqlExpression * expr);
+    IHqlExpression * bindExprSysFunc(IHqlExpression * expr, IAtom * funcName);
 
 //Statements
     void doBuildStmtApply(BuildCtx & ctx, IHqlExpression * expr);

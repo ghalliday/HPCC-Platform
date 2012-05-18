@@ -612,7 +612,7 @@ IHqlExpression * HqlGram::endFunctionCall()
     return ret.getClear();
 }
 
-IHqlExpression * HqlGram::createUniqueId()
+IHqlExpression * HqlGram::createUniqueId(_ATOM name)
 {
     HqlExprArray args;
     ForEachItemIn(i, defineScopes)
@@ -624,9 +624,9 @@ IHqlExpression * HqlGram::createUniqueId()
     if (args.ordinality())
     {
         args.add(*::createUniqueId(), 0);
-        return createExprAttribute(_uid_Atom, args);
+        return createExprAttribute(name, args);
     }
-    return ::createUniqueId();
+    return ::createUniqueId(name);
 }
 
 IHqlExpression * HqlGram::createActiveSelectorSequence(IHqlExpression * left, IHqlExpression * right)
@@ -3463,7 +3463,7 @@ IHqlExpression* HqlGram::checkServiceDef(IHqlScope* serviceScope,_ATOM name, IHq
                 bcdApi = true;
                 checkSvcAttrNoValue(attr, errpos);
             }
-            else if (name == pureAtom || name == templateAtom || name == volatileAtom || name == onceAtom || name == actionAtom)
+            else if (name == pureAtom || name == templateAtom || name == volatileAtom || name == onceAtom || name == actionAtom || name == noMoveAtom || name == failAtom)
             {
                 checkSvcAttrNoValue(attr, errpos);
             }
@@ -5900,6 +5900,8 @@ IHqlExpression *HqlGram::bindParameters(const attribute & errpos, IHqlExpression
             }
             else
             {
+                if (isVolatileFuncdef(function))
+                    actuals.append(*createVolatileId());
                 bool expandCall = insideTemplateFunction() ? false : expandCallsWhenBound;
                 // do the actual binding
                 return createBoundFunction(this, function, actuals, lookupCtx.functionCache, expandCall);

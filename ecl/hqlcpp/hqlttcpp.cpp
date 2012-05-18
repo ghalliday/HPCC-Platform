@@ -11856,14 +11856,14 @@ IHqlExpression * HqlTreeNormalizer::createTransformedBody(IHqlExpression * expr)
     case no_attr_expr:
         {
             _ATOM name = expr->queryName();
-            if ((name == _uid_Atom) && (expr->numChildren() > 0))
+            if (((name == _uid_Atom) || (name == _volatileId_Atom)) && (expr->numChildren() > 0))
             {
                 //Make sure we ignore any line number information on the parameters mangled with the uid - otherwise
                 //they may create too many unique ids.
                 IHqlExpression * normalForm = queryLocationIndependent(expr);
                 if (normalForm != expr)
                     return transform(normalForm);
-                return ::createUniqueId();
+                return ::createUniqueId(name);
             }
 
 #ifdef USE_SELSEQ_UID

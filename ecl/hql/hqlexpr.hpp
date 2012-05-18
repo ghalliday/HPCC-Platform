@@ -1493,7 +1493,8 @@ extern HQL_API unsigned unwoundCount(IHqlExpression * expr, node_operator op);
 extern HQL_API void unwindProperty(HqlExprArray & args, IHqlExpression * expr, _ATOM name);
 extern HQL_API IHqlExpression * queryChildOperator(node_operator op, IHqlExpression * expr);
 extern HQL_API IHqlExpression * createSelector(node_operator op, IHqlExpression * ds, IHqlExpression * seq);
-extern HQL_API IHqlExpression * createUniqueId();
+extern HQL_API IHqlExpression * createUniqueId(_ATOM name);
+
 extern HQL_API IHqlExpression * createUniqueRowsId();
 extern HQL_API IHqlExpression * createCounter();
 extern HQL_API IHqlExpression * createSelectorSequence();
@@ -1513,6 +1514,9 @@ extern HQL_API bool canEvaluateInScope(const HqlExprCopyArray & activeScopes, co
 extern HQL_API IHqlExpression * ensureDeserialized(IHqlExpression * expr, ITypeInfo * type);
 extern HQL_API IHqlExpression * ensureSerialized(IHqlExpression * expr);
 extern HQL_API bool isDummySerializeDeserialize(IHqlExpression * expr);
+
+inline IHqlExpression * createUniqueId() { return createUniqueId(_uid_Atom); }
+inline IHqlExpression * createVolatileId() { return createUniqueId(_volatileId_Atom); }
 
 extern HQL_API unsigned getRepeatMax(IHqlExpression * expr);
 extern HQL_API unsigned getRepeatMin(IHqlExpression * expr);
@@ -1678,6 +1682,7 @@ inline bool containsCall(IHqlExpression * expr, bool includeOutOfLine)
     unsigned mask = includeOutOfLine ? HEF2containsCall : HEF2containsDelayedCall;
     return (expr->getInfoFlags2() & mask) != 0;
 }
+inline bool isVolatile(IHqlExpression * expr)           { return (expr->getInfoFlags() & HEFvolatile) != 0; }
 
 inline bool hasDynamic(IHqlExpression * expr)           { return expr->hasProperty(dynamicAtom); }
 inline bool isAbstractDataset(IHqlExpression * expr)    
@@ -1693,6 +1698,8 @@ inline IHqlExpression * queryRecord(IHqlExpression * expr)
 }
 
 extern HQL_API bool isPureVirtual(IHqlExpression * cur);
+extern HQL_API bool isVolatileFuncdef(IHqlExpression * funcdef);
+
 inline bool isForwardScope(IHqlScope * scope) { return scope && (queryExpression(scope)->getOperator() == no_forwardscope); }
 
 extern HQL_API bool isContextDependent(IHqlExpression * expr, bool ignoreFailures = false, bool ignoreGraph = false);

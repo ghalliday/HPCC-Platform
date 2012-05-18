@@ -3381,10 +3381,6 @@ void CHqlExpression::updateFlagsAfterOperands()
     case no_null:
         infoFlags2 |= HEF2constant;
         break;
-    case no_attr:
-        infoFlags = (infoFlags & (HEFhousekeeping|HEFalwaysInherit));
-        infoFlags2 |= HEF2constant;
-        break;
     case no_newxmlparse:
     case no_xmlparse:
         //clear flag unless set in the dataset.
@@ -3406,12 +3402,26 @@ void CHqlExpression::updateFlagsAfterOperands()
         //kill any flag derived from selecting pure virtual members
         infoFlags &= ~HEFcontextDependentException;
         break;
+    case no_attr:
+        {
+            infoFlags = (infoFlags & (HEFhousekeeping|HEFalwaysInherit));
+            infoFlags2 |= HEF2constant;
+            _ATOM name = queryName();
+            if (name == _volatileId_Atom)
+                infoFlags |= HEFvolatile;
+            break;
+        }
     case no_attr_link:
     case no_attr_expr:
-        if (queryName() == onFailAtom)
-            infoFlags &= ~HEFonFailDependent;
-        infoFlags &= ~(HEFthrowscalar|HEFthrowds|HEFoldthrows);
-        break;
+        {
+            _ATOM name = queryName();
+            if (name == onFailAtom)
+                infoFlags &= ~HEFonFailDependent;
+            else if (name == _volatileId_Atom)
+                infoFlags |= HEFvolatile;
+            infoFlags &= ~(HEFthrowscalar|HEFthrowds|HEFoldthrows);
+            break;
+        }
     case no_clustersize:
         //wrong, but improves the generated code
         infoFlags |= HEFvolatile;
@@ -3933,7 +3943,7 @@ unsigned CHqlExpression::getCachedEclCRC()
     case no_attr_link:
         {
             _ATOM name = queryBody()->queryName();
-            if (name == _uid_Atom)
+            if (name == _uid_Atom || name == _volatileId_Atom)
                 return 0;
             const char * nameText = name->str();
             crc = hashnc((const byte *)nameText, strlen(nameText), crc);
@@ -9208,14 +9218,37 @@ CHqlExternal *CHqlExternal::makeExternalReference(_ATOM _name, ITypeInfo *_type,
 
 //==============================================================================================================
 
+extern bool isVolatileFuncdef(IHqlExpression * funcdef)
+{
+    IHqlExpression * def = funcdef->queryChild(0);
+    if (isVolatile(funcdef))
+        return true;
+    if (def->getOperator() != no_external)
+        return false;
+    if (def->hasProperty(volatileAtom))
+        return true;
+    if (def->hasProperty(failAtom) || def->hasProperty(noMoveAtom) || def->hasProperty(contextSensitiveAtom) || def->hasProperty(actionAtom))
+        return false;
+
+    //If none of the flags above are specified then we default to assuming the function is volatile.
+    //It would have been better to assume pure unless volatile explicitly specified, but probably too late to change.
+    //Once aren't really pure, but are as far as the code generator is concerned.  Split into more flags if it becomes an issue.
+    return (!def->hasProperty(pureAtom) && !def->hasProperty(onceAtom));
+}
+
 CHqlExternalCall::CHqlExternalCall(IHqlExpression * _funcdef, ITypeInfo * _type, HqlExprArray &_ownedOperands) : CHqlExpressionWithType(no_externalcall, _type, _ownedOperands), funcdef(_funcdef)
 {
     IHqlExpression * def = funcdef->queryChild(0);
-    //Once aren't really pure, but are as far as the code generator is concerned.  Split into more flags if it becomes an issue.
-    if (!def->hasProperty(pureAtom) && !def->hasProperty(onceAtom))
-    {
-        infoFlags |= (HEFvolatile);
-    }
+    unsigned impureFlags = 0;
+    if (def->hasProperty(failAtom))
+        impureFlags |= isDataset() ? HEFthrowds : HEFthrowscalar;
+    if (def->hasProperty(noMoveAtom) || def->hasProperty(contextSensitiveAtom))
+        impureFlags |= HEFcontextDependentException;
+
+    if (isVolatileFuncdef(funcdef))
+        impureFlags |= HEFvolatile;
+
+    infoFlags |= impureFlags;
     
     if (def->hasProperty(actionAtom) || (type && type->getTypeCode() == type_void))
         infoFlags |= HEFaction;
@@ -9224,9 +9257,6 @@ CHqlExternalCall::CHqlExternalCall(IHqlExpression * _funcdef, ITypeInfo * _type,
     {
         infoFlags |= HEFcontainsNlpText;
     }
-
-    if (def->hasProperty(contextSensitiveAtom))
-        infoFlags |= HEFcontextDependentException;
 }
 
 bool CHqlExternalCall::equals(const IHqlExpression & other) const
@@ -10339,13 +10369,20 @@ IHqlExpression * ParameterBindTransformer::createExpandedCall(IHqlExpression *fu
 {
     assertex(funcdef->getOperator() == no_funcdef);
     IHqlExpression * formals = funcdef->queryChild(1);
-    assertex(formals->numChildren() == resolvedActuals.length());
-    ForEachItemIn(i, resolvedActuals)
+
+    unsigned numFormals = formals->numChildren();
+    assertex(numFormals <= resolvedActuals.length());
+
+    for (unsigned i1 = numFormals; i1 < resolvedActuals.length(); i1++)
+        assertex(resolvedActuals.item(i1).isAttribute());
+
+    ForEachChild(i, formals)
     {
         IHqlExpression * formal = formals->queryChild(i);
         IHqlExpression * actual = &resolvedActuals.item(i);
         formal->queryBody()->setTransformExtra(actual);
     }
+
 
     return createBoundBody(funcdef, resolvedActuals);
 }
@@ -10369,6 +10406,46 @@ extern HQL_API bool isKey(IHqlExpression * expr)
         return false;
     }
 }
+
+
+//-------------------------------------------------------------------------------------
+
+static HqlTransformerInfo volatileIdModifierInfo("VolatileIdModifier");
+class VolatileIdModifier : public QuickHqlTransformer
+{
+public:
+    VolatileIdModifier(IHqlExpression * _volatileid)
+    : QuickHqlTransformer(volatileIdModifierInfo, NULL), volatileid(_volatileid)
+    {
+    }
+
+protected:
+    virtual IHqlExpression * createTransformedBody(IHqlExpression * expr)
+    {
+        if (!isVolatile(expr) || expr->getOperator() == no_outofline)
+            return LINK(expr);
+
+        if (expr->isAttribute() && (expr->queryName() == _volatileId_Atom))
+        {
+            HqlExprArray args;
+            args.append(*LINK(expr));
+            args.append(*LINK(volatileid));
+            return createExprAttribute(_volatileId_Atom, args);
+        }
+
+        return QuickHqlTransformer::createTransformedBody(expr);
+    }
+
+protected:
+    IHqlExpression * volatileid;
+};
+
+IHqlExpression * modifyVolatileIds(IHqlExpression * expr, IHqlExpression * volatileid)
+{
+    VolatileIdModifier modifier(volatileid);
+    return modifier.transform(expr);
+}
+
 
 
 //-------------------------------------------------------------------------------------
@@ -10614,8 +10691,15 @@ static IHqlExpression * createNormalizedCall(IHqlExpression *funcdef, const HqlE
 
 inline IHqlExpression * expandFunctionalCallBody(CallExpansionContext & ctx, IHqlExpression * call)
 {
-    ParameterBindTransformer binder(ctx);
-    return binder.createExpandedCall(call);
+    OwnedHqlExpr ret;
+    {
+        ParameterBindTransformer binder(ctx);
+        ret.setown(binder.createExpandedCall(call));
+    }
+    IHqlExpression * volatileid = call->queryProperty(_volatileId_Atom);
+    if (volatileid)
+        return modifyVolatileIds(ret, volatileid);
+    return ret.getClear();
 }
 
 static IHqlExpression * cachedExpandFunctionCallBody(CallExpansionContext & ctx, IHqlExpression * call)
@@ -15094,10 +15178,10 @@ IHqlExpression * createSelector(node_operator op, IHqlExpression * ds, IHqlExpre
 }
 
 static UniqueSequenceCounter uidSequence;
-IHqlExpression * createUniqueId()
+IHqlExpression * createUniqueId(_ATOM name)
 {
     unsigned __int64 uid = uidSequence.next();
-    return createSequence(no_attr, NULL, _uid_Atom, uid);
+    return createSequence(no_attr, NULL, name, uid);
 }
 
 static UniqueSequenceCounter counterSequence;

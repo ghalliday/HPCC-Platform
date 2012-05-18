@@ -1982,6 +1982,11 @@ IHqlExpression * HqlCppTranslator::bindFunctionCall(_ATOM name, HqlExprArray & a
 IHqlExpression * HqlCppTranslator::bindTranslatedFunctionCall(IHqlExpression * function, HqlExprArray & args)
 {
     useFunction(function);
+
+    //A volatile function needs to generate unique instances so it doesn't get commoned up.
+    if (!function->isAction() && isVolatileFuncdef(function))
+        args.append(*createVolatileId());
+
     IHqlExpression * ret = createTranslatedExternalCall(NULL, function, args);
     assertex(ret->queryExternalDefinition());
     args.kill();
@@ -2518,6 +2523,12 @@ void HqlCppTranslator::buildExprAssign(BuildCtx & ctx, const CHqlBoundTarget & t
             buildExprAssign(ctx, target, mapped);
             break;
         }
+    case no_random:
+        doBuildAssignSysFunc(ctx, target, expr, rtlRandomAtom);
+        break;
+    case no_clustersize:
+        doBuildAssignSysFunc(ctx, target, expr, getClusterSizeAtom);
+        return;
     default:
         doBuildExprAssign(ctx, target, expr);
         break;
@@ -2819,17 +2830,17 @@ void HqlCppTranslator::buildExpr(BuildCtx & ctx, IHqlExpression * expr, CHqlBoun
 //      buildExpr(ctx, expr->queryChild(0), tgt);
         return;
     case no_count:
-        if (!(expr->isPure() && ctx.getMatchExpr(expr, tgt)))
+        if (!ctx.getMatchExpr(expr, tgt))
             doBuildExprCount(ctx, expr, tgt);
         return;
     case no_max:
     case no_min:
     case no_sum:
-        if (!(expr->isPure() && ctx.getMatchExpr(expr, tgt)))
+        if (!ctx.getMatchExpr(expr, tgt))
             doBuildExprAggregate(ctx, expr, tgt);
         return;
     case no_exists:
-        if (!(expr->isPure() && ctx.getMatchExpr(expr, tgt)))
+        if (!ctx.getMatchExpr(expr, tgt))
             doBuildExprExists(ctx, expr, tgt);
         return;
     case no_countdict:
@@ -3027,9 +3038,6 @@ void HqlCppTranslator::buildExpr(BuildCtx & ctx, IHqlExpression * expr, CHqlBoun
     case no_ordered:
         doBuildExprOrdered(ctx, expr, tgt);
         return;
-    case no_random:
-        doBuildExprSysFunc(ctx, expr, tgt, rtlRandomAtom);
-        return;
     case no_recovering:
         doBuildExprSysFunc(ctx, expr, tgt, getRecoveringCountAtom);
         return;
@@ -3097,6 +3105,7 @@ void HqlCppTranslator::buildExpr(BuildCtx & ctx, IHqlExpression * expr, CHqlBoun
     case no_eventextra:
     case no_loopcounter:
     case no_toxml:
+    case no_random:
         buildTempExpr(ctx, expr, tgt);
         return;
     case no_asstring:
@@ -4327,7 +4336,7 @@ void HqlCppTranslator::buildTempExpr(BuildCtx & ctx, IHqlExpression * expr, CHql
     }
 
     BuildCtx bestctx(ctx);
-    if (expr->isPure() && ctx.getMatchExpr(expr, tgt))
+    if (ctx.getMatchExpr(expr, tgt))
         return;
 
     switch (expr->getOperator())
@@ -4372,7 +4381,7 @@ void HqlCppTranslator::buildTempExpr(BuildCtx & ctx, IHqlExpression * expr, CHql
 void HqlCppTranslator::buildExprViaTypedTemp(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt, ITypeInfo * type)
 {
     OwnedHqlExpr cast = createValue(no_implicitcast, LINK(type), LINK(expr));
-    if (cast->isPure() && ctx.getMatchExpr(cast, tgt))
+    if (ctx.getMatchExpr(cast, tgt))
         return;
 
     LoopInvariantHelper helper;
@@ -4384,8 +4393,7 @@ void HqlCppTranslator::buildExprViaTypedTemp(BuildCtx & ctx, IHqlExpression * ex
     createTempFor(bestctx, type, tempTarget, typemod_none, FormatNatural);
     buildExprAssign(bestctx, tempTarget, expr);
     tgt.setFromTarget(tempTarget);
-    if (cast->isPure())
-        bestctx.associateExpr(cast, tgt);
+    bestctx.associateExpr(cast, tgt);
 }
 
 
@@ -4954,8 +4962,7 @@ void HqlCppTranslator::doBuildAssignInStored(BuildCtx & ctx, const CHqlBoundTarg
 {
     OwnedHqlExpr values = normalizeListCasts(expr->queryChild(1));
     CHqlBoundExpr bound;
-    if (values->isPure())
-        ctx.getMatchExpr(values, bound);
+    ctx.getMatchExpr(values, bound);
 
     if (options.optimizeLoopInvariant && !bound.expr)
     {
@@ -5162,6 +5169,11 @@ void HqlCppTranslator::doBuildExprCountDict(BuildCtx & ctx, IHqlExpression * exp
 
 //---------------------------------------------------------------------------
 
+static IHqlExpression * createDecimalStackValue(ITypeInfo * type)
+{
+    return createValue(no_decimalstack, LINK(type), createVolatileId());
+}
+
 void HqlCppTranslator::doBuildExprArith(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt)
 {
     ITypeInfo * type = expr->queryType();
@@ -5184,7 +5196,7 @@ void HqlCppTranslator::doBuildExprArith(BuildCtx & ctx, IHqlExpression * expr, C
             default: UNIMPLEMENTED;
             }
             callProcedure(ctx, func, args);
-            tgt.expr.setown(createValue(no_decimalstack, LINK(type)));
+            tgt.expr.setown(createDecimalStackValue(type));
         }
         break;
     case type_swapint:
@@ -5242,7 +5254,7 @@ void HqlCppTranslator::doBuildExprNegate(BuildCtx & ctx, IHqlExpression * expr, 
             bindAndPush(ctx, expr->queryChild(0));
             HqlExprArray args;
             callProcedure(ctx, DecNegateAtom, args);
-            tgt.expr.setown(createValue(no_decimalstack, LINK(type)));
+            tgt.expr.setown(createDecimalStackValue(type));
         }
         break;
     case type_data:
@@ -5285,7 +5297,7 @@ void HqlCppTranslator::doBuildExprRound(BuildCtx & ctx, IHqlExpression * expr, C
             else
                 callProcedure(ctx, DecRoundUpAtom, args);
             assertex(expr->queryType()->getTypeCode() == type_decimal);
-            tgt.expr.setown(createValue(no_decimalstack, expr->getType()));
+            tgt.expr.setown(createDecimalStackValue(expr->queryType()));
         }
         break;
     default:
@@ -5315,7 +5327,7 @@ void HqlCppTranslator::doBuildExprTrunc(BuildCtx & ctx, IHqlExpression * expr, C
             HqlExprArray args;
             callProcedure(ctx, DecTruncateAtom, args);
             assertex(expr->queryType()->getTypeCode() == type_decimal);
-            tgt.expr.setown(createValue(no_decimalstack, expr->getType()));
+            tgt.expr.setown(createDecimalStackValue(expr->queryType()));
         }
         break;
     default:
@@ -5340,7 +5352,7 @@ void HqlCppTranslator::doBuildExprAbs(BuildCtx & ctx, IHqlExpression * expr, CHq
             HqlExprArray args;
             _ATOM func = DecAbsAtom;
             callProcedure(ctx, func, args);
-            tgt.expr.setown(createValue(no_decimalstack, LINK(type)));
+            tgt.expr.setown(createDecimalStackValue(type));
         }
         break;
     case type_int:
@@ -5527,7 +5539,7 @@ IHqlExpression * HqlCppTranslator::doBuildInternalFunction(IHqlExpression * func
 
 void HqlCppTranslator::doBuildCall(BuildCtx & ctx, const CHqlBoundTarget * tgt, IHqlExpression * expr, CHqlBoundExpr * result)
 {
-    if (result && expr->isPure() && ctx.getMatchExpr(expr, *result))
+    if (result && ctx.getMatchExpr(expr, *result))
         return;
 
     LinkedHqlExpr funcdef;
@@ -5992,7 +6004,18 @@ void HqlCppTranslator::doBuildCall(BuildCtx & ctx, const CHqlBoundTarget * tgt, 
 
 void HqlCppTranslator::doBuildExprCall(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt)
 {
-    doBuildCall(ctx, NULL, expr, &tgt);
+    bool ensureCommonedUp = false;
+    if (isVolatile(expr))
+    {
+        //Volatile functions should always resolve to the same value - otherwise you can get inconsistencies
+        if (!containsTranslated(expr) && !expr->isAction() && !hasStreamedModifier(expr->queryType()))
+            ensureCommonedUp = true;
+    }
+
+    if (ensureCommonedUp)
+        buildTempExpr(ctx, expr, tgt);
+    else
+        doBuildCall(ctx, NULL, expr, &tgt);
 }
 
 
@@ -6624,7 +6647,7 @@ void HqlCppTranslator::doBuildExprCast(BuildCtx & ctx, ITypeInfo * to, CHqlBound
                     callProcedure(ctx, DecSetPrecisionAtom, args);
                 }
 
-                op.setown(createValue(no_decimalstack, LINK(to)));
+                op.setown(createDecimalStackValue(to));
             }
             break;
         case type_set:
@@ -9263,17 +9286,28 @@ void HqlCppTranslator::doBuildAssignEventExtra(BuildCtx & ctx, const CHqlBoundTa
 //---------------------------------------------------------------------------
 //-- system call e.g. EXP(), LOG()...
 
-void HqlCppTranslator::doBuildExprSysFunc(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt, IAtom * funcName)
+IHqlExpression * HqlCppTranslator::bindExprSysFunc(IHqlExpression * expr, IAtom * funcName)
 {
     HqlExprArray args;
     ForEachChild(i, expr)
     {
         IHqlExpression * cur = expr->queryChild(i);
-        if (!cur->isAttribute())
+        if (!cur->isAttribute() || (cur->queryName() == _volatileId_Atom))
             args.append(*LINK(cur));
     }
-    OwnedHqlExpr call = bindFunctionCall(funcName, args);
+    return bindFunctionCall(funcName, args);
+}
+
+void HqlCppTranslator::doBuildExprSysFunc(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt, IAtom * funcName)
+{
+    OwnedHqlExpr call = bindExprSysFunc(expr, funcName);
     buildExpr(ctx, call, tgt);
+}
+
+void HqlCppTranslator::doBuildAssignSysFunc(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr, IAtom * funcName)
+{
+    OwnedHqlExpr call = bindExprSysFunc(expr, funcName);
+    buildExprAssign(ctx, target, call);
 }
 
 void HqlCppTranslator::doBuildExprOffsetOf(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt)
@@ -11755,7 +11789,7 @@ bool HqlCppTranslator::requiresTemp(BuildCtx & ctx, IHqlExpression * expr, bool 
         return requiresTemp(ctx, expr->queryChild(0), includeChildren);
     case no_alias:
         {
-            if (expr->isPure() && ctx.queryMatchExpr(expr->queryChild(0)))
+            if (ctx.queryMatchExpr(expr->queryChild(0)))
                 return false;
             if (!containsActiveDataset(expr))           // generates a earlier temp even if generating within the onCreate() function
                 return false;
@@ -11765,7 +11799,7 @@ bool HqlCppTranslator::requiresTemp(BuildCtx & ctx, IHqlExpression * expr, bool 
         if (expr->hasProperty(newAtom))
         {
             IHqlExpression * ds= expr->queryChild(0);
-            if (!ds->isPure() || !ds->isDatarow())
+            if (!ds->isDatarow())
                 return true;
             if (!ctx.queryAssociation(ds, AssocRow, NULL))
                 return true;

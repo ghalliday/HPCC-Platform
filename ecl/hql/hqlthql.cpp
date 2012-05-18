@@ -1523,10 +1523,13 @@ void HqltHql::toECL(IHqlExpression *expr, StringBuffer &s, bool paren, bool inTy
             unsigned idx = 0;
             while(IHqlExpression *kid = expr->queryChild(idx))
             {
-                if (idx)
-                    s.append(", ");
+                if (!kid->isAttribute())
+                {
+                    if (idx)
+                        s.append(", ");
+                    toECL(kid, s, kid->getPrecedence() < 0, inType);
+                }
                 idx++;
-                toECL(kid, s, kid->getPrecedence() < 0, inType);
             }
             s.append(')');
             break;

@@ -528,7 +528,7 @@ const char * cppSystemText[]  = {
     "   unicode wregexGetFindStr(unsigned8 compiled, unsigned4 idx):    eclrtl,pure,include='eclrtl.hpp',library='eclrtl',entrypoint='rtlWRegExprGetFindStr';",
 
     "   regexNewSetStrPattern(const varstring _pattern, boolean isCaseSensitive) : omethod,entrypoint='setPattern';"
-    "   regexNewStrFind(boolean _compiled, const string _search, boolean _cloneSearch) : omethod,entrypoint='find';"
+    "   regexNewStrFind(boolean _compiled, const string _search, boolean _cloneSearch) : omethod,pure,entrypoint='find';"
     "   boolean regexNewStrFound() : method,pure,entrypoint='found';"
     "   string regexNewStrFoundX(unsigned4 idx) : method,pure,entrypoint='getMatchX';"
     "   string regexNewStrReplaceX(const string _search, const string _replace) : method,pure,entrypoint='replace';"
@@ -542,8 +542,8 @@ const char * cppSystemText[]  = {
     //clibrary functions that are called from the code generation
     "   free(data1 src) : eclrtl,library='eclrtl',entrypoint='rtlFree';",
     "   integer4 memcmp(const data1 target, const data1 src, unsigned4 len) : sys,pure,entrypoint='memcmp';",
-    "   data1 memcpy(data1 target, const data1 src, unsigned4 len): sys,entrypoint='memcpy';",
-    "   data1 memset(data1 target, integer4 fill, unsigned4 len) :  sys,entrypoint='memset';",
+    "   memcpy(data1 target, const data1 src, unsigned4 len): sys,entrypoint='memcpy';",
+    "   memset(data1 target, integer4 fill, unsigned4 len) :  sys,entrypoint='memset';",
     "   strcpy(const varstring1 target, const varstring1 src) : sys,entrypoint='strcpy';",
     "   unsigned4 strlen(const varstring1 src) :    sys,pure,entrypoint='strlen';",
 
@@ -645,7 +645,7 @@ const char * cppSystemText[]  = {
     "   _linkcounted_ dataset getResultRowset(const varstring stepname, unsigned4 sequence, boolean _allocator, boolean _deserializer, boolean isGrouped, boolean xmltransformer, boolean csvtransformer) : ctxmethod,allocator(false),pure,entrypoint='getResultRowset';",
 
     //Don't make these pure because they may change over time.
-    "   boolean isResult(const varstring stepname, unsigned4 sequence) : gctxmethod,entrypoint='isResult';",
+    "   boolean isResult(const varstring stepname, unsigned4 sequence) : gctxmethod,pure,entrypoint='isResult';",
     "   boolean fileExists(const varstring lfn) : gctxmethod,entrypoint='fileExists';",
     "   varstring getExpandLogicalName(const varstring lfn) : ctxmethod,entrypoint='getExpandLogicalName';",
     "   deleteFile(const varstring lfn) : gctxmethod,entrypoint='deleteFile';",
@@ -692,10 +692,10 @@ const char * cppSystemText[]  = {
 
     "   row(dummyRecord) getRootResult() : method,pure,include,entrypoint='queryRootResult';",
 
-    "   string getProductionText(unsigned4 idx) : method,entrypoint='getText';",
-    "   unicode getProductionUnicode(unsigned4 idx) : method,entrypoint='getUnicode';",
-    "   utf8 getProductionUtf8(unsigned4 idx) : method,entrypoint='getUtf8';",
-    "   row(dummyRecord) getProductionResult(unsigned4 idx) : method,entrypoint='queryResult';",
+    "   string getProductionText(unsigned4 idx) : method,pure,entrypoint='getText';",
+    "   unicode getProductionUnicode(unsigned4 idx) : method,pure,entrypoint='getUnicode';",
+    "   utf8 getProductionUtf8(unsigned4 idx) : method,pure,entrypoint='getUtf8';",
+    "   row(dummyRecord) getProductionResult(unsigned4 idx) : method,pure,entrypoint='queryResult';",
 
     "   addAll() : method,include='rtlkey.hpp',entrypoint='addAll';",
     "   addRange(const data1 lo, const data1 hi) : method,include='rtlkey.hpp',entrypoint='addRange';",
@@ -744,19 +744,20 @@ const char * cppSystemText[]  = {
     "   setMethod(boolean _allocator) : omethod,entrypoint='set';",
     "   setownMethod(boolean _allocator) : omethod,entrypoint='setown';",
 
-    "   boolean newWhenActionArg(boolean _meta) : include, pseudoentrypoint='new CLibraryWhenActionArg';",
-    "   boolean newDegroupArg(boolean _meta) : include, pseudoentrypoint='new CLibraryDegroupArg';",
-    "   boolean newFunnelArg(boolean _ordered, boolean _sequential, boolean _meta) : include, pseudoentrypoint='new CLibraryFunnelArg';",
-    "   boolean newGraphLoopResultWriteArg(boolean _meta) : include, pseudoentrypoint='new CLibraryGraphLoopResultWriteArg';",
-    "   boolean newLocalResultReadArg(unsigned4 _sequence, boolean meta) : include, pseudoentrypoint='new CLibraryLocalResultReadArg';",
-    "   boolean newLocalResultSpillArg(unsigned4 _sequence, boolean _usedOutside, boolean meta) : include, pseudoentrypoint='new CLibraryLocalResultSpillArg';",
-    "   boolean newNullArg(boolean meta) : include, pseudoentrypoint='new CLibraryNullArg';",
-    "   boolean newSplitArg(unsigned4 _usageCount, boolean _balanced, boolean meta) : include, pseudoentrypoint='new CLibrarySplitArg';",
-    "   boolean newSelectNArg(unsigned8 _index, boolean _clearFunc, boolean meta) : include, pseudoentrypoint='new CLibrarySelectNArg';",
-    "   boolean newMemorySpillReadArg(const varstring name, boolean meta) : include, pseudoentrypoint='new CLibraryMemorySpillReadArg';",
-    "   boolean newMemorySpillSplitArg(unsigned4 usageCount, const varstring name, boolean meta) : include, pseudoentrypoint='new CLibraryMemorySpillSplitArg';",
-    "   boolean newWorkUnitReadArg(const varstring _name, boolean _meta) : include, pseudoentrypoint='new CLibraryWorkUnitReadArg';",
-    "   boolean newWorkUnitWriteArg(const varstring _name, unsigned4 _flags, boolean _meta) : include, pseudoentrypoint='new CLibraryWorkUnitWriteArg';",
+    //marked as pure even though they're not really
+    "   boolean newWhenActionArg(boolean _meta) : include,pure,pseudoentrypoint='new CLibraryWhenActionArg';",
+    "   boolean newDegroupArg(boolean _meta) : include,pure,pseudoentrypoint='new CLibraryDegroupArg';",
+    "   boolean newFunnelArg(boolean _ordered, boolean _sequential, boolean _meta) : include,pure,pseudoentrypoint='new CLibraryFunnelArg';",
+    "   boolean newGraphLoopResultWriteArg(boolean _meta) : include,pure, pseudoentrypoint='new CLibraryGraphLoopResultWriteArg';",
+    "   boolean newLocalResultReadArg(unsigned4 _sequence, boolean meta) : include,pure, pseudoentrypoint='new CLibraryLocalResultReadArg';",
+    "   boolean newLocalResultSpillArg(unsigned4 _sequence, boolean _usedOutside, boolean meta) : include,pure, pseudoentrypoint='new CLibraryLocalResultSpillArg';",
+    "   boolean newNullArg(boolean meta) : include,pure, pseudoentrypoint='new CLibraryNullArg';",
+    "   boolean newSplitArg(unsigned4 _usageCount, boolean _balanced, boolean meta) : include,pure, pseudoentrypoint='new CLibrarySplitArg';",
+    "   boolean newSelectNArg(unsigned8 _index, boolean _clearFunc, boolean meta) : include,pure, pseudoentrypoint='new CLibrarySelectNArg';",
+    "   boolean newMemorySpillReadArg(const varstring name, boolean meta) : include,pure, pseudoentrypoint='new CLibraryMemorySpillReadArg';",
+    "   boolean newMemorySpillSplitArg(unsigned4 usageCount, const varstring name, boolean meta) : include,pure, pseudoentrypoint='new CLibraryMemorySpillSplitArg';",
+    "   boolean newWorkUnitReadArg(const varstring _name, boolean _meta) : include,pure, pseudoentrypoint='new CLibraryWorkUnitReadArg';",
+    "   boolean newWorkUnitWriteArg(const varstring _name, unsigned4 _flags, boolean _meta) : include,pure, pseudoentrypoint='new CLibraryWorkUnitWriteArg';",
 
     "   destructMetaMember(row _x) : omethod,entrypoint='destruct';",
     "   walkIndirectMetaMember(row _x, boolean _visitor) : omethod,entrypoint='walkIndirectMembers';",

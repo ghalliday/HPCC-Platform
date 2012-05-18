@@ -20,6 +20,7 @@
 integer4 add1(integer4 x, integer4 y) :=
 BEGINC++
 #option library 'MySpecialLibrary'
+#option pure
 return x + y;
 ENDC++;
 

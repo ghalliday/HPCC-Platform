@@ -5601,7 +5601,7 @@ primexpr1
                         }
     | RANDOM '(' ')'
                         {
-                            $$.setExpr(createValue(no_random, LINK(parser->uint4Type), parser->createUniqueId()));
+                            $$.setExpr(createValue(no_random, LINK(parser->uint4Type), parser->createVolatileId()));
                         }
     | RECOVERY
                         {

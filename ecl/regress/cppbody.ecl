@@ -20,6 +20,7 @@
 //Slightly weird - no parameters, so c++ is expanded inline instead of generating a function.
 real8 sqrt2 :=
 BEGINC++
+#option pure
 sqrt(2.0)
 ENDC++
 ;
@@ -29,6 +30,7 @@ output(sqrt2);
 
 integer4 add(integer4 x, integer4 y) :=
 BEGINC++
+#option pure
 return x + y;
 EnDc++;         // check that comments also work on the end of line
 
