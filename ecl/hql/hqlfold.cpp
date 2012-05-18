@@ -628,11 +628,16 @@ bool checkExternFoldable(IHqlExpression* expr, unsigned foldOptions, StringBuffe
             throw MakeStringException(ERR_TMPLT_NOFOLDFUNC, "You do not have permission to constant-fold %s", str(expr->queryName()));
         return false;
     }
-    if(!body->hasAttribute(pureAtom) && !body->hasAttribute(templateAtom) && !(foldOptions & (HFOfoldimpure|HFOforcefold)))
+    if(!(foldOptions & (HFOfoldimpure|HFOforcefold)))
     {
-        if (foldOptions & HFOthrowerror)
-            throw MakeStringException(ERR_TMPLT_NONPUREFUNC, "%s/%s is not a pure function, can't constant fold it", library.str(), entry.str());
-        return false;
+        bool notNow = (body->hasAttribute(onceAtom) || body->hasAttribute(runtimeAtom));
+        //For backward compatibility we only constant fold expressions marked as pure for the moment.  Later this condition should be removed.
+        if(notNow || !body->hasAttribute(pureAtom))
+        {
+            if (foldOptions & HFOthrowerror)
+                throw MakeStringException(ERR_TMPLT_NONPUREFUNC, "%s/%s is not a pure function, can't constant fold it", library.str(), entry.str());
+            return false;
+        }
     }
 
     if(body->hasAttribute(contextAtom) || body->hasAttribute(globalContextAtom) ||
@@ -4746,7 +4751,11 @@ IHqlExpression * CExprFolderTransformer::doFoldTransformed(IHqlExpression * unfo
                         break;
                     }
                 }
-                if (!newRow || !newRow->isPure())
+                if (!newRow)
+                    break;
+
+                //Instead of evaluating once newRow will be evaluated multiple times.  Is that ok (e.g., volatile)
+                if (!canDuplicateActivity(newRow))
                     break;
 
                 OwnedHqlExpr replacementRow = createRow(no_newrow, LINK(newRow));
@@ -4887,7 +4896,7 @@ IHqlExpression * CExprFolderTransformer::doFoldTransformed(IHqlExpression * unfo
             switch (childOp)
             {
             case no_inlinetable:
-                if ((foldOptions & HFOconstantdatasets) && isPureInlineDataset(child))
+                if ((foldOptions & HFOconstantdatasets) && isNoSkipInlineDataset(child))
                     ret = queryOptimizeAggregateInline(expr, child->queryChild(0)->numChildren());
                 break;
             default:
@@ -4906,7 +4915,7 @@ IHqlExpression * CExprFolderTransformer::doFoldTransformed(IHqlExpression * unfo
             switch (childOp)
             {
             case no_inlinetable:
-                if (isPureInlineDataset(child))
+                if (isNoSkipInlineDataset(child))
                     return createConstant(expr->queryType()->castFrom(false, (__int64)child->queryChild(0)->numChildren()));
                 break;
             case no_null:
@@ -4940,7 +4949,7 @@ IHqlExpression * CExprFolderTransformer::doFoldTransformed(IHqlExpression * unfo
             switch (childOp)
             {
             case no_inlinetable:
-                if (isPureInlineDataset(child))
+                if (isNoSkipInlineDataset(child))
                 {
                     bool hasChildren = (child->queryChild(0)->numChildren() != 0);
                     return createConstant(hasChildren);

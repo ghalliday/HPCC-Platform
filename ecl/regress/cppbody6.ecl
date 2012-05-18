@@ -24,7 +24,7 @@ ENDC++;
 
 integer4 add2(integer4 x, integer4 y) :=
 BEGINC++
-#option action
+#option volatile
 return x + y;
 ENDC++;
 

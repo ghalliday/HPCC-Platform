@@ -18,7 +18,7 @@
 
 export rtl := SERVICE
  unsigned4 display(const string src) : eclrtl,library='eclrtl',entrypoint='rtlDisplay';
- unsigned4 sleep(unsigned4 dxelay) : eclrtl,library='eclrtl',entrypoint='rtlSleep';
+ unsigned4 sleep(unsigned4 dxelay) : eclrtl,volatile,library='eclrtl',entrypoint='rtlSleep';
 END;
 
 namesRecord :=  RECORD

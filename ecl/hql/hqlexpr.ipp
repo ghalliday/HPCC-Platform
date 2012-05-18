@@ -264,7 +264,6 @@ public:
     virtual bool isFunction();
     virtual annotate_kind getAnnotationKind() const { return annotate_none; }
     virtual IHqlAnnotation * queryAnnotation() { return NULL; }
-    virtual bool isPure()       { return pure(); }
     virtual bool isAttribute() const { return false; }
     virtual IHqlExpression *queryNormalizedSelector(bool skipIndex) { return this; }
 
@@ -539,7 +538,6 @@ public:
     virtual bool isMacro();
     virtual bool isGroupAggregateFunction();
     virtual annotate_kind getAnnotationKind() const = 0;
-    virtual bool isPure();
     virtual bool isAttribute() const;
     virtual unsigned getInfoFlags() const;
     virtual unsigned getInfoFlags2() const;

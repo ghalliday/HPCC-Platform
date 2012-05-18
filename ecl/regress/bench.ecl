@@ -28,10 +28,10 @@ extern unsigned msTick();  // linux only
     ENDC++;
 
 rtl := SERVICE
- unsigned4 msTick() :       eclrtl,library='eclrtl',entrypoint='rtlTick';
+ unsigned4 msTick() :       eclrtl,volatile,library='eclrtl',entrypoint='rtlTick';
 END;
 
-unsigned TimeMS() := rtl.msTick();
+unsigned TimeMS() volatile := rtl.msTick();
 
 rec1 := RECORD
      string40 payload1;

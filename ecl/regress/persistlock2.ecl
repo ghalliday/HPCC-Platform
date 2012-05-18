@@ -16,7 +16,7 @@
 ############################################################################## */
 
 rtl := service
-unsigned4 delayReturn(unsigned4 value, unsigned4 sleepTime) : eclrtl,entrypoint='rtlDelayReturn';
+unsigned4 delayReturn(unsigned4 value, unsigned4 sleepTime) : eclrtl,volatile,entrypoint='rtlDelayReturn';
         end;
 
 unsigned4 waitTime := 1000;

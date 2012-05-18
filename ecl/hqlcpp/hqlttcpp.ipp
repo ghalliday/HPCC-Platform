@@ -263,6 +263,7 @@ public:
     bool isPostFiltered:1;
     bool isCreateRowLimited:1;
     bool hasOnFail:1;
+    bool containsSkip:1;
 };
 
 enum
