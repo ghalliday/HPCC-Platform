@@ -440,6 +440,7 @@ static void eclsyntaxerror(HqlGram * parser, const char * s, short yystate, int 
   VALIDATE
   VARIANCE
   VIRTUAL
+  VOLATILE
   WAIT
   TOK_WARNING
   WHEN
@@ -1333,7 +1334,7 @@ attributeDefinition
                         }
     | definePatternIdWithOptScope parmdef featureParameters ASSIGN pattern optfailure ';'
                         {
-                            parser->definePatternSymbolProduction($1, $4, $5, $6, $7);
+                            parser->definePatternSymbolProduction($1, $2, $4, $5, $6, $7);
                             $$.clear();
                         }
     | defineFeatureIdWithOptScope ';'
@@ -1342,7 +1343,7 @@ attributeDefinition
                             IHqlExpression *expr = createValue(no_null, makeFeatureType());
                             expr = createValue(no_pat_featuredef, expr->getType(), expr);
 
-                            parser->doDefineSymbol(defineid, expr, NULL, $1, $2.pos.position, $2.pos.position, false);
+                            parser->doDefineSymbol(defineid, expr, NULL, $1, $2.pos.position, $2.pos.position, false, NULL);
                             $$.clear();
                         }
     | defineFeatureIdWithOptScope ASSIGN featureDefine ';'
@@ -1351,7 +1352,7 @@ attributeDefinition
                             IHqlExpression *expr = $3.getExpr();
                             expr = createValue(no_pat_featuredef, expr->getType(), expr);
 
-                            parser->doDefineSymbol(defineid, expr, NULL, $1, $2.pos.position, $4.pos.position, false);
+                            parser->doDefineSymbol(defineid, expr, NULL, $1, $2.pos.position, $4.pos.position, false, NULL);
                             $$.clear();
                         }
     ;
@@ -1727,7 +1728,7 @@ transform
     | startCompoundExpression beginInlineFunctionToken optDefinitions RETURN transform ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($5), $7);
+                            $$.setExpr(parser->leaveLamdaExpression(NULL, $5), $7);
                         }
     ;
 
@@ -2621,7 +2622,7 @@ failAction
     | startCompoundExpression beginInlineFunctionToken optDefinitions RETURN action ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($5), $7);
+                            $$.setExpr(parser->leaveLamdaExpression(NULL, $5), $7);
                         }
     | WHEN '(' action ',' action sideEffectOptions ')'
                         {
@@ -3497,7 +3498,7 @@ eventObject
     | startCompoundExpression beginInlineFunctionToken optDefinitions RETURN eventObject ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($5), $7);
+                            $$.setExpr(parser->leaveLamdaExpression(NULL, $5), $7);
                         }
     ;
 
@@ -3511,17 +3512,19 @@ event
     ;
 
 parmdef
-    : realparmdef       {   parser->setParametered(true); $$.clear(); }
-    |                   {   parser->setParametered(false); $$.clear(); }
+    : realparmdef       {   parser->setParametered(true); $$.inherit($1); }
+    |                   {   parser->setParametered(false); $$.setNullExpr(); }
     ;
 
 reqparmdef
-    : realparmdef       {   parser->setParametered(true); $$.clear(); }
+    : realparmdef       {   parser->setParametered(true); $$.inherit($1); }
     ;
 
 realparmdef
-    : '(' params ')'
-    | '(' ')'
+    : '(' params ')' functionModifiers
+                        { $$.inherit($4); }
+    | '(' ')'  functionModifiers
+                        { $$.inherit($3); }
     ;
 
 params
@@ -3654,6 +3657,11 @@ defFuncValue
     | EQ anyFunction    {   $$.setExpr($2.getExpr()); }
     ;
 
+functionModifiers
+    :                   {   $$.setNullExpr(); }
+    | VOLATILE          {   $$.setExpr(createAttribute(volatileAtom), $1); }
+    ;
+    
 service
     : startService funcDefs END
                         {
@@ -3950,7 +3958,7 @@ recordDef
     | startCompoundExpression beginInlineFunctionToken optDefinitions RETURN recordDef ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($5), $7);
+                            $$.setExpr(parser->leaveLamdaExpression(NULL, $5), $7);
                         }
     ;
 
@@ -4873,7 +4881,7 @@ expression
     | startCompoundExpression beginInlineFunctionToken optDefinitions RETURN expression ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($5), $7);
+                            $$.setExpr(parser->leaveLamdaExpression(NULL, $5), $7);
                         }
     ;
 
@@ -6644,7 +6652,7 @@ abstractModule
     | startCompoundExpression beginInlineFunctionToken optDefinitions RETURN abstractModule ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($5), $7);
+                            $$.setExpr(parser->leaveLamdaExpression(NULL, $5), $7);
                         }
     ;
 
@@ -6839,7 +6847,7 @@ dataRow
     | startCompoundExpression beginInlineFunctionToken optDefinitions RETURN dataRow ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($5), $7);
+                            $$.setExpr(parser->leaveLamdaExpression(NULL, $5), $7);
                         }
     ;
 
@@ -7183,7 +7191,7 @@ dataSet
     | startCompoundExpression beginInlineFunctionToken optDefinitions RETURN dataSet ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($5), $7);
+                            $$.setExpr(parser->leaveLamdaExpression(NULL, $5), $7);
                         }
     | startSimpleFilter conditions endSimpleFilter /* simple dataset with conditions */
                         {
@@ -10447,7 +10455,7 @@ setOfDatasets
     | startCompoundExpression beginInlineFunctionToken optDefinitions RETURN setOfDatasets ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($5), $7);
+                            $$.setExpr(parser->leaveLamdaExpression(NULL, $5), $7);
                         }
     ;
 
@@ -10613,7 +10621,7 @@ valueFunction
     | startCompoundExpression reqparmdef beginInlineFunctionToken optDefinitions RETURN expression ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($6), $8);
+                            $$.setExpr(parser->leaveLamdaExpression(&$2, $6), $8);
                         }
     ;
 
@@ -10627,7 +10635,7 @@ actionFunction
     | startCompoundExpression reqparmdef beginInlineFunctionToken optDefinitions RETURN action ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($6), $8);
+                            $$.setExpr(parser->leaveLamdaExpression(&$2, $6), $8);
                         }
     ;
 
@@ -10641,7 +10649,7 @@ datarowFunction
     | startCompoundExpression reqparmdef beginInlineFunctionToken optDefinitions RETURN dataRow ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($6), $8);
+                            $$.setExpr(parser->leaveLamdaExpression(&$2, $6), $8);
                         }
     ;
 
@@ -10655,7 +10663,7 @@ datasetFunction
     | startCompoundExpression reqparmdef beginInlineFunctionToken optDefinitions RETURN dataSet ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($6), $8);
+                            $$.setExpr(parser->leaveLamdaExpression(&$2, $6), $8);
                         }
     ;
 
@@ -10669,7 +10677,7 @@ scopeFunction
     | startCompoundExpression reqparmdef beginInlineFunctionToken optDefinitions RETURN abstractModule ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($6), $8);
+                            $$.setExpr(parser->leaveLamdaExpression(&$2, $6), $8);
                         }
     ;
 
@@ -10684,7 +10692,7 @@ transformFunction
     | startCompoundExpression reqparmdef beginInlineFunctionToken optDefinitions RETURN transform ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($6), $8);
+                            $$.setExpr(parser->leaveLamdaExpression(&$2, $6), $8);
                         }
     ;
 
@@ -10699,7 +10707,7 @@ recordFunction
     | startCompoundExpression reqparmdef beginInlineFunctionToken optDefinitions RETURN recordDef ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($6), $8);
+                            $$.setExpr(parser->leaveLamdaExpression(&$2, $6), $8);
                         }
     ;
 
@@ -10713,7 +10721,7 @@ listDatasetFunction
     | startCompoundExpression reqparmdef beginInlineFunctionToken optDefinitions RETURN setOfDatasets ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($6), $8);
+                            $$.setExpr(parser->leaveLamdaExpression(&$2, $6), $8);
                         }
     ;
 
@@ -10728,7 +10736,7 @@ eventFunction
     | startCompoundExpression reqparmdef beginInlineFunctionToken optDefinitions RETURN eventObject ';' endInlineFunctionToken
                         {
                             Owned<ITypeInfo> retType = $1.getType();
-                            $$.setExpr(parser->leaveLamdaExpression($6), $8);
+                            $$.setExpr(parser->leaveLamdaExpression(&$2, $6), $8);
                         }
     ;
 

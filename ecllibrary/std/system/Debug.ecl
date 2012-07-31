@@ -19,14 +19,14 @@ RETURN MODULE
  * @param millis        The time in milliseconds to sleep for.
  */
 
-EXPORT Sleep(integer millis) := EVALUATE(rtl.Sleep(millis));
+EXPORT Sleep(integer millis) volatile := EVALUATE(rtl.Sleep(millis));
 
 /*
  * Returns a millisecond count of elapsed time.
  * 
  */
 
-EXPORT UNSIGNED4 msTick() := rtl.msTick();
+EXPORT UNSIGNED4 msTick() volatile := rtl.msTick();
 
 /*
  * Returns a textual representation of the parse tree for a pattern match.  

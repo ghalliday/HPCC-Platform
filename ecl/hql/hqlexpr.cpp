@@ -84,6 +84,183 @@ static void debugMatchedName() {}
 
 #define STDIO_BUFFSIZE 0x10000     // 64K
 
+//---------------------------------------------------------------------------------------------------------------------
+
+/*
+
+There is a general issue with ECL (and other functional/declarative languages) about what to do with impure functions.  Generally it is assumed that expressions can be evaluated on demand, evaluated more than once, not evaluated, evaluated in a different place, and that it will not affect the result of the query.  There are some expressions that don't follow those rules and cause problems.  eclcc has some heuristics in place to support the exceptions.  I am hoping to clean up and formalize their behaviour:
+
+Different impure modifiers
+- VOLATILE indicates that an expression may return a different value each time it is called.
+  E.g.,  RANDOM(), msTick()
+- CONTEXT indicates the value returned depends on the context (but is non-volatile within that context)
+  E.g., std.system.thorlib.node()
+- THROWS indicates an expression might throw an exception.
+  IF (cond, value, FAIL)
+- SKIPS indicates an expression may cause a transform to skip.
+- COSTLY The operation is expensive, so should not be duplicated.
+  E.g., Some PIPE/SOAPCALLs
+- EFFECT indicates the expression may have a side-effect.  The side-effect is tied to the expression that it is
+  associated with.  I'm not convinced this has any impliciations.
+  E.g., WHEN(expr, doThis)
+
+Pseudo modifier:
+- once [ Implies pure, but prevents compile time constant folding  ]
+- action indicates the expression performs a specific (costly) action.  Equivalent to COSTLY+EFFECT
+
+What decisions do the flags affect?
+
+canRemoveEvaluation()   - Is it ok to not evaluate an expression?
+canReduceEvaluations()  - Is it possible to reduce the number of times something is evaluated?
+canBeDuplicated()       - Whether an expression can be duplicated.
+canChangeContext()      - Whether an expression can be moved to a different context.
+canRemoveGuard()        - Is it ok to evaluate this expression without any surrounding conditions?
+isVolatile()            - Whether an expression always generates the same value. (E.g., for matching distributions)
+canBeCommonedUp()       - Is it ok to evaluate two instances of the same expression only once?
+
+How do these decisions relate to the modifiers?
+
+canRemoveEvaluation()
+- the whole system is based around lazy evaluation.  Nothing restricts an expressions from not being evaluated.
+
+canReduceNumberEvaluations()
+- volatile?
+  Say you have a counter which is assigned to rows in a dataset, and one row is then selected.  If only that single row
+  is calculated you will get a different result.  However lazy evaluation should ensure that is ok, just unexpected.
+  The context may also require checking for duplication if the dataset is shared...
+- otherwise - yes.
+
+canBeDuplicated()
+- volatile - no since that will introduce an inconsistency.  This means volatile rows can only be selected
+  from a dataset if it is the only use of the dataset.
+- context - yes if same context.
+- throws - yes
+- skips - yes
+- costly - no
+- effect - yes
+
+canChangeContext/canHoist
+- volatile - no since that may change the number of times something is executed.
+- context - no
+- throws - safer to say no.  What if it causes something to fail because of early evaluation?
+           Better would be to allow it, but only report the error if it is actually used.  This has implications for
+           the way results are stored in the workunit, and the implementation of the engines.
+- skips - no (but skips doesn't percolate outside a transform)
+- costly - no - we don't want it evaluated un-necessarily
+- effect - yes - it is the expression that is important.
+
+canRemoveGuard (make something unconditional that was conditional)
+- volatile - possibly.  It would be better to always evaluate than to evaluate multiple times.
+- context - yes.
+- throws - no since it causes failures that wouldn't otherwise occur
+- skips - no, it could records to be lost.
+- costly - no by definition.
+- effect - yes.
+
+isVolatile()
+- Only set if the expression is volatile.
+
+canBeCommonedUpBetweenContexts()
+- volatile - This is explicitly managed by ensuring each volatile expression has a unique attribute associated with it.
+- It means that different instances of a volatile expression in different transforms must have different ids
+  so that combining transforms doesn't cause them to be combined.
+- context - ?no.  The same value evaluated in a different context will give a different value.
+- throws - yes
+- skips - yes
+- costly - yes.
+- effect - yes
+
+canCombineTransforms(a,b)
+- all - yes
+- provided volatile expressions are unique there shouldn't be any problems combining them.
+- still need to be careful about SKIPs having a different meaning in the combined transform.
+
+What should be the scope/extent of their effects?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Theoretically any expression that is volatile forces any expression that uses it to also be volatile.  The same goes
+for the other impure effects.    However if you follow this rule you very quickly end up with large parts of a query
+that cannot be optimized.  So we use something less restrictive:
+
+- A volatile item used inside a transform doesn't make anything that uses that transform volatile.  I think this causes issues!
+- A sink (e.g., OUTPUT), row selector ([]), or scalar aggregate (e.g., count(ds)) that is applied to a volatile dataset isn't itself volatile.
+- A sink (e.g., output) applied to a volatile expression isn't itself volatile.
+- An aggregate is not volatile if the scalar argument is volatile
+- Attributes are not volatile if their arguments are
+- ??? An activity that contains a volatile scalar item isn't itself volatile?  E.g., ds(id != RANDOM()).  I'm not convinced.
+
+For example this means IF(cond, ds, FAIL) will be context dependent.  But the activity (e.g, OUTPUT) that is based on it is not.  The entire OUTPUT could be evaluated elsewhere (e.g., in a parent context) if there are no other dependencies on the context.
+
+I would be inclined to use the same rule for context sensitive expressions and exceptions.
+
+Essentially the rule is:
+- the impure flags are not inherited from a transform
+- actions and attributes inherit no impure flags.  (They could possibly have them set explicitly.)
+
+What makes a unique volatile instance?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- You should have a single call for each logical use in the query.
+- Each separate logical use in the query should generate
+- The expression should not be moved outside its immediate context.  E.g., it should not be moved outside
+  a transform or filter so it is only executed once.
+
+So RANDOM() - RANDOM() should evaluate two random numbers,
+and x:= RANDOM(); x - x; should always evaluate to 0.
+
+macros are treated as duplicated text - which means any volatile functions will be re-evaluated.
+But what about functions?
+random100() := random() % 100;
+
+Would theoretically only be evaluated once.  Adding a volatile qualifier to the function ensures that any volatile calls within it generate unique instances.
+volatile random100() := random() % 100;
+
+So unique identifiers are added for
+- volatile builtin operators
+- volatile c++ functions
+- volatile external functions
+and contained volatile modifiers are made unique if a functional definition is specified as volatile.
+
+Explicit scoping
+~~~~~~~~~~~~~~~~
+If there was a syntax
+EVALUATE_WITHIN(expression, cond1, cond2) which inherited cond1 and cond2's active tables it could be used to prevent premature hoisting.
+But how could it be implemented??  The problem is the contained expression would need to be modified, otherwise it would be hoisted from within.
+
+Is there any situation where it would actually be required?
+
+Modifiers on external functions and beginc++
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+- pure
+- action
+- costly
+- once = pure, runtime only
+- volatile
+- nomove = context dependent
+- context(xxx)?
+- fail
+
+Context Dependent:
+~~~~~~~~~~~~~~~~~~
+There are several different flags to indicate context dependent:
+
+HEFgraphDependent - loop counter (?) graph result, (parameter!) - should probably use a pseudo table
+HEFcontainsNlpText - should use a pseudo table
+HEFcontainsXmlText - should use a pseudo table
+HEFcontainsSkip
+HEFcontainsCounter  - should use a pseudo table
+HEFtransformDependent - SELF, count(group)
+HEFtranslated
+HEFonFailDependent - FAILCODE/FAILMESSAGE
+HEFcontextDependentException - fields, pure virtual  [nohoist?]
+HEFoldthrows - legacy and should be killed
+
+Other related syntax
+~~~~~~~~~~~~~~~~~~~~
+PURE(expression) - treat an expression as pure
+*/
+
+//---------------------------------------------------------------------------------------------------------------------
+
 class HqlExprCache : public JavaHashTableOf<IHqlExpression>
 {
 public:
@@ -9220,40 +9397,65 @@ CHqlExternal *CHqlExternal::makeExternalReference(_ATOM _name, ITypeInfo *_type,
 
 extern bool isVolatileFuncdef(IHqlExpression * funcdef)
 {
-    IHqlExpression * def = funcdef->queryChild(0);
-    if (isVolatile(funcdef))
+    if (funcdef->hasProperty(volatileAtom))
         return true;
-    if (def->getOperator() != no_external)
-        return false;
-    if (def->hasProperty(volatileAtom))
-        return true;
-    if (def->hasProperty(failAtom) || def->hasProperty(noMoveAtom) || def->hasProperty(contextSensitiveAtom) || def->hasProperty(actionAtom))
-        return false;
+    IHqlExpression * body = funcdef->queryChild(0);
+    switch (body->getOperator())
+    {
+    case no_external:
+        {
+            if (body->hasProperty(volatileAtom))
+                return true;
+            return false;
+            if (body->hasProperty(failAtom) || body->hasProperty(noMoveAtom) || body->hasProperty(contextSensitiveAtom) || body->hasProperty(actionAtom))
+                return false;
 
-    //If none of the flags above are specified then we default to assuming the function is volatile.
-    //It would have been better to assume pure unless volatile explicitly specified, but probably too late to change.
-    //Once aren't really pure, but are as far as the code generator is concerned.  Split into more flags if it becomes an issue.
-    return (!def->hasProperty(pureAtom) && !def->hasProperty(onceAtom));
+            //If none of the flags above are specified then we default to assuming the function is volatile.
+            //It would have been better to assume pure unless volatile explicitly specified, but probably too late to change.
+            //Once aren't really pure, but are as far as the code generator is concerned.  Split into more flags if it becomes an issue.
+            return (!body->hasProperty(pureAtom) && !body->hasProperty(onceAtom));
+        }
+    case no_outofline:
+        {
+            //Out of line volatile c++ functions create new instances each time they are called.
+            //otherwise it requires an explicit volatile qualifier.
+            IHqlExpression * bodycode = body->queryChild(0);
+            if (bodycode->getOperator() == no_cppbody)
+                return bodycode->queryProperty(volatileAtom);
+            return false;
+        }
+    default:
+        return false;
+    }
 }
 
 CHqlExternalCall::CHqlExternalCall(IHqlExpression * _funcdef, ITypeInfo * _type, HqlExprArray &_ownedOperands) : CHqlExpressionWithType(no_externalcall, _type, _ownedOperands), funcdef(_funcdef)
 {
-    IHqlExpression * def = funcdef->queryChild(0);
+    IHqlExpression * body = funcdef->queryChild(0);
     unsigned impureFlags = 0;
-    if (def->hasProperty(failAtom))
+    if (body->hasProperty(failAtom))
         impureFlags |= isDataset() ? HEFthrowds : HEFthrowscalar;
-    if (def->hasProperty(noMoveAtom) || def->hasProperty(contextSensitiveAtom))
+    if (body->hasProperty(noMoveAtom) || body->hasProperty(contextSensitiveAtom))
         impureFlags |= HEFcontextDependentException;
 
     if (isVolatileFuncdef(funcdef))
         impureFlags |= HEFvolatile;
 
+    //Special case built in context functions for backward compatibility
+    if (body->hasProperty(ctxmethodAtom))
+    {
+        StringBuffer entrypoint;
+        getStringValue(entrypoint, queryPropertyChild(body, entrypointAtom, 0));
+        if (streq(entrypoint.str(), "getNodes"))
+            impureFlags |= HEFaction;
+    }
+
     infoFlags |= impureFlags;
     
-    if (def->hasProperty(actionAtom) || (type && type->getTypeCode() == type_void))
+    if (body->hasProperty(actionAtom) || (type && type->getTypeCode() == type_void))
         infoFlags |= HEFaction;
 
-    if (def->hasProperty(userMatchFunctionAtom))
+    if (body->hasProperty(userMatchFunctionAtom))
     {
         infoFlags |= HEFcontainsNlpText;
     }
@@ -10422,7 +10624,7 @@ public:
 protected:
     virtual IHqlExpression * createTransformedBody(IHqlExpression * expr)
     {
-        if (!isVolatile(expr) || expr->getOperator() == no_outofline)
+        if (expr->getOperator() == no_outofline)
             return LINK(expr);
 
         if (expr->isAttribute() && (expr->queryName() == _volatileId_Atom))

@@ -106,6 +106,106 @@ const unsigned UnadornedParameterIndex = (unsigned)-1;
 
 #define CHOOSEN_ALL_LIMIT          I64C(0x7FFFFFFFFFFFFFFF)
 
+
+/*
+Some updates to the ideas.
+
+- It should be ok to reduce the number of times a volatile function is called.
+
+- There should be some way of controlling the context an expression is evaluated in.
+E.g, DEPENDS(expression, context)
+where context could be.  ONCE?, NODE, ACTIVITY, TRANSFORM, LEFT/<row>
+
+This would allow the default rules to be overridden if required.
+
+What is  good syntax?
+EVALUATE(x, WITHIN(<context>))?  CONTEXT(x, <context>)???
+
+- Evaluate once per query can be handled by using expression : INDEPENDENT.
+
+- PIPE/SOAPCALL is an example of something that should be (optionally?) considered as having side-effects.  There should be at
+
+- Hoisting expressions with side-effects can cause an expression to be evaluated when it wouldn't have been otherwise.  Therefore they shouldn't be hoisted unless there is an explicit DEPENDS().
+
+- There should possibly be the idea of a execute once child graph.  (I think currently this will tend to be executed from a onCreate() effectively executing it only once.)
+
+- It should be possible to hoist expressions containing FAILs().  However, the failures should only make it into the workunit results if they are actually used.   This has implications for the way results are stored in the workunit, and the implementation of the engines.
+
+(Note: The reason you can't duplicate a volatile expression is that it can create inconsistent results).
+
+I'm sure more will come...
+
+From: hpcc-dev-bounces@lists.hpccsystems.com [mailto:hpcc-dev-bounces@lists.hpccsystems.com] On Behalf Of Gavin Halliday
+Sent: 17 May 2012 13:50
+To: 'HPCC Dev'
+Subject: [Hpcc-dev] Impure functions
+
+There is a general issue with ECL (and other functional/declarative languages) about what to do with impure functions.  Generally it is assumed that expressions can be evaluated on demand, evaluated more than once, not evaluated, evaluated in a different place, and that it will not affect the result of the query.  There are some expressions that don't follow those rules and cause problems.  eclcc has some heuristics in place to support the exceptions.  I am hoping to clean up and formalize their behaviour:
+
+1. volatile  E.g., RANDOM()
+Each time it is called you may get a different value.  This means that you shouldn't change the logical number of times an expression is evaluated.
+- It is ok to remove evaluation if it is not used anywhere.
+- It is not ok to duplicate the expression so it might be evaluated twice.
+- It is not ok to reduce the number of times it is evaluated - except to 0.
+- There should be a unique instance for each unique occurrence in the source.  E.g., RANDOM() * RANDOM() should not reduce to a single RANDOM().
+
+2. Context dependent  E.g., std.system.thorlib.node()
+Where an expression is evaluated will give you different results.  This means for example that you can't evaluate a function once globally instead of inside a transform.
+- It is fine to remove calls to them
+- It is fine to duplicate calls to them - provided the calls are in the same context.
+- You cannot hoist expressions that are context dependent.
+
+3. Exceptions   E.g., FAIL('Help!');
+I think this is very similar to a context dependent expression.  The problem is that if you evaluate the failure in a different context your query may fail when it would have otherwise succeeded.
+- Same rules as (3), plus.
+- You cannot evaluate exceptions outside their conditional context.
+
+4. Expressions that should only be evaluated once.  E.g., TODAY()
+This is a special case of a volatile function that you don't actually want to re-evaluate each time.  At the moment an attribute can be selected on an external to select this behaviour.
+
+5. side-effect  E.g., logging.
+Each time a function is called it has some effect on the outside world.  Is it ok to remove them if the expression they are associated with is removed?
+Do we need to allow actions to be included in transforms to indicate side-effects that shouldn't be removed?  Is there ever a situation where they can't be removed?  I'm not convinced there is ever a case that can't be handled correctly with WHEN.
+
+
+
+What should be the scope/extent of their effects?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Theoretically any expression that is volatile forces any expression that uses it to also be volatile.  The same goes for the other impure effects.    However if you follow this rule you very quickly end up with large parts of a query that cannot be optimized.  So I suggest we should use something less restrictive:
+
+- A volatile item used inside a transform doesn't make anything that uses that transform volatile.
+- A sink (e.g., OUTPUT), row selector ([]), or scalar aggregate (e.g., count(ds)) that is applied to a volatile dataset isn't itself volatile.
+- A sink (e.g., output) applied to a volatile expression isn't itself volatile.
+- ??? An activity that contains a volatile scalar item isn't itself volatile?  E.g., ds(id != RANDOM()).  I'm not convinced.
+
+I would be inclined to use the same rule for context sensitive expressions and exceptions.
+
+For example this means IF(cond, ds, FAIL) will be context dependent.  But the activity (e.g, OUTPUT) that is based on it is not.  The entire OUTPUT could be evaluated elsewhere (e.g., in a parent context) if there are no other dependencies on the context.
+
+Current modifiers on external functions:
+  pure
+  action
+  once
+
+I think we need to add
+  volatile - explicitly volatile.
+  contextdepend/location/nomove/???  mark something as context dependent
+  ?fail - mark something as an expression that can fail.
+
+Questions:
+~~~~~~~~~
+Are there any other impure examples I have missed?
+Are there any cases where these rules are going to cause problems?
+E.g., evaluation that shouldn't happen?  graphs that will fail to be optimized?
+What other potential problems are there?  (E.g., engines calling a function twice that might get different results!?)
+
+Fixing this is key for some queries - I have one example which could reduces to 20% of the current size because I am currently too conservative.
+
+Gavin.
+
+ */
+
+
 // Allow of the following are private, and should only be accessed by the associated helper functions.
 //NB: If this is changed, remember to look at whether no_select an noinherit need modifying.
 enum
@@ -122,15 +222,18 @@ enum
     HEFunbound                  = 0x00000010,
     HEFinternalVirtual          = 0x00000020,
     HEFcontainsDatasetAliasLocally= 0x00000040,
-  HEF____unused2____          = 0x00000080,
-  HEF____unused3____          = 0x00000100,
-    HEFfunctionOfGroupAggregate = 0x00000200,
-    HEFvolatile                 = 0x00000400,           // value changes each time called - e.g., random()
-    HEFaction                   = 0x00000800,           // an action, or something that can have a side-effect
-  HEF____unused4____          = 0x00000100,
-    HEFthrowscalar              = 0x00002000,           // scalar/action that can throw an exception
-    HEFthrowds                  = 0x00004000,           // dataset that can throw an exception
-    HEFoldthrows                = 0x00008000,           // old throws flag, which I should remove asap
+
+//impure properties (see head of hqlexpr.cpp for detailed discussion)
+    HEFvolatile                 = 0x00000080,           // value changes each time it is called - e.g., RANDOM()
+    HEFunknowncontext           = 0x00000100,           // depends on the context, but not known how
+    HEFcostly                   = 0x00000200,           // an expensive operation
+    HEFaction                   = 0x00000400,           // an action, or something that can have a side-effect.  Not convinced this is needed
+
+  HEF____unused2____          = 0x00000800,
+    HEFthrowscalar              = 0x00001000,           // scalar/action that can throw an exception
+    HEFthrowds                  = 0x00002000,           // dataset that can throw an exception
+    HEFoldthrows                = 0x00004000,           // old throws flag, which I should remove asap
+    HEFfunctionOfGroupAggregate = 0x00008000,
 
 // code generator specific start from the bottom up.
 //NB: update the select 
@@ -158,12 +261,14 @@ enum
     HEFalwaysInherit            = HEFunbound|HEFinternalVirtual,
     HEFassigninheritFlags       = ~(HEFhousekeeping|HEFalwaysInherit),          // An assign inherits all but this list from the rhs value 
 
+    HEFthrow                    = (HEFthrowscalar|HEFthrowds),
 //  HEFcontextDependent         = (HEFgraphDependent|HEFcontainsNlpText|HEFcontainsXmlText|HEFcontainsSkip|HEFcontainsCounter|HEFtransformDependent|HEFtranslated|HEFonFailDependent|HEFcontextDependentException|HEFthrowscalar|HEFthrowds),
-    HEFcontextDependent         = (HEFgraphDependent|HEFcontainsNlpText|HEFcontainsXmlText|HEFcontainsSkip|HEFcontainsCounter|HEFtransformDependent|HEFtranslated|HEFonFailDependent|HEFcontextDependentException|HEFoldthrows),
+    HEFcontextDependent         = (HEFunknowncontext|HEFgraphDependent|HEFcontainsNlpText|HEFcontainsXmlText|HEFcontainsSkip|HEFcontainsCounter|HEFtransformDependent|HEFtranslated|HEFonFailDependent|HEFcontextDependentException|HEFoldthrows),
     HEFretainedByActiveSelect   = (HEFhousekeeping|HEFalwaysInherit),
 
     HEFintersectionFlags        = (0),
-    HEFunionFlags               = (HEFunbound|HEFfunctionOfGroupAggregate|HEFvolatile|HEFaction|HEFthrowscalar|HEFthrowds|HEFoldthrows|
+    HEFunionFlags               = (HEFunbound|HEFfunctionOfGroupAggregate|
+                                   HEFvolatile|HEFunknowncontext|HEFcostly|HEFaction|HEFthrowscalar|HEFthrowds|HEFoldthrows|
                                    HEFonFailDependent|HEFcontainsActiveDataset|HEFcontainsActiveNonSelector|HEFcontainsDataset|
                                    HEFtranslated|HEFgraphDependent|HEFcontainsNlpText|HEFcontainsXmlText|HEFtransformDependent|
                                    HEFcontainsSkip|HEFcontainsCounter|HEFassertkeyed|HEFcontextDependentException|HEFcontainsAlias|HEFcontainsAliasLocally|
@@ -171,7 +276,7 @@ enum
 
     HEFcontextDependentNoThrow  = (HEFcontextDependent & ~(HEFthrowscalar|HEFthrowds|HEFoldthrows)),
     HEFcontextDependentDataset  = (HEFcontextDependent & ~(HEFthrowscalar)),
-    HEFimpure                   = (HEFvolatile|HEFaction|HEFthrowds|HEFthrowscalar|HEFcontainsSkip),
+    //HEFimpure                   = (HEFvolatile|HEFaction|HEFthrowds|HEFthrowscalar|HEFcontainsSkip),
 };
 
 //NB: increase the member variable if it grows 
@@ -1666,6 +1771,17 @@ inline bool containsCounter(IHqlExpression * expr)      { return (expr->getInfoF
 inline bool isCountProject(IHqlExpression * expr)       { return expr->hasProperty(_countProject_Atom); }
 inline bool containsSkip(IHqlExpression * expr)         { return (expr->getInfoFlags() & (HEFcontainsSkip)) != 0; }
 inline bool containsSelf(IHqlExpression * expr)         { return (expr->getInfoFlags2() & (HEF2containsSelf)) != 0; }
+
+inline bool isVolatile(IHqlExpression * expr)           { return (expr->getInfoFlags() & HEFvolatile) != 0; }
+//Is it ok to duplicate the evaluation of this expression in another context?
+inline bool canBeDuplicated(IHqlExpression * expr)      { return (expr->getInfoFlags() & (HEFvolatile|HEFcostly)) == 0; }
+//Is it legal to evaluate this expression in a different context - e.g, in a parent instead of child query
+inline bool canChangeContext(IHqlExpression * expr)     { return (expr->getInfoFlags() & (HEFvolatile|HEFcontextDependent|HEFthrow|HEFcontainsSkip|HEFcostly)) == 0; }
+//Is it ok to convert a conditional expression to an unconditional expression?
+inline bool canRemoveGuard(IHqlExpression * expr)       { return (expr->getInfoFlags() & (HEFthrow|HEFcontainsSkip|HEFcostly)) == 0; }
+//Is it legal to reuse the value created in another context for this expression?
+inline bool canCommonUpContext(IHqlExpression * expr)     { return (expr->getInfoFlags() & (HEFcontextDependent|HEFcontainsSkip)) == 0; }
+
 inline bool isContextDependentExceptGraph(IHqlExpression * expr)    
                                                         { return (expr->getInfoFlags() & (HEFcontextDependent & ~HEFgraphDependent)) != 0; }
 inline bool isGraphDependent(IHqlExpression * expr)     { return (expr->getInfoFlags() & HEFgraphDependent) != 0; }
@@ -1682,7 +1798,6 @@ inline bool containsCall(IHqlExpression * expr, bool includeOutOfLine)
     unsigned mask = includeOutOfLine ? HEF2containsCall : HEF2containsDelayedCall;
     return (expr->getInfoFlags2() & mask) != 0;
 }
-inline bool isVolatile(IHqlExpression * expr)           { return (expr->getInfoFlags() & HEFvolatile) != 0; }
 
 inline bool hasDynamic(IHqlExpression * expr)           { return expr->hasProperty(dynamicAtom); }
 inline bool isAbstractDataset(IHqlExpression * expr)    

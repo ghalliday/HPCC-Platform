@@ -550,6 +550,7 @@ extern HQL_API IHqlExpression * mapJoinDistribution(TableProjectMapper & mapper,
     return NULL;
 }
 
+extern HQL_API IHqlExpression * z(IHqlExpression * expr) { return expr; }
 
 extern HQL_API IHqlExpression * mapDistribution(IHqlExpression * distribution, TableProjectMapper & mapper)
 {
