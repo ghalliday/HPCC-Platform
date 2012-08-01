@@ -225,7 +225,7 @@ enum
 
 //impure properties (see head of hqlexpr.cpp for detailed discussion)
     HEFvolatile                 = 0x00000080,           // value changes each time it is called - e.g., RANDOM()
-    HEFunknowncontext           = 0x00000100,           // depends on the context, but not known how
+    HEFcontextDependentException= 0x00000100,           // depends on the context, but not known how
     HEFcostly                   = 0x00000200,           // an expensive operation
     HEFaction                   = 0x00000400,           // an action, or something that can have a side-effect.  Not convinced this is needed
 
@@ -252,7 +252,7 @@ enum
     HEFcontainsSkip             = 0x04000000,
     HEFcontainsCounter          = 0x08000000,
     HEFassertkeyed              = 0x10000000,
-    HEFcontextDependentException= 0x20000000,               // A context dependent item that doesn't fit into any other category - for use as a last resort!
+    HEF__unused5__              = 0x20000000,
     HEFcontainsAlias            = 0x40000000,
     HEFcontainsAliasLocally     = 0x80000000,
 
@@ -263,20 +263,20 @@ enum
 
     HEFthrow                    = (HEFthrowscalar|HEFthrowds),
 //  HEFcontextDependent         = (HEFgraphDependent|HEFcontainsNlpText|HEFcontainsXmlText|HEFcontainsSkip|HEFcontainsCounter|HEFtransformDependent|HEFtranslated|HEFonFailDependent|HEFcontextDependentException|HEFthrowscalar|HEFthrowds),
-    HEFcontextDependent         = (HEFunknowncontext|HEFgraphDependent|HEFcontainsNlpText|HEFcontainsXmlText|HEFcontainsSkip|HEFcontainsCounter|HEFtransformDependent|HEFtranslated|HEFonFailDependent|HEFcontextDependentException|HEFoldthrows),
+    HEFcontextDependent         = (HEFgraphDependent|HEFcontainsNlpText|HEFcontainsXmlText|HEFcontainsSkip|HEFcontainsCounter|HEFtransformDependent|HEFtranslated|HEFonFailDependent|HEFcontextDependentException|HEFoldthrows),
     HEFretainedByActiveSelect   = (HEFhousekeeping|HEFalwaysInherit),
 
     HEFintersectionFlags        = (0),
     HEFunionFlags               = (HEFunbound|HEFfunctionOfGroupAggregate|
-                                   HEFvolatile|HEFunknowncontext|HEFcostly|HEFaction|HEFthrowscalar|HEFthrowds|HEFoldthrows|
+                                   HEFvolatile|HEFcontextDependentException|HEFcostly|HEFaction|HEFthrowscalar|HEFthrowds|HEFoldthrows|
                                    HEFonFailDependent|HEFcontainsActiveDataset|HEFcontainsActiveNonSelector|HEFcontainsDataset|
                                    HEFtranslated|HEFgraphDependent|HEFcontainsNlpText|HEFcontainsXmlText|HEFtransformDependent|
-                                   HEFcontainsSkip|HEFcontainsCounter|HEFassertkeyed|HEFcontextDependentException|HEFcontainsAlias|HEFcontainsAliasLocally|
+                                   HEFcontainsSkip|HEFcontainsCounter|HEFassertkeyed|HEFcontainsAlias|HEFcontainsAliasLocally|
                                    HEFinternalVirtual|HEFcontainsThisNode|HEFcontainsDatasetAliasLocally),
 
     HEFcontextDependentNoThrow  = (HEFcontextDependent & ~(HEFthrowscalar|HEFthrowds|HEFoldthrows)),
     HEFcontextDependentDataset  = (HEFcontextDependent & ~(HEFthrowscalar)),
-    //HEFimpure                   = (HEFvolatile|HEFaction|HEFthrowds|HEFthrowscalar|HEFcontainsSkip),
+    HEFimpure                   = (HEFvolatile|HEFaction|HEFthrowds|HEFthrowscalar|HEFcontainsSkip),
 };
 
 //NB: increase the member variable if it grows 

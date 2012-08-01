@@ -473,6 +473,11 @@ bool isKnownDistribution(IHqlExpression * distribution)
     return distribution && (distribution != queryUnknownAttribute());
 }
 
+bool isKnownNonVolatileDistribution(IHqlExpression * distribution)
+{
+    return isKnownDistribution(distribution) && !isVolatile(distribution);
+}
+
 bool isSortedDistribution(IHqlExpression * distribution)
 {
     return distribution && (distribution->queryName() == sortedAtom);
@@ -1134,7 +1139,7 @@ bool isPartitionedForGroup(IHqlExpression * table, IHqlExpression *grouping, boo
 {
     ITypeInfo * type = table->queryType();
     IHqlExpression * distribution = queryDistribution(type);
-    if (!isKnownDistribution(distribution) || !distribution->isPure())
+    if (!isKnownNonVolatileDistribution(distribution))
         return false;
 
     OwnedHqlExpr normalizedGrouping = normalizeSortlist(grouping, table);
@@ -1529,8 +1534,7 @@ bool isDistributedCoLocally(IHqlExpression * dataset1, IHqlExpression * dataset2
     IHqlExpression * distribute2 = queryDistribution(dataset2);
     //Check the distribution functions are equivalent - by walking through in parallel, and don't contain any
     //references to fields not in the join conditions
-    if (isKnownDistribution(distribute1) && distribute1->isPure() &&
-        isKnownDistribution(distribute2) && distribute2->isPure())
+    if (isKnownNonVolatileDistribution(distribute1) && isKnownNonVolatileDistribution(distribute2))
     {
         //If sorted they are only going to be codistributed if they came from the same sort
         //We could only determine that by making the sort orders unique - by appending a uid

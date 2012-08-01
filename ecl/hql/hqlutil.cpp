@@ -4965,8 +4965,8 @@ IHqlExpression * extractCppBodyAttrs(unsigned lenBuffer, const char * buffer)
                         attrs.setown(createComma(attrs.getClear(), createAttribute(pureAtom)));
                     else if (matchOption(start, lenBuffer, buffer, 8, "volatile"))
                         attrs.setown(createComma(attrs.getClear(), createAttribute(volatileAtom)));
-                    else if (matchOption(start, lenBuffer, buffer, 4, "once"))
-                        attrs.setown(createComma(attrs.getClear(), createAttribute(onceAtom)));
+                    else if (matchOption(start, lenBuffer, buffer, 6, "costly"))
+                        attrs.setown(createComma(attrs.getClear(), createAttribute(costlyAtom)));
                     else if (matchOption(start, lenBuffer, buffer, 6, "action"))
                         attrs.setown(createComma(attrs.getClear(), createAttribute(actionAtom)));
                     else if (matchOption(start, lenBuffer, buffer, 7, "library"))
@@ -4990,9 +4990,6 @@ IHqlExpression * extractCppBodyAttrs(unsigned lenBuffer, const char * buffer)
             break;
         }
     }
-    //Default for c++ function is to assume it is volatile.  This should possible be actionAtom instead.
-//    if (!attrs)
-//        attrs.setown(createAttribute(actionAtom));
     return attrs.getClear();
 }
 

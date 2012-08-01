@@ -6005,9 +6005,11 @@ void HqlCppTranslator::doBuildCall(BuildCtx & ctx, const CHqlBoundTarget * tgt, 
 void HqlCppTranslator::doBuildExprCall(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt)
 {
     bool ensureCommonedUp = false;
-    if (isVolatile(expr))
+
+    //Volatile functions should always resolve to the same value - otherwise you can get inconsistencies
+    //But it doesn't matter if their arguments are volatile. Hence the check for the volatile atom.
+    if (isVolatile(expr) && expr->hasProperty(_volatileId_Atom))
     {
-        //Volatile functions should always resolve to the same value - otherwise you can get inconsistencies
         if (!containsTranslated(expr) && !expr->isAction() && !hasStreamedModifier(expr->queryType()))
             ensureCommonedUp = true;
     }

@@ -3464,7 +3464,7 @@ IHqlExpression* HqlGram::checkServiceDef(IHqlScope* serviceScope,_ATOM name, IHq
                 bcdApi = true;
                 checkSvcAttrNoValue(attr, errpos);
             }
-            else if (name == pureAtom || name == templateAtom || name == volatileAtom || name == onceAtom || name == actionAtom || name == noMoveAtom || name == failAtom)
+            else if (name == pureAtom || name == templateAtom || name == volatileAtom || name == onceAtom || name == actionAtom || name == noMoveAtom || name == failAtom || name == runtimeAtom)
             {
                 checkSvcAttrNoValue(attr, errpos);
             }
@@ -5902,8 +5902,6 @@ IHqlExpression *HqlGram::bindParameters(const attribute & errpos, IHqlExpression
             else
             {
                 //Binding an external, outofline or beginc++ function
-                if (isVolatileFuncdef(function))
-                    DBGLOG("%s is volatile", function->queryName()->str());
                 if (isVolatileFuncdef(function))
                     actuals.append(*createVolatileId());
                 bool expandCall = insideTemplateFunction() ? false : expandCallsWhenBound;
@@ -8727,7 +8725,7 @@ void HqlGram::doDefineSymbol(DefineIdSt * defineid, IHqlExpression * _expr, IHql
         }
     }
 
-    OwnedHqlExpr normalized = normalizeFunctionExpression(defineid, expr, failure, isParametered, activeScope.activeParameters, activeScope.createDefaults(), LINK(modifiers));
+    OwnedHqlExpr normalized = normalizeFunctionExpression(defineid, expr, failure, isParametered, activeScope.activeParameters, activeScope.createDefaults(), modifiers);
     defineSymbolInScope(targetScope, defineid, normalized, idattr, assignPos, semiColonPos);
 
     ::Release(failure);
@@ -8775,6 +8773,9 @@ IHqlExpression * HqlGram::normalizeFunctionExpression(DefineIdSt * defineid, IHq
         IHqlExpression * formals = createValue(no_sortlist, makeSortListType(NULL), parameters);
         expr = createFunctionDefinition(defineid->id, expr, formals, defaults, modifiers);
     }
+    else
+        ::Release(modifiers);
+
 
     expr = attachPendingWarnings(expr);
     expr = attachMetaAttributes(expr, meta);
@@ -8953,7 +8954,7 @@ void HqlGram::defineSymbolProduction(attribute & nameattr, attribute & paramattr
                     {
                         if (!matchType->assignableFrom(etype))
                         {
-                            canNotAssignTypeError(type, etype, paramattr);
+                            canNotAssignTypeError(type, etype, nameattr);
                             expr.setown(createNullExpr(matchType));
                         }
                     }
@@ -8973,7 +8974,7 @@ void HqlGram::defineSymbolProduction(attribute & nameattr, attribute & paramattr
             {
                 if (queryRecord(type) != queryNullRecord())
                 {
-                    canNotAssignTypeError(type,etype,paramattr);
+                    canNotAssignTypeError(type,etype,nameattr);
                     switch (type->getTypeCode())
                     {
                     case type_record:

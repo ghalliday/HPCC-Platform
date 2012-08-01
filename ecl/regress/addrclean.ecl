@@ -16,7 +16,7 @@
 ############################################################################## */
 
 StringLibx := service
-string CleanAddress(const string src) : eclrtl,library='dab',entrypoint='rtlCleanAddress';
+string CleanAddress(const string src) : eclrtl,runtime,library='dab',entrypoint='rtlCleanAddress';
      end;
 
 string t(string x) := stringlibx.cleanAddress(stringLibx.CleanAddress(x));

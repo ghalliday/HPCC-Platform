@@ -18,7 +18,7 @@
 #option ('globalFold', false);
 
 datalibx := service
-    string141 addressclean(const string src, const string filter) : eclrtl,library='dab',entrypoint='rtlStringFilter';
+    string141 addressclean(const string src, const string filter) : eclrtl,runtime,library='dab',entrypoint='rtlStringFilter';
 end;
 
 

@@ -141,6 +141,7 @@ protected:
     inline bool constant() const { return (infoFlags2 & HEF2constant) != 0; }
     inline bool functionOfGroupAggregate() const { return (infoFlags & HEFfunctionOfGroupAggregate) != 0; }
     inline bool fullyBound() const { return (infoFlags & HEFunbound) == 0; }
+    inline bool pure() const { return (infoFlags & HEFimpure) == 0; }
 
     //For a no_select, is this the root no_select (rather than a.b.c), and is it also an active selector.
     //Used for determining how a no_select should be interpreted e.g., in table gathering. 

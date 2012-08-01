@@ -25,7 +25,7 @@ UNSIGNED numrecs := 30000000 : stored('numrecs'); // per node
 
 
 rtl := SERVICE
-  unsigned4 msTick() :      eclrtl,library='eclrtl',entrypoint='rtlTick';
+  unsigned4 msTick() :      eclrtl,volatile,library='eclrtl',entrypoint='rtlTick';
 END;
 
 

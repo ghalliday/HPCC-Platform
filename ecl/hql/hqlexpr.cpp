@@ -3980,7 +3980,7 @@ void CHqlExpression::onAppendOperand(IHqlExpression & child, unsigned whichOpera
     {
     case no_transform:
     case no_newtransform:
-        childFlags &= ~(HEFtransformDependent|HEFcontainsSkip|HEFthrowscalar|HEFthrowds);
+        childFlags &= ~(HEFtransformDependent|HEFcontainsSkip|HEFthrowscalar|HEFthrowds|HEFcontextDependentException);
         break;
     }
 
@@ -7560,7 +7560,10 @@ IHqlExpression * createFunctionDefinition(_ATOM name, IHqlExpression * value, IH
     if (defaults)
         args.append(*defaults);
     if (attrs)
+    {
         attrs->unwindList(args, no_comma);
+        ::Release(attrs);
+    }
     return createFunctionDefinition(name, args);
 }
 
@@ -9437,6 +9440,9 @@ CHqlExternalCall::CHqlExternalCall(IHqlExpression * _funcdef, ITypeInfo * _type,
         impureFlags |= isDataset() ? HEFthrowds : HEFthrowscalar;
     if (body->hasProperty(noMoveAtom) || body->hasProperty(contextSensitiveAtom))
         impureFlags |= HEFcontextDependentException;
+    if (body->hasProperty(costlyAtom))
+        impureFlags |= HEFcostly;
+
 
     if (isVolatileFuncdef(funcdef))
         impureFlags |= HEFvolatile;
@@ -9446,8 +9452,17 @@ CHqlExternalCall::CHqlExternalCall(IHqlExpression * _funcdef, ITypeInfo * _type,
     {
         StringBuffer entrypoint;
         getStringValue(entrypoint, queryPropertyChild(body, entrypointAtom, 0));
-        if (streq(entrypoint.str(), "getNodes"))
-            impureFlags |= HEFaction;
+        if (streq(entrypoint.str(), "getNodeNum") ||
+//            streq(entrypoint.str(), "getNodes") ||
+//            streq(entrypoint.str(), "getPlatform") ||
+            streq(entrypoint.str(), "getFilePart"))
+        {
+            impureFlags |= HEFcontextDependentException;
+        }
+        if (streq(entrypoint.str(), "getPlatform"))
+        {
+            impureFlags |= HEFvolatile;
+        }
     }
 
     infoFlags |= impureFlags;

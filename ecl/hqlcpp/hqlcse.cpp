@@ -1211,7 +1211,7 @@ static bool canHoistInvariant(IHqlExpression * expr)
         if ((expr->getOperator() != no_alias) || expr->hasProperty(globalAtom))
             return false;
     }
-    if (!expr->isPure())
+    if (!expr->isPure() || isVolatile(expr))
         return false;
     switch (expr->getOperator())
     {

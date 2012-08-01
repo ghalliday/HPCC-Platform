@@ -611,11 +611,16 @@ IValue * foldExternalCall(IHqlExpression* expr, unsigned foldOptions, ITemplateC
 
     const char * entrypoint = entry.toCharArray();
     const char * library = lib.toCharArray();
-    if(!body->hasProperty(pureAtom) && !body->hasProperty(templateAtom) && !(foldOptions & (HFOfoldimpure|HFOforcefold)))
+    if(!(foldOptions & (HFOfoldimpure|HFOforcefold)))
     {
-        if (foldOptions & HFOthrowerror)
-            throw MakeStringException(ERR_TMPLT_NONPUREFUNC, "%s/%s is not a pure function, can't constant fold it", library, entrypoint);
-        return NULL;
+        bool notNow = (body->hasProperty(onceAtom) || body->hasProperty(runtimeAtom));
+        //For backward compatibility we only constant fold expressions marked as pure for the moment.  Later this condition should be removed.
+        if(notNow || !body->hasProperty(pureAtom))
+        {
+            if (foldOptions & HFOthrowerror)
+                throw MakeStringException(ERR_TMPLT_NONPUREFUNC, "%s/%s is not a pure function, can't constant fold it", library, entrypoint);
+            return NULL;
+        }
     }
 
     if(!body->hasProperty(cAtom)) 
