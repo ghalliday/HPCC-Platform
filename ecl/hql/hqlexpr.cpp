@@ -181,6 +181,28 @@ Theoretically any expression that is volatile forces any expression that uses it
 for the other impure effects.    However if you follow this rule you very quickly end up with large parts of a query
 that cannot be optimized.  So we use something less restrictive:
 
+* A volatile expression is one that is itself volatile
+* A volatile-containing expression contains a volatile expression or is itself volatile.
+
+- A volatile-containing expression is never moved outside of a transform.
+- A dataset is volatile if the transform or any scalar arguments are volatile-containing
+
+- An action on an volatile-containing dataset must be volatile - otherwise the volatile-dataset might be cloned.
+- An aggregate of a volatile-containing dataset is not volatile (but is if it's argument is)
+
+- A volatile item could only be hoisted??? when.  Is there any situation where it is ok???
+i) If it is contained with a dataset's transform
+ii) The dataset will only be executed once
+
+How could that possibly be spotted but also include the idea that it cannot be split/a derived expression can't be hoisted without forcing a split
+of the volatile dataset to avoid it being cloned????
+Can I come up with an example where it would be ok to hoist a volatile expression???
+
+- A volatile dat
+- A general contains volatile()
+- A volatile scalar expression is volatile if it has a volatile argument
+- A transform is volatile if it contains a volatile item.
+- A dataset
 - A volatile item used inside a transform doesn't make anything that uses that transform volatile.  I think this causes issues!
 - A sink (e.g., OUTPUT), row selector ([]), or scalar aggregate (e.g., count(ds)) that is applied to a volatile dataset isn't itself volatile.
 - A sink (e.g., output) applied to a volatile expression isn't itself volatile.
