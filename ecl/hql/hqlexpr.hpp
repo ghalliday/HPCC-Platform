@@ -1183,7 +1183,7 @@ interface IHqlExpression : public IInterface
     virtual bool isFunction() = 0;
     virtual bool isAggregate() = 0;
     virtual bool isGroupAggregateFunction() = 0;
-    virtual bool isPure() = 0;
+    //virtual bool isPure() = 0;
     virtual bool isAttribute() const = 0;
     virtual annotate_kind getAnnotationKind() const = 0;
     virtual IHqlAnnotation * queryAnnotation() = 0;
@@ -1469,9 +1469,9 @@ extern HQL_API bool hasFewRows(IHqlExpression * expr);
 extern HQL_API node_operator queryHasRows(IHqlExpression * expr);
 extern HQL_API void queryRemoveRows(HqlExprCopyArray & tables, IHqlExpression * expr, IHqlExpression * left, IHqlExpression * right);
 
-extern HQL_API bool isPureActivity(IHqlExpression * expr);
-extern HQL_API bool isPureActivityIgnoringSkip(IHqlExpression * expr);
-extern HQL_API bool isPureInlineDataset(IHqlExpression * expr);
+//extern HQL_API bool isPureActivity(IHqlExpression * expr);
+//extern HQL_API bool isPureActivityIgnoringSkip(IHqlExpression * expr);
+//extern HQL_API bool isPureInlineDataset(IHqlExpression * expr);
 extern HQL_API bool transformHasSkipAttr(IHqlExpression * transform);
 extern HQL_API IHqlExpression * queryNewColumnProvider(IHqlExpression * expr);          // what is the transform/newtransform/record?
 extern HQL_API unsigned queryTransformIndex(IHqlExpression * expr);
@@ -1752,12 +1752,32 @@ extern HQL_API bool isSameUnqualifiedType(ITypeInfo * l, ITypeInfo * r);
 extern HQL_API bool isSameFullyUnqualifiedType(ITypeInfo * l, ITypeInfo * r);
 extern HQL_API IHqlExpression * queryNewSelectAttrExpr();
 
+//The following functions deal with the different aspects of impure functions - volatile,costly,throw,skip,...
+
+inline bool isVolatile(IHqlExpression * expr)           { return (expr->getInfoFlags() & HEFvolatile) != 0; }
+//Is it ok to duplicate the evaluation of this expression in another context?
+inline bool canDuplicateExpr(IHqlExpression * expr)      { return (expr->getInfoFlags() & (HEFvolatile|HEFcostly)) == 0; }
+//Is it legal to evaluate this expression in a different context - e.g, in a parent instead of child query
+inline bool canChangeContext(IHqlExpression * expr)     { return (expr->getInfoFlags() & (HEFvolatile|HEFcontextDependent|HEFthrow|HEFcontainsSkip|HEFcostly)) == 0; }
+//Is it ok to convert a conditional expression to an unconditional expression?
+inline bool canRemoveGuard(IHqlExpression * expr)       { return (expr->getInfoFlags() & (HEFthrow|HEFcontainsSkip|HEFcostly)) == 0; }
+//Is it legal to reuse the value created in another context for this expression?
+inline bool canCommonUpContext(IHqlExpression * expr)     { return (expr->getInfoFlags() & (HEFcontextDependent|HEFcontainsSkip)) == 0; }
+
+//Is it legal to duplicate this activity?
+extern HQL_API bool canDuplicateActivity(IHqlExpression * expr);
+
+extern HQL_API bool hasTransformWithSkip(IHqlExpression * expr);
+extern HQL_API bool isNoSkipInlineDataset(IHqlExpression * expr);
+
+
+
+
 //The following are wrappers for the code generator specific getInfoFlags()
 //inline bool isTableInvariant(IHqlExpression * expr)       { return (expr->getInfoFlags() & HEFtableInvariant) != 0; }
 inline bool containsActiveDataset(IHqlExpression * expr){ return (expr->getInfoFlags() & HEFcontainsActiveDataset) != 0; }
 inline bool containsActiveNonSelector(IHqlExpression * expr)
                                                         { return (expr->getInfoFlags() & HEFcontainsActiveNonSelector) != 0; }
-
 inline bool containsNonActiveDataset(IHqlExpression * expr) { return (expr->getInfoFlags() & (HEFcontainsDataset)) != 0; }
 inline bool containsAnyDataset(IHqlExpression * expr)   { return (expr->getInfoFlags() & (HEFcontainsDataset|HEFcontainsActiveDataset)) != 0; }
 inline bool containsAlias(IHqlExpression * expr)        { return (expr->getInfoFlags() & HEFcontainsAlias) != 0; }
@@ -1772,15 +1792,6 @@ inline bool isCountProject(IHqlExpression * expr)       { return expr->hasProper
 inline bool containsSkip(IHqlExpression * expr)         { return (expr->getInfoFlags() & (HEFcontainsSkip)) != 0; }
 inline bool containsSelf(IHqlExpression * expr)         { return (expr->getInfoFlags2() & (HEF2containsSelf)) != 0; }
 
-inline bool isVolatile(IHqlExpression * expr)           { return (expr->getInfoFlags() & HEFvolatile) != 0; }
-//Is it ok to duplicate the evaluation of this expression in another context?
-inline bool canBeDuplicated(IHqlExpression * expr)      { return (expr->getInfoFlags() & (HEFvolatile|HEFcostly)) == 0; }
-//Is it legal to evaluate this expression in a different context - e.g, in a parent instead of child query
-inline bool canChangeContext(IHqlExpression * expr)     { return (expr->getInfoFlags() & (HEFvolatile|HEFcontextDependent|HEFthrow|HEFcontainsSkip|HEFcostly)) == 0; }
-//Is it ok to convert a conditional expression to an unconditional expression?
-inline bool canRemoveGuard(IHqlExpression * expr)       { return (expr->getInfoFlags() & (HEFthrow|HEFcontainsSkip|HEFcostly)) == 0; }
-//Is it legal to reuse the value created in another context for this expression?
-inline bool canCommonUpContext(IHqlExpression * expr)     { return (expr->getInfoFlags() & (HEFcontextDependent|HEFcontainsSkip)) == 0; }
 
 inline bool isContextDependentExceptGraph(IHqlExpression * expr)    
                                                         { return (expr->getInfoFlags() & (HEFcontextDependent & ~HEFgraphDependent)) != 0; }
@@ -1819,7 +1830,6 @@ inline bool isForwardScope(IHqlScope * scope) { return scope && (queryExpression
 
 extern HQL_API bool isContextDependent(IHqlExpression * expr, bool ignoreFailures = false, bool ignoreGraph = false);
 
-extern HQL_API bool isPureCanSkip(IHqlExpression * expr);
 extern HQL_API bool hasSideEffects(IHqlExpression * expr);
 extern HQL_API bool containsAnyActions(IHqlExpression * expr);
 extern bool canBeVirtual(IHqlExpression * expr);

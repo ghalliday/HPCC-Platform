@@ -68,6 +68,7 @@ protected:
     bool isSharedOrUnknown(IHqlExpression * expr);
     bool childrenAreShared(IHqlExpression * expr);
     bool isWorthMovingProjectOverLimit(IHqlExpression * expr);
+    bool canMergeProjectIntoChild(IHqlExpression * parent, IHqlExpression * child);
 
     IHqlExpression * moveFilterOverSelect(IHqlExpression * expr);
     IHqlExpression * queryMoveKeyedExpr(IHqlExpression * transformed);

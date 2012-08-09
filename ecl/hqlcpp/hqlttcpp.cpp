@@ -2330,7 +2330,7 @@ IHqlExpression * ThorHqlTransformer::normalizeGroup(IHqlExpression * expr)
             }
         }
 #ifdef _DEBUG
-        assertex(!sortlist->isPure() || isPartitionedForGroup(sorted, sortlist, true)); // sanity check
+        assertex(isVolatile(sortlist) || isPartitionedForGroup(sorted, sortlist, true)); // sanity check
 #endif
     }
 
@@ -3453,6 +3453,7 @@ void CompoundSourceInfo::reset()
     isFiltered = false;
     isPostFiltered = false;
     isCreateRowLimited = false;
+    containsSkip = false;
 }
 
 
@@ -3531,6 +3532,7 @@ bool CompoundSourceInfo::inherit(const CompoundSourceInfo & other, node_operator
     isPostFiltered = other.isPostFiltered;
     isPreloaded = other.isPreloaded;
     isCreateRowLimited = other.isCreateRowLimited;
+    containsSkip = other.containsSkip;
     mode = other.mode;
     uid.set(other.uid);
 
@@ -3703,15 +3705,16 @@ void CompoundSourceTransformer::analyseGatherInfo(IHqlExpression * expr)
                     IHqlExpression * dataset = expr->queryChild(0);
                     CompoundSourceInfo * parentExtra = queryBodyExtra(dataset);
                     //Skips in datasets don't work very well at the moment - pure() is a bit strict really.
-                    if ((dataset->isPure() || expr->hasProperty(keyedAtom)) && !parentExtra->isAggregate())
+                    if ((!parentExtra->containsSkip || expr->hasProperty(keyedAtom)) && !parentExtra->isAggregate())
                     {
                         extra->inherit(*parentExtra);
                         if (expr->hasProperty(keyedAtom))
                             extra->ensureCompound();
-                        if (!isPureActivity(expr))
+                        if (hasTransformWithSkip(expr))
                         {
                             extra->isFiltered = true;
                             extra->isPostFiltered = true;
+                            extra->containsSkip = true;
                         }
                     }
                 }
@@ -3824,7 +3827,7 @@ void CompoundSourceTransformer::analyseGatherInfo(IHqlExpression * expr)
     case no_choosen:
         {
             IHqlExpression * arg2 = expr->queryChild(2);
-            if (arg2 && !arg2->isPure())
+            if (arg2 && !canDuplicateExpr(arg2))
                 break;
             //fall through
         }
@@ -3834,7 +3837,7 @@ void CompoundSourceTransformer::analyseGatherInfo(IHqlExpression * expr)
             CompoundSourceInfo * parentExtra = queryBodyExtra(dataset);
 
             bool cloneRequired = needToCloneLimit(expr, parentExtra->sourceOp);
-            if (cloneRequired && !expr->queryChild(1)->isPure())
+            if (cloneRequired && !canDuplicateExpr(expr->queryChild(1)))
                 break;
 
             if (parentExtra->canMergeLimit(expr, targetClusterType) && !isGrouped(expr) && parentExtra->isBinary())
@@ -3876,7 +3879,7 @@ void CompoundSourceTransformer::analyseGatherInfo(IHqlExpression * expr)
                     break;
 
                 bool isSimpleCountExists = isSimpleCountExistsAggregate(expr, true, false);
-                if (parentExtra->isCreateRowLimited)
+                if (parentExtra->isCreateRowLimited || parentExtra->containsSkip)
                     break;
                 if (parentExtra->hasAnyLimit() && !isSimpleCountExists)
                     break;
@@ -6890,7 +6893,7 @@ void ScalarGlobalTransformer::doAnalyseExpr(IHqlExpression * expr)
 #ifndef NEW_SCALAR_CODE
 //  Commented line has problems with SELF used in HOLE definition, and explosion in thumphrey7 etc.
 //  if (okToHoist && isIndependentOfScope(expr) && !expr->isConstant() && !isContextDependent(expr) && expr->isPure())
-    if (okToHoist && !containsAnyDataset(expr) && !expr->isConstant() && !isContextDependent(expr) && expr->isPure())
+    if (okToHoist && !containsAnyDataset(expr) && !expr->isConstant() && !isContextDependent(expr) && canChangeContext(expr))
     {
         ITypeInfo * type = expr->queryType();
         if (isTypeToHoist(type))

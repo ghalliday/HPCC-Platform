@@ -449,7 +449,11 @@ bool CseSpotter::checkPotentialCSE(IHqlExpression * expr, CseSpotterInfo * extra
     if (extra->alreadyAliased)
         return false;
 
-    if (!expr->isPure() || !canCreateTemporary(expr))
+    //For the moment, play safe.  I'm not sure this is strictly correct
+    if (!canRemoveGuard(expr))
+        return false;
+
+    if (!canCreateTemporary(expr))
         return false;
 
     if (invariantSelector && exprReferencesDataset(expr, invariantSelector))
@@ -1211,8 +1215,10 @@ static bool canHoistInvariant(IHqlExpression * expr)
         if ((expr->getOperator() != no_alias) || expr->hasProperty(globalAtom))
             return false;
     }
-    if (!expr->isPure() || isVolatile(expr))
+
+    if (!canChangeContext(expr))
         return false;
+
     switch (expr->getOperator())
     {
     case no_list:

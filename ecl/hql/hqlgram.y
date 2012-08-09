@@ -2222,7 +2222,7 @@ actionStmt
                                 if (queryProperty(extendAtom, options))
                                     parser->reportError(ERR_NOLONGER_SUPPORTED,$7,"EXTEND is no longer supported on OUTPUT to file");
 
-                                if (filename->isPure())
+                                if (!isVolatile(filename))
                                 {
                                     DependenciesUsed dependencies(true);
                                     gatherDependencies(dataset, dependencies, GatherFileRead);

@@ -1088,7 +1088,8 @@ IHqlExpression * transformTrivialSelectProject(IHqlExpression * select)
     IHqlExpression * transform = queryNewColumnProvider(expr);
     if (!transform)
         return NULL;
-    if (!transform->isPure() && transformHasSkipAttr(transform))
+
+    if (containsSkip(transform))
         return NULL;
 
     IHqlExpression * ds = expr->queryChild(0);

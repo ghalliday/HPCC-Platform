@@ -789,7 +789,9 @@ void HqlCppCaseInfo::buildGeneralReturn(BuildCtx & ctx)
 
 bool HqlCppCaseInfo::okToAlwaysEvaluateDefault()
 {
-    return defaultValue->isPure();
+    if (!canRemoveGuard(defaultValue))
+        return false;
+    return true;
 }
 
 ITypeInfo * HqlCppCaseInfo::queryCompareType()

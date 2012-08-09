@@ -1732,7 +1732,7 @@ bool LinkedDatasetBuilderBase::buildAppendRows(BuildCtx & ctx, IHqlExpression * 
                 break;
             default:
                 //Don't speculatively evaluate if the expression isn't pure
-                tryToOptimize = alwaysEvaluatesToBound(expr) && expr->isPure();
+                tryToOptimize = alwaysEvaluatesToBound(expr);
                 break;
             }
 

@@ -365,7 +365,7 @@ IHqlExpression * ensurePositiveOrZeroInt64(IHqlExpression * expr)
 
     //A bit convoluted, but we only want to evaluate impure expressions (e.g., random()!) once.
     //So force them to appear pure (so get commoned up), wrap in an alias, and then create the conditional assignment
-    if (!cast->isPure())
+    if (isVolatile(cast))
     {
         OwnedHqlExpr localAttr = createLocalAttribute();
         OwnedHqlExpr pure = createValue(no_pure, cast->getType(), LINK(cast));

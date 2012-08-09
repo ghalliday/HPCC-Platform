@@ -4299,7 +4299,11 @@ IHqlExpression * CExprFolderTransformer::doFoldTransformed(IHqlExpression * unfo
                         break;
                     }
                 }
-                if (!newRow || !newRow->isPure())
+                if (!newRow)
+                    break;
+
+                //Instead of evaluating once newRow will be evaluated multiple times.  Is that ok (e.g., volatile)
+                if (!canDuplicateExpr(newRow))
                     break;
 
                 OwnedHqlExpr replacementRow = createRow(no_newrow, LINK(newRow));
@@ -4440,7 +4444,7 @@ IHqlExpression * CExprFolderTransformer::doFoldTransformed(IHqlExpression * unfo
             switch (childOp)
             {
             case no_inlinetable:
-                if ((foldOptions & HFOconstantdatasets) && isPureInlineDataset(child))
+                if ((foldOptions & HFOconstantdatasets) && isNoSkipInlineDataset(child))
                     ret = queryOptimizeAggregateInline(expr, child->queryChild(0)->numChildren());
                 break;
             default:
@@ -4459,7 +4463,7 @@ IHqlExpression * CExprFolderTransformer::doFoldTransformed(IHqlExpression * unfo
             switch (childOp)
             {
             case no_inlinetable:
-                if (isPureInlineDataset(child))
+                if (isNoSkipInlineDataset(child))
                     return createConstant(expr->queryType()->castFrom(false, (__int64)child->queryChild(0)->numChildren()));
                 break;
             case no_null:
@@ -4493,7 +4497,7 @@ IHqlExpression * CExprFolderTransformer::doFoldTransformed(IHqlExpression * unfo
             switch (childOp)
             {
             case no_inlinetable:
-                if (isPureInlineDataset(child))
+                if (isNoSkipInlineDataset(child))
                 {
                     bool hasChildren = (child->queryChild(0)->numChildren() != 0);
                     return createConstant(hasChildren);

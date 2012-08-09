@@ -112,7 +112,7 @@ What decisions do the flags affect?
 
 canRemoveEvaluation()   - Is it ok to not evaluate an expression?
 canReduceEvaluations()  - Is it possible to reduce the number of times something is evaluated?
-canBeDuplicated()       - Whether an expression can be duplicated.
+canDuplicateExpr()      - Whether an expression can be duplicated.
 canChangeContext()      - Whether an expression can be moved to a different context.
 canRemoveGuard()        - Is it ok to evaluate this expression without any surrounding conditions?
 isVolatile()            - Whether an expression always generates the same value. (E.g., for matching distributions)
@@ -130,7 +130,7 @@ canReduceNumberEvaluations()
   The context may also require checking for duplication if the dataset is shared...
 - otherwise - yes.
 
-canBeDuplicated()
+canDuplicateExpr()
 - volatile - no since that will introduce an inconsistency.  This means volatile rows can only be selected
   from a dataset if it is the only use of the dataset.
 - context - yes if same context.
@@ -4002,7 +4002,8 @@ void CHqlExpression::onAppendOperand(IHqlExpression & child, unsigned whichOpera
     {
     case no_transform:
     case no_newtransform:
-        childFlags &= ~(HEFtransformDependent|HEFcontainsSkip|HEFthrowscalar|HEFthrowds|HEFcontextDependentException);
+        //childFlags &= ~(HEFtransformDependent|HEFcontainsSkip|HEFthrowscalar|HEFthrowds|HEFcontextDependentException);
+        childFlags &= ~(HEFtransformDependent|HEFcontainsSkip|HEFthrowscalar|HEFthrowds);
         break;
     }
 
@@ -6488,11 +6489,6 @@ unsigned CHqlAnnotation::getSymbolFlags() const
 bool CHqlAnnotation::isConstant()
 {
     return body->isConstant();
-}
-
-bool CHqlAnnotation::isPure()
-{
-    return body->isPure();
 }
 
 bool CHqlAnnotation::isAttribute() const
@@ -9432,13 +9428,6 @@ extern bool isVolatileFuncdef(IHqlExpression * funcdef)
             if (body->hasProperty(volatileAtom))
                 return true;
             return false;
-            if (body->hasProperty(failAtom) || body->hasProperty(noMoveAtom) || body->hasProperty(contextSensitiveAtom) || body->hasProperty(actionAtom))
-                return false;
-
-            //If none of the flags above are specified then we default to assuming the function is volatile.
-            //It would have been better to assume pure unless volatile explicitly specified, but probably too late to change.
-            //Once aren't really pure, but are as far as the code generator is concerned.  Split into more flags if it becomes an issue.
-            return (!body->hasProperty(pureAtom) && !body->hasProperty(onceAtom));
         }
     case no_outofline:
         {
@@ -9475,8 +9464,6 @@ CHqlExternalCall::CHqlExternalCall(IHqlExpression * _funcdef, ITypeInfo * _type,
         StringBuffer entrypoint;
         getStringValue(entrypoint, queryPropertyChild(body, entrypointAtom, 0));
         if (streq(entrypoint.str(), "getNodeNum") ||
-//            streq(entrypoint.str(), "getNodes") ||
-//            streq(entrypoint.str(), "getPlatform") ||
             streq(entrypoint.str(), "getFilePart"))
         {
             impureFlags |= HEFcontextDependentException;
@@ -12427,12 +12414,25 @@ IHqlExpression * createExternalFuncdefFromInternal(IHqlExpression * funcdef)
     HqlExprArray attrs;
     unwindChildren(attrs, body, 1);
 
-    if (body->isPure())
-        attrs.append(*createAttribute(pureAtom));
-    if (body->getInfoFlags() & HEFaction)
-        attrs.append(*createAttribute(actionAtom));
-    if (body->getInfoFlags() & HEFcontextDependentException)
+    //This should mirror the code in CHqlExternalCall::CHqlExternalCall
+    unsigned impureFlags = body->getInfoFlags();
+    if (impureFlags & (HEFthrowds|HEFthrowscalar))
+        attrs.append(*createAttribute(failAtom));
+
+    if (impureFlags & HEFcontextDependentException)
         attrs.append(*createAttribute(contextSensitiveAtom));
+
+    if (impureFlags & HEFcostly)
+        attrs.append(*createAttribute(costlyAtom));
+
+    if (impureFlags & HEFvolatile)
+        attrs.append(*createAttribute(volatileAtom));
+
+    if (impureFlags & HEFaction)
+        attrs.append(*createAttribute(actionAtom));
+
+    if (impureFlags & HEFcontainsNlpText)
+        attrs.append(*createAttribute(userMatchFunctionAtom));
 
     ITypeInfo * returnType = funcdef->queryType()->queryChildType();
     OwnedHqlExpr externalExpr = createExternalReference(funcdef->queryName(), LINK(returnType), attrs);
@@ -15151,31 +15151,45 @@ IHqlExpression * queryOnlyField(IHqlExpression * record)
     return ret;
 }
 
+//---------------------------------------------------------------------------------------------------------------------
 
-bool isPureActivity(IHqlExpression * expr)
+bool canDuplicateActivity(IHqlExpression * expr)
+{
+    //Short-circuit the most common case
+    if (canDuplicateExpr(expr))
+        return true;
+
+    unsigned max = expr->numChildren();
+    for (unsigned i = getNumChildTables(expr); i < max; i++)
+    {
+        IHqlExpression * cur = expr->queryChild(i);
+        if (!canDuplicateExpr(cur))
+            return false;
+    }
+    return true;
+}
+
+bool hasTransformWithSkip(IHqlExpression * expr)
 {
     unsigned max = expr->numChildren();
     for (unsigned i = getNumChildTables(expr); i < max; i++)
     {
         IHqlExpression * cur = expr->queryChild(i);
-        if (!cur->isPure() || containsSkip(cur))
-            return false;
+        if (containsSkip(cur))
+            return true;
     }
-    return true;
+    return false;
 }
 
-bool isPureActivityIgnoringSkip(IHqlExpression * expr)
+bool isNoSkipInlineDataset(IHqlExpression * expr)
 {
-    unsigned max = expr->numChildren();
-    const unsigned mask = HEFimpure & ~(HEFcontainsSkip);
-    for (unsigned i = getNumChildTables(expr); i < max; i++)
-    {
-        if (expr->queryChild(i)->getInfoFlags() & mask)
-            return false;
-    }
-    return true;
+    assertex(expr->getOperator() == no_inlinetable);
+    IHqlExpression * values = expr->queryChild(0);
+    return !hasTransformWithSkip(values);
 }
 
+
+//---------------------------------------------------------------------------------------------------------------------
 
 extern HQL_API bool isKnownTransform(IHqlExpression * transform)
 {
@@ -15226,11 +15240,6 @@ bool isContextDependent(IHqlExpression * expr, bool ignoreFailures, bool ignoreG
 }
 
 
-bool isPureCanSkip(IHqlExpression * expr)
-{
-    return (expr->getInfoFlags() & (HEFvolatile|HEFaction|HEFthrowscalar|HEFthrowds)) == 0; 
-}
-
 bool hasSideEffects(IHqlExpression * expr)
 {
     return (expr->getInfoFlags() & (HEFthrowscalar|HEFthrowds)) != 0; 
@@ -15258,20 +15267,6 @@ bool transformHasSkipAttr(IHqlExpression * transform)
             return true;
     }
     return false;
-}
-
-
-bool isPureInlineDataset(IHqlExpression * expr)
-{
-    assertex(expr->getOperator() == no_inlinetable || expr->getOperator() == no_inlinedictionary);
-    IHqlExpression * values = expr->queryChild(0);
-    ForEachChild(i, values)
-    {
-        IHqlExpression * transform = values->queryChild(i);
-        if (!transform->isPure() || containsSkip(transform))
-            return false;
-    }
-    return true;
 }
 
 

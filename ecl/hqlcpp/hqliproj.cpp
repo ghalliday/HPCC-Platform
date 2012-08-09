@@ -553,7 +553,7 @@ void UsedFieldSet::gatherTransformValuesUsed(HqlExprArray * selfSelects, SelectU
             IHqlExpression * transformValue = queryTransformAssignValue(transform, field);
             assertex(transformValue);
             bool includeThis = true;
-            if (!curNested.includeAll() && transformValue->isPure())
+            if (!curNested.includeAll() && !containsSkip(transformValue))
             {
                 if (transformValue->getOperator() == no_createrow)
                 {
@@ -2235,7 +2235,7 @@ void ImplicitProjectTransformer::processTransform(ComplexImplicitProjectInfo * e
         else if (cur->getOperator() == no_assign)
         {
             IHqlExpression * value = cur->queryChild(1);
-            if (!value->isPure())
+            if (containsSkip(value))
             {
                 IHqlExpression * lhs = cur->queryChild(0);
                 processMatchingSelector(extra->outputFields, lhs, lhs->queryChild(0));
