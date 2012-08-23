@@ -822,8 +822,15 @@ paramType
                         }
     | DATASET_ID        {
                             OwnedHqlExpr dataset = $1.getExpr();
-//                          $$.setType(makeOriginalModifier(createRecordType(dataset), LINK(dataset)));
-                            $$.setType(makeRowType(createRecordType(dataset)));
+                            if (dataset->getOperator() == no_typedef)
+                            {
+                                $$.setType(dataset->getType());
+                            }
+                            else
+                            {
+    //                          $$.setType(makeOriginalModifier(createRecordType(dataset), LINK(dataset)));
+                                $$.setType(makeRowType(createRecordType(dataset)));
+                            }
                             $$.setPosition($1);
                         }
     | moduleScopeDot DATASET_ID leaveScope
@@ -946,6 +953,7 @@ goodObject
 
 goodTypeObject
     : setType
+    | explicitDatasetType
     | simpleType
     | alienTypeInstance
     | userTypedefType
