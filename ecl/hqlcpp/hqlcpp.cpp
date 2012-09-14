@@ -2844,7 +2844,7 @@ void HqlCppTranslator::buildExpr(BuildCtx & ctx, IHqlExpression * expr, CHqlBoun
             doBuildExprExists(ctx, expr, tgt);
         return;
     case no_countdict:
-        if (!(expr->isPure() && ctx.getMatchExpr(expr, tgt)))
+        if (!ctx.getMatchExpr(expr, tgt))
             doBuildExprCountDict(ctx, expr, tgt);
         return;
     case no_existslist:

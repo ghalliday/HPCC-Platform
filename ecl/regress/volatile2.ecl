@@ -40,7 +40,7 @@ output(IF(volatile3(100) % 50 = volatile3(50), 'Pass', 'Fail'));
 
 //Explicitly create a unique volatile instance for each call
 volatile4(integer n) volatile := rtl.rtlRandom();
-output(IF(volatile3(100) = volatile3(100), 'Pass', 'Fail'));
+output(IF(volatile4(100) != volatile4(100), 'Pass', 'Fail'));
 
 //Create a unique instance for each value of n
 volatile5(integer n) := volatile4(n);

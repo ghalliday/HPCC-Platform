@@ -264,6 +264,7 @@ _ATOM prefetchAtom;
 _ATOM preloadAtom;
 _ATOM priorityAtom;
 _ATOM privateAtom;
+_ATOM _pseudoAction_Atom;
 _ATOM pseudoentrypointAtom;
 _ATOM pullAtom;
 _ATOM pulledAtom;
@@ -650,6 +651,7 @@ MODULE_INIT(INIT_PRIORITY_HQLATOM)
     MAKEATOM(priority);
     MAKEATOM(private);
     MAKEATOM(proxyAddress);
+    MAKESYSATOM(pseudoAction);
     MAKEATOM(pseudoentrypoint);
     MAKEATOM(pull);
     MAKEATOM(pulled);

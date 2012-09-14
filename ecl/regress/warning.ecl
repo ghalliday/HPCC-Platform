@@ -34,8 +34,8 @@ string2     nl;
 
 
 warnValue(string text, integer value) := function
-    logging.addWorkunitWarning(text);
-    return value;
+    //logging.addWorkunitWarning(text);
+    return when(value, logging.addWorkunitWarning(text));
 end;
 
 ppersonRecordEx projectFunction(ppersonRecord incoming) := Transform

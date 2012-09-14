@@ -3623,7 +3623,7 @@ void CHqlExpression::updateFlagsAfterOperands()
         }
     case no_clustersize:
         //wrong, but improves the generated code
-        infoFlags |= HEFvolatile;
+        //infoFlags |= HEFvolatile;
         break;
     case no_type:
         {
@@ -4002,8 +4002,10 @@ void CHqlExpression::onAppendOperand(IHqlExpression & child, unsigned whichOpera
     {
     case no_transform:
     case no_newtransform:
+    case no_transformlist:
         //childFlags &= ~(HEFtransformDependent|HEFcontainsSkip|HEFthrowscalar|HEFthrowds|HEFcontextDependentException);
-        childFlags &= ~(HEFtransformDependent|HEFcontainsSkip|HEFthrowscalar|HEFthrowds);
+        if (op != no_transformlist)
+            childFlags &= ~(HEFtransformDependent|HEFcontainsSkip|HEFthrowscalar|HEFthrowds|HEFvolatile|HEFcontextDependentException);
         break;
     }
 
@@ -9470,7 +9472,7 @@ CHqlExternalCall::CHqlExternalCall(IHqlExpression * _funcdef, ITypeInfo * _type,
         }
         if (streq(entrypoint.str(), "getPlatform"))
         {
-            impureFlags |= HEFvolatile;
+            //impureFlags |= HEFvolatile;
         }
     }
 
@@ -9482,6 +9484,12 @@ CHqlExternalCall::CHqlExternalCall(IHqlExpression * _funcdef, ITypeInfo * _type,
     if (body->hasProperty(userMatchFunctionAtom))
     {
         infoFlags |= HEFcontainsNlpText;
+    }
+
+    if (hasProperty(_pseudoAction_Atom))
+    {
+        ::Release(type);
+        type = makeVoidType();
     }
 }
 
@@ -15155,10 +15163,6 @@ IHqlExpression * queryOnlyField(IHqlExpression * record)
 
 bool canDuplicateActivity(IHqlExpression * expr)
 {
-    //Short-circuit the most common case
-    if (canDuplicateExpr(expr))
-        return true;
-
     unsigned max = expr->numChildren();
     for (unsigned i = getNumChildTables(expr); i < max; i++)
     {

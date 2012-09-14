@@ -263,7 +263,7 @@ enum
 
     HEFthrow                    = (HEFthrowscalar|HEFthrowds),
 //  HEFcontextDependent         = (HEFgraphDependent|HEFcontainsNlpText|HEFcontainsXmlText|HEFcontainsSkip|HEFcontainsCounter|HEFtransformDependent|HEFtranslated|HEFonFailDependent|HEFcontextDependentException|HEFthrowscalar|HEFthrowds),
-    HEFcontextDependent         = (HEFgraphDependent|HEFcontainsNlpText|HEFcontainsXmlText|HEFcontainsSkip|HEFcontainsCounter|HEFtransformDependent|HEFtranslated|HEFonFailDependent|HEFcontextDependentException|HEFoldthrows),
+    HEFcontextDependent         = (HEFgraphDependent|HEFcontainsNlpText|HEFcontainsXmlText|HEFcontainsSkip|HEFcontainsCounter|HEFtransformDependent|HEFtranslated|HEFonFailDependent|HEFcontextDependentException|HEFoldthrows|HEFvolatile),
     HEFretainedByActiveSelect   = (HEFhousekeeping|HEFalwaysInherit),
 
     HEFintersectionFlags        = (0),
@@ -1469,9 +1469,6 @@ extern HQL_API bool hasFewRows(IHqlExpression * expr);
 extern HQL_API node_operator queryHasRows(IHqlExpression * expr);
 extern HQL_API void queryRemoveRows(HqlExprCopyArray & tables, IHqlExpression * expr, IHqlExpression * left, IHqlExpression * right);
 
-//extern HQL_API bool isPureActivity(IHqlExpression * expr);
-//extern HQL_API bool isPureActivityIgnoringSkip(IHqlExpression * expr);
-//extern HQL_API bool isPureInlineDataset(IHqlExpression * expr);
 extern HQL_API bool transformHasSkipAttr(IHqlExpression * transform);
 extern HQL_API IHqlExpression * queryNewColumnProvider(IHqlExpression * expr);          // what is the transform/newtransform/record?
 extern HQL_API unsigned queryTransformIndex(IHqlExpression * expr);

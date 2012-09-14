@@ -269,6 +269,7 @@ extern HQL_API _ATOM prefetchAtom;
 extern HQL_API _ATOM preloadAtom;
 extern HQL_API _ATOM priorityAtom;
 extern HQL_API _ATOM privateAtom;
+extern HQL_API _ATOM _pseudoAction_Atom;
 extern HQL_API _ATOM pseudoentrypointAtom;
 extern HQL_API _ATOM pullAtom;
 extern HQL_API _ATOM pulledAtom;

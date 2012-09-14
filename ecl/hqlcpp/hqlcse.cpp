@@ -515,7 +515,6 @@ bool CseSpotter::checkPotentialCSE(IHqlExpression * expr, CseSpotterInfo * extra
     case no_getgraphresult:
     case no_getgraphloopresult:
     case no_translated: // Causes recursion otherwise....
-    case no_random:
         return false;
     case no_call:
     case no_externalcall:

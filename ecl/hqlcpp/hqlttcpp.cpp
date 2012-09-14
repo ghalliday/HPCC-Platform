@@ -11553,6 +11553,13 @@ IHqlExpression * HqlTreeNormalizer::createTransformedBody(IHqlExpression * expr)
         }
     case no_evaluate:
         return transformEvaluate(expr);
+    case no_evaluate_stmt:
+        {
+            IHqlExpression * ds = expr->queryChild(0);
+            if (ds->getOperator() == no_externalcall)
+                return appendOwnedOperand(ds, createAttribute(_pseudoAction_Atom));
+            break;
+        }
     case no_selectnth:
         {
             IHqlExpression * ds = expr->queryChild(0);

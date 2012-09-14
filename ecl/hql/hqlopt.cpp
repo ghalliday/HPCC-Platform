@@ -571,7 +571,7 @@ IHqlExpression * CTreeOptimizer::optimizeAggregateDataset(IHqlExpression * trans
     bool isScalarAggregate = (aggOp != no_newaggregate) && (aggOp != no_aggregate);
     bool isSimpleCount = isSimpleCountExistsAggregate(transformed, false, true);
 
-    while (canDuplicateActivity(ds))
+    loop
     {
         node_operator dsOp = ds->getOperator();
         IHqlExpression * next = NULL;
@@ -584,15 +584,24 @@ IHqlExpression * CTreeOptimizer::optimizeAggregateDataset(IHqlExpression * trans
                     break;
                 if (hasTransformWithSkip(ds))
                     break;
+                if (isAggregateDataset(ds))
+                    break;
+
+                if (isSimpleCount)
+                {
+                    next = ds->queryChild(0);
+                    break;
+                }
+
+                //A sum etc. on a volatile transform might cause the value to be re-evaluated.
+                if (!canDuplicateActivity(ds))
+                    break;
 
                 //MORE: If the record is empty then either remove the project if no SKIP, or convert the SKIP to a filter
 
                 //Don't remove projects for the moment because they can make counts of disk reads much less
                 //efficient.  Delete the following lines once we have a count-diskread activity
                 if (!isScalarAggregate && !(options & (HOOcompoundproject|HOOinsidecompound)) && !ds->hasProperty(_countProject_Atom) )
-                    break;
-
-                if (isAggregateDataset(ds))
                     break;
 
                 OwnedMapper mapper = getMapper(ds);
@@ -2299,7 +2308,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                         break;
 
                     IHqlExpression * values = child->queryChild(0);
-                    if (isShared(child) && !canDuplicateExpr(child))
+                    if (isShared(child) && !canDuplicateActivity(child))
                         break;
 
                     if (index < 1 || index > values->numChildren())

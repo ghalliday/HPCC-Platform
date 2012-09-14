@@ -3010,7 +3010,7 @@ IHqlExpression * foldConstantOperator(IHqlExpression * expr, unsigned foldOption
             switch (childOp)
             {
             case no_inlinedictionary:
-                if (isPureInlineDataset(child))
+                if (isNoSkipInlineDataset(child))
                     return createConstant(expr->queryType()->castFrom(false, (__int64)child->queryChild(0)->numChildren()));
                 break;
             }
@@ -4303,7 +4303,7 @@ IHqlExpression * CExprFolderTransformer::doFoldTransformed(IHqlExpression * unfo
                     break;
 
                 //Instead of evaluating once newRow will be evaluated multiple times.  Is that ok (e.g., volatile)
-                if (!canDuplicateExpr(newRow))
+                if (!canDuplicateActivity(newRow))
                     break;
 
                 OwnedHqlExpr replacementRow = createRow(no_newrow, LINK(newRow));

@@ -1450,6 +1450,9 @@ bool ResourcerInfo::expandRatherThanSpill(bool noteOtherSpills)
         if (info && info->neverSplit)
             return true;
 
+        if (!canDuplicateActivity(expr))
+            return false;
+
         node_operator op = expr->getOperator();
         switch (op)
         {
