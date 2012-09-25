@@ -269,9 +269,24 @@ IHqlExpression * CTreeOptimizer::removeParentNode(IHqlExpression * expr)
 
 IHqlExpression * CTreeOptimizer::swapNodeWithChild(IHqlExpression * parent)
 {
+    return maybeSwapNodeWithChild(parent, false);
+}
+
+IHqlExpression * CTreeOptimizer::maybeSwapNodeWithChild(IHqlExpression * parent, bool onlyIfOptimizes)
+{
     IHqlExpression * child = parent->queryChild(0);
-    DBGLOG("Optimizer: Swap %s and %s", queryNode0Text(parent), queryNode1Text(child));
     OwnedHqlExpr newParent = swapDatasets(parent);
+
+    if (onlyIfOptimizes)
+    {
+        IHqlExpression * newChild = newParent->queryChild(0);
+
+        OwnedHqlExpr optimizedNewChild = transform(newChild);
+        if (newChild == optimizedNewChild)
+            return NULL;
+    }
+
+    DBGLOG("Optimizer: Swap %s and %s", queryNode0Text(parent), queryNode1Text(child));
     //if this is the only reference to the child (almost certainly true) then no longer refd, so don't inc usage for child.
     noteUnused(child);
     if (!alreadyHasUsage(newParent))
@@ -2764,11 +2779,20 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                 if (!isLimitedDataset(child))
                     return swapNodeWithChild(transformed);
                 break;
+            case no_group:
+                {
+                    //Only move a filter into a ungroup if that filter then goes further
+                    bool onlyIfFilterOptimized = isGrouped(newGrandchild) && !isGrouped(child);
+                    OwnedHqlExpr swapped = maybeSwapNodeWithChild(transformed, onlyIfFilterOptimized);
+
+                    if (swapped)
+                        return swapped.getClear();
+                    break;
+                }
             case no_sorted:
             case no_stepped:
             case no_distributed:
             case no_distribute:
-            case no_group:
             case no_grouped:
             case no_keyeddistribute:
             case no_sort:
