@@ -2061,6 +2061,9 @@ IHqlExpression * foldConstantOperator(IHqlExpression * expr, unsigned foldOption
         }
     case no_if:
         {
+            if (expr->isAction() && isFailureGuard(expr))
+                return optimizeGuardedAction(expr);
+
             IHqlExpression * child = expr->queryChild(0);
             IValue * constValue = child->queryValue();
             if (constValue)
@@ -6045,7 +6048,7 @@ public:
                 }
                 break;
             }
-        case  no_attr:
+        case no_attr:
             if (expr->queryName() == _original_Atom)
                 return LINK(expr);
             break;

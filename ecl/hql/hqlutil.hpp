@@ -618,6 +618,7 @@ extern HQL_API bool arraysSame(CIArray & left, CIArray & right);
 extern HQL_API bool arraysSame(Array & left, Array & right);
 extern HQL_API bool isFailAction(IHqlExpression * expr);
 extern HQL_API bool isFailureGuard(IHqlExpression * expr);
+extern HQL_API IHqlExpression * optimizeGuardedAction(IHqlExpression * expr); // Convert IF(a,FAIL,x) to [IF(a,FAIL), x], otherwise keep the same
 
 extern HQL_API bool isKeyedDataset(IHqlExpression * expr);
 extern HQL_API bool isSteppedDataset(IHqlExpression * expr);

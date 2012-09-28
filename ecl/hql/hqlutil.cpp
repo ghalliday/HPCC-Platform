@@ -6160,11 +6160,32 @@ bool isFailAction(IHqlExpression * expr)
 
 bool isFailureGuard(IHqlExpression * expr)
 {
-    if (expr->getOperator() == no_if)
+    if ((expr->getOperator() == no_if) && queryRealChild(expr, 2))
         return isFailAction(expr->queryChild(1)) || isFailAction(expr->queryChild(2));
     return false;
 }
 
+
+IHqlExpression * optimizeGuardedAction(IHqlExpression * expr)
+{
+    if (!expr->isAction() || !isFailureGuard(expr))
+        return LINK(expr);
+
+    LinkedHqlExpr cond = expr->queryChild(0);
+    IHqlExpression * failure = expr->queryChild(1);
+    unsigned goodArg = 2;
+
+    if (!isFailAction(failure))
+    {
+        cond.setown(getInverse(cond));
+        failure = expr->queryChild(2);
+        goodArg = 1;
+    }
+    HqlExprArray args;
+    args.append(*createValue(no_if, makeVoidType(), cond.getClear(), LINK(failure)));
+    args.append(*LINK(expr->queryChild(goodArg)));
+    return createActionList(args);
+}
 
 extern HQL_API bool isKeyedDataset(IHqlExpression * expr)
 {

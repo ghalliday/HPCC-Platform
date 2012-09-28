@@ -7398,6 +7398,9 @@ bool AutoScopeMigrateInfo::doAutoHoist(IHqlExpression * transformed, bool minimi
         return false;
     }
 
+    if (firstUseIsConditional)
+        return false;
+
     if (firstUseIsConditional && firstUseIsSequential)
         return false;
 
@@ -7498,8 +7501,9 @@ void AutoScopeMigrateTransformer::doAnalyseExpr(IHqlExpression * expr)
         return;
     case no_if:
     case no_choose:
+    case no_chooseds:
         {
-            if (expr->isAction())
+            if (expr->isAction() || expr->isDataset())
             {
                 bool wasConditional = isConditional;
                 analyseExpr(expr->queryChild(0));
@@ -10447,7 +10451,8 @@ IHqlExpression * HqlTreeNormalizer::transformCaseToIfs(IHqlExpression * expr)
 
         OwnedHqlExpr test = createBoolExpr(no_eq, ensureExprType(testVar, type), transform(castCurValue));
         OwnedHqlExpr trueExpr = transform(cur->queryChild(1));
-        elseExpr.setown(createIf(test.getClear(), trueExpr.getClear(), elseExpr.getClear()));
+        OwnedHqlExpr ifExpr = createIf(test.getClear(), trueExpr.getClear(), elseExpr.getClear());
+        elseExpr.setown(optimizeGuardedAction(ifExpr));
     }
     return elseExpr.getClear();
 }
@@ -10572,7 +10577,8 @@ IHqlExpression * HqlTreeNormalizer::transformMap(IHqlExpression * expr)
     for (unsigned idx = max-1; idx-- != 0; idx)
     {
         IHqlExpression * cur = expr->queryChild(idx);
-        elseExpr.setown(createIf(transform(cur->queryChild(0)), transform(cur->queryChild(1)), elseExpr.getClear()));
+        OwnedHqlExpr ifExpr = createIf(transform(cur->queryChild(0)), transform(cur->queryChild(1)), elseExpr.getClear());
+        elseExpr.setown(optimizeGuardedAction(ifExpr));
     }
     return elseExpr.getClear();
 }
