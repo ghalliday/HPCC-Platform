@@ -1411,8 +1411,7 @@ FUNCTIONMACRO|MACRO {
                         }
                         lexer->macroGathering--;
                         endpos = lexer->yyPosition;
-                        if(complex || isFunctionMacro)
-                            endpos -= 8; // remove the ENDMACRO token
+                        endpos -= 8; // remove the ENDMACRO token
                         
                         // keep the orginal format info (like blanks, newlines) for macro
                         
@@ -1426,7 +1425,7 @@ FUNCTIONMACRO|MACRO {
                         {
                             complex = false;
                             const char * prefix = " @FUNCTION ";
-                            const char * suffix = " END ENDMACRO ";
+                            const char * suffix = " END ";
                             unsigned lenPrefix = strlen(prefix);
                             unsigned lenSuffix = strlen(suffix);
 

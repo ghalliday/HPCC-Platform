@@ -546,9 +546,15 @@ static void eclsyntaxerror(HqlGram * parser, const char * s, short yystate, int 
   YY_LAST_TOKEN
 
 %left LOWEST_PRECEDENCE
-%left VALUE_MACRO
+%left VALUE_MACRO   //this has lowest priority since it has no effect - we want <macro> datasetRow to fully match any dataRow, rather than the minimum
+
 %left OR
 %left AND
+
+%left EQ NE LT GT GE LE
+
+%left WITHIN
+%left BETWEEN
 
 %left ORDER UNICODEORDER
 %left SHIFTL SHIFTR
@@ -557,7 +563,9 @@ static void eclsyntaxerror(HqlGram * parser, const char * s, short yystate, int 
 %left '|' '^'
 %left '&' ANDAND
 
+%left TOK_IN
 %left NOT
+%left BNOT
 
 %left '.'
 %left '('
@@ -3448,12 +3456,12 @@ scopedActionId
                             $$.setExpr(parser->bindParameters($1, $4.getExpr()));
                             $$.setPosition($1);
                         }
-    | VALUE_MACRO action ENDMACRO
+    | VALUE_MACRO action
                         {
                             $$.setExpr($2.getExpr());
                             $$.setPosition($1);
                         }
-    | moduleScopeDot VALUE_MACRO leaveScope action ENDMACRO
+    | moduleScopeDot VALUE_MACRO leaveScope action
                         {
                             $1.release();
                             $$.setExpr($4.getExpr());
@@ -3936,12 +3944,12 @@ recordDef
                             $$.setExpr(LINK(record));
                             $$.setPosition($1);
                         }
-    | VALUE_MACRO recordDef ENDMACRO
+    | VALUE_MACRO recordDef
                         {
                             $$.setExpr($2.getExpr());
                             $$.setPosition($1);
                         }
-    | moduleScopeDot VALUE_MACRO leaveScope recordDef ENDMACRO
+    | moduleScopeDot VALUE_MACRO leaveScope recordDef
                         {
                             $1.release();
                             $$.setExpr($4.getExpr());
@@ -4240,7 +4248,7 @@ fieldDef
                             parser->addDatasetField($1, name, LINK(queryOriginalRecord(value)), value, NULL);
                             $$.clear();
                         }
-    | UNKNOWN_ID optFieldAttrs ASSIGN dataSet
+     | UNKNOWN_ID optFieldAttrs ASSIGN dataSet
                         {
                             IHqlExpression * value = $4.getExpr();
                             parser->addDatasetField($1, $1.getName(), LINK(value->queryRecord()), value, $2.getExpr());
@@ -5115,7 +5123,7 @@ compareOp
 
 expr
     : primexpr
-    | expr '+' expr     {
+   | expr '+' expr     {
                             parser->normalizeExpression($1);
                             parser->normalizeExpression($3);
                             if ($1.queryExpr()->isList() || $3.queryExpr()->isList())
@@ -5370,6 +5378,15 @@ primexpr
 
 primexpr1
     : atomicValue
+    | VALUE_MACRO expression
+                        { 
+                            $$.setExpr($2.getExpr(), $1);
+                        }
+    | moduleScopeDot VALUE_MACRO leaveScope expression
+                        {
+                            $1.release();
+                            $$.setExpr($4.getExpr(), $1);
+                        }
     | primexpr1 '[' rangeOrIndices ']'
                         {
                             parser->normalizeExpression($1);
@@ -6575,11 +6592,11 @@ abstractModule
                             IHqlExpression * scopeExpr = queryExpression(parser->globalScope);
                             $$.setExpr(LINK(scopeExpr), $1);
                         }
-    | VALUE_MACRO abstractModule ENDMACRO
+    | VALUE_MACRO abstractModule
                         {
                             $$.setExpr($2.getExpr());
                         }
-    | moduleScopeDot VALUE_MACRO leaveScope abstractModule ENDMACRO
+    | moduleScopeDot VALUE_MACRO leaveScope abstractModule
                         {
                             $1.release();
                             $$.setExpr($4.getExpr(), $4);
@@ -6762,15 +6779,6 @@ globalValueAttribute
                             $1.release();
                             $$.setExpr($2.getExpr(), $1);
                         }
-    | VALUE_MACRO expression ENDMACRO 
-                        { 
-                            $$.setExpr($2.getExpr(), $1);
-                        }
-    | moduleScopeDot VALUE_MACRO leaveScope expression ENDMACRO
-                        {
-                            $1.release();
-                            $$.setExpr($4.getExpr(), $1);
-                        }
     | valueFunction '('
                         {
                             parser->beginFunctionCall($1);
@@ -6825,12 +6833,12 @@ dataRow
                             $$.setExpr(parser->bindParameters($1, $4.getExpr()));
                         }
     | simpleDataRow
-    | VALUE_MACRO dataRow ENDMACRO
+    | VALUE_MACRO dataRow
                         {
                             $$.setExpr($2.getExpr());
                             $$.setPosition($1);
                         }
-    | moduleScopeDot VALUE_MACRO leaveScope dataRow ENDMACRO
+    | moduleScopeDot VALUE_MACRO leaveScope dataRow
                         {
                             $1.release();
                             $$.setExpr($4.getExpr());
@@ -7328,8 +7336,8 @@ dataSet
                             $2.release();
                             $$.setExpr(createDatasetFromRow($1.getExpr()), $1);
                         }
-    | VALUE_MACRO dataSet ENDMACRO {  $$.setExpr($2.getExpr()); }
-    | moduleScopeDot VALUE_MACRO leaveScope dataSet ENDMACRO
+    | VALUE_MACRO dataSet  {  $$.setExpr($2.getExpr()); }
+    | moduleScopeDot VALUE_MACRO leaveScope dataSet
                         {
                             $1.release();
                             $$.setExpr($4.getExpr());
