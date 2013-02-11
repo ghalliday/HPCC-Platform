@@ -60,26 +60,29 @@ void HqlExprAssociation::getBound(CHqlBoundExpr & result)
 
 BuildCtx::BuildCtx(HqlCppInstance & _state, _ATOM section) : state(_state)
 {
-    init(state.ensureSection(section));
+    init(state.ensureSection(section), NormalPrio);
 }
 
 BuildCtx::BuildCtx(HqlCppInstance & _state) : state(_state)
 {
-    init(NULL);
+    init(NULL, NormalPrio);
 }
 
 BuildCtx::BuildCtx(BuildCtx & _owner) : state(_owner.state)
 {
-    init(_owner.curStmts);
+    init(_owner.curStmts, _owner.curPriority);
     ignoreInput = _owner.ignoreInput;
-    curPriority = _owner.curPriority;
-    nextPriority = _owner.nextPriority;
-    ignoreInput = false;
+}
+
+BuildCtx::BuildCtx(BuildCtx & _owner, unsigned prio) : state(_owner.state)
+{
+    init(_owner.curStmts, prio);
+    ignoreInput = _owner.ignoreInput;
 }
 
 BuildCtx::BuildCtx(BuildCtx & _owner, HqlStmts * _root) : state(_owner.state)
 {
-    init(_root);
+    init(_root, NormalPrio);
 }
 
 
@@ -89,16 +92,13 @@ BuildCtx::~BuildCtx()
 
 void BuildCtx::set(_ATOM section)
 {
-    init(state.ensureSection(section));
+    init(state.ensureSection(section), NormalPrio);
 }
 
 void BuildCtx::set(BuildCtx & _owner)
 {
-    init(_owner.curStmts);
+    init(_owner.curStmts, _owner.curPriority);
     ignoreInput = _owner.ignoreInput;
-    curPriority = _owner.curPriority;
-    nextPriority = _owner.nextPriority;
-    ignoreInput = false;
 }
 
 IHqlStmt * BuildCtx::addAlias(IHqlStmt * aliased)
@@ -431,6 +431,7 @@ IHqlStmt * BuildCtx::addSwitch(IHqlExpression * source)
     if (ignoreInput)
         return NULL;
     HqlCompoundStmt * next = new HqlCompoundStmt(switch_stmt, curStmts);
+    next->setIncomplete(true);
     next->addExpr(LINK(source));
     return appendCompound(next);
 }
@@ -458,6 +459,44 @@ HqlStmt * BuildCtx::appendSimple(HqlStmt * next)
     }
     nextPriority = curPriority;
     return next; 
+}
+
+
+void BuildCtx::selectOutermostScope()
+{
+    HqlStmts * searchStmts = curStmts;
+    HqlStmts * insertStmts = NULL;
+    HqlStmt * insertBefore = NULL;
+    loop
+    {
+        HqlStmt * owner = searchStmts->owner;
+        if (!owner)
+            break;
+
+        HqlStmts * ownerStmts = owner->queryContainer();
+        switch (owner->getStmt())
+        {
+        case quote_compound_stmt:
+        case quote_compoundopt_stmt:
+        case indirect_stmt:
+            goto found;
+        case group_stmt:
+            break;
+        default:
+            insertBefore = owner;
+            insertStmts = ownerStmts;
+            break;
+        }
+
+        searchStmts = ownerStmts;
+    }
+
+found:
+    if (insertBefore)
+    {
+        nextPriority = curPriority = insertBefore->queryPriority();
+        curStmts = insertStmts;
+    }
 }
 
 
@@ -782,11 +821,18 @@ bool BuildCtx::getMatchExpr(IHqlExpression * expr, CHqlBoundExpr & tgt)
 
     
 
-void BuildCtx::init(HqlStmts * _root)
+void BuildCtx::init(HqlStmts * _root, unsigned prio)
 {
     root = _root;
     curStmts = root;
-    curPriority = NormalPrio;
+    if (prio == OutermostScopePrio)
+    {
+        curPriority = NormalPrio;
+        selectOutermostScope();
+    }
+    else
+        curPriority = prio;
+
     nextPriority = curPriority;
     ignoreInput = false;
 }
@@ -961,7 +1007,7 @@ void HqlStmts::appendStmt(HqlStmt & stmt)
     }
     else if (newPrio >= item(right-1).queryPriority())
     {
-        while (item(right-1).isIncomplete())
+        while (!item(right-1).isComplete())
         {
             if (newPrio > item(right-1).queryPriority())
                 break;
@@ -986,7 +1032,7 @@ void HqlStmts::appendStmt(HqlStmt & stmt)
 
         if (newPrio >= item(left).queryPriority())
             ++left;
-        while (left && item(left-1).isIncomplete() && (newPrio == item(left-1).queryPriority()))
+        while (left && !item(left-1).isComplete() && (newPrio == item(left-1).queryPriority()))
             --left;
         add(stmt, left);
     }

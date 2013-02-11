@@ -81,6 +81,7 @@ class HQLCPP_API BuildCtx : public CInterface
 public:
     BuildCtx(HqlCppInstance & _state, _ATOM section);
     BuildCtx(HqlCppInstance & _state);
+    BuildCtx(BuildCtx & _owner, unsigned prio);
     BuildCtx(BuildCtx & _owner);
     ~BuildCtx();
 
@@ -88,7 +89,6 @@ public:
     IHqlStmt *                  addAssignIncrement(IHqlExpression * target, IHqlExpression * value);
     IHqlStmt *                  addAssignDecrement(IHqlExpression * target, IHqlExpression * value);
     IHqlStmt *                  addAlias(IHqlStmt * stmt);
-    IHqlStmt *                  addBlock();
     IHqlStmt *                  addBreak();
     IHqlStmt *                  addCase(IHqlStmt * owner, IHqlExpression * condition);
     IHqlStmt *                  addContinue();
@@ -133,6 +133,7 @@ public:
     IHqlStmt *                  selectBestContext(IHqlExpression * expr);
     void                        selectContainer();
     void                        selectElse(IHqlStmt * filter);
+    void                        selectOutermostScope();
     void                        setNextConstructor()    { setNextPriority(ConPrio); }
     void                        setNextDestructor()     { setNextPriority(DesPrio); }
     void                        setNextNormal()         { setNextPriority(NormalPrio); }
@@ -147,10 +148,11 @@ public:
     enum { ConPrio = 1, EarlyPrio =3000, NormalPrio = 5000, LatePrio = 7000, DesPrio = 9999, OutermostScopePrio };
 
 protected:
+    IHqlStmt *                  addBlock();
     HqlStmt *                   appendCompound(HqlCompoundStmt * next);
     HqlStmt *                   appendSimple(HqlStmt * next);
     void                        appendToOutermostScope(HqlStmt * next);
-    void                        init(HqlStmts * _root);
+    void                        init(HqlStmts * _root, unsigned prio);
     bool                        isChildOf(HqlStmt * stmt, HqlStmts * stmts);
     void                        recordDefine(HqlStmt * declare);
     IHqlStmt *                  recursiveGetBestContext(HqlStmts * searchStmts, HqlExprCopyArray & required);
@@ -195,6 +197,7 @@ interface IHqlStmt : public IInterface
 {
 public:
     virtual StringBuffer &  getTextExtra(StringBuffer & out) = 0;
+    virtual bool            isComplete() const = 0;
     virtual bool            isIncluded() const = 0;
     virtual StmtKind        getStmt() = 0;
     virtual unsigned                numChildren() const = 0;
@@ -205,6 +208,20 @@ public:
     virtual void            mergeScopeWithContainer() = 0;
     virtual void            setIncomplete(bool incomplete) = 0;
     virtual void            setIncluded(bool _included) = 0;
+};
+
+inline void finishCompoundStmt(IHqlStmt * stmt) { if (stmt) stmt->setIncomplete(false); }
+
+class CompountStmtTracker
+{
+public:
+    inline CompountStmtTracker(IHqlStmt * _stmt) : stmt(_stmt) {}
+    inline ~CompountStmtTracker() { finishCompoundStmt(stmt); }
+
+    IHqlStmt * get() const { return stmt; }
+
+private:
+    IHqlStmt * stmt;
 };
 
 class HqlCppTranslator;

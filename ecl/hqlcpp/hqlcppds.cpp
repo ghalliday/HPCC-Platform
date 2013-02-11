@@ -732,6 +732,7 @@ void HqlCppTranslator::doBuildAssignAggregateLoop(BuildCtx & ctx, const CHqlBoun
 
                 doBuildAssignAggregateLoop(subctx, target, expr, cur, doneFirstVar);
             }
+            finishCompoundStmt(switchstmt);
             return;
         }
     case no_null:
@@ -3024,6 +3025,7 @@ void HqlCppTranslator::buildDatasetAssignChoose(BuildCtx & ctx, IHqlCppDatasetBu
 
         buildDatasetAssign(subctx, target, cur);
     }
+    finishCompoundStmt(switchstmt);
 }
 
 
@@ -3048,6 +3050,7 @@ void HqlCppTranslator::buildDatasetAssignChoose(BuildCtx & ctx, const CHqlBoundT
 
         buildDatasetAssign(subctx, target, cur);
     }
+    finishCompoundStmt(switchstmt);
 }
 
 

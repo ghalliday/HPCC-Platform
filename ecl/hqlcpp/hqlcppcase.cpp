@@ -710,6 +710,7 @@ void HqlCppCaseInfo::buildSwitchMap(BuildCtx & ctx, const CHqlBoundTarget * targ
     }
     else
         translator.buildReturn(ctx, defaultValue);
+    finishCompoundStmt(stmt);
 }
 
 

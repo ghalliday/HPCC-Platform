@@ -6758,6 +6758,7 @@ void HqlCppTranslator::doBuildChoose(BuildCtx & ctx, const CHqlBoundTarget * tar
         subctx.addDefault(stmt);
         buildExprOrAssign(subctx, target, defaultExpr, NULL);
     }
+    finishCompoundStmt(stmt);
 }
 
 void HqlCppTranslator::doBuildAssignChoose(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr)

@@ -44,6 +44,7 @@ public:
     
     virtual StmtKind                getStmt();
     virtual StringBuffer &          getTextExtra(StringBuffer & out);
+    virtual bool                    isComplete() const { return !incomplete; }
     virtual bool                    isIncluded() const;
     virtual unsigned                numChildren() const;
     virtual IHqlStmt *              queryChild(unsigned index) const;
@@ -52,7 +53,6 @@ public:
 
             void                    addExpr(IHqlExpression * expr);
             void                    killExprs() { exprs.kill(); }
-            bool                    isIncomplete()  { return incomplete; }
             unsigned                queryPriority() { return priority; }
     virtual void                    mergeScopeWithContainer()       {}
     virtual void                    setIncomplete(bool _incomplete) { incomplete = _incomplete; }

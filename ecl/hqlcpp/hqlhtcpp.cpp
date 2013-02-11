@@ -3370,9 +3370,15 @@ void HqlCppTranslator::ensureRowAllocator(StringBuffer & allocatorName, BuildCtx
     StringBuffer uid;
     getUniqueId(uid.append("alloc"));
 
-    BuildCtx * declarectx = &ctx;
-    BuildCtx * callctx = &ctx;
-    getInvariantMemberContext(ctx, &declarectx, &callctx, true, false);
+    BuildCtx subctx(ctx);
+    BuildCtx * declarectx = &subctx;
+    BuildCtx * callctx = &subctx;
+    if (!getInvariantMemberContext(ctx, &declarectx, &callctx, true, false))
+    {
+        //The following will not currently work because not all compound activities will be correctly marked as
+        //complete/incomplete
+        //subctx.selectOutermostScope();
+    }
 
     StringBuffer s;
     s.append("Owned<IEngineRowAllocator> ").append(uid).append(";");
@@ -9233,6 +9239,7 @@ void HqlCppTranslator::buildCsvListFunc(BuildCtx & classctx, const char * func, 
                 }
             }
             funcctx.addDefault(caseStmt);
+            finishCompoundStmt(caseStmt);
         }
     }
     funcctx.addReturn(queryQuotedNullExpr());
@@ -9566,6 +9573,7 @@ void HqlCppTranslator::buildClusterHelper(BuildCtx & ctx, IHqlExpression * expr)
             //}
         }
     }
+    finishCompoundStmt(switchStmt);
     funcctx.addReturn(queryQuotedNullExpr());
 }
 
@@ -10005,6 +10013,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityOutputIndex(BuildCtx & ctx, IH
                 buildReturn(casectx, queryBoolExpr(true));
             }
         }
+        finishCompoundStmt(switchStmt);
         buildReturn(subctx, queryBoolExpr(false));
     }
 
@@ -17252,6 +17261,7 @@ void HqlCppTranslator::buildWorkflow(WorkflowArray & workflow)
             }
         }
     }
+    finishCompoundStmt(switchStmt);
 
     OwnedHqlExpr returnExpr = getSizetConstant(maxSequence);
     performctx.addReturn(returnExpr);

@@ -1585,6 +1585,7 @@ void HqlCppWriter::generateStmt(IHqlStmt * stmt)
 {
     if (!stmt->isIncluded())
         return;
+    assertex(stmt->isComplete());
 
     unsigned kind = stmt->getStmt();
     switch (kind)
