@@ -4554,7 +4554,7 @@ IReferenceSelector * HqlCppTranslator::buildDatasetIndex(BuildCtx & ctx, IHqlExp
     else if (!canProcessInline(&ctx, expr))
     {
         CHqlBoundExpr bound;
-        OwnedHqlExpr dsExpr = expr->isDatarow() ? createDatasetFromRow(LINK(expr)) : LINK(expr);
+        OwnedHqlExpr dsExpr = expr->isDatarow() ? createDatasetFromRow(LINK(expr), createDummySelectorSequence()) : LINK(expr);
         buildDataset(ctx, dsExpr, bound, FormatNatural);
         convertBoundDatasetToFirstRow(expr, bound);
         row = bindRow(ctx, expr, bound.expr);

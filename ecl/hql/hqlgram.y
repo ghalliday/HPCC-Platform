@@ -1941,7 +1941,9 @@ transformation1
                                 IHqlExpression * target = $1.queryExpr();
                                 if (target->isDataset())
                                 {
-                                    value = createDatasetFromRow(LINK(value));
+                                    IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                                
+                                    value = createDatasetFromRow(LINK(value), selSeq);
                                     $3.release();
                                     $3.setExpr(value);
                                     parser->addAssignment($1, $3);
@@ -2242,7 +2244,8 @@ actionStmt
                             HqlExprArray options;
                             $7.unwindCommaList(options);
 
-                            OwnedHqlExpr select = createDatasetF(no_selectfields, dataset, record, NULL);
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(dataset, NULL);
+                            OwnedHqlExpr select = createDatasetF(no_selectfields, dataset, record, selSeq, NULL);
                             IHqlExpression * filename = options.ordinality() ? &options.item(0) : NULL;
                             if (!filename || filename->isAttribute())
                             {
@@ -2292,7 +2295,8 @@ actionStmt
                                 OwnedHqlExpr mapped = replaceSelector(arg, dataset, queryActiveTableSelector());
                                 if (mapped != arg)
                                     parser->reportError(ERR_ROWPIPE_AND_PROJECT, $8, "OUTPUT to PIPE with a projecting record doesn't currently work when the command is dependant on the current row");
-                                args.append(*createDatasetF(no_selectfields, dataset, LINK(record), NULL)); //createUniqueId(), NULL));
+                                IHqlExpression * selSeq = parser->createActiveSelectorSequence(dataset, NULL);
+                                args.append(*createDatasetF(no_selectfields, dataset, LINK(record), selSeq, NULL)); //createUniqueId(), NULL));
                             }
                             pipe->unwindList(args, no_comma);
                             $9.unwindCommaList(args);
@@ -2312,7 +2316,8 @@ actionStmt
                         {
                             IHqlExpression *dataset = $3.getExpr();
                             IHqlExpression *record = createValue(no_null);
-                            OwnedHqlExpr select = createDatasetF(no_selectfields, dataset, record, NULL); //createUniqueId(), NULL);
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(dataset, NULL);
+                            OwnedHqlExpr select = createDatasetF(no_selectfields, dataset, record, selSeq, NULL);
                             OwnedHqlExpr flags = $4.getExpr();
 
                             if (queryPropertyInList(extendAtom, flags) && !queryPropertyInList(namedAtom, flags))
@@ -4789,7 +4794,10 @@ query
                             if (failure)
                             {
                                 if (expr->isDataset())
-                                    $$.setExpr(createDataset(no_colon, expr, failure));
+                                {
+                                    IHqlExpression * selSeq = parser->createActiveSelectorSequence(expr, NULL);
+                                    $$.setExpr(createDataset(no_colon, expr, createComma(failure, selSeq)));
+                                }
                                 else
                                 {
                                     //If a string value is stored, its type is a string of unknown length
@@ -4826,7 +4834,8 @@ query
                             expr = parser->attachMetaAttributes(expr, meta);
 
                             IHqlExpression *record = createValue(no_null);
-                            OwnedHqlExpr select = createDatasetF(no_selectfields, expr, record, NULL);
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(expr, NULL);
+                            OwnedHqlExpr select = createDatasetF(no_selectfields, expr, record, selSeq, NULL);
                             HqlExprArray args;
                             args.append(*select.getClear());
                             IHqlExpression * output = createValue(no_output, makeVoidType(), args);
@@ -6925,7 +6934,8 @@ simpleDataRow
                             parser->normalizeExpression($3);
                             parser->normalizeExpression($5);
                             parser->normalizeExpression($7);
-                            IHqlExpression * ds = createDataset(no_httpcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $9.getExpr()));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            IHqlExpression * ds = createDataset(no_httpcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $9.getExpr(), selSeq));
                             $$.setExpr(createRow(no_selectnth, ds, createConstantOne()));
                         }
     | HTTPCALL '(' expression ',' expression ',' expression ',' recordDef ',' soapFlags ')'
@@ -6933,13 +6943,15 @@ simpleDataRow
                             parser->normalizeExpression($3);
                             parser->normalizeExpression($5);
                             parser->normalizeExpression($7);
-                            IHqlExpression * ds = createDataset(no_httpcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $9.getExpr(), $11.getExpr()));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            IHqlExpression * ds = createDataset(no_httpcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $9.getExpr(), createComma($11.getExpr(), selSeq)));
                             $$.setExpr(createRow(no_selectnth, ds, createConstantOne()));
                         }
     | SOAPCALL '(' expression ',' expression ',' recordDef ',' recordDef ')'
                         {
                             parser->normalizeExpression($3);
                             parser->checkSoapRecord($7);
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
                             IHqlExpression * ds = createDataset(no_soapcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $9.getExpr()));
                             $$.setExpr(createRow(no_selectnth, ds, createConstantOne()));
                         }
@@ -6948,6 +6960,7 @@ simpleDataRow
                             parser->normalizeExpression($3);
                             parser->normalizeExpression($5);
                             parser->checkSoapRecord($7);
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
                             IHqlExpression * ds = createDataset(no_soapcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $9.getExpr(), $11.getExpr()));
                             $$.setExpr(createRow(no_selectnth, ds, createConstantOne()));
                             parser->checkOnFailRecord($$.queryExpr(), $1);
@@ -6956,6 +6969,7 @@ simpleDataRow
                         {
                             parser->normalizeExpression($3);
                             parser->normalizeExpression($5);
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
                             IHqlExpression * ds = createDataset(no_newsoapcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $9.getExpr(), $11.getExpr()));
                             $$.setExpr(createRow(no_selectnth, ds, createConstantOne()));
                         }
@@ -7129,6 +7143,7 @@ simpleDictionary
                             HqlExprArray args;
                             args.append(*LINK(dataset));
                             args.append(*LINK(record));
+                            args.append(*parser->createActiveSelectorSequence(dataset, NULL));
                             OwnedHqlExpr ds = createDataset(no_usertable, args);
                             parser->checkProjectedFields(ds, $5);
                             $$.setExpr(createDictionary(no_createdictionary, ds.getClear()), $1);
@@ -7141,7 +7156,8 @@ simpleDictionary
     | DICTIONARY '(' '[' ']' ',' recordDef ')'
                         {
                             HqlExprArray values;  // Empty list
-                            OwnedHqlExpr table = createDataset(no_temptable, createValue(no_recordlist, NULL, values), $6.getExpr());
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            OwnedHqlExpr table = createDataset(no_temptable, createValue(no_recordlist, NULL, values), createComma($6.getExpr(), selSeq));
                             OwnedHqlExpr ds = convertTempTableToInlineTable(parser->errorHandler, $4.pos, table);
                             $$.setExpr(createDictionary(no_createdictionary, ds.getClear()), $1);
                         }
@@ -7149,7 +7165,8 @@ simpleDictionary
                         {
                             HqlExprArray values;
                             parser->endList(values);
-                            OwnedHqlExpr table = createDataset(no_temptable, createValue(no_recordlist, NULL, values), $8.getExpr());
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            OwnedHqlExpr table = createDataset(no_temptable, createValue(no_recordlist, NULL, values), createComma($8.getExpr(), selSeq));
                             OwnedHqlExpr ds = convertTempTableToInlineTable(parser->errorHandler, $5.pos, table);
                             $$.setExpr(createDictionary(no_createdictionary, ds.getClear()), $1);
                         }
@@ -7223,6 +7240,7 @@ simpleDictionary
                             }
                             args.add(*$3.getExpr(),0);
                             args.append(*elseDict);
+                            args.append(*parser->createActiveSelectorSequence(NULL, NULL));
                             $$.setExpr(::createDataset(no_case, args));
                             $$.setPosition($1);
                         }
@@ -7359,7 +7377,8 @@ dataSet
                             /** Error production **/
                             parser->reportError(ERR_EXPECTED_DATASET, $1, "Expected a dataset instead of a row");
                             $2.release();
-                            $$.setExpr(createDatasetFromRow($1.getExpr()), $1);
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDatasetFromRow($1.getExpr(), createUniqueSelectorSequence()), $1);
                         }
     | VALUE_MACRO dataSet ENDMACRO {  $$.setExpr($2.getExpr()); }
     | moduleScopeDot VALUE_MACRO leaveScope dataSet ENDMACRO
@@ -7456,12 +7475,14 @@ simpleDataSet
     | setOfDatasets '[' expression ']'
                         {
                             parser->normalizeExpression($3, type_int, false);
-                            $$.setExpr(createDataset(no_rowsetindex, $1.getExpr(), $3.getExpr()));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_rowsetindex, $1.getExpr(), createComma($3.getExpr(), selSeq)));
                             $$.setPosition($1);
                         }
     | ALIAS '(' dataSet ')'
                         {
-                            $$.setExpr(createDataset(no_dataset_alias, $3.getExpr(), ::createUniqueId()), $1);
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence($3.queryExpr(), NULL);
+                            $$.setExpr(createDataset(no_dataset_alias, $3.getExpr(), createComma(::createUniqueId(),selSeq)), $1);
                         }
     | EBCDIC '(' startTopFilter ')' endTopFilter
                         {
@@ -7988,6 +8009,7 @@ simpleDataSet
                             }
 
                             reorderAttributesToEnd(orderedArgs, args);
+                            orderedArgs.append(*parser->createActiveSelectorSequence(NULL, NULL));
                             IHqlExpression *merge = createDataset(no_merge, orderedArgs);
                             $$.setExpr(merge);
                             $$.setPosition($1);
@@ -8026,6 +8048,7 @@ simpleDataSet
                             $3.unwindCommaList(args);
                             parser->checkRecordsMatch($3, args);
                             reorderAttributesToEnd(orderedArgs, args);
+                            orderedArgs.append(*parser->createActiveSelectorSequence(NULL, NULL));
                             $$.setExpr(createDataset(no_nonempty, args));
                             $$.setPosition($1);
                         }
@@ -8231,6 +8254,7 @@ simpleDataSet
                             if (attrs)
                                 attrs->unwindList(args, no_comma);
                             //appendUniqueId();
+                            args.append(*parser->createActiveSelectorSequence(dataset, NULL));
                             $$.setExpr(createDataset(no_usertable, args));
                             parser->checkProjectedFields($$.queryExpr(), $5);
                             $$.setPosition($1);
@@ -8238,12 +8262,14 @@ simpleDataSet
     | TABLE '(' startTopFilter ',' transform ')' endTopFilter
                         {
                             OwnedHqlExpr tform = $5.getExpr();
-                            $$.setExpr(createDataset(no_newusertable, $3.getExpr(), createComma(LINK(tform->queryRecord()), ensureTransformType(tform, no_newtransform))));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence($3.queryExpr(), NULL);
+                            $$.setExpr(createDataset(no_newusertable, $3.getExpr(), createComma(LINK(tform->queryRecord()), ensureTransformType(tform, no_newtransform), selSeq)));
                             $$.setPosition($1);
                         }
     | TABLE '(' startTopFilter ')' endTopFilter
                         {
-                            $$.setExpr(createDataset(no_dataset_alias, $3.getExpr(), ::createUniqueId()), $1);
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence($3.queryExpr(), NULL);
+                            $$.setExpr(createDataset(no_dataset_alias, $3.getExpr(), createComma(::createUniqueId(), selSeq)), $1);
                         }
     | FETCH '(' startLeftDelaySeqFilter ',' startRightFilter ',' expression ',' transform optCommonAttrs ')' endSelectorSequence
                         {
@@ -8291,6 +8317,7 @@ simpleDataSet
                             parser->inheritRecordMaxLength(dataset, record);
 
                             record.setown(parser->checkIndexRecord(record, $5));
+                            OwnedHqlExpr selSeq = parser->createActiveSelectorSequence(NULL, NULL);
                             if (transform)
                             {
                                 if (!recordTypesMatch(dataset, transform))
@@ -8302,10 +8329,10 @@ simpleDataSet
                                 HqlExprArray args;
                                 unwindChildren(args, transform);
                                 transform.setown(createValue(no_newtransform, transform->getType(), args));
-                                $$.setExpr(createDataset(no_newkeyindex, dataset, createComma(record.getClear(), transform.getClear(), extra.getClear())));
+                                $$.setExpr(createDataset(no_newkeyindex, dataset, createComma(record.getClear(), transform.getClear(), extra.getClear(), selSeq.getClear())));
                             }
                             else
-                                $$.setExpr(createDataset(no_keyindex, dataset, createComma(record.getClear(), extra.getClear())));
+                                $$.setExpr(createDataset(no_keyindex, dataset, createComma(record.getClear(), extra.getClear(), selSeq.getClear())));
                             parser->checkIndexRecordTypes($$.queryExpr(), $1);
                             $$.setPosition($1);
                         }
@@ -8333,6 +8360,7 @@ simpleDataSet
                                 else
                                     args.replace(*newName.getClear(), 3);
                                 $6.unwindCommaList(args);
+                                args.append(*parser->createActiveSelectorSequence(NULL, NULL));
                                 dataset.setown(createDataset(keyOp, args));
                             }
                             else
@@ -8369,7 +8397,8 @@ simpleDataSet
                                 filename.setown(createValue(no_assertconstant, filename->getType(), LINK(filename->queryChild(0))));
                                 options.setown(createComma(options.getClear(), createAttribute(localUploadAtom)));
                             }
-                            IHqlExpression * dataset = createNewDataset(filename.getClear(), $6.getExpr(), mode.getClear(), NULL, NULL, options.getClear());
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            IHqlExpression * dataset = createDataset(no_table, filename.getClear(), createComma($6.getExpr(), mode.getClear(), options.getClear(), selSeq));
                             parser->checkValidRecordMode(dataset, $4, $9);
                             $$.setExpr(dataset);
                             $$.setPosition($1);
@@ -8412,7 +8441,8 @@ simpleDataSet
                                 filename.setown(createValue(no_assertconstant, filename->getType(), LINK(filename->queryChild(0))));
                                 options.setown(createComma(options.getClear(), createAttribute(localUploadAtom)));
                             }
-                            IHqlExpression * dataset = createNewDataset(filename.getClear(), record.getClear(), mode.getClear(), NULL, NULL, options.getClear());
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            IHqlExpression * dataset = createDataset(no_table, filename.getClear(), createComma(record.getClear(), mode.getClear(), options.getClear(), selSeq));
                             parser->checkValidRecordMode(dataset, $4, $9);
                             $$.setExpr(dataset, $1);
                         }
@@ -8426,7 +8456,8 @@ simpleDataSet
                             IHqlExpression * filename = $5.getExpr();
                             IHqlExpression * mode = $7.getExpr();
                             IHqlExpression * attrs = createComma(createAttribute(_origin_Atom, origin), $8.getExpr());
-                            IHqlExpression * dataset = createNewDataset(filename, LINK(origin->queryRecord()), mode, NULL, NULL, attrs);
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            IHqlExpression * dataset = createDataset(no_table, filename, createComma(LINK(origin->queryRecord()), mode, attrs, selSeq));
 
                             parser->checkValidRecordMode(dataset, $4, $7);
                             $$.setExpr(dataset);
@@ -8436,7 +8467,8 @@ simpleDataSet
                         {
                             HqlExprArray values;
                             parser->endList(values);
-                            OwnedHqlExpr table = createDataset(no_temptable, createValue(no_recordlist, NULL, values), $8.getExpr());
+                            OwnedHqlExpr selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            OwnedHqlExpr table = createDataset(no_temptable, createValue(no_recordlist, NULL, values), createComma($8.getExpr(), selSeq.getClear()));
                             $$.setExpr(convertTempTableToInlineTable(parser->errorHandler, $5.pos, table));
                             $$.setPosition($1);
                         }
@@ -8446,7 +8478,8 @@ simpleDataSet
                             parser->endList(values);
                             IHqlExpression * record = values.item(0).queryRecord();
                             parser->checkCompatibleTransforms(values, record, $5);
-                            $$.setExpr(createDataset(no_inlinetable, createValue(no_transformlist, makeNullType(), values), LINK(record)));
+                            OwnedHqlExpr selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_inlinetable, createValue(no_transformlist, makeNullType(), values), createComma(LINK(record), LINK(selSeq))));
                             $$.setPosition($1);
                         }
     | DATASET '(' thorFilenameOrList ',' beginCounterScope recordDef endCounterScope ')'
@@ -8472,7 +8505,8 @@ simpleDataSet
                             }
                             else
                                 arg = createAttribute(sequenceAtom, arg);
-                            $$.setExpr(createDataset(no_workunit_dataset, $10.getExpr(), createComma(wuid, arg)));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_workunit_dataset, $10.getExpr(), createComma(wuid, arg, selSeq)));
                             $$.setPosition($1);
                         }
     | DATASET '(' WORKUNIT '(' expression ')' ',' recordDef ')'
@@ -8486,7 +8520,8 @@ simpleDataSet
                             }
                             else
                                 arg = createAttribute(sequenceAtom, arg);
-                            $$.setExpr(createDataset(no_workunit_dataset, $8.getExpr(), arg));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_workunit_dataset, $8.getExpr(), createComma(arg, selSeq)));
                             $$.setPosition($1);
                         }
     | DATASET '(' thorFilenameOrList ',' beginCounterScope transform endCounterScope optDatasetFlags ')'
@@ -8495,7 +8530,8 @@ simpleDataSet
                             IHqlExpression * counter = $7.getExpr();
                             if (counter)
                                 counter = createAttribute(_countProject_Atom, counter);
-                            $$.setExpr(createDataset(no_dataset_from_transform, $3.getExpr(), createComma($6.getExpr(), counter, $8.getExpr())));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_dataset_from_transform, $3.getExpr(), createComma($6.getExpr(), counter, $8.getExpr(), selSeq)));
                             $$.setPosition($1);
                         }
     | ENTH '(' dataSet ',' expression optCommonAttrs ')'
@@ -8523,7 +8559,8 @@ simpleDataSet
                         {
                             parser->normalizeExpression($3, type_string, false);
                             parser->checkValidPipeRecord($5, $5.queryExpr(), $6.queryExpr(), NULL);
-                            $$.setExpr(createNewDataset(createConstant(""), $5.getExpr(), createValue(no_pipe, makeNullType(), $3.getExpr()), NULL, NULL, $6.getExpr()));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_table, createConstant(""), createComma($5.getExpr(), createValue(no_pipe, makeNullType(), $3.getExpr()), $6.getExpr(), selSeq)));
                             $$.setPosition($1);
                         }
     | PIPE '(' startTopFilter ',' expression optPipeOptions endTopFilter ')'
@@ -8534,7 +8571,8 @@ simpleDataSet
                             parser->checkValidPipeRecord($3, $3.queryExpr()->queryRecord(), attrs, NULL);
                             parser->checkValidPipeRecord($3, $3.queryExpr()->queryRecord(), NULL, queryPropertyInList(outputAtom, attrs));
 
-                            $$.setExpr(createDataset(no_pipe, $3.getExpr(), createComma($5.getExpr(), LINK(attrs))));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence($3.queryExpr(), NULL);
+                            $$.setExpr(createDataset(no_pipe, $3.getExpr(), createComma($5.getExpr(), LINK(attrs), selSeq)));
                             $$.setPosition($1);
                         }
     | PIPE '(' startTopFilter ',' expression ',' recordDef optPipeOptions endTopFilter ')'
@@ -8545,7 +8583,8 @@ simpleDataSet
                             parser->checkValidPipeRecord($3, $3.queryExpr()->queryRecord(), NULL, queryPropertyInList(outputAtom, attrs));
                             parser->checkValidPipeRecord($7, $7.queryExpr()->queryRecord(), attrs, NULL);
 
-                            $$.setExpr(createDataset(no_pipe, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), LINK(attrs))));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence($3.queryExpr(), NULL);
+                            $$.setExpr(createDataset(no_pipe, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), LINK(attrs), selSeq)));
                             $$.setPosition($1);
                         }
     | PRELOAD '(' dataSet optConstExpression ')'
@@ -8675,6 +8714,7 @@ simpleDataSet
                             if (groupingDiffers)
                                 parser->reportError(ERR_GROUPING_MISMATCH, $1, "Branches of the condition have different grouping");
                             args.append(*elseDs);
+                            args.append(*parser->createActiveSelectorSequence(NULL, NULL));
                             $$.setExpr(::createDataset(no_map, args));
                             $$.setPosition($1);
                         }
@@ -8698,6 +8738,7 @@ simpleDataSet
                             if (groupingDiffers)
                                 parser->reportError(ERR_GROUPING_MISMATCH, $1, "Branches of the condition have different grouping");
                             args.append(*elseDs);
+                            args.append(*parser->createActiveSelectorSequence(NULL, NULL));
                             $$.setExpr(::createDataset(no_map, args));
                             $$.setPosition($1);
                         }
@@ -8720,6 +8761,7 @@ simpleDataSet
                                 parser->reportError(ERR_GROUPING_MISMATCH, $1, "Branches of the condition have different grouping");
                             args.add(*$3.getExpr(),0);
                             args.append(*elseDs);
+                            args.append(*parser->createActiveSelectorSequence(NULL, NULL));
                             $$.setExpr(::createDataset(no_case, args));
                             $$.setPosition($1);
                         }
@@ -8746,6 +8788,7 @@ simpleDataSet
                                 parser->reportError(ERR_GROUPING_MISMATCH, $1, "Branches of the condition have different grouping");
                             args.add(*$3.getExpr(),0);
                             args.append(*elseDs);
+                            args.append(*parser->createActiveSelectorSequence(NULL, NULL));
                             $$.setExpr(::createDataset(no_case, args));
                             $$.setPosition($1);
                         }
@@ -8787,6 +8830,7 @@ simpleDataSet
                             }
 
                             args.add(*$3.getExpr(), 0);
+                            args.append(*parser->createActiveSelectorSequence(NULL, NULL));
                             $$.setExpr(createDataset(no_chooseds, args), $1);
                         }
     | PARSE '(' startTopLeftSeqFilter ',' expression ',' startRootPattern ',' recordDef endRootPattern endTopLeftFilter doParseFlags ')' endSelectorSequence
@@ -8826,41 +8870,47 @@ simpleDataSet
     | FAIL '(' recordDef failDatasetParam ')'
                         {
                             //Actually allow a sequence of arbitrary actions....
-                            $$.setExpr(createDataset(no_fail, $3.getExpr(), $4.getExpr()));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_fail, $3.getExpr(), createComma($4.getExpr(), selSeq)));
                             $$.setPosition($1);
                         }
     | FAIL '(' dataSet failDatasetParam ')'
                         {
                             OwnedHqlExpr ds = $3.getExpr();
                             //Actually allow a sequence of arbitrary actions....
-                            $$.setExpr(createDataset(no_fail, LINK(ds->queryRecord()), $4.getExpr()));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_fail, LINK(ds->queryRecord()), createComma($4.getExpr(), selSeq)));
                             $$.setPosition($1);
                         }
     | TOK_ERROR '(' recordDef failDatasetParam ')'
                         {
                             //Actually allow a sequence of arbitrary actions....
-                            $$.setExpr(createDataset(no_fail, $3.getExpr(), $4.getExpr()));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_fail, $3.getExpr(), createComma($4.getExpr(), selSeq)));
                             $$.setPosition($1);
                         }
     | TOK_ERROR '(' dataSet failDatasetParam ')'
                         {
                             OwnedHqlExpr ds = $3.getExpr();
                             //Actually allow a sequence of arbitrary actions....
-                            $$.setExpr(createDataset(no_fail, LINK(ds->queryRecord()), $4.getExpr()));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_fail, LINK(ds->queryRecord()), createComma($4.getExpr(), selSeq)));
                             $$.setPosition($1);
                         }
     | SKIP '(' recordDef ')'
                         {
                             if (!parser->curTransform)
                                 parser->reportError(ERR_PARSER_CANNOTRECOVER,$1,"SKIP is only valid inside a TRANSFORM");
-                            $$.setExpr(createDataset(no_skip, $3.getExpr()));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_skip, $3.getExpr(), selSeq));
                         }
     | SOAPCALL '(' expression ',' expression ',' recordDef ',' DATASET '(' recordDef ')' ')'
                         {
                             parser->normalizeExpression($3);
                             parser->normalizeExpression($5);
                             parser->checkSoapRecord($7);
-                            $$.setExpr(createDataset(no_soapcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $11.getExpr())));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_soapcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $11.getExpr(), selSeq)));
                             $$.setPosition($1);
                         }
     | SOAPCALL '(' expression ',' expression ',' recordDef ',' DATASET '(' recordDef ')' ',' soapFlags ')'
@@ -8868,7 +8918,8 @@ simpleDataSet
                             parser->normalizeExpression($3);
                             parser->normalizeExpression($5);
                             parser->checkSoapRecord($7);
-                            $$.setExpr(createDataset(no_soapcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $11.getExpr(), $14.getExpr())));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_soapcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $11.getExpr(), createComma($14.getExpr(), selSeq))));
                             parser->checkOnFailRecord($$.queryExpr(), $1);
                             $$.setPosition($1);
                         }
@@ -8876,14 +8927,16 @@ simpleDataSet
                         {
                             parser->normalizeExpression($3);
                             parser->normalizeExpression($5);
-                            $$.setExpr(createDataset(no_newsoapcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $9.getExpr(), $13.getExpr())));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_newsoapcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $9.getExpr(), createComma($13.getExpr(), selSeq))));
                             $$.setPosition($1);
                         }
     | SOAPCALL '(' expression ',' expression ',' recordDef ',' transform ',' DATASET '(' recordDef ')' ',' soapFlags ')'
                         {
                             parser->normalizeExpression($3);
                             parser->normalizeExpression($5);
-                            $$.setExpr(createDataset(no_newsoapcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $9.getExpr(), createComma($13.getExpr(), $16.getExpr()))));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_newsoapcall, $3.getExpr(), createComma($5.getExpr(), $7.getExpr(), $9.getExpr(), createComma($13.getExpr(), $16.getExpr(), selSeq))));
                             parser->checkOnFailRecord($$.queryExpr(), $1);
                             $$.setPosition($1);
                         }
@@ -8921,13 +8974,15 @@ simpleDataSet
                         }
     | GLOBAL '(' dataSet globalOpts ')'
                         {
-                            $$.setExpr(createDataset(no_globalscope, $3.getExpr(), $4.getExpr()));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_globalscope, $3.getExpr(), createComma($4.getExpr(), selSeq)));
                             $$.setPosition($1);
                         }
     | GLOBAL '(' dataSet ',' expression globalOpts ')'
                         {
                             parser->normalizeExpression($5, type_string, false);
-                            $$.setExpr(createDataset(no_globalscope, $3.getExpr(), createComma($5.getExpr(), $6.getExpr())));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_globalscope, $3.getExpr(), createComma($5.getExpr(), $6.getExpr(), selSeq)));
                             $$.setPosition($1);
                         }
     | LOCAL '(' dataSet ')'
@@ -8962,18 +9017,21 @@ simpleDataSet
     | DATASET '(' dataRow ')'
                         {
                             IHqlExpression * row = $3.getExpr();
-                            $$.setExpr(createDatasetFromRow(row));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDatasetFromRow(row, selSeq));
                             $$.setPosition($1);
                         }
     | DATASET '(' dictionary ')'
                         {
                             IHqlExpression * dictionary = $3.getExpr();
-                            $$.setExpr(createDataset(no_datasetfromdictionary, dictionary), $1);
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_datasetfromdictionary, dictionary, selSeq), $1);
                         }
     | _EMPTY_ '(' recordDef ')'
                         {
                             IHqlExpression * record = $3.getExpr();
-                            $$.setExpr(createDataset(no_null, record));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDataset(no_null, record, selSeq));
                             $$.setPosition($1);
                         }
     | __COMPOUND__ '(' action ',' dataSet ')'
@@ -9025,7 +9083,8 @@ simpleDataSet
                         {
                             parser->normalizeExpression($3, type_string, false);
                             parser->validateXPath($3);
-                            $$.setExpr(createDatasetF(no_xmlproject, $3.getExpr(), $5.getExpr(), parser->createUniqueId(), NULL));
+                            IHqlExpression * selSeq = parser->createActiveSelectorSequence(NULL, NULL);
+                            $$.setExpr(createDatasetF(no_xmlproject, $3.getExpr(), $5.getExpr(), parser->createUniqueId(), selSeq, NULL));
                             $$.setPosition($1);
                         }
     | MAP '(' mapDatarowSpec ',' dataRow ')'

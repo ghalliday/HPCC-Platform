@@ -436,7 +436,7 @@ IHqlExpression * CTreeOptimizer::moveFilterOverSelect(IHqlExpression * expr)
     //Create a filtered dataset
     IHqlExpression * inDs = LINK(ds);
     if (inDs->isDatarow())
-        inDs = createDatasetFromRow(inDs);
+        inDs = createDatasetFromRow(inDs, createUniqueSelectorSequence());
     hoisted.add(*inDs, 0);
 
     OwnedHqlExpr newDs = expr->clone(hoisted);
@@ -2030,7 +2030,7 @@ IHqlExpression * CTreeOptimizer::replaceWithNullRow(IHqlExpression * expr)
 IHqlExpression * CTreeOptimizer::replaceWithNullRowDs(IHqlExpression * expr)
 {
     assertex(!isGrouped(expr));
-    IHqlExpression * ret = createDatasetFromRow(createRow(no_null, LINK(expr->queryRecord())));
+    IHqlExpression * ret = createDatasetFromRow(createRow(no_null, LINK(expr->queryRecord())), createUniqueSelectorSequence());
     DBGLOG("Optimizer: Replace %s with %s", queryNode0Text(expr), queryNode1Text(ret));
     recursiveDecChildUsage(expr);
     return ret;
@@ -3607,7 +3607,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                 {
                     break;
                     IHqlExpression * grand = child->queryChild(0);
-                    IHqlExpression * base = createDatasetFromRow(LINK(grand));
+                    IHqlExpression * base = createDatasetFromRow(LINK(grand), createUniqueSelectorSequence());
                     HqlExprArray args;
                     unwindChildren(args, child);
                     args.replace(*base, 0);

@@ -11939,7 +11939,7 @@ IHqlExpression * HqlTreeNormalizer::createTransformedBody(IHqlExpression * expr)
         {
             HqlExprArray args;
             bool same = transformChildren(expr, args);
-            args.replace(*createDatasetFromRow(LINK(&args.item(0))), 0);
+            args.replace(*createDatasetFromRow(LINK(&args.item(0)), createUniqueSelectorSequence()), 0);
             return createValue(no_output, makeVoidType(), args);
         }
         break;

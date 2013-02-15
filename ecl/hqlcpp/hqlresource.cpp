@@ -1268,6 +1268,7 @@ IHqlExpression * ResourcerInfo::createSpilledRead(IHqlExpression * spillReason)
         if (spillReason)
             args.append(*LINK(spillReason));
 
+        args.append(*createUniqueSelectorSequence());
         if (spilledDataset)
             dataset.setown(createDataset(no_readspill, args));
         else
@@ -1313,8 +1314,8 @@ IHqlExpression * ResourcerInfo::createSpilledWrite(IHqlExpression * transformed)
         {
             IHqlExpression * value = LINK(transformed);
             if (value->isDatarow())
-                value = createDatasetFromRow(value);
-            spilledDataset.setown(createDataset(no_commonspill, value));
+                value = createDatasetFromRow(value, createUniqueSelectorSequence());
+            spilledDataset.setown(createDataset(no_commonspill, value, createUniqueSelectorSequence())); // why does this define a column list?
             args.append(*LINK(spilledDataset));
         }
         else

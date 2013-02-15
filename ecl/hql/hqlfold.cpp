@@ -5875,7 +5875,7 @@ IHqlExpression * CExprFolderTransformer::replaceWithNullRow(IHqlExpression * exp
 IHqlExpression * CExprFolderTransformer::replaceWithNullRowDs(IHqlExpression * expr)
 {
     assertex(!isGrouped(expr));
-    return createDatasetFromRow(createRow(no_null, LINK(expr->queryRecord())));
+    return createDatasetFromRow(createRow(no_null, LINK(expr->queryRecord())), createUniqueSelectorSequence());
 }
 
 IHqlExpression * CExprFolderTransformer::transformExpanded(IHqlExpression * expr)

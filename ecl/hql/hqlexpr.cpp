@@ -3241,6 +3241,30 @@ void CHqlExpression::initFlagsBeforeOperands()
 
 void CHqlExpression::updateFlagsAfterOperands()
 {
+    if (isDataset())
+    {
+        switch (op)
+        {
+        case no_external:
+        case no_funcdef:
+        case no_field:
+        case no_select:
+        case no_quoted:
+        case no_variable:
+        case no_typetransfer:
+        case no_translated:  // dangerous!
+            break;
+        case no_rows:
+            break;
+        default:
+            if (definesColumnList(this))
+                assertex(querySelSeq(this));
+            else
+                assertex(!querySelSeq(this));
+            break;
+        }
+    }
+
 //  DBGLOG("%p: Create(%s) type = %lx", (unsigned)(IHqlExpression *)this, getOpString(op), (unsigned)type);
     switch (op)
     {
@@ -11860,26 +11884,6 @@ IHqlExpression *createDataset(node_operator op, HqlExprArray & parms)
     return ret;
 }
 
-extern IHqlExpression *createNewDataset(IHqlExpression *name, IHqlExpression *recorddef, IHqlExpression *mode, IHqlExpression *parent, IHqlExpression *joinCondition, IHqlExpression * options)
-{
-    HqlExprArray args;
-    args.append(*name);
-    if (recorddef)
-        args.append(*recorddef);
-    if (mode)
-        args.append(*mode);
-    if (parent)
-        args.append(*parent);
-    if (joinCondition)
-        args.append(*joinCondition);
-    if (options)
-    {
-        options->unwindList(args, no_comma);
-        options->Release();
-    }
-    return createDataset(no_table, args);
-}
-
 extern IHqlExpression *createRow(node_operator op, IHqlExpression *dataset, IHqlExpression *rowNum)
 {
     HqlExprArray args;
@@ -12291,7 +12295,7 @@ IHqlExpression *createWrapper(node_operator op, HqlExprArray & args)
 }
 
 
-extern IHqlExpression *createDatasetFromRow(IHqlExpression * ownedRow)
+extern IHqlExpression *createDatasetFromRow(IHqlExpression * ownedRow, IHqlExpression * selSeq)
 {
     //The follow generates better code, but causes problems with several examples in the ln regression suite
     //So disabled until can investigate more
@@ -12305,7 +12309,7 @@ extern IHqlExpression *createDatasetFromRow(IHqlExpression * ownedRow)
         }
     }
 
-    return createDataset(no_datasetfromrow, ownedRow); //, createUniqueId());
+    return createDataset(no_datasetfromrow, ownedRow, selSeq); //, createUniqueId());
 }
 
 
@@ -12423,7 +12427,7 @@ IHqlExpression * ensureDataset(IHqlExpression * expr)
         return LINK(expr);
 
     if (expr->isDatarow())
-        return createDatasetFromRow(LINK(expr));
+        return createDatasetFromRow(LINK(expr), createUniqueSelectorSequence());
 
     throwUnexpected();
     return createNullDataset();

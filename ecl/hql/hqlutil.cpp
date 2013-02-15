@@ -84,7 +84,7 @@ MODULE_INIT(INIT_PRIORITY_STANDARD)
     cacheReferenceAttr = createAttribute(referenceAtom);
     cacheStreamedAttr = createAttribute(streamedAtom);
     cacheUnadornedAttr = createAttribute(_attrUnadorned_Atom);
-    matchxxxPseudoFile = createDataset(no_pseudods, createRecord()->closeExpr(), createAttribute(matchxxxPseudoFileAtom));
+    matchxxxPseudoFile = createDataset(no_pseudods, createRecord()->closeExpr(), createComma(createAttribute(matchxxxPseudoFileAtom), createUniqueSelectorSequence()));
     cachedQuotedNullExpr = createValue(no_nullptr, makeBoolType());
     cachedOmittedValueExpr = createValue(no_omitted, makeAnyType());
 
@@ -3260,7 +3260,7 @@ IHqlExpression * createGetResultFromSetResult(IHqlExpression * setResult, ITypeI
 IHqlExpression * convertScalarToGraphResult(IHqlExpression * value, ITypeInfo * fieldType, IHqlExpression * represents, unsigned seq)
 {
     OwnedHqlExpr row = convertScalarToRow(value, fieldType);
-    OwnedHqlExpr ds = createDatasetFromRow(LINK(row));
+    OwnedHqlExpr ds = createDatasetFromRow(LINK(row), createDummySelectorSequence());
     HqlExprArray args;
     args.append(*LINK(ds));
     args.append(*LINK(represents));
@@ -4359,7 +4359,7 @@ void SplitDatasetAttributeTransformer::doAnalyseSelect(IHqlExpression * expr)
             IHqlExpression * lhs = LINK(ds);
             if (lhs->isDataset()) lhs = createRow(no_activerow, lhs);
             datasets.append(*ds);
-            newDatasets.append(*createDatasetFromRow(lhs));
+            newDatasets.append(*createDatasetFromRow(lhs, createUniqueSelectorSequence()));
         }
         return;
     }
@@ -4485,7 +4485,7 @@ bool SplitDatasetAttributeTransformer::split(SharedHqlExpr & dataset, SharedHqlE
             OwnedHqlExpr transform = createTransformForField(field, value);
             OwnedHqlExpr combine = createDatasetF(no_combine, LINK(&newDatasets.item(0)), LINK(&newDatasets.item(1)), LINK(transform), LINK(selSeq), NULL);
             OwnedHqlExpr first = createRowF(no_selectnth, LINK(combine), getSizetConstant(1), createAttribute(noBoundCheckAtom), NULL);
-            dataset.setown(createDatasetFromRow(first.getClear()));
+            dataset.setown(createDatasetFromRow(first.getClear(), createUniqueSelectorSequence()));
             attribute.setown(createSelectExpr(LINK(dataset->queryNormalizedSelector()), LINK(field)));
             break;
         }
@@ -4578,7 +4578,7 @@ static bool splitDatasetAttribute(SharedHqlExpr & dataset, SharedHqlExpr & attri
         IHqlExpression * lhs = LINK(left);
         IHqlExpression * field = expr->queryChild(1);
         if (lhs->isDataset()) lhs = createRow(no_activerow, lhs);
-        dataset.setown(createDatasetFromRow(lhs));
+        dataset.setown(createDatasetFromRow(lhs, createUniqueSelectorSequence()));
         attribute.setown(createSelectExpr(LINK(dataset), LINK(field))); // remove new attributes
         return true;
     }
@@ -4606,7 +4606,7 @@ bool splitResultValue(SharedHqlExpr & dataset, SharedHqlExpr & attribute, IHqlEx
 
     if (value->isDatarow())
     {
-        dataset.setown(createDatasetFromRow(LINK(value)));
+        dataset.setown(createDatasetFromRow(LINK(value), createUniqueSelectorSequence()));
         attribute.setown(ensureActiveRow(dataset));
         return true;
     }
@@ -5203,6 +5203,7 @@ void TempTableTransformer::createTempTableAssign(HqlExprArray & assigns, IHqlExp
                             HqlExprArray children;
                             children.append(*LINK(src));
                             children.append(*LINK(record));
+                            children.append(*createUniqueSelectorSequence());
                             OwnedHqlExpr tempTable = createValue(no_temptable, children);
 //                          castValue.setown(transform(tempTable));
                             castValue.set(tempTable);
@@ -5216,6 +5217,7 @@ void TempTableTransformer::createTempTableAssign(HqlExprArray & assigns, IHqlExp
                             HqlExprArray children;
                             children.append(*createValue(no_transformlist, transforms));
                             children.append(*LINK(record));
+                            children.append(*createUniqueSelectorSequence());
                             castValue.setown(createDataset(no_inlinetable, children));
                         }
                         else if (src->isDataset())
@@ -5488,6 +5490,7 @@ static IHqlExpression * convertTempTableToInline(IErrorReceiver * errors, ECLloc
     HqlExprArray children;
     children.append(*createValue(no_transformlist, makeNullType(), transforms));
     children.append(*LINK(record));
+    children.append(*LINK(querySelSeq(expr)));
     OwnedHqlExpr ret = createDataset(no_inlinetable, children);
     return expr->cloneAllAnnotations(ret);
 }

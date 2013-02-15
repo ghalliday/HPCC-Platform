@@ -414,7 +414,7 @@ static IHqlExpression * convertScalarToDataset(IHqlExpression * expr)
     OwnedHqlExpr record = createRecord(field);
     OwnedHqlExpr assign = createAssign(createSelectExpr(createSelector(no_self, record, NULL), LINK(field)), LINK(expr));
     OwnedHqlExpr row = createRow(no_createrow, createValue(no_transform, makeTransformType(record->getType()), LINK(assign)));
-    return createDatasetFromRow(LINK(row));
+    return createDatasetFromRow(LINK(row), createUniqueSelectorSequence());
 }
 
 void HqlCppLibraryImplementation::mapLogicalToImplementation(HqlExprArray & exprs, IHqlExpression * libraryExpr)

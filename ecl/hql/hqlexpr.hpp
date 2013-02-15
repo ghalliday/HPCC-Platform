@@ -1256,7 +1256,6 @@ extern HQL_API IHqlExpression *createDatasetF(node_operator op, ...);
 extern HQL_API IHqlExpression *createDictionary(node_operator op, IHqlExpression *initializer, IHqlExpression *recordDef);
 extern HQL_API IHqlExpression *createDictionary(node_operator op, IHqlExpression *dictionary);
 extern HQL_API IHqlExpression *createDictionary(node_operator op, HqlExprArray & parms);
-extern HQL_API IHqlExpression *createNewDataset(IHqlExpression *name, IHqlExpression *recorddef, IHqlExpression *mode, IHqlExpression *parent, IHqlExpression *joinCondition, IHqlExpression * options = NULL);
 extern HQL_API IHqlExpression *createRow(node_operator op, IHqlExpression *Dataset, IHqlExpression *element = NULL);
 extern HQL_API IHqlExpression *createRow(node_operator op, HqlExprArray & args);
 extern HQL_API IHqlExpression *createRowF(node_operator op, ...);
@@ -1269,7 +1268,7 @@ extern HQL_API IHqlExpression *createBoundFunction(IErrorReceiver * errors, IHql
 extern HQL_API IHqlExpression *createReboundFunction(IHqlExpression *func, HqlExprArray & ownedActuals);
 extern HQL_API IHqlExpression *createTranslatedExternalCall(IErrorReceiver * errors, IHqlExpression *func, HqlExprArray &actuals);
 extern HQL_API IHqlExpression *createParameter(_ATOM name, unsigned idx, ITypeInfo *type, HqlExprArray & args);
-extern HQL_API IHqlExpression *createDatasetFromRow(IHqlExpression * ownedRow);
+extern HQL_API IHqlExpression *createDatasetFromRow(IHqlExpression * ownedRow, IHqlExpression * selSeq);
 extern HQL_API IHqlExpression * createTypedValue(node_operator op, ITypeInfo * type, HqlExprArray & args);
 extern HQL_API IHqlExpression * createTypeTransfer(IHqlExpression * expr, ITypeInfo * newType);     //arguments must be linked
 

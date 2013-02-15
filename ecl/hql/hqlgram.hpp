@@ -904,6 +904,7 @@ protected:
     void pushPendingLeftRightScope(IHqlExpression * left, IHqlExpression * right);
     void setRightScope(IHqlExpression *);
     void beginRowsScope(node_operator side);
+    LeftRightScope * pushSelectorScope();
 
     void pushSelfScope(IHqlExpression *);
     void pushSelfScope(ITypeInfo * selfType);

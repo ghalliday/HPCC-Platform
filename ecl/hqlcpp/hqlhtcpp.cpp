@@ -3461,7 +3461,7 @@ void HqlCppTranslator::buildMetaDeserializerClass(BuildCtx & ctx, IHqlExpression
     OwnedHqlExpr id = createVariable("activityId", LINK(sizetType));
     deserializer.classctx.associateExpr(queryActivityIdMarker(), id);
 
-    OwnedHqlExpr dataset = createDataset(no_null, LINK(record));
+    OwnedHqlExpr dataset = createDataset(no_null, LINK(record), createUniqueSelectorSequence());
     {
         BuildCtx deserializectx(deserializer.startctx);
         deserializectx.addQuotedCompound("virtual size32_t deserialize(ARowBuilder & crSelf, IRowDeserializerSource & in)");
@@ -3493,7 +3493,7 @@ bool HqlCppTranslator::buildMetaPrefetcherClass(BuildCtx & ctx, IHqlExpression *
     OwnedHqlExpr id = createVariable("activityId", LINK(sizetType));
     prefetcher.classctx.associateExpr(queryActivityIdMarker(), id);
 
-    OwnedHqlExpr dataset = createDataset(no_null, LINK(record));
+    OwnedHqlExpr dataset = createDataset(no_null, LINK(record), createUniqueSelectorSequence());
     bool ok;
     {
         BuildCtx prefetchctx(prefetcher.startctx);
@@ -4143,7 +4143,7 @@ void HqlCppTranslator::buildMetaInfo(MetaInstance & instance)
                 getctx.addQuoted(s.str());
                 getctx.addQuoted("const unsigned char * left = (const unsigned char *)data;");
 
-                OwnedHqlExpr selfDs = createDataset(no_null, LINK(instance.queryRecord()));
+                OwnedHqlExpr selfDs = createDataset(no_null, LINK(instance.queryRecord()), createUniqueSelectorSequence());
                 BoundRow * selfRow = bindTableCursorOrRow(getctx, selfDs, "left");
                 OwnedHqlExpr size = getRecordSize(selfRow->querySelector());
                 buildReturn(getctx, size);
@@ -4349,7 +4349,7 @@ protected:
 
 void HqlCppTranslator::generateMetaRecordSerialize(BuildCtx & ctx, IHqlExpression * record, const char * diskSerializerName, const char * diskDeserializerName, const char * internalSerializerName, const char * internalDeserializerName, const char * prefetcherName)
 {
-    OwnedHqlExpr dataset = createDataset(no_null, LINK(record));
+    OwnedHqlExpr dataset = createDataset(no_null, LINK(record), createUniqueSelectorSequence());
 
     if (recordRequiresDestructor(record))
     {
@@ -6525,7 +6525,7 @@ ABoundActivity * HqlCppTranslator::buildActivity(BuildCtx & ctx, IHqlExpression 
                 break;
             case no_activerow:
                 {
-                    OwnedHqlExpr row = createDatasetFromRow(LINK(expr));
+                    OwnedHqlExpr row = createDatasetFromRow(LINK(expr), createDummySelectorSequence());
                     return buildCachedActivity(ctx, row);
                 }
             case no_assert_ds:
@@ -6567,7 +6567,7 @@ ABoundActivity * HqlCppTranslator::buildActivity(BuildCtx & ctx, IHqlExpression 
                     return doBuildActivityAction(ctx, expr, isRoot);
                 if (expr->isDatarow())
                 {
-                    OwnedHqlExpr row = createDatasetFromRow(LINK(expr));
+                    OwnedHqlExpr row = createDatasetFromRow(LINK(expr), createDummySelectorSequence());
                     return buildCachedActivity(ctx, row);
                 }
                 else
@@ -11339,7 +11339,7 @@ void HqlCppTranslator::generateSerializeKey(BuildCtx & nestedctx, node_operator 
             beginNestedClass(classctx, memberName, "ISortKeySerializer");
 
             IHqlExpression * keyRecord = createRecordInheritMaxLength(keyFields, record);
-            Owned<IHqlExpression> keyDataset = createDataset(no_anon, keyRecord);
+            Owned<IHqlExpression> keyDataset = createDataset(no_anon, keyRecord, createUniqueSelectorSequence());
 
             DatasetReference keyActiveRef(keyDataset, no_activetable, NULL);
 
@@ -13278,7 +13278,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityLinkedRawChildDataset(BuildCtx
 
     buildInstancePrefix(instance);
 
-    OwnedHqlExpr value = expr->isDatarow() ? createDatasetFromRow(LINK(expr)) : LINK(expr);
+    OwnedHqlExpr value = expr->isDatarow() ? createDatasetFromRow(LINK(expr), createDummySelectorSequence()) : LINK(expr);
     BuildCtx * declarectx;
     BuildCtx * callctx;
     instance->evalContext->getInvariantMemberContext(NULL, &declarectx, &callctx, false, true);     // possibly should sometimes generate in onCreate(), if can evaluate in parent
@@ -14107,7 +14107,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityNormalizeChild(BuildCtx & ctx,
     {
         bool outOfLine = options.tempDatasetsUseLinkedRows;
         if (childDataset->isDatarow())
-            childDataset.setown(createDatasetFromRow(childDataset.getClear()));
+            childDataset.setown(createDatasetFromRow(childDataset.getClear(), createDummySelectorSequence()));
         if (childDataset->getOperator() == no_select)
             outOfLine = isArrayRowset(childDataset->queryType());
         if (hasLinkCountedModifier(childDataset))
@@ -14227,7 +14227,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityNormalizeLinkedChild(BuildCtx 
             dataset.set(querySelectorDataset(expr, isNew));
             //Ensure input is a dataset so cleanly bound as a cursor later
             if (dataset->isDatarow())
-                dataset.setown(createDatasetFromRow(dataset.getClear()));
+                dataset.setown(createDatasetFromRow(dataset.getClear(), createUniqueSelectorSequence()));
             assertex(isNew);
             OwnedHqlExpr active = ensureActiveRow(dataset);
             childDataset.setown(replaceSelectorDataset(expr, active));
@@ -14253,7 +14253,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityNormalizeLinkedChild(BuildCtx 
 
     buildInstancePrefix(instance);
 
-    OwnedHqlExpr value = childDataset->isDatarow() ? createDatasetFromRow(LINK(childDataset)) : LINK(childDataset);
+    OwnedHqlExpr value = childDataset->isDatarow() ? createDatasetFromRow(LINK(childDataset), createDummySelectorSequence()) : LINK(childDataset);
     BuildCtx * declarectx = NULL;
     instance->evalContext->getInvariantMemberContext(NULL, &declarectx, NULL, false, true);
     assertex(declarectx);

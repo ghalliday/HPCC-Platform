@@ -5284,7 +5284,7 @@ IHqlExpression * HqlGram::createDatasetFromList(attribute & listAttr, attribute 
     else if (childType && !field->queryType()->assignableFrom(childType))
         reportError(ERR_RECORD_NOT_MATCH_SET, recordAttr, "The field in the record does not match the type of the set elements");
     
-    OwnedHqlExpr table = createDataset(no_temptable, LINK(list), record.getClear());
+    OwnedHqlExpr table = createDataset(no_temptable, LINK(list), createComma(record.getClear(), createUniqueSelectorSequence()));
     return convertTempTableToInlineTable(errorHandler, listAttr.pos, table);
 }
 
@@ -5884,6 +5884,8 @@ void HqlGram::addParameter(const attribute & errpos, _ATOM name, ITypeInfo* type
         if (!defValue && hasProperty(optAtom, attrs))
             defValue = createValue(no_sortlist, LINK(type));
     }
+    if (isDatasetType(type))
+        attrs.append(*createUniqueSelectorSequence());
     addActiveParameterOwn(errpos, createParameter(name, nextParameterIndex(), type, attrs), defValue);
 }
 
@@ -7785,7 +7787,7 @@ void HqlGram::ensureDataset(attribute & attr)
 {
     if (attr.queryExpr()->isDatarow())
     {
-        IHqlExpression * ds = createDatasetFromRow(attr.getExpr());
+        IHqlExpression * ds = createDatasetFromRow(attr.getExpr(), createUniqueSelectorSequence());
         attr.setExpr(ds);
     }
     checkDataset(attr);
@@ -8508,10 +8510,10 @@ void HqlGram::createAppendFiles(attribute & targetAttr, attribute & leftAttr, at
     OwnedHqlExpr left = leftAttr.getExpr();
     OwnedHqlExpr right = rightAttr.getExpr();
     if (left->isDatarow()) 
-        left.setown(createDatasetFromRow(LINK(left)));
+        left.setown(createDatasetFromRow(LINK(left), createUniqueSelectorSequence()));
     right.setown(checkEnsureRecordsMatch(left, right, rightAttr, right->isDatarow()));
     if (right->isDatarow())
-        right.setown(createDatasetFromRow(LINK(right)));
+        right.setown(createDatasetFromRow(LINK(right), createUniqueSelectorSequence()));
     IHqlExpression * attr = kind ? createAttribute(kind) : NULL;
     targetAttr.setExpr(createDataset(no_addfiles, LINK(left), createComma(LINK(right), attr)));
     targetAttr.setPosition(leftAttr);
