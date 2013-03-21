@@ -416,31 +416,6 @@ public:
 
 //===========================================================================
 
-class GlobalFileTracker : public CInterface, public IHqlDelayedCodeGenerator
-{
-public:
-    GlobalFileTracker(IHqlExpression * _filename, IPropertyTree * _graphNode)
-    {
-        filename.set(_filename->queryBody());
-        graphNode.set(_graphNode);
-        usageCount = 0;
-    }
-    IMPLEMENT_IINTERFACE
-
-//IHqlDelayedCodeGenerator
-    virtual void generateCpp(StringBuffer & out) { out.append(usageCount); }
-
-    bool checkMatch(IHqlExpression * searchFilename);
-    void writeToGraph();
-
-public:
-    OwnedHqlExpr filename;
-    Owned<IPropertyTree> graphNode;
-    unsigned usageCount;
-};
-
-//===========================================================================
-
 class WorkflowItem : public CInterface
 {
     friend class WorkflowTransformer;
@@ -471,6 +446,7 @@ class ActivityInstance;
 class SerializationRow;
 class EvalContext;
 class InternalResultTracker;
+
 //---------------------------------------------------------------------------
 
 typedef CIArrayOf<BuildCtx> BuildCtxArray;
@@ -892,7 +868,7 @@ public:
     
     void expandFunctions(bool expandInline);
     IHqlExpression * needFunction(_ATOM name);
-    bool registerGlobalUsage(IHqlExpression * filename);
+    bool registerGlobalUsage(IHqlExpression * resultName, IHqlExpression * filename);
     IHqlExpression * queryActiveNamedActivity();
     IHqlExpression * queryActiveActivityLocation() const;
     void reportWarning(unsigned id, const char * msg, ...) __attribute__((format(printf, 3, 4)));
@@ -1253,8 +1229,8 @@ public:
     void pushCluster(BuildCtx & ctx, IHqlExpression * cluster);
     void popCluster(BuildCtx & ctx);
 
-    void noteResultAccessed(BuildCtx & ctx, IHqlExpression * seq, IHqlExpression * name);
-    void noteResultDefined(BuildCtx & ctx, ActivityInstance * activityInstance, IHqlExpression * seq, IHqlExpression * name, bool alwaysExecuted);
+    void noteResultAccessed(BuildCtx & ctx, IHqlExpression * seq, IHqlExpression * name, IHqlExpression * filename);
+    InternalResultTracker * noteResultDefined(BuildCtx & ctx, ActivityInstance * activityInstance, IHqlExpression * seq, IHqlExpression * name, IHqlExpression * filename, bool alwaysExecuted, bool trackUsage);
 
 //Expressions:
     void doBuildExprAbs(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt);
@@ -1720,6 +1696,8 @@ public:
 protected:
     IWUResult * createWorkunitResult(int sequence, IHqlExpression * nameExpr);
     void noteFilename(ActivityInstance & instance, const char * name, IHqlExpression * expr, bool isDynamic);
+    void updateInternalUsageCounts();
+
     bool checkGetResultContext(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt);
     void buildGetResultInfo(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr * boundTarget, const CHqlBoundTarget * targetAssign);
     void buildGetResultSetInfo(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr * boundTarget, const CHqlBoundTarget * targetAssign);
@@ -1890,7 +1868,6 @@ protected:
     StringAttr          graphLabel;
     NlpParseContext *   nlpParse;               // Not linked so it can try and stay opaque.
     bool                xmlUsesContents;
-    CIArrayOf<GlobalFileTracker> globalFiles;
     CIArrayOf<InternalResultTracker> internalResults;
     HqlCppLibraryImplementation *       outputLibrary;          // not linked to opaque
     OwnedHqlExpr         outputLibraryId;

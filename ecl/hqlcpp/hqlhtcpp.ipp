@@ -119,7 +119,6 @@ public:
 
 
 class JoinKeyInfo;
-class ActivityInstance;
 class NlpParseContext;
 extern StringBuffer &expandLiteral(StringBuffer &s, const char *f);
 class ActivityEvalContext;

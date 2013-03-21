@@ -156,36 +156,78 @@ bool isActiveGraph(BuildCtx & ctx, IHqlExpression * graphTag)
 
 //---------------------------------------------------------------------------
 
-class InternalResultTracker : public CInterface
+static IHqlExpression * queryBody(IHqlExpression * expr)
+{
+    if (!expr)
+        return NULL;
+    return expr->queryBody();
+}
+
+
+class InternalResultTracker : public CInterface, public IHqlDelayedCodeGenerator
 {
 public:
-    InternalResultTracker(IHqlExpression * _name, IPropertyTree * _subGraphTree, unsigned _graphSeq, ActivityInstance * _definingActivity)
-        : name(_name), subGraphTree(_subGraphTree), graphSeq(_graphSeq), definingActivity(_definingActivity)
+    InternalResultTracker(IHqlExpression * _resultName, IHqlExpression * _filename, unsigned _graphSeq, ActivityInstance * _definingActivity, bool _trackUsage, bool _noteInterGraphUse)
+        : resultName(_resultName), filename(queryBody(_filename)), graphSeq(_graphSeq), definingActivity(_definingActivity), trackUsage(_trackUsage), noteInterGraphUse(_noteInterGraphUse)
     {
+        usageCount = 0;
+        usedOutsideGraph = false;
+        subgraphTree.set(definingActivity->subgraph->tree);
     }
+    IMPLEMENT_IINTERFACE
 
-    bool noteUse(IHqlExpression * searchName, unsigned curGraphSeq);
+//IHqlDelayedCodeGenerator
+    virtual void generateCpp(StringBuffer & out);
+
+    bool noteUse(IHqlExpression * searchName, IHqlExpression * searchFilename, unsigned curGraphSeq);
+
+    void updateUsageCount();
 
 public:
-    LinkedHqlExpr name;
-    Linked<IPropertyTree> subGraphTree;
-    unsigned graphSeq;
+    LinkedHqlExpr resultName;
+    LinkedHqlExpr filename;
     Linked<ActivityInstance> definingActivity;
+    Linked<IPropertyTree> subgraphTree; // Preserve since subgraph can be released
+    unsigned graphSeq;
+    unsigned usageCount;
+    bool noteInterGraphUse;
+    bool usedOutsideGraph;
+    bool trackUsage;
 };
 
-bool InternalResultTracker::noteUse(IHqlExpression * searchName, unsigned curGraphSeq)
+void InternalResultTracker::generateCpp(StringBuffer & out)
 {
-    if (searchName == name)
+    out.append(usageCount);
+}
+
+
+bool InternalResultTracker::noteUse(IHqlExpression * searchResultName, IHqlExpression * searchFilename, unsigned curGraphSeq)
+{
+    if ((searchResultName == resultName) && (searchFilename == filename))
     {
-        if ((graphSeq != curGraphSeq) && subGraphTree)
+        if (noteInterGraphUse && (graphSeq != curGraphSeq))
         {
-            markSubGraphAsRoot(subGraphTree);
+            markSubGraphAsRoot(subgraphTree);
             definingActivity->setInternalSink(false);
-            subGraphTree.clear();
+            noteInterGraphUse = false;
         }
+        if (curGraphSeq == 0)
+            usedOutsideGraph = true;
+        usageCount++;
         return true;
     }
     return false;
+}
+
+void InternalResultTracker::updateUsageCount()
+{
+    if (trackUsage)
+    {
+        if (usageCount)
+            definingActivity->addAttributeInt("_globalUsageCount", usageCount);
+//        if (usedOutsideGraph)
+//            definingActivity->addAttributeInt("_usedOutsideGraph", usageCount);
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -208,7 +250,7 @@ IHqlExpression * getNullStringPointer(bool translated)
     return null;
 }
 
-//---------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------------------------
 
 bool canIterateTableInline(IHqlExpression * expr)
 {
@@ -1455,27 +1497,20 @@ unsigned HqlCppTranslator::cppIndexNextActivity(bool isChildActivity)
 static IHqlExpression * createResultAttribute(IHqlExpression * seq, IHqlExpression * name)
 {
     //if a named user output then set seq to the name so that workunit reads from the named symbol get commoned up correctly
+    assertex(seq);
     if (name && !name->queryType()->isInteger() && seq->queryValue()->getIntValue() >= 0)
         seq = name;
     return createAttribute(resultAtom, LINK(seq), LINK(name));
 }
 
-static void associateRemoteResult(BuildCtx & ctx, ABoundActivity * table, IHqlExpression * seq, IHqlExpression * name)
-{
-    OwnedHqlExpr attr = createResultAttribute(seq, name);
-    OwnedHqlExpr unknown = createUnknown(no_attr, NULL, NULL, LINK(table));
-    ctx.associateExpr(attr, unknown);
-}
-
 void HqlCppTranslator::associateRemoteResult(ActivityInstance & instance, IHqlExpression * seq, IHqlExpression * name)
 {
-    ::associateRemoteResult(*activeGraphCtx, instance.table, seq, name);
+    OwnedHqlExpr attr = createResultAttribute(seq, name);
+    OwnedHqlExpr unknown = createUnknown(no_attr, NULL, NULL, LINK(instance.table));
+    activeGraphCtx->associateExpr(attr, unknown);
 
     if (name && targetRoxie())
-    {
-        OwnedHqlExpr attr = createResultAttribute(seq, name);
-        globalFiles.append(* new GlobalFileTracker(attr, instance.graphNode));
-    }
+        internalResults.append(* new InternalResultTracker(attr, NULL, curGraphSequence(), &instance, true, false));
 }
 
 void HqlCppTranslator::queryAddResultDependancy(ABoundActivity & whoAmIActivity, IHqlExpression * seq, IHqlExpression * name)
@@ -1501,7 +1536,7 @@ void HqlCppTranslator::queryAddResultDependancy(ABoundActivity & whoAmIActivity,
             }
         }
         if (name && targetRoxie())
-            registerGlobalUsage(attr);
+            registerGlobalUsage(attr, NULL);
     }
 }
 
@@ -1676,24 +1711,6 @@ void HqlCppTranslator::finalizeTempRow(BuildCtx & ctx, BoundRow * row, BoundRow 
     ctx.removeAssociation(builder);
 }
 
-
-//---------------------------------------------------------------------------
-
-bool GlobalFileTracker::checkMatch(IHqlExpression * searchFilename)
-{
-    if (searchFilename->queryBody() == filename.get())
-    {
-        usageCount++;
-        return true;
-    }
-    return false;
-}
-
-void GlobalFileTracker::writeToGraph()
-{
-    if (usageCount && graphNode)
-        addGraphAttributeInt(graphNode, "_globalUsageCount", usageCount);
-}
 
 //---------------------------------------------------------------------------
 
@@ -4577,18 +4594,6 @@ IHqlExpression * HqlCppTranslator::createResultName(IHqlExpression * name, bool 
     return bindFunctionCall(getExpandLogicalNameAtom, args);
 }
 
-bool HqlCppTranslator::registerGlobalUsage(IHqlExpression * filename)
-{
-    bool matched = false;
-    ForEachItemIn(i, globalFiles)
-    {
-        if (globalFiles.item(i).checkMatch(filename))
-            matched = true;
-    }
-    return matched;
-}
-
-
 //---------------------------------------------------------------------------
 
 IHqlExpression * HqlCppTranslator::convertBetweenCountAndSize(const CHqlBoundExpr & bound, bool getCount)
@@ -4680,38 +4685,53 @@ IHqlExpression * HqlCppTranslator::convertBetweenCountAndSize(const CHqlBoundExp
 
 //---------------------------------------------------------------------------
 
-void HqlCppTranslator::noteResultDefined(BuildCtx & ctx, ActivityInstance * activityInstance, IHqlExpression * seq, IHqlExpression * name, bool alwaysExecuted)
+InternalResultTracker * HqlCppTranslator::noteResultDefined(BuildCtx & ctx, ActivityInstance * activityInstance, IHqlExpression * seq, IHqlExpression * name, IHqlExpression * filename, bool alwaysExecuted, bool trackUsage)
 {
     unsigned graph = curGraphSequence();
     assertex(graph);
+    InternalResultTracker * tracker = NULL;
 
-    SubGraphInfo * activeSubgraph = queryActiveSubGraph(ctx);
-    assertex(activeSubgraph);
     if (isInternalSeq(seq))
     {
-        internalResults.append(* new InternalResultTracker(name, activeSubgraph->tree, graph, activityInstance));
+        tracker = new InternalResultTracker(name, filename, graph, activityInstance, trackUsage, true);
+        internalResults.append(*tracker);
     }
     else if (alwaysExecuted)
     {
+        SubGraphInfo * activeSubgraph = activityInstance->subgraph;
         assertex(activeSubgraph->tree->hasProp("att[@name=\"rootGraph\"]"));
     }
+
+    return tracker;
 }
 
-void HqlCppTranslator::noteResultAccessed(BuildCtx & ctx, IHqlExpression * seq, IHqlExpression * name)
+bool HqlCppTranslator::registerGlobalUsage(IHqlExpression * resultName, IHqlExpression * filename)
 {
-    if (isInternalSeq(seq))
+    bool matched = false;
+    unsigned graph = curGraphSequence();
+    filename = queryBody(filename);
+    ForEachItemIn(i, internalResults)
     {
-        unsigned graph = curGraphSequence();
-        ForEachItemIn(i, internalResults)
-        {
-            if (internalResults.item(i).noteUse(name, graph))
-            {
-                //Can't currently break because the same result might be generated more than once
-                //if an expression ends up in two different graphs.
-                //break;
-            }
-        }
+        if (internalResults.item(i).noteUse(resultName, filename, graph))
+            matched = true;
     }
+    return matched;
+}
+
+
+void HqlCppTranslator::noteResultAccessed(BuildCtx & ctx, IHqlExpression * seq, IHqlExpression * name, IHqlExpression * filename)
+{
+    if (!isInternalSeq(seq))
+        return;
+
+    registerGlobalUsage(name, filename);
+}
+
+
+void HqlCppTranslator::updateInternalUsageCounts()
+{
+    ForEachItemIn(i, internalResults)
+        internalResults.item(i).updateUsageCount();
 }
 
 void HqlCppTranslator::buildGetResultInfo(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr * boundTarget, const CHqlBoundTarget * targetAssign)
@@ -4721,7 +4741,7 @@ void HqlCppTranslator::buildGetResultInfo(BuildCtx & ctx, IHqlExpression * expr,
     if (!name)
         name = queryPropertyChild(expr, nameAtom, 0);
 
-    noteResultAccessed(ctx, seq, name);
+    noteResultAccessed(ctx, seq, name, NULL);
 
     if (insideLibrary())
     {
@@ -5706,8 +5726,7 @@ bool HqlCppTranslator::buildCpp(IHqlCppInstance & _code, HqlQueryContext & query
             dumpActivityCounts();
     #endif
 
-        ForEachItemIn(i1, globalFiles)
-            globalFiles.item(i1).writeToGraph();
+        updateInternalUsageCounts();
 
         //Have to submit graphs to work unit right at the end so that globalUsage counts etc. can be updated in them.
         ForEachItemIn(i2, graphs)
@@ -7372,7 +7391,7 @@ bool HqlCppTranslator::checkGetResultContext(BuildCtx & ctx, IHqlExpression * ex
     else if (name && targetRoxie())
     {
         OwnedHqlExpr attr = createResultAttribute(seq, name);
-        registerGlobalUsage(attr);
+        registerGlobalUsage(attr, NULL);
     }
     return false;
 }
@@ -10194,19 +10213,19 @@ ABoundActivity * HqlCppTranslator::doBuildActivityOutput(BuildCtx & ctx, IHqlExp
 
     buildInstancePrefix(instance);
 
-    noteResultDefined(ctx, instance, seq, filename, isRoot);
+    bool trackUsage = false;
+    if (expr->hasProperty(_spill_Atom) || expr->hasProperty(jobTempAtom))
+    {
+        if (targetRoxie() && expr->hasProperty(jobTempAtom))
+            trackUsage = true;
+    }
+
+    InternalResultTracker * tracker = noteResultDefined(ctx, instance, seq, NULL, filename, isRoot, trackUsage);
 
     //virtual const char * getFileName() { return "x.d00"; }
-
     OwnedHqlExpr tempCount;
     if (expr->hasProperty(_spill_Atom) || expr->hasProperty(jobTempAtom))
     {
-        IPropertyTree * graphNode = NULL;
-        if (targetRoxie() && expr->hasProperty(jobTempAtom))
-            graphNode = instance->graphNode;
-
-        GlobalFileTracker * tracker = new GlobalFileTracker(filename, graphNode);
-        globalFiles.append(*tracker);
         OwnedHqlExpr callback = createUnknown(no_callback, LINK(unsignedType), globalAtom, LINK(tracker));
         tempCount.setown(createTranslated(callback));
     }
@@ -10872,7 +10891,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityOutputWorkunit(BuildCtx & ctx,
 
     buildInstancePrefix(instance);
 
-    noteResultDefined(ctx, instance, seq, name, isRoot);
+    noteResultDefined(ctx, instance, seq, name, NULL, isRoot, false);
 
     //virtual unsigned getFlags()
     StringBuffer flags;
@@ -10988,7 +11007,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityDictionaryWorkunitWrite(BuildC
 
     buildInstancePrefix(instance);
 
-    noteResultDefined(ctx, instance, seq, name, isRoot);
+    noteResultDefined(ctx, instance, seq, name, NULL, isRoot, false);
 
     //virtual unsigned getFlags()
     StringBuffer flags;
@@ -13178,6 +13197,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityAggregate(BuildCtx & ctx, IHql
         buildHashOfExprsClass(instance->nestedctx, "Hash", allRecordFields, inputRef, true);
         buildHashOfExprsClass(instance->nestedctx, "HashElement", allAggregateFields, outRef, true);
     }
+
     if (passThrough)
     {
         BuildCtx sendctx(instance->startctx);
@@ -15973,7 +15993,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityWorkunitRead(BuildCtx & ctx, I
     if (useImplementationClass)
         instance->setImplementationClass(newWorkUnitReadArgAtom);
 
-    noteResultAccessed(ctx, sequence, name);
+    noteResultAccessed(ctx, sequence, name, NULL);
 
     StringBuffer graphLabel;
     graphLabel.append(getActivityText(instance->kind)).append("\n");
@@ -17272,7 +17292,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivitySetResult(BuildCtx & ctx, IHql
 
     buildInstancePrefix(instance);
 
-    noteResultDefined(ctx, instance, sequence, name, isRoot);
+    noteResultDefined(ctx, instance, sequence, name, NULL, isRoot, false);
     if (attribute->isDatarow())
         attribute.setown(::ensureSerialized(attribute, diskAtom));
 

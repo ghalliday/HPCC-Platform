@@ -1769,12 +1769,6 @@ ABoundActivity * SourceBuilder::buildActivity(BuildCtx & ctx, IHqlExpression * e
     if (useImplementationClass)
         localInstance->setImplementationClass(newMemorySpillReadArgAtom);
 
-    if ((activityKind >= TAKdiskread) && (activityKind <= TAKdiskgroupaggregate))
-    {
-        IHqlExpression * seq = querySequence(tableExpr);
-        translator.noteResultAccessed(ctx, seq, nameExpr);
-    }
-
     instance = localInstance;
 
     StringBuffer graphLabel;
@@ -1939,7 +1933,8 @@ ABoundActivity * SourceBuilder::buildActivity(BuildCtx & ctx, IHqlExpression * e
     else
     {
         assertex(!hasDynamic(tableExpr));
-        bool matched = translator.registerGlobalUsage(nameExpr);
+        //Note: This check (strangely) occurs in buildMembers if not using an implementation class.
+        bool matched = translator.registerGlobalUsage(NULL, nameExpr);
         if (!matched)
         {
             StringBuffer spillName;
@@ -2600,7 +2595,7 @@ void DiskReadBuilderBase::buildMembers(IHqlExpression * expr)
     //---- virtual unsigned getFlags()
     instance->addAttributeBool("preload", isPreloaded);
 
-    bool matched = translator.registerGlobalUsage(tableExpr->queryChild(0));
+    bool matched = translator.registerGlobalUsage(NULL, tableExpr->queryChild(0));
     if (translator.getTargetClusterType() == RoxieCluster)
     {
         instance->addAttributeBool("_isOpt", tableExpr->hasProperty(optAtom));

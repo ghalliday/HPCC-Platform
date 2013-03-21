@@ -1248,6 +1248,7 @@ IHqlExpression * ResourcerInfo::createSpilledRead(IHqlExpression * spillReason)
             args.append(*LINK(record));
         }
         args.append(*createValue(no_thor));
+        args.append(*createAttribute(sequenceAtom, getLocalSequenceNumber()));
         addSpillFlags(args, true);
         args.append(*createUniqueId());
         if (options->isChildQuery && options->targetRoxie())
@@ -1311,6 +1312,7 @@ IHqlExpression * ResourcerInfo::createSpilledWrite(IHqlExpression * transformed)
             args.append(*LINK(transformed));
 
         args.append(*createSpillName());
+        args.append(*createAttribute(sequenceAtom, getLocalSequenceNumber()));
         addSpillFlags(args, false);
         if (options->createSpillAsDataset)
             return createValue(no_writespill, makeVoidType(), args);
