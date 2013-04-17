@@ -272,6 +272,7 @@ extern HQL_API IAtom * noRootAtom;
 extern HQL_API IAtom * noScanAtom;
 extern HQL_API IAtom * noSortAtom;
 extern HQL_API IAtom * notAtom;
+extern HQL_API IAtom * noThorAtom;
 extern HQL_API IAtom * notMatchedAtom;
 extern HQL_API IAtom * notMatchedOnlyAtom;
 extern HQL_API IAtom * _noStreaming_Atom;

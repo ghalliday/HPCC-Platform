@@ -596,24 +596,70 @@ HqlThorBoundaryTransformer::HqlThorBoundaryTransformer(IConstWorkUnit * _wu, boo
     maxRootMaybes = _maxRootMaybes;
     resourceConditionalActions = _resourceConditionalActions;
     resourceSequential = _resourceSequential;
+    insideThor = false;
+}
+
+IHqlExpression * HqlThorBoundaryTransformer::queryAlreadyTransformed(IHqlExpression * expr)
+{
+    return queryInternalExtra(expr)->transformed[insideThor];
+}
+
+IHqlExpression * HqlThorBoundaryTransformer::queryAlreadyTransformedSelector(IHqlExpression * expr)
+{
+    return queryInternalExtra(expr)->transformedSelector[insideThor];
+}
+
+void HqlThorBoundaryTransformer::setTransformed(IHqlExpression * expr, IHqlExpression * transformed)
+{
+    queryInternalExtra(expr)->transformed[insideThor].set(transformed);
 }
 
 
-void HqlThorBoundaryTransformer::transformCompound(HqlExprArray & result, node_operator compoundOp, const HqlExprArray & args, unsigned MaxMaybes)
+void HqlThorBoundaryTransformer::setTransformedSelector(IHqlExpression * expr, IHqlExpression * transformed)
 {
-    UnsignedArray normalizeOptions;
-    ForEachItemIn(i, args)
-    {
-        IHqlExpression & cur = args.item(i);
-        normalizeOptions.append(normalizeThor(&cur));
-    }
+    queryInternalExtra(expr)->transformedSelector[insideThor].set(transformed);
+}
 
+
+
+
+void HqlThorBoundaryTransformer::analyseAll(const HqlExprArray & exprs)
+{
+    analyseArray(exprs, 0);
+    convertSurroundedMaybeToYes(exprs, maxRootMaybes);
+    analyseArray(exprs, 1);
+}
+
+void HqlThorBoundaryTransformer::analyseExpr(IHqlExpression * expr)
+{
+    if (pass == 0)
+        analyseGetRequirements(expr);
+    else
+        analyseTagBoundaries(expr);
+}
+
+
+void HqlThorBoundaryTransformer::analyseGetRequirements(IHqlExpression * expr)
+{
+    HqlThorBoundaryInfo * extra = queryBodyExtra(expr);
+    if (alreadyVisited(extra))
+        return;
+
+    //Force calculation of where it needs evaluating
+    YesNoOption option = normalizeThor(expr);
+    NewHqlTransformer::analyseExpr(expr);
+}
+
+
+void HqlThorBoundaryTransformer::convertSurroundedMaybeToYes(const HqlExprArray & args, unsigned MaxMaybes)
+{
     //If any "yes" or "some" values are separated by maybes then convert the maybes (and "somes") into yes
     unsigned lastYes = NotFound;
     unsigned numMaybes = 0;
     ForEachItemIn(i2, args)
     {
-        switch (normalizeOptions.item(i2))
+        YesNoOption option = normalizeThor(&args.item(i2));
+        switch (option)
         {
         case OptionYes:
         case OptionSome:
@@ -622,7 +668,10 @@ void HqlThorBoundaryTransformer::transformCompound(HqlExprArray & result, node_o
                 if (numMaybes <= MaxMaybes)
                 {
                     for (unsigned j = lastYes; j <= i2; j++)
-                        normalizeOptions.replace(OptionYes, j);
+                    {
+                        IHqlExpression * curMaybe = &args.item(j);
+                        queryBodyExtra(curMaybe)->normalize = OptionYes;
+                    }
                 }
             }
             numMaybes = 0;
@@ -631,161 +680,175 @@ void HqlThorBoundaryTransformer::transformCompound(HqlExprArray & result, node_o
         case OptionMaybe:
             numMaybes++;
             break;
+        case OptionNever:
         case OptionNo:
             lastYes = NotFound;
             break;
         }
     }
+}
 
-    //Do thor and non-thor parallel actions independently
-    HqlExprArray thor;
-    ForEachItemIn(idx, args)
+
+
+
+void HqlThorBoundaryTransformer::analyseTagBoundaries(IHqlExpression * expr)
+{
+    HqlThorBoundaryInfo * extra = queryBodyExtra(expr);
+    if (!expr->isTransform())
     {
-        IHqlExpression * cur = &args.item(idx);
-        if (normalizeOptions.item(idx) == OptionYes)
-            thor.append(*LINK(cur));
+        if (insideThor)
+        {
+            if (extra->visitedInsideThor)
+                return;
+        }
         else
         {
-            if (thor.ordinality())
-            {
-                result.append(*createWrapper(no_thor, createCompound(compoundOp, thor)));
-                thor.kill();
-            }
-            result.append(*createTransformed(cur));
+            if (extra->visitedOutsideThor)
+                return;
         }
+
+        bool wasInsideThor = insideThor;
+        if (insideThor)
+            extra->visitedInsideThor = true;
+        else
+            extra->visitedOutsideThor = true;
+
+        YesNoOption option = normalizeThor(expr);
+        if ((option == OptionYes) && !insideThor)
+        {
+            if (expr->isIndependentOfScope())
+            {
+                extra->forceThor = true;
+                insideThor = true;
+            }
+            else
+            {
+                EclIR::dbglogIR(expr);
+            }
+        }
+        if ((option == OptionNo) && insideThor)
+        {
+            extra->forceOutsideThor = true;
+            insideThor = false;
+        }
+
+        NewHqlTransformer::analyseExpr(expr);
+        insideThor = wasInsideThor;
     }
-    if (thor.ordinality())
-        result.append(*createWrapper(no_thor, createCompound(compoundOp, thor)));
+    else
+        NewHqlTransformer::analyseExpr(expr);
 }
 
-IHqlExpression * HqlThorBoundaryTransformer::createTransformed(IHqlExpression * expr)
+
+
+bool HqlThorBoundaryTransformer::combineAdjacentThors(HqlExprArray & args)
 {
-    node_operator op = expr->getOperator();
-    switch (op)
+    bool combined = false;
+    for (unsigned i=0; i < args.ordinality(); i++)
     {
-    case no_field:
-    case no_constant:
-    case no_attr:
-    case no_attr_link:
-    case no_getresult:
-    case no_left:
-    case no_right:
-        return LINK(expr);
-    case no_sizeof:
-    case no_offsetof:
-        return getTransformedChildren(expr);
-    }
-
-    //Unusually, wrap the expression in a thor node before processing annotations.
-    //This ensures that the location/named symbol stays with the action.
-    //MORE: If this is a dataset then it needs to turn it into a setResult()/getResult() pair.
-    if (normalizeThor(expr) == OptionYes)
-    {
-        if (!expr->isTransform())
-            return createWrapper(no_thor, LINK(expr));
-    }
-
-    IHqlExpression * ret = queryTransformAnnotation(expr);
-    if (ret)
-        return ret;
-
-    switch (op)
-    {
-    case no_actionlist:
-    case no_orderedactionlist:
+        unsigned cnt = 0;
+        for (;i+cnt < args.ordinality(); cnt++)
         {
-            HqlExprArray nonThor, args;
-            expr->unwindList(args, op);
-            transformCompound(nonThor, op, args, (unsigned)-1);
-            return createCompound(op, nonThor);
+            if (args.item(i+cnt).getOperator() != no_thor)
+                break;
         }
-    case no_parallel:
-        {
-            HqlExprArray expanded;
-            expr->unwindList(expanded, no_parallel);
 
-            //Similar to compound, but possible to reorder branches...
-            unsigned numThor = 0;
-            UnsignedArray normalizeOptions;
-            ForEachItemIn(idx, expanded)
+        if (cnt > 1)
+        {
+            HqlExprArray thorExprs;
+            for (unsigned j=0; j < cnt; j++)
             {
-                YesNoOption option = normalizeThor(&expanded.item(idx));
-                normalizeOptions.append(option);
-                if ((option == OptionYes) || (option == OptionSome))
-                    numThor++;
+                IHqlExpression & cur = args.item(i+j);
+                thorExprs.append(*LINK(cur.queryChild(0)));
             }
 
-            if (numThor > 1)
-            {
-                HqlExprArray thor, nonThor;
-                ForEachItemIn(idx, expanded)
-                {
-                    IHqlExpression * cur = &expanded.item(idx);
-                    switch (normalizeOptions.item(idx))
-                    {
-                    case OptionYes:
-                    case OptionSome:
-                        thor.append(*LINK(cur));
-                        break;
-                    default:
-                        nonThor.append(*createTransformed(cur));
-                        break;
-                    }
-                }
-                if (nonThor.ordinality() == 0)
-                {
-                    //can happen if inputs are a mixture of yes and some.
-                    return createWrapper(no_thor, LINK(expr));
-                }
-                nonThor.append(*createWrapper(no_thor, createValue(no_parallel, makeVoidType(), thor)));
-                return expr->clone(nonThor);
-            }
-            break;
+            OwnedHqlExpr compound = createCompound(no_actionlist, thorExprs);
+            args.replace(*createWrapper(no_thor, compound.getClear()), i);
+            args.removen(i+1, cnt-1);
+            combined = true;
         }
-    case no_nothor:
-        return LINK(expr);
     }
-
-    return NewHqlTransformer::createTransformed(expr);
+    return combined;
 }
 
-static YesNoOption combine(YesNoOption left, YesNoOption right, bool isUnion)
+static YesNoOption combine(YesNoOption left, YesNoOption right, bool isSequential)
 {
-    if ((left == OptionNo) || (right == OptionNo))
-        return OptionNo;
+    if ((left == OptionNever) || (right == OptionNever))
+        return OptionNever;
+
     if (left == OptionUnknown)
         return right;
     if (right == OptionUnknown)
         return left;
 
-    //Yes,Some,Maybe
-    if (isUnion)
+    //Generally we want to minimize the number of thor graphs.
+    //This means that if some of branch 1 must be executed in thor, and branch2 is, then
+    //return definite if both branches may benefit.
+    switch (left)
     {
-        //return definite if both branches may benefit.
-        switch (left)
+    case OptionYes:
+        switch (right)
         {
         case OptionYes:
-            return (right != OptionMaybe) ? OptionYes : OptionSome;
+            return OptionYes;
         case OptionSome:
-            return (right != OptionMaybe) ? OptionYes : OptionSome;
+            return OptionYes;
         case OptionMaybe:
-            return (right != OptionMaybe) ? OptionSome : OptionMaybe;
+            return OptionSome;
+        case OptionNo:
+            //If isSequential, we can't hoist expressions out of it (because that would reorder).
+            if (isSequential)
+                return OptionNo;
+            return OptionSome; // if it is later wrapped in a thor, right will gain a nothor round it
         }
-    }
-    else
-    {
-        //Intersection, return definite
-        switch (left)
+        break;
+    case OptionSome:
+        switch (right)
         {
         case OptionYes:
-            return (right == OptionYes) ? OptionYes : OptionSome;
+            return OptionYes;
+        case OptionSome:
+            return OptionYes;
+        case OptionMaybe:
+            return OptionSome;
+        case OptionNo:
+            if (isSequential)
+                return OptionNo;
+            return OptionSome;
+        }
+        break;
+    case OptionMaybe:
+        switch (right)
+        {
+        case OptionYes:
+            return OptionSome;
         case OptionSome:
             return OptionSome;
         case OptionMaybe:
-            return (right == OptionMaybe) ? OptionMaybe : OptionSome;
+            return OptionMaybe;
+        case OptionNo:
+            if (isSequential)
+                return OptionNo;
+            return OptionMaybe;
         }
+        break;
+    case OptionNo:
+        switch (right)
+        {
+        case OptionYes:
+            return OptionSome;
+        case OptionSome:
+            return OptionSome;
+        case OptionMaybe:
+            return OptionMaybe;
+        case OptionNo:
+            return OptionNo;
+        }
+        break;
     }
+
     throwUnexpected();
+    return OptionNo;
 }
 
 
@@ -797,6 +860,27 @@ YesNoOption HqlThorBoundaryTransformer::normalizeThor(IHqlExpression * expr)
         extra->normalize = calcNormalizeThor(expr);
     return extra->normalize;
 }
+
+inline YesNoOption getNoOption(IHqlExpression * expr)
+{
+    if (!expr->isIndependentOfScope())
+        return OptionNever;
+    return OptionNo;
+}
+
+YesNoOption HqlThorBoundaryTransformer::calcDefaultOption(IHqlExpression * expr, YesNoOption defaultOption, bool isSequential)
+{
+    YesNoOption option = defaultOption;
+    ForEachChild(idx, expr)
+    {
+        YesNoOption childOption = normalizeThor(expr->queryChild(idx));
+        if (childOption == OptionNever)
+            return getNoOption(expr);
+        option = combine(option, childOption, isSequential);
+    }
+    return option;
+}
+
 
 YesNoOption HqlThorBoundaryTransformer::calcNormalizeThor(IHqlExpression * expr)
 {
@@ -848,26 +932,31 @@ YesNoOption HqlThorBoundaryTransformer::calcNormalizeThor(IHqlExpression * expr)
         }
     case no_sequential: // do not do inside thor - stops graphs being merged.
         if (!resourceSequential)
-            return OptionNo;
+            return getNoOption(expr);
         // fallthrough
     case no_actionlist:
     case no_orderedactionlist:
     case no_parallel:
         {
-            YesNoOption option = OptionUnknown;
-            ForEachChild(idx, expr)
+            YesNoOption option = calcDefaultOption(expr, OptionUnknown, (op == no_sequential));
+
+            //For an action list it is better to execute a single graph than multiple.  For parallel you can reorder..
+            if (op == no_actionlist)
             {
-                YesNoOption childOption = normalizeThor(expr->queryChild(idx));
-                if (childOption == OptionNo)
-                    return OptionNo;
-                bool fixedOrder = (op == no_sequential) || (op == no_orderedactionlist);
-                option = combine(option, childOption, fixedOrder);       // can reorder parallel - so intersection is better
+                HqlExprArray args;
+                unwindChildren(args, expr);
+                convertSurroundedMaybeToYes(args, (unsigned)-1);
             }
             return option;
         }
-    case no_cluster:
     case no_nothor:
-        return OptionNo;
+        //MORE: Check inputs of output/set results aren't being forced into thor.
+        //Theoretically this will call all instances of child to be executed outside of thor, but that is
+        //very unlikely to cause an issue.
+        queryBodyExtra(expr->queryChild(0))->normalize = getNoOption(expr);
+        return getNoOption(expr);
+    case no_cluster:
+        return getNoOption(expr);
     case no_if:
         if (type && (type->getTypeCode() == type_void))
         {
@@ -878,13 +967,12 @@ YesNoOption HqlThorBoundaryTransformer::calcNormalizeThor(IHqlExpression * expr)
                 YesNoOption rightOption = falseExpr ? normalizeThor(falseExpr) : OptionMaybe;
                 YesNoOption branchOption = combine(leftOption, rightOption, true);
                 YesNoOption condOption = normalizeThor(expr->queryChild(0));
-                if ((branchOption == OptionYes) && (condOption != OptionNo))
+
+                if ((branchOption == OptionYes) && (condOption != OptionNever))
                     return OptionYes;
-//              if ((condOption == OptionYes) && (branchOption != OptionNo))
-//                  return OptionYes;
-                return combine(condOption, branchOption, true);
+                return combine(condOption, branchOption, false);
             }
-            return OptionNo;    // not supported
+            return getNoOption(expr);
         }
         // default action.  Not completely convinced it is correct....
         break;
@@ -898,6 +986,7 @@ YesNoOption HqlThorBoundaryTransformer::calcNormalizeThor(IHqlExpression * expr)
         }
         break;
     case no_setresult:
+    case no_extractresult:
         {
             IHqlExpression * value = expr->queryChild(0);
             YesNoOption valueOption = normalizeThor(value);
@@ -906,61 +995,49 @@ YesNoOption HqlThorBoundaryTransformer::calcNormalizeThor(IHqlExpression * expr)
                 return OptionYes;
             return valueOption;
         }
-    case no_extractresult:
-        {
-            IHqlExpression * ds = expr->queryChild(0);
-            OwnedHqlExpr transformedDs = transform(ds);
-            if (transformedDs != ds)
-                return OptionYes;
-            //Probably worth doing the whole thing in thor if some part if it needs to be - will improve commoning up if nothing else.
-            return normalizeThor(expr->queryChild(1));
-        }
     case no_compound:
         {
             YesNoOption leftOption = normalizeThor(expr->queryChild(0));
             YesNoOption rightOption = normalizeThor(expr->queryChild(1));
-            return combine(leftOption, rightOption, true);
+            return combine(leftOption, rightOption, false);
         }
 
     case no_call:
         {
-            YesNoOption bodyOption = normalizeThor(expr->queryBody()->queryFunctionDefinition());
-            //do Something with it
-            break;
+            //The body of the function will be generated into a seaparate function, which is currently assumed to be executed
+            //independently of a graph
+            YesNoOption argOption = calcDefaultOption(expr, OptionMaybe, false);
+            return argOption;
         }
     case no_externalcall:
         {
             IHqlExpression * func = expr->queryExternalDefinition();
             IHqlExpression * funcDef = func->queryChild(0);
             if (funcDef->hasAttribute(gctxmethodAtom) || funcDef->hasAttribute(globalContextAtom))
-                return OptionNo;
+                return getNoOption(expr);
+            if (funcDef->hasAttribute(noThorAtom))
+                return getNoOption(expr);
 //          if (funcDef->hasAttribute(graphAtom))
 //              return OptionYes;
             if (!resourceConditionalActions && expr->isAction())
-                return OptionNo;
+                return getNoOption(expr);
             //depends on the results of the arguments..
             type = NULL;        // don't check the return type
             break;
         }
     case no_setworkflow_cond:
     case no_ensureresult:
-        return OptionNo;
+        return OptionNever;
     case no_null:
         return OptionMaybe;
+    case no_datasetfromrow:
+        return normalizeThor(expr->queryChild(0));
     }
 
     //NB: things like NOT EXISTS we want evaluated as NOT THOR(EXISTS()), or as part of a larger context
     //otherwise things like klogermann14.xhql don't get EXISTS() csed between graphs.
-    YesNoOption option = OptionMaybe;
-    ForEachChild(idx, expr)
-    {
-        YesNoOption childOption = normalizeThor(expr->queryChild(idx));
-        if (childOption == OptionNo)
-            return OptionNo;
-        option = combine(option, childOption, true);
-    }
-
-    if (type)
+    YesNoOption option = calcDefaultOption(expr, OptionMaybe, false);
+    if (type && (option != OptionNever))
     {
         switch (type->getTypeCode())
         {
@@ -981,11 +1058,130 @@ YesNoOption HqlThorBoundaryTransformer::calcNormalizeThor(IHqlExpression * expr)
             //must be a dataset parameter to a call, or an argument to a comparison
             //Need to know whether it can be evaluate inline or not.
             //if it does require thor, then we will need to generate a setresult/get result pair to do it.
-            return !canProcessInline(NULL, expr) ? OptionYes : OptionMaybe;
+            if (!canProcessInline(NULL, expr))
+                return OptionYes;
+            break;
         }
     }
 
     return option;
+}
+
+IHqlExpression * HqlThorBoundaryTransformer::defaultCreateTransformed(IHqlExpression * expr)
+{
+    OwnedHqlExpr transformed = NewHqlTransformer::createTransformed(expr);
+    updateOrphanedSelectors(transformed, expr);
+    return transformed.getClear();
+}
+
+IHqlExpression * HqlThorBoundaryTransformer::createTransformed(IHqlExpression * expr)
+{
+    node_operator op = expr->getOperator();
+    switch (op)
+    {
+    case no_field:
+    case no_constant:
+    case no_attr:
+    case no_attr_link:
+    case no_getresult:
+    case no_left:
+    case no_right:
+        return LINK(expr);
+    case no_sizeof:
+    case no_offsetof:
+        return getTransformedChildren(expr);
+    }
+
+    HqlThorBoundaryInfo * extra = queryBodyExtra(expr);
+    bool wasInsideThor = insideThor;
+    if (insideThor)
+    {
+        if (extra->forceOutsideThor)
+            insideThor = false;
+    }
+    else
+    {
+        if (extra->forceThor)
+            insideThor = true;
+    }
+
+    //Unusually, wrap the expression in a thor node before processing annotations.
+    //This ensures that the location/named symbol stays with the action.
+    //MORE: If this is a dataset then it needs to turn it into a setResult()/getResult() pair.
+    OwnedHqlExpr transformed = defaultCreateTransformed(expr);
+    insideThor = wasInsideThor;
+
+    switch (op)
+    {
+    case no_actionlist:
+    case no_orderedactionlist:
+        {
+            HqlExprArray args;
+            transformed->unwindList(args, op);
+            if (combineAdjacentThors(args))
+                return createCompound(op, args);
+            break;
+        }
+    case no_parallel:
+        {
+            HqlExprArray expanded;
+            transformed->unwindList(expanded, op);
+
+            //Similar to compound, but possible to reorder branches...
+            unsigned numThor = 0;
+            ForEachItemIn(idx, expanded)
+            {
+                if (expanded.item(idx).getOperator() == no_thor)
+                    numThor++;
+            }
+
+            if (numThor > 1)
+            {
+                HqlExprArray thor, nonThor;
+                ForEachItemIn(idx, expanded)
+                {
+                    IHqlExpression * cur = &expanded.item(idx);
+                    switch (cur->getOperator())
+                    {
+                    case no_thor:
+                        thor.append(*LINK(cur->queryChild(0)));
+                        break;
+                    default:
+                        nonThor.append(*LINK(cur));
+                        break;
+                    }
+                }
+                assertex(nonThor.ordinality() != 0);
+                if (nonThor.ordinality() == 0)
+                {
+                    //can happen if inputs are a mixture of yes and some.
+                    return createWrapper(no_thor, LINK(expr));
+                }
+                nonThor.append(*createWrapper(no_thor, createValue(no_parallel, makeVoidType(), thor)));
+                return expr->clone(nonThor);
+            }
+            break;
+        }
+    }
+
+    if (insideThor)
+    {
+        if (extra->forceOutsideThor)
+        {
+            if (op != no_nothor)
+                transformed.setown(createWrapper(no_nothor, transformed.getClear()));
+            assertex(transformed->isIndependentOfScope());
+            //Need to force it to be global as well
+            return createWrapper(no_globalscope, transformed.getClear(), createAttribute(fewAtom));
+        }
+    }
+    else
+    {
+        if (extra->forceThor)
+            return createWrapper(no_thor, transformed.getClear());
+    }
+
+    return transformed.getClear();
 }
 
 void HqlThorBoundaryTransformer::transformRoot(const HqlExprArray & in, HqlExprArray & out)
@@ -993,7 +1189,8 @@ void HqlThorBoundaryTransformer::transformRoot(const HqlExprArray & in, HqlExprA
     //NewHqlTransformer::transformArray(in, out);
     //following theoretically might improve things, but generally just causes code to become worse,
     //because all the global set results are done in activities, and there isn't cse between them
-    transformCompound(out, no_actionlist, in, maxRootMaybes);
+    NewHqlTransformer::transformRoot(in, out);
+    combineAdjacentThors(out);
 }
 
 
@@ -1003,8 +1200,22 @@ void HqlCppTranslator::markThorBoundaries(WorkflowItem & curWorkflow)
     HqlExprArray bounded;
 
     HqlThorBoundaryTransformer thorTransformer(wu(), targetRoxie(), options.maxRootMaybeThorActions, options.resourceConditionalActions, options.resourceSequential);
+    thorTransformer.analyseAll(exprs);
     thorTransformer.transformRoot(exprs, bounded);
     replaceArray(exprs, bounded);
+
+    if (options.workunitTemporaries)
+    {
+        ExplicitGlobalTransformer transformer(wu(), *this);
+
+        transformer.analyseArray(exprs, 0);
+        if (transformer.needToTransform())
+        {
+            HqlExprArray results;
+            transformer.transformRoot(exprs, results);
+            replaceArray(exprs, results);
+        }
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -7413,10 +7624,32 @@ IHqlExpression * ExplicitGlobalTransformer::createTransformed(IHqlExpression * e
                     if (cluster && !isBlankString(cluster))
                         setResult.setown(createValue(no_cluster, makeVoidType(), LINK(setResult), LINK(cluster)));
                     appendToTarget(*setResult.getClear());
-                    transformed.setown(getResult.getClear());
+                    if (expr->isAction())
+                        transformed.setown(createValue(no_null, makeVoidType()));
+                    else
+                        transformed.setown(getResult.getClear());
                 }
-                break;
             }
+            break;
+        }
+    case no_parallel:
+    case no_actionlist:
+        {
+            ForEachChild(i, transformed)
+            {
+                if (transformed->queryChild(i)->getOperator() == no_null)
+                {
+                    HqlExprArray args;
+                    unwindChildren(args, transformed);
+                    ForEachItemInRev(i2, args)
+                    {
+                        if (args.item(i2).getOperator() == no_null)
+                            args.remove(i2);
+                    }
+                    return transformed->clone(args);
+                }
+            }
+            break;
         }
     }
     return transformed.getClear();

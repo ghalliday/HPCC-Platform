@@ -3626,7 +3626,7 @@ IHqlExpression* HqlGram::checkServiceDef(IHqlScope* serviceScope,IIdAtom * name,
                 bcdApi = true;
                 checkSvcAttrNoValue(attr, errpos);
             }
-            else if (name == pureAtom || name == templateAtom || name == volatileAtom || name == onceAtom || name == actionAtom)
+            else if (name == pureAtom || name == templateAtom || name == volatileAtom || name == onceAtom || name == actionAtom || name == noThorAtom)
             {
                 checkSvcAttrNoValue(attr, errpos);
             }

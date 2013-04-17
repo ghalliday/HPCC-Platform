@@ -270,6 +270,7 @@ IAtom * noScanAtom;
 IAtom * noSortAtom;
 IAtom * _noStreaming_Atom;
 IAtom * notAtom;
+IAtom * noThorAtom;
 IAtom * notMatchedAtom;
 IAtom * notMatchedOnlyAtom;
 IAtom * noTrimAtom;
@@ -684,6 +685,7 @@ MODULE_INIT(INIT_PRIORITY_HQLATOM)
     MAKEATOM(noSort);
     MAKESYSATOM(noStreaming);
     MAKEATOM(not);
+    MAKEATOM(noThor);
     notMatchedAtom = createLowerCaseAtom("NOT MATCHED");
     notMatchedOnlyAtom = createLowerCaseAtom("NOT MATCHED ONLY");
     MAKEATOM(noTrim);

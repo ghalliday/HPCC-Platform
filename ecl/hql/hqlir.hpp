@@ -59,6 +59,7 @@ extern HQL_API void dump_irn(unsigned n, ...);
 extern HQL_API void dbglogIR(IHqlExpression * expr);
 extern HQL_API void dbglogIR(ITypeInfo * type);
 extern HQL_API void dbglogIR(const HqlExprArray & exprs);
+extern HQL_API void dbglogIR(const HqlExprCopyArray & exprs);
 extern HQL_API void dbglogIR(unsigned n, ...);
 
 extern HQL_API void getIRText(StringBuffer & target, unsigned options, IHqlExpression * expr);

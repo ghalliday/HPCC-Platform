@@ -2209,6 +2209,14 @@ extern HQL_API void dbglogIR(const HqlExprArray & exprs)
     playIR(output, NULL, &exprs, NULL);
 }
 
+extern HQL_API void dbglogIR(const HqlExprCopyArray & exprs)
+{
+    DblgLogIRBuilder output(defaultDumpOptions);
+    ExpressionIRPlayer reader(&output);
+    ForEachItemIn(i, exprs)
+        reader.play(&exprs.item(i));
+}
+
 extern HQL_API void dbglogIR(ITypeInfo * type)
 {
     DblgLogIRBuilder output(defaultDumpOptions);

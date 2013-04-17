@@ -50,15 +50,36 @@ protected:
 
 //---------------------------------------------------------------------------
 
-enum YesNoOption { OptionUnknown, OptionNo, OptionMaybe, OptionSome, OptionYes };   //NB: last 3 IN ascending order of definiteness.
+enum YesNoOption
+{
+    OptionUnknown,  // Not calculated yet
+    OptionNever,    // Cannot evaluate inside thor, but also cannot be hoisted (context dependent)
+    OptionNo,       // Cannot evaluate globally, but could hoist
+    OptionMaybe,    // Could evaluate inside or outside thor equally.
+    OptionSome,     // Some of the children require thor.  Will all be in thor unless it is a root expression.
+    OptionYes       // must be evaluated inside thor, or all children contain code that must be.
+};   //NB: last 3 IN ascending order of definiteness.
 
 class HqlThorBoundaryInfo : public NewTransformInfo
 {
 public:
-    HqlThorBoundaryInfo(IHqlExpression * _original) : NewTransformInfo(_original) { normalize = OptionUnknown; }
+    HqlThorBoundaryInfo(IHqlExpression * _original) : NewTransformInfo(_original)
+    {
+        normalize = OptionUnknown;
+        visitedInsideThor = false;
+        visitedOutsideThor = false;
+        forceOutsideThor = false;
+        forceThor = false;
+    }
 
 public:
+    HqlExprAttr         transformed[2];
+    HqlExprAttr         transformedSelector[2];
     YesNoOption normalize;
+    bool visitedInsideThor;
+    bool visitedOutsideThor;
+    bool forceOutsideThor;
+    bool forceThor;
 };
 
 class HqlThorBoundaryTransformer : public NewHqlTransformer
@@ -70,14 +91,29 @@ public:
     virtual ANewTransformInfo * createTransformInfo(IHqlExpression * expr) { return CREATE_NEWTRANSFORMINFO(HqlThorBoundaryInfo, expr); }
     inline HqlThorBoundaryInfo * queryBodyExtra(IHqlExpression * expr)      { return static_cast<HqlThorBoundaryInfo *>(queryTransformExtra(expr->queryBody())); }
     
+    void analyseAll(const HqlExprArray & exprs);
     void transformRoot(const HqlExprArray & in, HqlExprArray & out);
 
+    virtual IHqlExpression * queryAlreadyTransformedSelector(IHqlExpression * expr);
+    virtual IHqlExpression * queryAlreadyTransformed(IHqlExpression * expr);
+    virtual void setTransformed(IHqlExpression * expr, IHqlExpression * transformed);
+    virtual void setTransformedSelector(IHqlExpression * expr, IHqlExpression * transformed);
+
 protected:
-    void transformCompound(HqlExprArray & result, node_operator compoundOp, const HqlExprArray & args, unsigned MaxMaybes);
+    YesNoOption calcDefaultOption(IHqlExpression * expr, YesNoOption defaultOption, bool isSequential);
+    virtual void analyseExpr(IHqlExpression * expr);
+    void analyseGetRequirements(IHqlExpression * expr);
+    void analyseTagBoundaries(IHqlExpression * expr);
+    void convertSurroundedMaybeToYes(const HqlExprArray & args, unsigned MaxMaybes);
+    bool combineAdjacentThors(HqlExprArray & args);
 
 protected:
     YesNoOption calcNormalizeThor(IHqlExpression * expr);
     YesNoOption normalizeThor(IHqlExpression * expr);
+
+private:
+    IHqlExpression * defaultCreateTransformed(IHqlExpression * expr);
+    inline HqlThorBoundaryInfo * queryInternalExtra(IHqlExpression * expr)      { return static_cast<HqlThorBoundaryInfo *>(queryTransformExtra(expr)); }
 
 protected:
     IConstWorkUnit * wu;
@@ -85,6 +121,7 @@ protected:
     bool isRoxie;
     bool resourceConditionalActions;
     bool resourceSequential;
+    bool insideThor;
 };
 
 //---------------------------------------------------------------------------
