@@ -8836,6 +8836,12 @@ IHqlExpression * HqlScopeTagger::transformSelect(IHqlExpression * expr)
                 reportSelectorError(ds, expr);
         }
     }
+    else if (cursor->isRecord())
+    {
+        StringBuffer exprText;
+        VStringBuffer msg("Invalid use of a record as a field selector: %s", getECL(expr, exprText));
+        reportError(msg, false);
+    }
 
     pushScope();
     OwnedHqlExpr newDs = transformNewDataset(ds, false);
