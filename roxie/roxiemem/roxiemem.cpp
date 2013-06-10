@@ -2051,6 +2051,35 @@ class CChunkingRowManager : public CInterface, implements IRowManager
         return getRealActivityId(rawId, allocatorCache);
     }
 
+    IActivityMemoryUsageMap *getPeakActivityUsage()
+    {
+        Owned<IActivityMemoryUsageMap> map = new CActivityMemoryUsageMap;
+        ForEachItemIn(iNormal, normalHeaps)
+            normalHeaps.item(iNormal).getPeakActivityUsage(map);
+        hugeHeap.getPeakActivityUsage(map);
+
+        SpinBlock block(fixedCrit); //Spinblock needed if we can add/remove fixed heaps while allocations are occuring
+        ForEachItemIn(i, fixedHeaps)
+        {
+            CChunkingHeap & fixedHeap = fixedHeaps.item(i);
+            fixedHeap.getPeakActivityUsage(map);
+        }
+
+        return map.getClear();
+    }
+
+    void logMemoryReport()
+    {
+        logctx.CTXLOG("RoxieMemMgr: pageLimit=%u peakPages=%u dataBuffs=%u dataBuffPages=%u possibleGoers=%u rowMgr=%p",
+                pageLimit, peakPages, dataBuffs, dataBuffPages, atomic_read(&possibleGoers), this);
+        Owned<IActivityMemoryUsageMap> map = getPeakActivityUsage();
+        if (map)
+        {
+            logctx.CTXLOG("RoxieMemMgr: activity report");
+            map->report(logctx, allocatorCache);
+        }
+    }
+
 public:
     IMPLEMENT_IINTERFACE;
 
@@ -2224,7 +2253,7 @@ public:
         return (total != 0);
     }
 
-    virtual void getPeakActivityUsage()
+    void checkActivityUsageMap()
     {
         Owned<IActivityMemoryUsageMap> map = getActivityUsage();
         SpinBlock c1(crit);
@@ -2518,7 +2547,7 @@ public:
         if (totalPages > peakPages)
         {
             if (trackMemoryByActivity)
-                getPeakActivityUsage();
+                checkActivityUsageMap();
             peakPages = totalPages;
         }
     }
