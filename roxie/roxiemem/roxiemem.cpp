@@ -77,6 +77,154 @@ Some thoughts on improving this memory manager:
      (avoid the call even?) in cases where there was no shrinking to be done...
 
 */
+
+
+class jlib_decl  NewSpinLock
+{
+    const static unsigned OwnedMask = 0x8000000;
+    atomic_t value;   // == number of threads waiting + top bit set if locked.
+    unsigned nesting;           // not volatile since it is only accessed by one thread at a time
+    Semaphore sem;
+    struct { volatile ThreadId tid; } owner;
+    inline NewSpinLock(NewSpinLock & value) { assert(false); } // dummy to prevent inadvetant use as block
+public:
+    inline NewSpinLock()
+    {
+        owner.tid = 0;
+        nesting = 0;
+        atomic_set(&value, 0);
+    }
+#ifdef _DEBUG
+    ~NewSpinLock()
+    {
+        if (atomic_read(&value))
+            printf("Warning - Owned NewSpinlock destroyed"); // can't use PrintLog here!
+    }
+#endif
+    inline void enter()
+    {
+        ThreadId self = GetCurrentThreadId();
+#ifdef SPINLOCK_RR_CHECK    // as requested by RKC
+        int policy;
+        sched_param param;
+        if ((pthread_getschedparam(self, &policy, &param)==0)&&(policy==SCHED_RR)) {
+            param.sched_priority = 0;
+            pthread_setschedparam(self, SCHED_OTHER, &param);   // otherwise will likely re-enter
+            assertex(!"NewSpinLock enter on SCHED_RR thread");
+        }
+#endif
+
+        if (self==owner.tid)
+        {          // this is atomic
+            nesting++;
+            return;
+        }
+
+        //if (!atomic_cas(&value,1|OwnedMask,0))
+        {
+            loop
+            {
+                unsigned oldValue;
+                unsigned newValue;
+                do
+                {
+                    oldValue = atomic_read(&value);
+                    newValue = (oldValue+1) | OwnedMask;
+                } while (!atomic_cas(&value,newValue,oldValue));
+
+                if (!(oldValue & OwnedMask))
+                    break;
+                sem.wait();
+            }
+        }
+
+        owner.tid = self;
+    }
+    inline bool tryEnter()
+    {
+        ThreadId self = GetCurrentThreadId();
+#ifdef SPINLOCK_RR_CHECK    // as requested by RKC
+        int policy;
+        sched_param param;
+        if ((pthread_getschedparam(self, &policy, &param)==0)&&(policy==SCHED_RR)) {
+            param.sched_priority = 0;
+            pthread_setschedparam(self, SCHED_OTHER, &param);   // otherwise will likely re-enter
+            assertex(!"NewSpinLock enter on SCHED_RR thread");
+        }
+#endif
+
+        if (self==owner.tid)
+        {          // this is atomic
+            nesting++;
+            return true;
+        }
+
+        if (!atomic_cas(&value,0,1|OwnedMask))
+            return false;
+
+        owner.tid = self;
+        return true;
+    }
+    inline void leave()
+    {
+        //It is safe to access nesting - since this thread is the only one that can access
+        //it, so no need for a synchronized access
+        if (nesting == 0)
+        {
+            owner.tid = 0;
+            //Ensure that no code that precedes the setting of value gets moved after it
+            //(unlikely since code is conditional and owner.tid is also volatile)
+            compiler_memory_barrier();
+            //if (!atomic_cas(&value, 0, 1|OwnedMask))
+            {
+                unsigned oldValue;
+                unsigned newValue;
+                do
+                {
+                    oldValue = atomic_read(&value);
+                    othersEntered = (oldValue &~OwnedMask)-1;
+                    newValue = othersEntered;
+                    //If another thread has entered then it is waiting on a sempahore.
+                    //This code needs to decrement the value for that thread because  the thread that will be
+                    //signalled will try to enter and increment the counter again.
+                    if (newValue != 0)
+                        newValue--;
+                } while (!atomic_cas(&value, newValue, oldValue));
+
+                if (othersEntered > 0)
+                    sem.signal();
+            }
+        }
+        else
+            nesting--;
+    }
+};
+
+
+class NewSpinBlock
+{
+    NewSpinLock &lock;
+public:
+    inline NewSpinBlock(NewSpinLock & _lock) : lock(_lock)    { lock.enter(); }
+    inline ~NewSpinBlock() { lock.leave(); }
+};
+
+
+#define L 2
+#if (L==0)
+typedef SpinLock HeapLock;
+typedef SpinBlock HeapBlock;
+#else
+#if (L==1)
+typedef CriticalSection HeapLock;
+typedef CriticalBlock HeapBlock;
+#else
+typedef NewSpinLock HeapLock;
+typedef NewSpinBlock HeapBlock;
+#endif
+#endif
+
+
 //================================================================================
 // Allocation of aligned blocks from os
 
@@ -1872,7 +2020,7 @@ public:
 
     void reportLeaks(unsigned &leaked) const
     {
-        SpinBlock c1(crit);
+        HeapBlock c1(crit);
         BigHeapletBase *finger = active;
         while (leaked && finger)
         {
@@ -1884,7 +2032,7 @@ public:
 
     void checkHeap()
     {
-        SpinBlock c1(crit);
+        HeapBlock c1(crit);
         BigHeapletBase *finger = active;
         while (finger)
         {
@@ -1896,7 +2044,7 @@ public:
     unsigned allocated()
     {
         unsigned total = 0;
-        SpinBlock c1(crit);
+        HeapBlock c1(crit);
         BigHeapletBase *finger = active;
         while (finger)
         {
@@ -1910,7 +2058,7 @@ public:
     {
         unsigned total = 0;
         BigHeapletBase *prev = NULL;
-        SpinBlock c1(crit);
+        HeapBlock c1(crit);
         BigHeapletBase *finger = active;
         while (finger)
         {
@@ -1944,7 +2092,7 @@ public:
 
     void getPeakActivityUsage(IActivityMemoryUsageMap * usageMap) const
     {
-        SpinBlock c1(crit);
+        HeapBlock c1(crit);
         BigHeapletBase *finger = active;
         unsigned numPages = 0;
         memsize_t numAllocs = 0;
@@ -1991,7 +2139,7 @@ protected:
     CChunkingRowManager * rowManager;
     const IRowAllocatorCache *allocatorCache;
     const IContextLogger & logctx;
-    mutable SpinLock crit;      // MORE: Can probably be a NonReentrantSpinLock if we're careful
+    mutable HeapLock crit;      // MORE: Can probably be a NonReentrantHeapLock if we're careful
 };
 
 
@@ -2401,8 +2549,8 @@ class CChunkingRowManager : public CInterface, implements IRowManager
     friend class CNormalChunkingHeap;
     friend class CFixedChunkingHeap;
 
-    SpinLock crit;
-    mutable SpinLock fixedCrit;  // Should possibly be a ReadWriteLock - better with high contention, worse with low
+    HeapLock crit;
+    mutable HeapLock fixedCrit;  // Should possibly be a ReadWriteLock - better with high contention, worse with low
     CIArrayOf<CFixedChunkingHeap> normalHeaps;
     CHugeChunkingHeap hugeHeap;
     ITimeLimiter *timeLimit;
@@ -2491,7 +2639,7 @@ public:
         //Ensure that the rowHeaps release any references to the fixed heaps, and no longer call back when they
         //are destroyed
         {
-            SpinBlock block(fixedCrit);
+            HeapBlock block(fixedCrit);
             ForEachItemIn(i, fixedRowHeaps)
                 fixedRowHeaps.item(i).clearRowManager();
         }
@@ -2522,7 +2670,7 @@ public:
         ForEachItemIn(iNormal, normalHeaps)
             normalHeaps.item(iNormal).checkHeap();
 
-        SpinBlock block(fixedCrit); //Spinblock needed if we can add/remove fixed heaps while allocations are occuring
+        HeapBlock block(fixedCrit); //HeapBlock needed if we can add/remove fixed heaps while allocations are occuring
         ForEachItemIn(i, fixedHeaps)
         {
             CChunkingHeap & fixedHeap = fixedHeaps.item(i);
@@ -2542,7 +2690,7 @@ public:
             total += normalHeaps.item(iNormal).allocated();
         total += hugeHeap.allocated();
 
-        SpinBlock block(fixedCrit); //Spinblock needed if we can add/remove fixed heaps while allocations are occuring
+        HeapBlock block(fixedCrit); //HeapBlock needed if we can add/remove fixed heaps while allocations are occuring
         ForEachItemIn(i, fixedHeaps)
         {
             CChunkingHeap & fixedHeap = fixedHeaps.item(i);
@@ -2560,7 +2708,7 @@ public:
 
     void removeUnusedHeaps()
     {
-        SpinBlock block(fixedCrit);
+        HeapBlock block(fixedCrit);
         unsigned numHeaps = fixedHeaps.ordinality();
         unsigned i = 0;
         while (i < numHeaps)
@@ -2584,7 +2732,7 @@ public:
 
         bool hadUnusedHeap = false;
         {
-            SpinBlock block(fixedCrit); //Spinblock needed if we can add/remove fixed heaps while allocations are occuring
+            HeapBlock block(fixedCrit); //HeapBlock needed if we can add/remove fixed heaps while allocations are occuring
             ForEachItemIn(i, fixedHeaps)
             {
                 CChunkingHeap & fixedHeap = fixedHeaps.item(i);
@@ -2606,7 +2754,7 @@ public:
     void getPeakActivityUsage()
     {
         Owned<IActivityMemoryUsageMap> map = getActivityUsage();
-        SpinBlock c1(crit);
+        HeapBlock c1(crit);
         usageMap.setown(map.getClear());
     }
 
@@ -2822,7 +2970,7 @@ public:
         DataBufferBase *last = NULL;
         bool needCheck;
         {
-            SpinBlock b(crit);
+            HeapBlock b(crit);
             DataBufferBase *finger = activeBuffs;
             while (finger && atomic_read(&possibleGoers))
             {
@@ -2872,7 +3020,7 @@ public:
     {
         CRoxieFixedRowHeapBase * rowHeap = doCreateFixedRowHeap(fixedSize, activityId, roxieHeapFlags);
 
-        SpinBlock block(fixedCrit);
+        HeapBlock block(fixedCrit);
         //The Row heaps are not linked by the row manager so it can determine when they are released.
         fixedRowHeaps.append(*rowHeap);
         return rowHeap;
@@ -2880,7 +3028,7 @@ public:
 
     void noteReleasedHeap(CRoxieFixedRowHeapBase * rowHeap)
     {
-        SpinBlock block(fixedCrit);
+        HeapBlock block(fixedCrit);
         fixedRowHeaps.zap(*rowHeap);
     }
 
@@ -3008,7 +3156,7 @@ protected:
             normalHeaps.item(iNormal).getPeakActivityUsage(map);
         hugeHeap.getPeakActivityUsage(map);
 
-        SpinBlock block(fixedCrit); //Spinblock needed if we can add/remove fixed heaps while allocations are occuring
+        HeapBlock block(fixedCrit); //HeapBlock needed if we can add/remove fixed heaps while allocations are occuring
         ForEachItemIn(i, fixedHeaps)
         {
             CChunkingHeap & fixedHeap = fixedHeaps.item(i);
@@ -3032,8 +3180,8 @@ protected:
         }
 
         size32_t chunkSize = ROUNDEDSIZE(rounded);
-        //Not time critical, so don't worry about the scope of the spinblock around the new
-        SpinBlock block(fixedCrit);
+        //Not time critical, so don't worry about the scope of the HeapBlock around the new
+        HeapBlock block(fixedCrit);
         if (!(flags & RHFunique))
         {
             CChunkingHeap * match = getExistingHeap(chunkSize, activityId, flags);
@@ -3053,8 +3201,8 @@ protected:
         //Should this have a larger granularity (e.g., sizeof(void * *) if size is above a threshold?
         size32_t chunkSize = align_pow2(size + PackedFixedSizeHeaplet::chunkHeaderSize, PACKED_ALIGNMENT);
 
-        //Not time critical, so don't worry about the scope of the spinblock around the new
-        SpinBlock block(fixedCrit);
+        //Not time critical, so don't worry about the scope of the HeapBlock around the new
+        HeapBlock block(fixedCrit);
         if (!(flags & RHFunique))
         {
             CChunkingHeap * match = getExistingHeap(chunkSize, activityId, flags);
@@ -3081,7 +3229,7 @@ protected:
         ForEachItemIn(iNormal, normalHeaps)
             normalHeaps.item(iNormal).reportLeaks(leaked);
         hugeHeap.reportLeaks(leaked);
-        SpinBlock block(fixedCrit); //Spinblock needed if we can add/remove fixed heaps while allocations are occuring
+        HeapBlock block(fixedCrit); //HeapBlock needed if we can add/remove fixed heaps while allocations are occuring
         ForEachItemIn(i, fixedHeaps)
         {
             if (leaked == 0)
@@ -3253,7 +3401,7 @@ void * CHugeChunkingHeap::doAllocate(memsize_t _size, unsigned allocatorId)
             (unsigned __int64) _size, (unsigned __int64) (numPages*HEAP_ALIGNMENT_SIZE), head, numPages, rowManager->pageLimit, rowManager->peakPages, this);
     }
 
-    SpinBlock b(crit);
+    HeapBlock b(crit);
     setNext(head, active);
     active = head;
     return head->allocateHuge(_size);
@@ -3288,7 +3436,7 @@ void CHugeChunkingHeap::expandHeap(void * original, memsize_t copysize, memsize_
             {
                 // Remove the old block from the chain
                 {
-                    SpinBlock b(crit);
+                    HeapBlock b(crit);
                     if (active==oldhead)
                     {
                         active = getNext(oldhead);
@@ -3318,7 +3466,7 @@ void CHugeChunkingHeap::expandHeap(void * original, memsize_t copysize, memsize_
 
                 // MORE - If we were really clever, we could manipulate the page table to avoid moving ANY data here...
                 memmove(realloced, oldbase, copysize + HugeHeaplet::dataOffset());  // NOTE - assumes no trailing data (e.g. end markers)
-                SpinBlock b(crit);
+                HeapBlock b(crit);
                 // Add at front of chain
                 setNext(head, active);
                 active = head;
@@ -3362,10 +3510,10 @@ void CHugeChunkingHeap::expandHeap(void * original, memsize_t copysize, memsize_
 //An inline function used to common up the allocation code for fixed and non fixed sizes.
 void * CNormalChunkingHeap::inlineDoAllocate(unsigned allocatorId)
 {
-    //Only hold the spinblock while walking the list - so subsequent calls to checkLimit don't deadlock.
+    //Only hold the HeapBlock while walking the list - so subsequent calls to checkLimit don't deadlock.
     {
         BigHeapletBase *prev = NULL;
-        SpinBlock b(crit);
+        HeapBlock b(crit);
         BigHeapletBase *finger = active;
         while (finger)
         {
@@ -3398,10 +3546,10 @@ void * CNormalChunkingHeap::inlineDoAllocate(unsigned allocatorId)
         logctx.CTXLOG("RoxieMemMgr: CChunkingRowManager::allocate(size %u) allocated new FixedSizeHeaplet size %u - addr=%p pageLimit=%u peakPages=%u rowMgr=%p",
                 chunkSize, chunkSize, head, rowManager->pageLimit, rowManager->peakPages, this);
 
-    SpinBlock b(crit);
+    HeapBlock b(crit);
     setNext(head, active);
     active = head;
-    //If no protecting spinblock there would be a race e.g., if another thread allocates all the rows!
+    //If no protecting HeapBlock there would be a race e.g., if another thread allocates all the rows!
     return head->allocate(allocatorId);
 }
 
@@ -4717,7 +4865,7 @@ protected:
 
         mutable atomic_t counter;
     };
-    enum { numCasThreads = 64, numCasIter = 50, numCasAlloc = 1000 };
+    enum { numCasThreads = 64, numCasIter = 5000, numCasAlloc = 200 };
     class CasAllocatorThread : public Thread
     {
     public:
