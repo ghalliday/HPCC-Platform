@@ -3991,7 +3991,7 @@ public:
 };
 
 
-const static bool useLargeMemory = false;   // Set to true to test compacting and other test on significant sized memory
+const static bool useLargeMemory = true;   // Set to true to test compacting and other test on significant sized memory
 const static unsigned smallMemory = 300;
 const static unsigned largeMemory = 10100;
 
@@ -4007,7 +4007,8 @@ class RoxieMemTests : public CppUnit::TestFixture
 {
     CPPUNIT_TEST_SUITE( RoxieMemTests );
         CPPUNIT_TEST(testSetup);
-        CPPUNIT_TEST(testRoundup);
+        CPPUNIT_TEST(testCas);
+/*        CPPUNIT_TEST(testRoundup);
         CPPUNIT_TEST(testBitmapThreading);
         CPPUNIT_TEST(testAllocSize);
         CPPUNIT_TEST(testHuge);
@@ -4018,7 +4019,7 @@ class RoxieMemTests : public CppUnit::TestFixture
         CPPUNIT_TEST(testDatamanagerThreading);
         CPPUNIT_TEST(testCallbacks);
         CPPUNIT_TEST(testRecursiveCallbacks);
-        CPPUNIT_TEST(testCompacting);
+        CPPUNIT_TEST(testCompacting);*/
         CPPUNIT_TEST(testCleanup);
     CPPUNIT_TEST_SUITE_END();
     const IContextLogger &logctx;
@@ -4716,7 +4717,7 @@ protected:
 
         mutable atomic_t counter;
     };
-    enum { numCasThreads = 20, numCasIter = 50, numCasAlloc = 1000 };
+    enum { numCasThreads = 64, numCasIter = 50, numCasAlloc = 1000 };
     class CasAllocatorThread : public Thread
     {
     public:
@@ -4770,22 +4771,26 @@ protected:
         IRowManager * rm;
         unsigned priority;
     };
-    void runCasTest(const char * title, Semaphore & sem, CasAllocatorThread * threads[])
+    void runCasTest(const char * title, Semaphore & sem, unsigned numThreads, CasAllocatorThread * threads[])
     {
-        for (unsigned i2 = 0; i2 < numCasThreads; i2++)
+        for (unsigned i2 = 0; i2 < numThreads; i2++)
         {
             threads[i2]->start();
         }
 
         unsigned startTime = msTick();
-        sem.signal(numCasThreads);
-        for (unsigned i3 = 0; i3 < numCasThreads; i3++)
+        sem.signal(numThreads);
+        for (unsigned i3 = 0; i3 < numThreads; i3++)
             threads[i3]->join();
         unsigned endTime = msTick();
 
-        for (unsigned i4 = 0; i4 < numCasThreads; i4++)
+        for (unsigned i4 = 0; i4 < numThreads; i4++)
             threads[i4]->Release();
-        DBGLOG("Time taken for %s cas = %d", title, endTime-startTime);
+        DBGLOG("Time taken for %s cas [%d] = %d", title, numThreads, endTime-startTime);
+    }
+    void runCasTest(const char * title, Semaphore & sem, CasAllocatorThread * threads[])
+    {
+        runCasTest(title, sem, numCasThreads, threads);
     }
     class HeapletCasAllocatorThread : public CasAllocatorThread
     {
@@ -4849,13 +4854,18 @@ protected:
         Owned<IRowManager> rowManager = createRowManager(0, NULL, logctx, &rowCache);
         //For this test the row heap is assign to a variable that will be destroyed after the manager, to ensure that works.
         rowHeap.setown(rowManager->createFixedRowHeap(8, ACTIVITY_FLAG_ISREGISTERED|0, RHFhasdestructor));
-        Semaphore sem;
-        CasAllocatorThread * threads[numCasThreads];
-        for (unsigned i1 = 0; i1 < numCasThreads; i1++)
-            threads[i1] = new FixedCasAllocatorThread(rowHeap, sem, rowManager);
 
-        runCasTest("shared fixed allocator", sem, threads);
-        ASSERT(atomic_read(&rowCache.counter) == 2 * numCasThreads * numCasIter * numCasAlloc);
+        CasAllocatorThread * threads[numCasThreads];
+        for (unsigned numThreads=1; numThreads <= numCasThreads; numThreads *= 2)
+        {
+            Semaphore sem;
+            for (unsigned i1 = 0; i1 < numCasThreads; i1++)
+                threads[i1] = new FixedCasAllocatorThread(rowHeap, sem, rowManager);
+
+            rowCache.clear();
+            runCasTest("shared fixed allocator", sem, numThreads, threads);
+            ASSERT(atomic_read(&rowCache.counter) == 2 * numThreads * numCasIter * numCasAlloc);
+        }
     }
     void testFixedCas()
     {
@@ -5038,6 +5048,8 @@ protected:
 
     void testCas()
     {
+        testSharedFixedCas();
+        return;
         testFixedRelease();
         timeRoundup();
         testVariableCas();
