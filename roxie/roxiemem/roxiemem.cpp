@@ -179,6 +179,7 @@ public:
             {
                 unsigned oldValue;
                 unsigned newValue;
+                unsigned othersEntered;
                 do
                 {
                     oldValue = atomic_read(&value);

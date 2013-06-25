@@ -108,6 +108,11 @@ include_directories (
          ./../../roxie/roxiemem
     )
 
+set_source_files_properties (hashdistrib/thhashdistribslave.cpp PROPERTIES COMPILE_FLAGS -Wa,-ahl=special.lst)
+
+
+
+
 HPCC_ADD_LIBRARY( activityslaves_lcr SHARED ${SRCS} )
 set_target_properties(activityslaves_lcr PROPERTIES 
     COMPILE_FLAGS -D_USRDLL

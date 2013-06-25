@@ -109,10 +109,10 @@ static __inline__ int atomic_xchg(int i, atomic_t *v)
 
 
 
-static __inline__ void atomic_add(atomic_t *v,int i)
+static __inline__ int atomic_add(atomic_t *v,int i)
 {
     // (*v)+=i;
-    __sync_add_and_fetch(&v->counter,i);
+    return __sync_add_and_fetch(&v->counter,i);
 }
 
 static __inline__ int atomic_add_exchange(atomic_t *v,int i)
