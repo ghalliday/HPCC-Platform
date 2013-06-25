@@ -44,13 +44,29 @@ int main(int argc, char* argv[])
     objects.append(*(new LoadedObject ("jhtree")));
     objects.append(*(new LoadedObject ("roxiemem")));
     objects.append(*(new LoadedObject ("thorhelper")));
+    objects.append(*(new LoadedObject ("activityslaves_lcr")));
 
     queryStderrLogMsgHandler()->setMessageFields(MSGFIELD_time);
     CppUnit::TextUi::TestRunner runner;
     if (argc==1)
     {
+#if 1
+        typedef CppUnitVector<CppUnit::Test *> container_type;
+        CppUnit::TestFactoryRegistry &registry = CppUnit::TestFactoryRegistry::getRegistry();
+        CppUnit::Test *test = registry.makeTest();
+        CppUnit::TestSuite *s = dynamic_cast<CppUnit::TestSuite*>(test);
+        const container_type &tests( s->getTests() );
+        container_type::const_iterator ii;
+        for (ii=tests.begin(); ii != tests.end(); ++ii)
+        {
+                const CppUnit::Test *t = (*ii);
+                PROGLOG("test : %s", t->getName().c_str());
+
+        }
+#else
         CppUnit::TestFactoryRegistry &registry = CppUnit::TestFactoryRegistry::getRegistry();
         runner.addTest( registry.makeTest() );
+#endif
     }
     else 
     {

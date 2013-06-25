@@ -2298,7 +2298,7 @@ public:
     {
         atomic_set(&value, 0);
     }
-    ~CConditionalLock()
+    inline ~CConditionalLock()
     {
         if (atomic_read(&value))
             printf("Warning - Owned CConditionalLock destroyed"); // can't use PrintLog here!
@@ -2307,13 +2307,13 @@ public:
     {
         if (!atomic_cas(&value, 1, 0))
             return false;
-        crit.enter(); // Expect to enter immediately, may block momentarily, if unlocking, if another in loop in lock()
+        crit.enter(); // Expect to enter immediately, may block momentarily, if unlocking, or if another in loop in lock()
         return true;
     }
     inline void lock()
     {
         if (atomic_cas(&value, 1, 0))
-            crit.enter(); // Expect to enter immediately, may block momentarily, if unlocking, or if another in loop crit.enter below.
+            crit.enter(); // Expect to enter immediately, may block momentarily, if unlocking, or if another in loop in lock()
         else
         {
             /* Don't have CAS:
@@ -2325,18 +2325,20 @@ public:
             loop
             {
                 crit.enter(); // expect to block
-                if (atomic_cas(&value, 1, 0)) // have CRIT, expect to get CAS, but another may have beaten me to it.
+                // now have CRIT, expect to get CAS, but another lock() may have beaten me to it, or unlocking.
+                if (atomic_cas(&value, 1, 0))
                     break;
                 crit.leave(); // failed to get CAS, unlock CRIT
-                ThreadYield(); // I grabbed CRIT but was unsuccessful grabbing CRIT - give others a chance. Is yield necessary?
+                // Is yield necessary really warranted?
+                ThreadYield(); // I grabbed CRIT but was unsuccessful grabbing CRIT - give others a chance.
             }
         }
     }
     inline void unlock()
     {
+        crit.leave();
         if (!atomic_cas(&value, 0, 1))
             throwUnexpected();
-        crit.leave();
     }
 };
 
@@ -2391,6 +2393,451 @@ public:
         return true;
     }
 };
+
+class CLocker
+{
+public:
+    unsigned iterations;
+public:
+    virtual void doLock() = 0;
+    virtual void doUnlock() = 0;
+    virtual bool doTryLock() { doLock(); return true; }
+};
+
+
+#if 1
+class CLockerBlock
+{
+    CLocker &locker;
+public:
+    inline CLockerBlock(CLocker &_locker) : locker(_locker)
+    {
+        locker.doLock();
+    }
+    inline ~CLockerBlock()
+    {
+        locker.doUnlock();
+    }
+};
+
+class CUnlockerBlock
+{
+    CLocker &locker;
+public:
+    inline CUnlockerBlock(CLocker &_locker) : locker(_locker)
+    {
+        locker.doUnlock();
+    }
+    inline ~CUnlockerBlock()
+    {
+        locker.doLock();
+    }
+};
+
+class CCondLockerBlock
+{
+    CLocker *locker;
+public:
+    inline CCondLockerBlock() { locker = NULL; }
+    inline ~CCondLockerBlock()
+    {
+        if (locker)
+            locker->doUnlock();
+    }
+    inline bool tryEnter(CLocker &_locker, bool block)
+    {
+        if (block)
+            _locker.doLock();
+        else
+        {
+            if (!_locker.doTryLock())
+                return false;
+        }
+        locker = &_locker;
+        return true;
+    }
+};
+#endif
+
+
+#ifdef _USE_CPPUNIT
+#include <cppunit/extensions/TestFactoryRegistry.h>
+#include <cppunit/ui/text/TestRunner.h>
+#include <cppunit/extensions/HelperMacros.h>
+
+#include "jmutex.hpp"
+
+class jlib_decl GhLock
+{
+    const static unsigned OwnedMask = 0x8000000;
+    atomic_t value;   // == number of threads contending + top bit set if locked.
+    unsigned nesting;           // not volatile since it is only accessed by one thread at a time
+    Semaphore sem;
+    struct { volatile ThreadId tid; } owner;
+    inline GhLock(GhLock & value) { assert(false); } // dummy to prevent inadvetant use as block
+public:
+    inline GhLock()
+    {
+        owner.tid = 0;
+        nesting = 0;
+        atomic_set(&value, 0);
+    }
+#ifdef _DEBUG
+    ~GhLock()
+    {
+        unsigned v =atomic_read(&value);
+        if (v)
+            printf("Warning - Owned Ghlock destroyed: v=%d\n", v); // can't use PrintLog here!
+    }
+#endif
+    inline void enter()
+    {
+        ThreadId self = GetCurrentThreadId();
+#ifdef SPINLOCK_RR_CHECK    // as requested by RKC
+        int policy;
+        sched_param param;
+        if ((pthread_getschedparam(self, &policy, &param)==0)&&(policy==SCHED_RR)) {
+            param.sched_priority = 0;
+            pthread_setschedparam(self, SCHED_OTHER, &param);   // otherwise will likely re-enter
+            assertex(!"GhLock enter on SCHED_RR thread");
+        }
+#endif
+
+        if (self==owner.tid)
+        {          // this is atomic
+            nesting++;
+            return;
+        }
+
+        loop
+        {
+            unsigned oldValue;
+            unsigned newValue;
+            do
+            {
+                oldValue = atomic_read(&value);
+                newValue = (oldValue+1) | OwnedMask;
+            } while (!atomic_cas(&value,newValue,oldValue));
+
+            if (!(oldValue & OwnedMask))
+                break;
+            sem.wait();
+        }
+
+        owner.tid = self;
+    }
+    inline void leave()
+    {
+        //It is safe to access nesting - since this thread is the only one that can access
+        //it, so no need for a synchronized access
+        if (nesting == 0)
+        {
+            owner.tid = 0;
+            //Ensure that no code that precedes the setting of value gets moved after it
+            //(unlikely since code is conditional and owner.tid is also volatile)
+            compiler_memory_barrier();
+            unsigned oldValue;
+            unsigned newValue;
+            do
+            {
+                oldValue = atomic_read(&value);
+                newValue = (oldValue &~OwnedMask)-1;
+            } while (!atomic_cas(&value, newValue, oldValue));
+
+            if (newValue > 0)
+                sem.signal();
+        }
+        else
+            nesting--;
+    }
+};
+class ThorTests : public CppUnit::TestFixture
+{
+    CPPUNIT_TEST_SUITE( ThorTests );
+        CPPUNIT_TEST(testCConditionalLock);
+        CPPUNIT_TEST(testCConditionalLockSpeed);
+    CPPUNIT_TEST_SUITE_END();
+
+    class CLockerCondLock : public CLocker
+    {
+        CConditionalLock alock;
+    public:
+        virtual void doLock()
+        {
+            alock.lock();
+        }
+        virtual void doUnlock()
+        {
+            alock.unlock();
+        }
+    };
+    class CLockerCritLock : public CLocker
+    {
+        CriticalSection alock;
+    public:
+        virtual void doLock()
+        {
+            alock.enter();
+        }
+        virtual void doUnlock()
+        {
+            alock.leave();
+        }
+    };
+    class CLockerSpinLock : public CLocker
+    {
+        SpinLock lock;
+    public:
+        virtual void doLock()
+        {
+            lock.enter();
+        }
+        virtual void doUnlock()
+        {
+            lock.leave();
+        }
+    };
+    class CLockerGhLock : public CLocker
+    {
+        GhLock lock;
+    public:
+        virtual void doLock()
+        {
+            lock.enter();
+        }
+        virtual void doUnlock()
+        {
+            lock.leave();
+        }
+    };
+    class CLockerDummyLock : public CLocker
+    {
+    public:
+        virtual void doLock()
+        {
+        }
+        virtual void doUnlock()
+        {
+        }
+    };
+    void testCConditionalLock()
+    {
+        struct InitInfo
+        {
+            InitInfo(CLocker &_locker, unsigned __int64 &_v, unsigned _n) : locker(&_locker), v(&_v), n(_n) { }
+            CLocker *locker;
+            unsigned n;
+            unsigned __int64 *v;
+        };
+        class CPool : public CSimpleInterface, implements IThreadFactory
+        {
+        public:
+            IMPLEMENT_IINTERFACE_USING(CSimpleInterface);
+
+            virtual IPooledThread *createNew()
+            {
+                class CAThread : public CSimpleInterface, implements IPooledThread
+                {
+                    InitInfo *initInfo;
+                public:
+                    IMPLEMENT_IINTERFACE_USING(CSimpleInterface);
+
+                    CAThread()
+                    {
+                        initInfo = NULL;
+                    }
+                    ~CAThread()
+                    {
+                        if (initInfo)
+                            delete initInfo;
+                    }
+                    virtual void init(void *param)
+                    {
+                        if (initInfo)
+                            delete initInfo;
+                        initInfo = (InitInfo *)param;
+                    }
+                    virtual void main()
+                    {
+                        try
+                        {
+                            CLocker &locker = *initInfo->locker;
+                            CLockerBlock b(locker);
+                            {
+                                // try to cause race
+                                CUnlockerBlock ub(locker);
+                                {
+                                    CCondLockerBlock cb;
+                                    unsigned r=0;
+                                    while (!cb.tryEnter(locker, false))
+                                    {
+                                        ThreadYield();
+                                        ++r;
+                                    }
+//                                    if (r)
+//                                        PROGLOG("tryLock for (%d), retried %d times", initInfo->n, r);
+                                }
+                            }
+                            *initInfo->v = *initInfo->v + initInfo->n;
+                        }
+                        catch (IException *e)
+                        {
+                            EXCLOG(e, NULL);
+                            e->Release();
+                        }
+                    }
+                    virtual bool stop()
+                    {
+                        return true;
+                    }
+
+                    virtual bool canReuse() { return true; }
+                };
+                return new CAThread();
+            }
+        } aThreadPool;
+
+        unsigned iterations=100000;
+        unsigned threads=1000;
+        unsigned __int64 v = 0;
+        Owned<IThreadPool> pool = createThreadPool("TSDSTest", &aThreadPool, NULL, threads, INFINITE);
+
+        CTimeMon ts;
+        CLockerGhLock locker;
+//        CLockerSpinLock locker;
+//        CLockerCondLock locker;
+
+        unsigned __int64 answer = ((unsigned __int64)(1 + iterations))*(iterations/2);
+        for (unsigned i=1; i<=iterations; i++)
+        {
+            InitInfo *initInfo = new InitInfo(locker, v, i);
+            pool->start(initInfo);
+        }
+        pool->joinAll();
+        if (v != answer)
+            PROGLOG("MISMATCH! - answer should be %"I64F"d, but got %"I64F"d", answer, v);
+        else
+            PROGLOG("MATCHED");
+    }
+    void testCConditionalLockSpeed(unsigned threads, unsigned iterations)
+    {
+        class CPool : public CSimpleInterface, implements IThreadFactory
+        {
+        public:
+            IMPLEMENT_IINTERFACE_USING(CSimpleInterface);
+
+            virtual IPooledThread *createNew()
+            {
+                class CAThread : public CSimpleInterface, implements IPooledThread
+                {
+                    CLocker *locker;
+                public:
+                    IMPLEMENT_IINTERFACE_USING(CSimpleInterface);
+
+                    CAThread()
+                    {
+                        locker = NULL;
+                    }
+                    virtual void init(void *param)
+                    {
+                        locker = (CLocker *)param;
+                    }
+                    virtual void main()
+                    {
+                        try
+                        {
+                            unsigned iterations = locker->iterations;
+                            for (unsigned i=1; i<=iterations; i++)
+                            {
+                                locker->doLock();
+                                locker->doUnlock();
+                            }
+                        }
+                        catch (IException *e)
+                        {
+                            EXCLOG(e, NULL);
+                            e->Release();
+                        }
+                    }
+                    virtual bool stop()
+                    {
+                        return true;
+                    }
+
+                    virtual bool canReuse() { return true; }
+                };
+                return new CAThread();
+            }
+        } aThreadPool;
+
+        CLocker *locker = NULL;
+
+        struct TestStruct
+        {
+            unsigned testN;
+            const char *testStr;
+        };
+        TestStruct mtests[] = { {5, "dummy"}, {1, "crit"}, {2, "spin"}, {3, "Gh"}, {0, NULL}};
+        unsigned testN = 0;
+        loop
+        {
+            TestStruct &test = mtests[testN];
+            if (0 == test.testN)
+                break;
+            switch (test.testN)
+            {
+                case 1:
+                    locker = new CLockerCritLock;
+                    break;
+                case 2:
+                    locker = new CLockerSpinLock;
+                    break;
+                case 3:
+                    locker = new CLockerGhLock;
+                    break;
+                case 4:
+                    locker = new CLockerCondLock;
+                    break;
+                case 5:
+                    locker = new CLockerDummyLock;
+                    break;
+                default:
+                    throwUnexpected();
+            }
+            locker->iterations = iterations;
+            Owned<IThreadPool> pool = createThreadPool("TSDSTest", &aThreadPool, NULL, threads, INFINITE);
+            CTimeMon ts;
+            for (unsigned t=0; t<threads; t++)
+            {
+                pool->start(locker);
+            }
+            pool->joinAll();
+            PROGLOG("%s: iterations=%d, threads=%d, total time(ms): %d", test.testStr, iterations, threads, ts.elapsed());
+            delete locker;
+            ++testN;
+        }
+    }
+
+    void testCConditionalLockSpeed()
+    {
+        unsigned threads=1;
+        unsigned iterationsPerThread=1<<24; // ~ 16M
+        loop
+        {
+            testCConditionalLockSpeed(threads, iterationsPerThread);
+            threads *= 2;
+            iterationsPerThread /= 2;
+            if (iterationsPerThread < 4)
+                break;
+        }
+    }
+};
+
+CPPUNIT_TEST_SUITE_REGISTRATION( ThorTests );
+CPPUNIT_TEST_SUITE_NAMED_REGISTRATION( ThorTests, "Thor" );
+
+#endif
+
 
 class CBucket : public CSimpleInterface, implements IInterface
 {
