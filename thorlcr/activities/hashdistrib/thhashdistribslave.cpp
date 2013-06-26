@@ -2552,6 +2552,73 @@ public:
     }
 };
 
+class jlib_decl  TicketLock
+{
+    atomic_t value;   // == number of threads waiting + top bit set if locked.
+    unsigned nesting;           // not volatile since it is only accessed by one thread at a time
+    struct { volatile ThreadId tid; } owner;
+    inline TicketLock(TicketLock & value) { assert(false); } // dummy to prevent inadvetant use as block
+public:
+    inline TicketLock()
+    {
+        owner.tid = 0;
+        nesting = 0;
+        atomic_set(&value, 0);
+    }
+#ifdef _DEBUG
+    ~TicketLock()
+    {
+        if (atomic_read(&value))
+            printf("Warning - Owned TicketLock destroyed"); // can't use PrintLog here!
+    }
+#endif
+    inline void enter()
+    {
+        ThreadId self = GetCurrentThreadId();
+#ifdef SPINLOCK_RR_CHECK    // as requested by RKC
+        int policy;
+        sched_param param;
+        if ((pthread_getschedparam(self, &policy, &param)==0)&&(policy==SCHED_RR)) {
+            param.sched_priority = 0;
+            pthread_setschedparam(self, SCHED_OTHER, &param);   // otherwise will likely re-enter
+            assertex(!"NewSpinLock enter on SCHED_RR thread");
+        }
+#endif
+
+        if (self==owner.tid)
+        {          // this is atomic
+            nesting++;
+            return;
+        }
+
+        unsigned me = (unsigned)(atomic_add_exchange(&value, 0x10000)) >> 16;
+        while (me != (atomic_read(&value) & 0xffff))
+            __builtin_ia32_pause ();
+
+        owner.tid = self;
+    }
+    inline void leave()
+    {
+        //It is safe to access nesting - since this thread is the only one that can access
+        //it, so no need for a synchronized access
+        if (nesting == 0)
+        {
+            owner.tid = 0;
+            //Ensure that no code that precedes the setting of value gets moved after it
+            //(unlikely since code is conditional and owner.tid is also volatile)
+            unsigned me = atomic_read(&value) & 0xffff;
+            compiler_memory_barrier();
+            if (me == 0xffff)
+                atomic_add(&value, -0xffff);
+            else
+                atomic_add(&value, 1);
+        }
+        else
+            nesting--;
+    }
+};
+
+
 class jlib_decl  NewSpinLock
 {
     const static unsigned OwnedMask = 0x8000000;
@@ -2683,10 +2750,143 @@ public:
 };
 
 
+static __inline__ int atomic_fetch_and_or(atomic_t *v,int i)
+{
+    // (*v)+=i;
+    return __sync_fetch_and_or(&v->counter,i);
+}
+
+static __inline__ int atomic_fetch_and_and(atomic_t *v,int i)
+{
+    // (*v)+=i;
+    return __sync_fetch_and_and(&v->counter,i);
+}
+static __inline__ int atomic_and_and_fetch(atomic_t *v,int i)
+{
+    // (*v)+=i;
+    return __sync_and_and_fetch(&v->counter,i);
+}
+
+
+class jlib_decl  NewSpinLock2
+{
+    const static unsigned OwnedMask = 0x8000000;
+    atomic_t value;   // == number of threads waiting + top bit set if locked.
+    unsigned nesting;           // not volatile since it is only accessed by one thread at a time
+    Semaphore sem;
+    struct { volatile ThreadId tid; } owner;
+    inline NewSpinLock2(NewSpinLock2 & value) { assert(false); } // dummy to prevent inadvetant use as block
+public:
+    inline NewSpinLock2()
+    {
+        owner.tid = 0;
+        nesting = 0;
+        atomic_set(&value, 0);
+    }
+#ifdef _DEBUG
+    ~NewSpinLock2()
+    {
+        if (atomic_read(&value))
+            printf("Warning - Owned NewSpinlock destroyed"); // can't use PrintLog here!
+    }
+#endif
+    inline void enter()
+    {
+        ThreadId self = GetCurrentThreadId();
+#ifdef SPINLOCK_RR_CHECK    // as requested by RKC
+        int policy;
+        sched_param param;
+        if ((pthread_getschedparam(self, &policy, &param)==0)&&(policy==SCHED_RR)) {
+            param.sched_priority = 0;
+            pthread_setschedparam(self, SCHED_OTHER, &param);   // otherwise will likely re-enter
+            assertex(!"NewSpinLock enter on SCHED_RR thread");
+        }
+#endif
+
+        if (self==owner.tid)
+        {          // this is atomic
+            nesting++;
+            return;
+        }
+
+        //Without using the same variable as the critical section we have to resort to using a cas to indicate that it is waiting, and it is
+        //held as an atomic operation.
+        if (!atomic_cas(&value,OwnedMask,0))
+        {
+            loop
+            {
+                unsigned oldValue;
+                unsigned newValue;
+                loop
+                {
+                    oldValue = atomic_read(&value);
+                    newValue = oldValue & OwnedMask ? oldValue+1 : oldValue | OwnedMask;
+                    if (atomic_cas(&value,newValue,oldValue))
+                        break;
+                    __builtin_ia32_pause ();
+                }
+
+                if (!(oldValue & OwnedMask))
+                    break;
+                sem.wait();
+            }
+        }
+
+        owner.tid = self;
+    }
+    inline bool tryEnter()
+    {
+        ThreadId self = GetCurrentThreadId();
+#ifdef SPINLOCK_RR_CHECK    // as requested by RKC
+        int policy;
+        sched_param param;
+        if ((pthread_getschedparam(self, &policy, &param)==0)&&(policy==SCHED_RR)) {
+            param.sched_priority = 0;
+            pthread_setschedparam(self, SCHED_OTHER, &param);   // otherwise will likely re-enter
+            assertex(!"NewSpinLock enter on SCHED_RR thread");
+        }
+#endif
+
+        if (self==owner.tid)
+        {          // this is atomic
+            nesting++;
+            return true;
+        }
+
+        if (!atomic_cas(&value,0,1|OwnedMask))
+            return false;
+
+        owner.tid = self;
+        return true;
+    }
+    inline void leave()
+    {
+        //It is safe to access nesting - since this thread is the only one that can access
+        //it, so no need for a synchronized access
+        if (nesting == 0)
+        {
+            owner.tid = 0;
+            //Ensure that no code that precedes the setting of value gets moved after it
+            //(unlikely since code is conditional and owner.tid is also volatile)
+            compiler_memory_barrier();
+
+            //If clearing this value returns zero then noone else is waiting
+            if (atomic_and_and_fetch(&value, ~OwnedMask) == 0)
+                return;
+
+            atomic_dec(&value);
+            sem.signal();
+        }
+        else
+            nesting--;
+    }
+};
+
+
 class ThorTests : public CppUnit::TestFixture
 {
     CPPUNIT_TEST_SUITE( ThorTests );
-        CPPUNIT_TEST(testCConditionalLock);
+//        CPPUNIT_TEST(testCConditionalLock);
         CPPUNIT_TEST(testCConditionalLockSpeed);
     CPPUNIT_TEST_SUITE_END();
 
@@ -2714,6 +2914,19 @@ class ThorTests : public CppUnit::TestFixture
         virtual void doUnlock()
         {
             alock.leave();
+        }
+    };
+    class CLockerMutexLock : public CLocker
+    {
+        Mutex alock;
+    public:
+        virtual void doLock()
+        {
+            alock.lock();
+        }
+        virtual void doUnlock()
+        {
+            alock.unlock();
         }
     };
     class CLockerSpinLock : public CLocker
@@ -2745,6 +2958,32 @@ class ThorTests : public CppUnit::TestFixture
     class CLockerNewSpinLock : public CLocker
     {
         NewSpinLock lock;
+    public:
+        virtual void doLock()
+        {
+            lock.enter();
+        }
+        virtual void doUnlock()
+        {
+            lock.leave();
+        }
+    };
+    class CLockerNewSpin2Lock : public CLocker
+    {
+        NewSpinLock2 lock;
+    public:
+        virtual void doLock()
+        {
+            lock.enter();
+        }
+        virtual void doUnlock()
+        {
+            lock.leave();
+        }
+    };
+    class CLockerTicketLock : public CLocker
+    {
+        TicketLock lock;
     public:
         virtual void doLock()
         {
@@ -2897,7 +3136,6 @@ class ThorTests : public CppUnit::TestFixture
                             {
                                 locker->doLock();
                                 locker->doUnlock();
-                                count = count + (count * 2);
                             }
                         }
                         catch (IException *e)
@@ -2924,7 +3162,11 @@ class ThorTests : public CppUnit::TestFixture
             unsigned testN;
             const char *testStr;
         };
-        TestStruct mtests[] = { {5, "dummy"}, {2, "spin"}, {6, "NewSpin" }, {3, "Gh"}, {1, "crit"}, {0, NULL}};
+//        TestStruct mtests[] = { {5, "dummy"}, {2, "spin"}, {3, "Gh"}, {4, "jcs"}, {6, "Gh+"}, {1, "crit"}, {8, "mutex"}, {0, NULL}};
+        TestStruct mtests[] = { {6, "Gh+"}, {0, NULL}};
+//        TestStruct mtests[] = { {2, "spin"}, {0, NULL}};
+//        TestStruct mtests[] = { {1, "crit"}, {0, NULL}};
+//          TestStruct mtests[] = { {2, "spin"}, {3, "Gh"}, {9, "gh++"}, {0, NULL}};
         unsigned testN = 0;
         loop
         {
@@ -2951,6 +3193,15 @@ class ThorTests : public CppUnit::TestFixture
                 case 6:
                     locker = new CLockerNewSpinLock;
                     break;
+                case 7:
+                    locker = new CLockerTicketLock;
+                    break;
+                case 8:
+                    locker = new CLockerMutexLock;
+                    break;
+                case 9:
+                    locker = new CLockerNewSpin2Lock;
+                    break;
                 default:
                     throwUnexpected();
             }
@@ -2970,14 +3221,15 @@ class ThorTests : public CppUnit::TestFixture
 
     void testCConditionalLockSpeed()
     {
-        unsigned threads=1;
+        unsigned threads=2;
         unsigned iterationsPerThread=1<<24; // ~ 16M
+        unsigned minIteriterationsPerThread=1<<24; // ~ 16M
         loop
         {
             testCConditionalLockSpeed(threads, iterationsPerThread);
             threads *= 2;
             iterationsPerThread /= 2;
-            if (iterationsPerThread < 100000)
+            if (iterationsPerThread < minIteriterationsPerThread)
                 break;
         }
     }
