@@ -8258,7 +8258,7 @@ void HqlCppTranslator::doBuildExprRowDiff(BuildCtx & ctx, const CHqlBoundTarget 
             if (!leftType->assignableFrom(rightType))
                 throwError1(HQLERR_MismatchRowDiffType, fullName.str());
 
-            Owned<ITypeInfo> compareType = ::getPromotedECLType(leftType, rightType);
+            Owned<ITypeInfo> compareType = ::getPromotedECLCompareType(leftType, rightType);
             OwnedHqlExpr test = createBoolExpr(no_ne, ensureExprType(left, compareType), ensureExprType(right, compareType));
             HqlExprArray args;
 
@@ -13293,7 +13293,6 @@ void HqlCppTranslator::doBuildAggregateProcessTransform(BuildCtx & ctx, BoundRow
                         buildAssign(condctx, target, arg);
                         condctx.selectElse(ifStmt);
                     }
-                    OwnedITypeInfo type = getPromotedECLType(target->queryType(), arg->queryType());
                     buildIncrementAssign(condctx, target, arg);
                 }
             }

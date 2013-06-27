@@ -3306,9 +3306,9 @@ IHqlExpression * extractAttrsFromExpr(IHqlExpression * value)
 
 
 // Type processing
-ITypeInfo * getPromotedECLType(ITypeInfo * lType, ITypeInfo * rType)
+ITypeInfo * getPromotedECLType(ITypeInfo * lType, ITypeInfo * rType, bool useVariableLength)
 {
-    return ::getPromotedType(lType, rType);
+    return ::getPromotedType(lType, rType, useVariableLength);
 }
 
 ITypeInfo * getPromotedECLCompareType(ITypeInfo * lType, ITypeInfo * rType)

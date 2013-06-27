@@ -894,7 +894,7 @@ IHqlExpression * HqlCppCaseInfo::createCompareList()
     for (unsigned idx1 = 1; idx1 < max; idx1++)
     {
         ITypeInfo * type = pairs.item(idx1).queryChild(0)->queryType();
-        promoted.setown(getPromotedECLType(promoted, type));
+        promoted.setown(getPromotedECLType(promoted, type, useVariableLengthForConditionalStrings));
     }
 
     HqlExprArray values;
@@ -1092,17 +1092,7 @@ void HqlCppCaseInfo::promoteTypes()
     for (unsigned idx1 = 1; idx1 < max; idx1++)
     {
         ITypeInfo * type = pairs.item(idx1).queryChild(0)->queryType();
-
-        if (isStringType(promoted) && isStringType(type))
-        {
-            if (promoted->getStringLen() != type->getStringLen())
-            {
-                promoted.setown(::getPromotedECLType(promoted, type));
-                promoted.setown(getStretchedType(UNKNOWN_LENGTH, promoted));
-            }
-        }
-
-        promoted.setown(::getPromotedECLType(promoted, type));
+        promoted.setown(::getPromotedECLType(promoted, type, true));
     }
     promotedElementType.set(promoted);
 
@@ -1246,7 +1236,7 @@ void HqlCppCaseInfo::updateResultType(IHqlExpression * expr)
 {
     ITypeInfo * curResultType = expr->queryType();
     if (resultType)
-        resultType.setown(::getPromotedECLType(resultType, curResultType));
+        resultType.setown(::getPromotedECLType(resultType, curResultType, useVariableLengthForConditionalStrings));
     else
         resultType.set(curResultType);
 }

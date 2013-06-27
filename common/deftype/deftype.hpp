@@ -228,7 +228,7 @@ extern DEFTYPE_API ITypeInfo * getMaxLengthType(ITypeInfo * type);
 extern DEFTYPE_API ITypeInfo * getNumericType(ITypeInfo * type);
 extern DEFTYPE_API ITypeInfo * getStringType(ITypeInfo * type);
 extern DEFTYPE_API ITypeInfo * getVarStringType(ITypeInfo * type);
-extern DEFTYPE_API ITypeInfo * getPromotedType(ITypeInfo * l_type, ITypeInfo * r_type);
+extern DEFTYPE_API ITypeInfo * getPromotedType(ITypeInfo * l_type, ITypeInfo * r_type, bool useVariableLength);
 extern DEFTYPE_API ITypeInfo * getPromotedAddSubType(ITypeInfo * l_type, ITypeInfo * r_type);
 extern DEFTYPE_API ITypeInfo * getPromotedMulDivType(ITypeInfo * l_type, ITypeInfo * r_type);
 extern DEFTYPE_API ITypeInfo * getPromotedDivType(ITypeInfo * l_type, ITypeInfo * r_type);

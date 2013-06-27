@@ -1818,7 +1818,7 @@ IHqlExpression * createIf(IHqlExpression * cond, IHqlExpression * left, IHqlExpr
 
     ITypeInfo * leftType = left->queryType();
     ITypeInfo * rightType = right->queryType();
-    Owned<ITypeInfo> type = ::getPromotedECLType(leftType, rightType);
+    Owned<ITypeInfo> type = ::getPromotedECLType(leftType, rightType, useVariableLengthForConditionalStrings);
     if ((isStringType(type) || isUnicodeType(type)) && (leftType->getStringLen() != rightType->getStringLen()))
         type.setown(getStretchedType(UNKNOWN_LENGTH, type));
 

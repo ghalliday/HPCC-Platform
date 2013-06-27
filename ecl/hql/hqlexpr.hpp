@@ -1955,7 +1955,7 @@ extern HQL_API unsigned numStreamInputs(IHqlExpression * funcdef);
 
 extern HQL_API ITypeInfo * getTypedefType(IHqlExpression * expr);
 
-extern HQL_API ITypeInfo * getPromotedECLType(ITypeInfo * lType, ITypeInfo * rType);
+extern HQL_API ITypeInfo * getPromotedECLType(ITypeInfo * lType, ITypeInfo * rType, bool useVariableLength);
 extern HQL_API ITypeInfo * getPromotedECLCompareType(ITypeInfo * lType, ITypeInfo * rType);
 extern HQL_API void extendAdd(SharedHqlExpr & value, IHqlExpression * expr);
 inline bool isOmitted(IHqlExpression * actual) { return !actual || actual->getOperator() == no_omitted; }

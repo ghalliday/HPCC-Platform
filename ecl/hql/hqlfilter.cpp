@@ -213,7 +213,7 @@ IHqlExpression * getExplicitlyPromotedCompare(IHqlExpression * filter)
         return LINK(filter);
 
     //Add explicit casts to the type.  ensureExprType won't add a (string) to a string2 field.
-    Owned<ITypeInfo> promotedType = getPromotedECLType(lType, rType);
+    Owned<ITypeInfo> promotedType = getPromotedECLType(lType, rType, false);
     HqlExprArray args;
     if (lType == promotedType)
         args.append(*LINK(l));

@@ -11849,7 +11849,7 @@ IHqlExpression * HqlTreeNormalizer::transformCaseToIfs(IHqlExpression * expr)
     {
         IHqlExpression * cur = expr->queryChild(idx);
         IHqlExpression * curValue = cur->queryChild(0);
-        Owned<ITypeInfo> type = ::getPromotedECLType(testVar->queryType(), curValue->queryType());
+        Owned<ITypeInfo> type = ::getPromotedECLCompareType(testVar->queryType(), curValue->queryType());
         OwnedHqlExpr castCurValue = ensureExprType(curValue, type);
 
         OwnedHqlExpr test = createBoolExpr(no_eq, ensureExprType(testVar, type), transform(castCurValue));

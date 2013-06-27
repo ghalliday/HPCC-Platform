@@ -2410,6 +2410,21 @@ static IHqlExpression * foldHashXX(IHqlExpression * expr)
 
 //---------------------------------------------------------------------------
 
+static bool isConstantOrAny(IHqlExpression * expr)
+{
+    if (expr->isConstant())
+        return true;
+    if (expr->queryType()->getTypeCode() == type_any)
+        return true;
+    switch (expr->getOperator())
+    {
+    case no_skip:
+    case no_fail:
+        return true;
+    }
+    return false;
+}
+
 IHqlExpression * foldConstantOperator(IHqlExpression * expr, unsigned foldOptions, ITemplateContext * templateContext)
 {
     DBZaction onZero = (foldOptions & HFOforcefold) ? DBZfail : DBZnone;
@@ -3320,21 +3335,17 @@ IHqlExpression * foldConstantOperator(IHqlExpression * expr, unsigned foldOption
                     }
                     break;
                 }
-#if 0
             case no_if:
+                if (isConstantOrAny(child->queryChild(1)) && isConstantOrAny(child->queryChild(2)))
                 {
-                    if (isStringType(exprType) && (exprType->getSize() != UNKNOWN_LENGTH) && (child->queryType()->getSize() == UNKNOWN_LENGTH))
-                    {
-                        HqlExprArray args;
-                        unwindChildren(args, child);
-                        args.replace(*ensureExprType(&args.item(1), exprType, op), 1);
-                        if (queryRealChild(child, 2))
-                            args.replace(*ensureExprType(&args.item(2), exprType, op), 2);
-                        return child->clone(args);
-                    }
-                    break;
+                    HqlExprArray args;
+                    unwindChildren(args, child);
+                    args.replace(*ensureExprType(&args.item(1), exprType, op), 1);
+                    if (queryRealChild(child, 2))
+                        args.replace(*ensureExprType(&args.item(2), exprType, op), 2);
+                    return createValue(no_if, LINK(exprType), args);
                 }
-#endif
+                break;
             case no_all:
             case no_list:
                 return ensureExprType(child, exprType);

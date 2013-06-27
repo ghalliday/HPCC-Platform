@@ -293,7 +293,7 @@ void CppFilterExtractor::extractCompareInformation(BuildCtx & ctx, IHqlExpressio
             //Force into a temporary variable since it will be used more than once, and reapply the field casting/
             compareValue.setown(translator.buildSimplifyExpr(ctx, compareValue));
             //cast to promoted type because sometimes evaluating can convert string to string<n>
-            Owned<ITypeInfo> promotedType = getPromotedECLType(lhs->queryType(), compareValue->queryType());
+            Owned<ITypeInfo> promotedType = getPromotedECLType(lhs->queryType(), compareValue->queryType(), false);
             compareValue.setown(ensureExprType(compareValue, promotedType));
             recastValue.setown(castToFieldAndBack(lhs, compareValue));
         }

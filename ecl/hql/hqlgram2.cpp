@@ -4210,7 +4210,7 @@ ITypeInfo *HqlGram::checkPromoteIfType(attribute &a1, attribute &a2)
     ITypeInfo *t1 = a1.queryExprType();
     ITypeInfo *t2 = a2.queryExprType();
 
-    Owned<ITypeInfo> type = ::getPromotedECLType(t1, t2);
+    Owned<ITypeInfo> type = ::getPromotedECLType(t1, t2, true);
     if ((isStringType(type) || isUnicodeType(type)) && (t1->getStringLen() != t2->getStringLen()))
         type.setown(getStretchedType(UNKNOWN_LENGTH, type));
 
@@ -5136,7 +5136,7 @@ ITypeInfo *HqlGram::promoteToSameType(attribute &a1, attribute &a2)
 {
     ITypeInfo *t1 = a1.queryExprType();
     ITypeInfo *t2 = a2.queryExprType();
-    ITypeInfo * type = ::getPromotedECLType(t1, t2);
+    ITypeInfo * type = ::getPromotedECLType(t1, t2, useVariableLengthForConditionalStrings);
     ensureType(a1, type);
     ensureType(a2, type);
     return type;
@@ -5184,7 +5184,7 @@ IHqlExpression * HqlGram::createArithmeticOp(node_operator op, attribute &a1, at
     }
 
     if (!type)
-        type.setown(getPromotedType(t1, t2));
+        type.setown(getPromotedType(t1, t2, false));
 
     if (!isDecimalType(type))
     {
@@ -5256,7 +5256,7 @@ void HqlGram::promoteToSameCompareType(attribute &a1, attribute &a2, node_operat
                 OwnedIValue castValue = value->castTo(t1);
                 if (castValue)
                 {
-                    OwnedITypeInfo promoted = ::getPromotedECLType(t1, t2);
+                    OwnedITypeInfo promoted = ::getPromotedECLType(t1, t2, false);
                     OwnedIValue promotedCastValue = castValue->castTo(promoted);
                     OwnedIValue promotedValue = value->castTo(promoted);
                     if (promotedCastValue->compare(promotedValue) == 0)
@@ -5347,38 +5347,13 @@ ITypeInfo * HqlGram::getPromotedECLType(HqlExprArray & exprs, ITypeInfo * _promo
     Linked<ITypeInfo> promoted = _promoted;
     if (!promoted)
         promoted.set(exprs.item(start++).queryType());
-    Linked<ITypeInfo> initial = promoted;
 
     unsigned max = exprs.ordinality();
     unsigned idx;
-    bool allSame = true;
     for (idx = start; idx < max; idx++)
     {
         ITypeInfo * curType = exprs.item(idx).queryType();
-        promoted.setown(::getPromotedECLType(promoted, curType));
-        if (promoted != curType)
-            allSame = false;
-    }
-
-    if (allowVariableLength)
-    {
-        //Really, maps/cases that return different length strings should have variable length string returns, but
-        //that would cause differences in HOLe.  I suspect we should enable this and report errors in hole if the lengths
-        //mismatch, rather than hobbling the code generator.
-        if ((promoted != initial) || !allSame)
-        {
-            switch (promoted->getTypeCode())
-            {
-            case type_string:
-            case type_varstring:
-            case type_qstring:
-            case type_unicode:
-            case type_varunicode:
-            case type_utf8:
-                promoted.setown(getStretchedType(UNKNOWN_LENGTH, promoted));
-                break;
-            }
-        }
+        promoted.setown(::getPromotedECLType(promoted, curType, allowVariableLength));
     }
 
     return promoted.getClear();
@@ -5404,8 +5379,7 @@ ITypeInfo *HqlGram::promoteToSameType(HqlExprArray & exprs, const attribute &ea,
 
 ITypeInfo *HqlGram::promoteMapToSameType(HqlExprArray & exprs, attribute &eElse)
 {
-    bool differentLengthStringsVariableLengthRatherThanLongest = false;
-    ITypeInfo * promoted = getPromotedECLType(exprs, eElse.queryExprType(), differentLengthStringsVariableLengthRatherThanLongest);
+    ITypeInfo * promoted = getPromotedECLType(exprs, eElse.queryExprType(), useVariableLengthForConditionalStrings);
 
     ForEachItemIn(idx, exprs)
     {
@@ -5444,7 +5418,7 @@ void HqlGram::promoteToSameListType(attribute & leftAttr, attribute & rightAttr)
         else
         {
             assertex(leftType->getTypeCode() == type_set && rightType->getTypeCode() == type_set);
-            ITypeInfo * promoted = ::getPromotedECLType(leftType, rightType);
+            ITypeInfo * promoted = ::getPromotedECLType(leftType, rightType, true);
             IHqlExpression * newLeft = ensureExprType(left, promoted);
             left->Release();
             left = newLeft;
@@ -5469,16 +5443,7 @@ ITypeInfo * HqlGram::promoteSetToSameType(HqlExprArray & exprs, attribute &errpo
     {
         ITypeInfo * type = exprs.item(idx1).queryType();
 
-        if (isStringType(promoted) && isStringType(type))
-        {
-            if (promoted->getStringLen() != type->getStringLen())
-            {
-                promoted.setown(::getPromotedECLType(promoted, type));
-                promoted.setown(getStretchedType(UNKNOWN_LENGTH, promoted));
-            }
-        }
-
-        promoted.setown(::getPromotedECLType(promoted, type));
+        promoted.setown(::getPromotedECLType(promoted, type, true));
     }
 
     ForEachItemIn(idx, exprs)
@@ -5505,15 +5470,14 @@ IHqlExpression *HqlGram::createINExpression(node_operator op, IHqlExpression *ex
         HqlExprArray args;
         unwindChildren(args, normalized);
 
-        bool differentLengthStringsVariableLengthRatherThanLongest = false;
-        Owned<ITypeInfo> retType = promoteToSameType(args, errpos, exprType, differentLengthStringsVariableLengthRatherThanLongest);
+        Owned<ITypeInfo> retType = promoteToSameType(args, errpos, exprType, useVariableLengthForConditionalStrings);
         if (retType != elementType)
             normalized.setown(createValue(no_list, makeSetType(LINK(retType)), args));
     }
     elementType = normalized->queryType()->queryChildType();
     if (elementType)
     {
-        Owned<ITypeInfo> promotedType = ::getPromotedECLType(exprType, elementType);
+        Owned<ITypeInfo> promotedType = ::getPromotedECLType(exprType, elementType, useVariableLengthForConditionalStrings);
         if (!isSameBasicType(exprType, promotedType))
             expr = createValue(no_implicitcast, LINK(promotedType), expr);
     }
@@ -5550,8 +5514,8 @@ ITypeInfo *HqlGram::promoteCaseToSameType(attribute &eTest, HqlExprArray & exprs
     ForEachItemIn(idx, exprs)
     {
         IHqlExpression & cur = exprs.item(idx);
-        promotedTest.setown(::getPromotedECLType(promotedTest, cur.queryChild(0)->queryType()));
-        promotedResult.setown(::getPromotedECLType(promotedResult, cur.queryChild(1)->queryType()));
+        promotedTest.setown(::getPromotedECLCompareType(promotedTest, cur.queryChild(0)->queryType()));
+        promotedResult.setown(::getPromotedECLType(promotedResult, cur.queryChild(1)->queryType(), useVariableLengthForConditionalStrings));
     }
 
     ForEachItemIn(idx2, exprs)

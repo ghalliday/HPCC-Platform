@@ -2292,7 +2292,7 @@ ITypeInfo * getVarStringType(ITypeInfo * type)
 
 //============================================================================
 
-static ITypeInfo * getPromotedSet(ITypeInfo * left, ITypeInfo * right, bool isCompare)
+static ITypeInfo * getPromotedSet(ITypeInfo * left, ITypeInfo * right, bool isCompare, bool useVariableLength)
 {
     ITypeInfo * leftChild = left;
     ITypeInfo * rightChild = right;
@@ -2303,54 +2303,51 @@ static ITypeInfo * getPromotedSet(ITypeInfo * left, ITypeInfo * right, bool isCo
         rightChild = right->queryChildType();
 
     if (leftChild && rightChild)
-        return makeSetType(getPromotedType(leftChild, rightChild));
+        return makeSetType(getPromotedType(leftChild, rightChild, useVariableLength));
     if (!leftChild)
         return LINK(right);
     return LINK(left);
 }
 
-static ITypeInfo * getPromotedUnicode(ITypeInfo * left, ITypeInfo * right)
+size32_t getPromotedLength(size32_t lLen, size32_t rLen, bool useVariableLength)
 {
-    unsigned lLen = left->getStringLen();
-    unsigned rLen = right->getStringLen();
-    if(lLen < rLen)
-        lLen = rLen;
-    return makeUnicodeType(lLen, getCommonLocale(left, right));
+    if (lLen == rLen)
+        return lLen;
+    if (useVariableLength)
+        return UNKNOWN_LENGTH;
+    if (lLen < rLen)
+        return rLen;
+    return lLen;
 }
 
-static ITypeInfo * getPromotedVarUnicode(ITypeInfo * left, ITypeInfo * right)
+static ITypeInfo * getPromotedUnicode(ITypeInfo * left, ITypeInfo * right, bool useVariableLength)
 {
-    unsigned lLen = left->getStringLen();
-    unsigned rLen = right->getStringLen();
-    if(lLen < rLen)
-        lLen = rLen;
-    return makeVarUnicodeType(lLen, getCommonLocale(left, right));
+    size32_t len = getPromotedLength(left->getStringLen(), right->getStringLen(), useVariableLength);
+    return makeUnicodeType(len, getCommonLocale(left, right));
+}
+
+static ITypeInfo * getPromotedVarUnicode(ITypeInfo * left, ITypeInfo * right, bool useVariableLength)
+{
+    size32_t len = getPromotedLength(left->getStringLen(), right->getStringLen(), useVariableLength);
+    return makeVarUnicodeType(len, getCommonLocale(left, right));
 }
         
-static ITypeInfo * getPromotedUtf8(ITypeInfo * left, ITypeInfo * right)
+static ITypeInfo * getPromotedUtf8(ITypeInfo * left, ITypeInfo * right, bool useVariableLength)
 {
-    unsigned lLen = left->getStringLen();
-    unsigned rLen = right->getStringLen();
-    if(lLen < rLen)
-        lLen = rLen;
-    return makeUtf8Type(lLen, getCommonLocale(left, right));
+    size32_t len = getPromotedLength(left->getStringLen(), right->getStringLen(), useVariableLength);
+    return makeUtf8Type(len, getCommonLocale(left, right));
 }
 
-static ITypeInfo * getPromotedVarString(ITypeInfo * left, ITypeInfo * right)
+static ITypeInfo * getPromotedVarString(ITypeInfo * left, ITypeInfo * right, bool useVariableLength)
 {
-    unsigned lLen = left->getStringLen();
-    unsigned rLen = right->getStringLen();
-    if (lLen < rLen) lLen = rLen;
+    size32_t len = getPromotedLength(left->getStringLen(), right->getStringLen(), useVariableLength);
     //MORE: Didn't this ought to have the charset logic of getPromotedString?
-    return makeVarStringType(lLen);
+    return makeVarStringType(len);
 }
         
-static ITypeInfo * getPromotedString(ITypeInfo * left, ITypeInfo * right)
+static ITypeInfo * getPromotedString(ITypeInfo * left, ITypeInfo * right, bool useVariableLength)
 {
-    unsigned lLen = left->getStringLen();
-    unsigned rLen = right->getStringLen();
-    if (lLen < rLen) lLen = rLen;
-
+    size32_t len = getPromotedLength(left->getStringLen(), right->getStringLen(), useVariableLength);
     ICollationInfo * collation = left->queryCollation();                //MORE!!
 
     ICharsetInfo * lCharset = left->queryCharset();
@@ -2361,23 +2358,22 @@ static ITypeInfo * getPromotedString(ITypeInfo * left, ITypeInfo * right)
         collation = right->queryCollation();
     }
 
-    return makeStringType(lLen, LINK(lCharset), LINK(collation));
+    return makeStringType(len, LINK(lCharset), LINK(collation));
 }
         
-static ITypeInfo * getPromotedQString(ITypeInfo * left, ITypeInfo * right)
+static ITypeInfo * getPromotedQString(ITypeInfo * left, ITypeInfo * right, bool useVariableLength)
 {
-    unsigned lLen = left->getStringLen();
-    unsigned rLen = right->getStringLen();
-    if (lLen < rLen) lLen = rLen;
-    return makeQStringType(lLen);
+    size32_t len = getPromotedLength(left->getStringLen(), right->getStringLen(), useVariableLength);
+    return makeQStringType(len);
 }
         
 static ITypeInfo * getPromotedData(ITypeInfo * left, ITypeInfo * right)
 {
     unsigned lLen = left->getStringLen();
     unsigned rLen = right->getStringLen();
-    assertex(lLen != rLen);
-    return makeDataType(UNKNOWN_LENGTH);
+    if (lLen != rLen)
+        return makeDataType(UNKNOWN_LENGTH);
+    return makeDataType(lLen);
 }
 
 static ITypeInfo * makeUnknownLengthDecimal(bool isCompare)
@@ -2509,7 +2505,7 @@ static ITypeInfo * getPromotedPackedInteger(ITypeInfo * left, ITypeInfo * right)
         
 //============================================================================
 
-static ITypeInfo * getPromotedType(ITypeInfo * lType, ITypeInfo * rType, bool isCompare)
+static ITypeInfo * getPromotedType(ITypeInfo * lType, ITypeInfo * rType, bool isCompare, bool useVariableLength)
 {
     ITypeInfo * l = lType->queryPromotedType();
     ITypeInfo * r = rType->queryPromotedType();
@@ -2521,21 +2517,21 @@ static ITypeInfo * getPromotedType(ITypeInfo * lType, ITypeInfo * rType, bool is
     if (lcode == type_any) return LINK(r);
     if (rcode == type_any) return LINK(l);
     if ((lcode == type_set) || (rcode == type_set))
-        return getPromotedSet(l, r, isCompare);
+        return getPromotedSet(l, r, isCompare, useVariableLength);
     if ((lcode == type_unicode) || (rcode == type_unicode))
-        return getPromotedUnicode(l, r);
+        return getPromotedUnicode(l, r, useVariableLength);
     if ((lcode == type_utf8) || (rcode == type_utf8))
-        return getPromotedUtf8(l, r);
+        return getPromotedUtf8(l, r, useVariableLength);
     if ((lcode == type_varunicode) || (rcode == type_varunicode))
-        return getPromotedVarUnicode(l, r);
+        return getPromotedVarUnicode(l, r, useVariableLength);
     if ((lcode == type_string) || (rcode == type_string))
-        return getPromotedString(l, r);
+        return getPromotedString(l, r, useVariableLength);
     if ((lcode == type_varstring) || (rcode == type_varstring))
-        return getPromotedVarString(l, r);
+        return getPromotedVarString(l, r, useVariableLength);
     if ((lcode == type_data) || (rcode == type_data))
         return getPromotedData(l, r);
     if ((lcode == type_qstring) || (rcode == type_qstring))
-        return getPromotedQString(l, r);
+        return getPromotedQString(l, r, useVariableLength);
     if ((lcode == type_decimal) || (rcode == type_decimal))
         return getPromotedDecimal(l, r, isCompare);
     if ((lcode == type_real) || (rcode == type_real)) 
@@ -2558,16 +2554,16 @@ static ITypeInfo * getPromotedType(ITypeInfo * lType, ITypeInfo * rType, bool is
     //return makeIntType(4);
 }
 
-ITypeInfo * getPromotedType(ITypeInfo * lType, ITypeInfo * rType)
+ITypeInfo * getPromotedType(ITypeInfo * lType, ITypeInfo * rType, bool useVariableLength)
 {
-    return getPromotedType(lType, rType, false);
+    return getPromotedType(lType, rType, false, useVariableLength);
 }
 
 ITypeInfo * getPromotedNumericType(ITypeInfo * l_type, ITypeInfo * r_type)
 {
     Owned<ITypeInfo> l = getNumericType(l_type->queryPromotedType());
     Owned<ITypeInfo> r = getNumericType(r_type->queryPromotedType());
-    return getPromotedType(l,r,false);
+    return getPromotedType(l,r,false,false);
 }
 
 ITypeInfo * getPromotedAddSubType(ITypeInfo * lType, ITypeInfo * rType)
@@ -2588,32 +2584,7 @@ ITypeInfo * getPromotedMulDivType(ITypeInfo * lType, ITypeInfo * rType)
 
 ITypeInfo * getPromotedCompareType(ITypeInfo * left, ITypeInfo * right)
 {
-    Owned<ITypeInfo> promoted = getPromotedType(left, right, true);
-    if (left != right)
-    {
-        type_t ptc = promoted->getTypeCode();
-        switch (ptc)
-        {
-        case type_string:
-            {
-                if ((left->getTypeCode() == ptc) && (right->getTypeCode() == ptc))
-                {
-                    if ((left->queryCollation() == right->queryCollation()) && 
-                        (left->queryCharset() == right->queryCharset()))
-                    {
-                        promoted.setown(getStretchedType(UNKNOWN_LENGTH, left));
-                    }
-                }
-            }
-            break;
-        case type_unicode:
-        case type_utf8:
-            {
-            }
-            break;
-        }
-    }
-    return promoted.getClear();
+    return getPromotedType(left, right, true, true);
 }
 
 static bool preservesValue(ITypeInfo * after, ITypeInfo * before, bool preserveInformation)

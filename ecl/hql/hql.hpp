@@ -60,6 +60,8 @@ Relevant changes include
 #define DEFAULT_INT_SIZE 8
 #define DEFAULT_REAL_SIZE 8
 
+static const bool useVariableLengthForConditionalStrings = true;
+
 #undef interface
 #ifdef _MSC_VER
 #define interface           struct  __declspec(novtable)
