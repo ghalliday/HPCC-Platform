@@ -1866,6 +1866,10 @@ transformOption
                         {
                             $$.setExpr(createValue(no_skip, makeVoidType(), $3.getExpr()), $1);
                         }
+    | ALIAS
+                        {
+                            $$.setExpr(createAttribute(aliasAtom), $1);
+                        }
     ;
 
 transformations

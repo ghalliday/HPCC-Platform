@@ -1322,8 +1322,8 @@ void HqlCppTranslator::filterExpandAssignments(BuildCtx & ctx, TransformBuilder 
     if (options.spotCSE)
         expr.setown(spotScalarCSE(expr, NULL, queryOptions().spotCseInIfDatasetConditions));
     traceExpression("transform cse", expr);
-
-//  expandAliases(ctx, expr);
+    if (expr->hasAttribute(aliasAtom))
+        expandAliases(ctx, expr, true);
     doFilterAssignments(ctx, builder, assigns, expr);
 }
 
@@ -2282,7 +2282,10 @@ void ActivityInstance::buildSuffix()
         if (options.spotComplexClasses && (approxSize >= options.complexClassesThreshold))
         {
             if ((options.complexClassesActivityFilter == 0) || (kind == options.complexClassesActivityFilter))
+            {
                 translator.WARNING2(HQLWRN_ComplexHelperClass, activityId, approxSize);
+                addAttributeInt("_complexClassSize", approxSize);
+            }
         }
         if (options.showActivitySizeInGraph)
             addAttributeInt("approxClassSize", approxSize);

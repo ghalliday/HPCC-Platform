@@ -1542,7 +1542,7 @@ public:
     void overrideOptionsForQuery();
 
     void doExpandAliases(BuildCtx & ctx, IHqlExpression * expr, AliasExpansionInfo & info);
-    void expandAliases(BuildCtx & ctx, IHqlExpression * expr);
+    void expandAliases(BuildCtx & ctx, IHqlExpression * expr, bool expandAll);
     void expandAliasScope(BuildCtx & ctx, IHqlExpression * expr);
     IHqlExpression * queryExpandAliasScope(BuildCtx & ctx, IHqlExpression * expr);
 

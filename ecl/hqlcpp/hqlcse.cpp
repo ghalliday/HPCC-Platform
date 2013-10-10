@@ -216,6 +216,7 @@ CseSpotter::CseSpotter(bool _spotCseInIfDatasetConditions)
     invariantSelector = NULL;
     createLocalAliases = false;
     createdAlias = false;
+    createAliasWithinMapto = false;
 }
 
 void CseSpotter::analyseAssociated(IHqlExpression * expr, unsigned pass)
@@ -277,7 +278,7 @@ void CseSpotter::analyseExpr(IHqlExpression * expr)
 
         //Ugly! This is here as a temporary hack to stop branches of maps being commoned up and always
         //evaluated.  The alias spotting and generation really needs to take conditionality into account....
-        if (op == no_mapto)
+        if ((op == no_mapto) && !createAliasWithinMapto)
             return;
     }
 
@@ -1126,6 +1127,9 @@ IHqlExpression * spotScalarCSE(IHqlExpression * expr, IHqlExpression * limit, bo
     //First spot the aliases - so that restructuring the ands doesn't lose any existing aliases.
     {
         CseSpotter spotter(spotCseInIfDatasetConditions);
+        if (transformed->isTransform() && transformed->hasAttribute(aliasAtom))
+            spotter.setAliasWithinMapto(true);
+
         spotter.analyse(transformed, 0);
         if (spotter.foundCandidates())
         {

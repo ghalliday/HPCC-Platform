@@ -3721,6 +3721,8 @@ void HqlCppTranslator::buildStmt(BuildCtx & _ctx, IHqlExpression * expr)
 class AliasExpansionInfo
 {
 public:
+    AliasExpansionInfo(bool _expandAll) : expandAll(_expandAll) {}
+
     void pushCondition(IHqlExpression * expr, unsigned branch)  { conditions.append(*createAttribute(branchAtom, LINK(expr), getSizetConstant(branch))); }
     void popCondition() { conditions.pop(); }
     void popConditions(unsigned num) { conditions.popn(num); }
@@ -3754,7 +3756,11 @@ public:
         return createValueSafe(no_sortlist, makeSortListType(NULL), conditions);
     }
 
+    inline bool queryExpandAll() const { return expandAll; }
+
+protected:
     HqlExprArray conditions;
+    bool expandAll;
 };
 
 
@@ -3878,6 +3884,9 @@ void HqlCppTranslator::doExpandAliases(BuildCtx & ctx, IHqlExpression * expr, Al
         break;
     case no_alias:
         {
+            if (info.queryExpandAll())
+                doExpandAliases(ctx, expr->queryChild(0), info);
+
             doBuildExprAlias(ctx, expr, NULL);
             break;
         }
@@ -3892,12 +3901,12 @@ void HqlCppTranslator::doExpandAliases(BuildCtx & ctx, IHqlExpression * expr, Al
 #endif
 }
 
-void HqlCppTranslator::expandAliases(BuildCtx & ctx, IHqlExpression * expr)
+void HqlCppTranslator::expandAliases(BuildCtx & ctx, IHqlExpression * expr, bool expandAll)
 {
     if (containsAliasLocally(expr))
     {
         TransformMutexBlock block;
-        AliasExpansionInfo info;
+        AliasExpansionInfo info(expandAll);
         doExpandAliases(ctx, expr, info);
     }
 }
@@ -3906,7 +3915,7 @@ void HqlCppTranslator::expandAliases(BuildCtx & ctx, IHqlExpression * expr)
 void HqlCppTranslator::expandAliasScope(BuildCtx & ctx, IHqlExpression * expr)
 {
     TransformMutexBlock block;
-    AliasExpansionInfo info;
+    AliasExpansionInfo info(false);
     unsigned max = expr->numChildren();
     for (unsigned idx = 1; idx < max; idx++)
     {
@@ -4516,7 +4525,7 @@ AliasKind HqlCppTranslator::doBuildAliasValue(BuildCtx & ctx, IHqlExpression * v
     EvalContext * instance = queryEvalContext(ctx);
     if (instance)
         return instance->evaluateExpression(ctx, value, tgt, true);
-    expandAliases(ctx, value);
+    expandAliases(ctx, value, false);
     buildTempExpr(ctx, value, tgt);
     return RuntimeAlias;
 }
@@ -4537,7 +4546,7 @@ void HqlCppTranslator::doBuildExprAlias(BuildCtx & ctx, IHqlExpression * expr, C
     //so far on my examples it does the latter, but doesn't seem to cause the former
     if (expr->hasAttribute(localAtom) || (insideOnCreate(ctx) && !expr->hasAttribute(globalAtom)))
     {
-        expandAliases(ctx, value);
+        expandAliases(ctx, value, false);
 
         switch (value->getOperator())
         {
@@ -4953,7 +4962,7 @@ void HqlCppTranslator::doBuildFilterNextAndRange(BuildCtx & ctx, unsigned & curI
     for (unsigned i=0; (i < maxIterations) && (curIndex != max); i++)
     {
         unsigned last;
-        expandAliases(ctx, &conds.item(curIndex));
+        expandAliases(ctx, &conds.item(curIndex), false);
         for (last = curIndex+1; last < max; last++)
             if (requiresTemp(ctx, &conds.item(last), true))
                 break;

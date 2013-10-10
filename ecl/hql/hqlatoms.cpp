@@ -72,6 +72,7 @@ IAtom * activeFailureAtom;
 IAtom * activeNlpAtom;
 IAtom * afterAtom;
 IAtom * algorithmAtom;
+IAtom * aliasAtom;
 IAtom * _aliased_Atom;
 IAtom * allAtom;
 IAtom * allocatorAtom;
@@ -486,6 +487,7 @@ MODULE_INIT(INIT_PRIORITY_HQLATOM)
     MAKEATOM(activeNlp);
     MAKEATOM(after);
     MAKEATOM(algorithm);
+    MAKEATOM(alias);
     MAKESYSATOM(aliased);
     MAKEATOM(all);
     MAKEATOM(allocator);

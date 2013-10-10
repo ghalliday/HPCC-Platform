@@ -58,6 +58,7 @@ public:
     bool foundCandidates() const                            { return spottedCandidate; }
     bool createdNewAliases() const { return createdAlias; }
     void setInvariantSelector(IHqlExpression * _invariantSelector) { invariantSelector = _invariantSelector; }
+    void setAliasWithinMapto(bool _value) { createAliasWithinMapto = _value; }
     void stopTransformation(IHqlExpression * expr);
 
 protected:
@@ -85,6 +86,7 @@ protected:
     bool createLocalAliases;
     bool createdAlias;
     bool spotCseInIfDatasetConditions;
+    bool createAliasWithinMapto;
 };
 
 class ConjunctionTransformer : public NewHqlTransformer

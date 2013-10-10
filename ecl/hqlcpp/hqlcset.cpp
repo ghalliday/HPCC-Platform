@@ -1524,7 +1524,7 @@ IHqlCppSetCursor * HqlCppTranslator::createSetSelector(BuildCtx & ctx, IHqlExpre
         {
             unsigned max = normalized->numChildren();
             for (unsigned idx = 1; idx < max; idx++)
-                expandAliases(ctx, normalized->queryChild(idx));
+                expandAliases(ctx, normalized->queryChild(idx), false);
             return createSetSelector(ctx, normalized->queryChild(0));
         }
     case no_null:
