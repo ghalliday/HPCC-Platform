@@ -1783,7 +1783,7 @@ CNaryJoinLookaheadQueue::CNaryJoinLookaheadQueue(IEngineRowAllocator * _inputAll
     done = true;
 }
 
-bool CNaryJoinLookaheadQueue::beforeProcessCandidates(const void * _equalityRow, bool needToVerifyNext)
+bool CNaryJoinLookaheadQueue::beforeProcessCandidates(const void * _equalityRow, bool needToVerifyNext, bool matched)
 {
     done = false;
     equalityRow = _equalityRow;
@@ -1793,7 +1793,7 @@ bool CNaryJoinLookaheadQueue::beforeProcessCandidates(const void * _equalityRow,
         matchedLeft->reset();
 
     // next is guaranteed to match the equality condition for AND, proximity but not for m of n/left outer...
-    if (!needToVerifyNext || nextUnqueued())
+    if (!needToVerifyNext || (matched && nextUnqueued()))
     {
         consumeNextInput();
         return true;
@@ -2224,7 +2224,7 @@ void CJoinGenerator::beforeProcessCandidates(const void * candidateRow, bool nee
         ForEachItemIn(i, inputs)
         {
             CNaryJoinLookaheadQueue & cur = inputs.item(i);
-            if (cur.beforeProcessCandidates(candidateRow, needToVerifyNext))
+            if (cur.beforeProcessCandidates(candidateRow, needToVerifyNext, matched[i]))
             {
                 cur.updateContext(prev, rows + numActiveInputs);
                 prev = &cur;
@@ -2236,7 +2236,7 @@ void CJoinGenerator::beforeProcessCandidates(const void * candidateRow, bool nee
     else
     {
         ForEachItemIn(i, inputs)
-            inputs.item(i).beforeProcessCandidates(candidateRow, needToVerifyNext);
+            inputs.item(i).beforeProcessCandidates(candidateRow, needToVerifyNext, true);
     }
     state = JSfirst;
 }

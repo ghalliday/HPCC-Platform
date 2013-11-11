@@ -775,7 +775,7 @@ class CNaryJoinLookaheadQueue : public CInterface
 public:
     CNaryJoinLookaheadQueue(IEngineRowAllocator * _inputAllocator, IHThorNWayMergeJoinArg & _helper, CSteppedInputLookahead * _input, CNaryJoinLookaheadQueue * _left, const void * * _activeRowPtr);
 
-    bool beforeProcessCandidates(const void * _equalityRow, bool needToVerifyNext);
+    bool beforeProcessCandidates(const void * _equalityRow, bool needToVerifyNext, bool matched);
 
     inline bool setCandidateRange(unsigned __int64 maxDistance, bool canConsumeBeyondMax)
     {
