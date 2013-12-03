@@ -4432,7 +4432,7 @@ void HqlCppTranslator::generateMetaRecordSerialize(BuildCtx & ctx, IHqlExpressio
         builder.walkRecord(walkctx, dataset, record);
     }
 
-    if (recordRequiresDestructor(record))
+    if (recordRequiresDestructor(record), false)
     {
         BuildCtx childmetactx(ctx);
         OwnedHqlExpr switchVar = createVariable("i", makeIntType(4, false));
@@ -5460,7 +5460,8 @@ void HqlCppTranslator::buildDictionaryHashClass(IHqlExpression *record, StringBu
         BuildCtx classctx(declarectx);
         //I suspect all the priorities should be killed.  This is here because you can have type info constructors accessing the
         //dictionary hash functions.
-        classctx.setNextPriority(HashFunctionPrio);
+        //classctx.setNextPriority(HashFunctionPrio);
+        classctx.setNextPriority(RowMetaPrio);
 
         beginNestedClass(classctx, lookupHelperName, "IHThorHashLookupInfo");
         OwnedHqlExpr searchRecord = getDictionarySearchRecord(record);
@@ -14325,12 +14326,18 @@ ABoundActivity * HqlCppTranslator::doBuildActivityNormalizeChild(BuildCtx & ctx,
     // INormalizeChildIterator * queryIterator();
     {
         bool outOfLine = true;
+        bool streamed = false;
         if (childDataset->isDatarow())
             childDataset.setown(createDatasetFromRow(childDataset.getClear()));
         if (childDataset->getOperator() == no_select)
             outOfLine = isArrayRowset(childDataset->queryType());
         if (hasLinkCountedModifier(childDataset))
             outOfLine = true;
+        if (isStreamed(childDataset))
+        {
+            outOfLine = true;
+            streamed = true;
+        }
 
         BuildCtx iterclassctx(instance->nestedctx);
         StringBuffer memberName, className;
@@ -14338,7 +14345,12 @@ ABoundActivity * HqlCppTranslator::doBuildActivityNormalizeChild(BuildCtx & ctx,
         getMemberClassName(className, memberName.str());
 
         ExpressionFormat format;
-        if (outOfLine)
+        if (streamed)
+        {
+            beginNestedClass(iterclassctx, memberName, "CNormalizeStreamedChildIterator");
+            format = FormatStreamedDataset;
+        }
+        else if (outOfLine)
         {
             beginNestedClass(iterclassctx, memberName, "CNormalizeLinkedChildIterator");
             format = FormatLinkedDataset;
@@ -14392,17 +14404,25 @@ ABoundActivity * HqlCppTranslator::doBuildActivityNormalizeChild(BuildCtx & ctx,
         s.clear();
         if (callFromActivity)
             s.append(memberName).append(".");
+
         s.append("setDataset(");
-        if (outOfLine)
+        if (streamed)
         {
-            generateExprCpp(s, bound.count).append(",");
             generateExprCpp(s, bound.expr).append(");");
         }
         else
         {
-            OwnedHqlExpr length = getBoundLength(bound);
-            generateExprCpp(s, length).append(",");
-            generateExprCpp(s, bound.expr).append(");");
+            if (outOfLine)
+            {
+                generateExprCpp(s, bound.count).append(",");
+                generateExprCpp(s, bound.expr).append(");");
+            }
+            else
+            {
+                OwnedHqlExpr length = getBoundLength(bound);
+                generateExprCpp(s, length).append(",");
+                generateExprCpp(s, bound.expr).append(");");
+            }
         }
         if (callFromActivity)
             activityinitctx.addQuoted(s);
@@ -14477,45 +14497,31 @@ ABoundActivity * HqlCppTranslator::doBuildActivityNormalizeLinkedChild(BuildCtx 
     instance->evalContext->getInvariantMemberContext(NULL, &declarectx, NULL, false, true);
     assertex(declarectx);
 
-    CHqlBoundTarget childTarget;
-    CHqlBoundExpr boundChild;
-    CHqlBoundTarget boundActive;
-    createTempFor(*declarectx, value->queryType(), childTarget, typemod_none, FormatLinkedDataset);
-    boundChild.setFromTarget(childTarget);
-    assertex(boundChild.count != NULL);
-
-    OwnedHqlExpr test;
-    OwnedHqlExpr ret;
+    StringBuffer iterName;
     //virtual byte * first(const void * parentRecord) = 0;
     {
         BuildCtx firstctx(instance->startctx);
         firstctx.addQuotedCompound("virtual byte * first(const void * parentRecord)");
         firstctx.addQuoted("const byte * left = (const byte *)parentRecord;");
         bindTableCursor(firstctx, dataset, "left", selectorOp, selSeq);
-        buildDatasetAssign(firstctx, childTarget, value);
 
-        OwnedHqlExpr zero = getSizetConstant(0);
-        buildTempExpr(firstctx, *declarectx, boundActive, zero, FormatNatural, false);
+        ExpressionFormat format = !hasLinkCountedModifier(value) ? FormatLinkedDataset : FormatNatural;
+        Owned<IHqlCppDatasetCursor> dsCursor = createDatasetSelector(firstctx, value, format);
+        dsCursor->buildIterateClass(instance->startctx, iterName, &firstctx);
 
-        test.setown(createValue(no_lt, makeBoolType(), LINK(boundActive.expr), LINK(boundChild.count)));
-        ret.setown(createValue(no_index, expr->getType(), LINK(boundChild.expr), LINK(boundActive.expr)));
-
-        BuildCtx subctx(firstctx);
-        subctx.addFilter(test);
-        subctx.addReturn(ret);
-        firstctx.addReturn(queryQuotedNullExpr());
+        StringBuffer s;
+        OwnedHqlExpr callFirst = createQuoted(s.clear().append("(byte *)").append(iterName).append(".first()"), makeBoolType());
+        firstctx.addReturn(callFirst);
     }
 
     {
         //virtual byte * next() = 0;
         BuildCtx nextctx(instance->startctx);
         nextctx.addQuotedCompound("virtual byte * next()");
-        OwnedHqlExpr inc = createValue(no_postinc, LINK(sizetType), LINK(boundActive.expr));
-        nextctx.addExpr(inc);
-        BuildCtx subctx(nextctx);
-        subctx.addFilter(test);
-        subctx.addReturn(ret);
-        nextctx.addReturn(queryQuotedNullExpr());
+
+        StringBuffer s;
+        OwnedHqlExpr callNext = createQuoted(s.clear().append("(byte *)").append(iterName).append(".next()"), makeBoolType());
+        nextctx.addReturn(callNext);
     }
 
     buildInstanceSuffix(instance);
