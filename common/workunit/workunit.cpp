@@ -662,7 +662,7 @@ public:
     virtual IStringIterator & getTimers() const;
     virtual IConstWUTimerIterator & getTimerIterator() const;
     virtual IConstWUTimeStampIterator & getTimeStamps() const;
-    virtual IConstWUStatisticIterator & getStatistics() const;
+    virtual IConstWUStatisticIterator & getStatistics(unsigned maxNestedLevel) const;
     virtual IConstWUStatistic * getStatistic(const char * name) const;
     virtual IConstWUWebServicesInfo * getWebServicesInfo() const;
     virtual IConstWURoxieQueryInfo * getRoxieQueryInfo() const;
@@ -1081,8 +1081,8 @@ public:
             { return c->getTimerIterator(); }
     virtual IConstWUTimeStampIterator & getTimeStamps() const
             { return c->getTimeStamps(); }
-    virtual IConstWUStatisticIterator & getStatistics() const
-            { return c->getStatistics(); }
+    virtual IConstWUStatisticIterator & getStatistics(unsigned maxNestedLevel) const
+            { return c->getStatistics(maxNestedLevel); }
     virtual IConstWUStatistic * getStatistic(const char * name) const
             { return c->getStatistic(name); }
 
@@ -5843,7 +5843,7 @@ IConstWUTimeStampIterator& CLocalWorkUnit::getTimeStamps() const
     return *new CArrayIteratorOf<IConstWUTimeStamp,IConstWUTimeStampIterator> (timestamps, 0, (IConstWorkUnit *) this);
 }
 
-IConstWUStatisticIterator& CLocalWorkUnit::getStatistics() const
+IConstWUStatisticIterator& CLocalWorkUnit::getStatistics(unsigned maxNestedLevel) const
 {
     CriticalBlock block(crit);
     statistics.load(p,"Statistics/*");

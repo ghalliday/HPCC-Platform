@@ -147,7 +147,7 @@ public:
     unsigned getResourceURLCount();
 
     void getCommon(IEspECLWorkunit &info, unsigned flags);
-    void getInfo(IEspECLWorkunit &info, unsigned flags);
+    void getInfo(IEspECLWorkunit &info, unsigned flags, int maxStatisticsLevel);
 
     void getResults(IEspECLWorkunit &info, unsigned flags);
     void getVariables(IEspECLWorkunit &info, unsigned flags);
@@ -157,6 +157,7 @@ public:
     void getExceptions(IEspECLWorkunit &info, unsigned flags);
     void getSourceFiles(IEspECLWorkunit &info, unsigned flags);
     void getTimers(IEspECLWorkunit &info, unsigned flags);
+    void getStatistics(IEspECLWorkunit &info, int maxStatisticsLevel);
     void getHelpers(IEspECLWorkunit &info, unsigned flags);
     void getGraphInfo(IEspECLWorkunit &info, unsigned flags);
     void getGraphTimingData(IArrayOf<IConstECLTimingData> &timingData, unsigned flags);

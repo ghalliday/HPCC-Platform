@@ -562,7 +562,7 @@ bool CWsWorkunitsEx::onWUUpdate(IEspContext &context, IEspWUUpdateRequest &req, 
         if ((req.getState() == WUStateRunning)||(req.getState() == WUStateDebugPaused)||(req.getState() == WUStateDebugRunning))
         {
             WsWuInfo winfo(context, cw);
-            winfo.getInfo(resp.updateWorkunit(), WUINFO_All);
+            winfo.getInfo(resp.updateWorkunit(), WUINFO_All, 0);
             resp.setRedirectUrl(StringBuffer("/WsWorkunits/WUInfo?Wuid=").append(wuid).str());
             AuditSystemAccess(context.queryUserId(), true, "Updated %s", wuid.str());
             return true;
@@ -654,7 +654,7 @@ bool CWsWorkunitsEx::onWUUpdate(IEspContext &context, IEspWUUpdateRequest &req, 
         wu.clear();
 
         WsWuInfo winfo(context, cw);
-        winfo.getInfo(resp.updateWorkunit(), WUINFO_All);
+        winfo.getInfo(resp.updateWorkunit(), WUINFO_All, 0);
 
         StringBuffer thorSlaveIP;
         if (version > 1.24 && notEmpty(req.getThorSlaveIP()))
@@ -1532,7 +1532,7 @@ bool CWsWorkunitsEx::onWUInfo(IEspContext &context, IEspWUInfoRequest &req, IEsp
                     flags|=WUINFO_IncludeResourceURLs;
 
                 WsWuInfo winfo(context, wuid.str());
-                winfo.getInfo(resp.updateWorkunit(), flags);
+                winfo.getInfo(resp.updateWorkunit(), flags, req.getStatisticsLevel());
 
                 if (req.getIncludeResultsViewNames()||req.getIncludeResourceURLs()||(version >= 1.50))
                 {
