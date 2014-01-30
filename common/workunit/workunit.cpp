@@ -6518,7 +6518,9 @@ IConstWUActivityIterator& CLocalWorkUnit::getActivities() const
 {
     CriticalBlock block(crit);
     loadActivities();
-    return *new CArrayIteratorOf<IConstWUActivity,IConstWUActivityIterator> (activities, 0, (IConstWorkUnit *) this);
+    IConstWUActivityIterator * l = new CArrayIteratorOf<IConstWUActivity,IConstWUActivityIterator> (activities, 0, (IConstWorkUnit *) this);
+    IConstWUActivityIterator * r = new CArrayIteratorOf<IConstWUActivity,IConstWUActivityIterator> (activities, 0, (IConstWorkUnit *) this);
+    return * new CCompoundIteratorOf<IConstWUActivity,IConstWUActivityIterator>(l, r);
 }
 
 //=================================================================================================
