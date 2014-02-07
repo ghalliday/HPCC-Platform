@@ -70,6 +70,19 @@ protected:
 
 class CUsedTablesBuilder;
 
+class CIndirectHqlExpression : public CInterfaceOf<IIndirectHqlExpression>
+{
+public:
+    CIndirectHqlExpression(IHqlExpression * _value = NULL) : value(_value) {}
+
+    void clear();
+    virtual IHqlExpression * getResolved();
+    void set(IHqlExpression * _value);
+
+protected:
+    IHqlExpression * value;
+};
+
 //Optimized representation of the number of used tables
 //Special case a single row and don't create a child array
 //Create once all the processing is done so the array is exactly the right size.
@@ -198,6 +211,7 @@ public:
 
     virtual ~CHqlExpression();
 
+    virtual bool isAlive() const;
     virtual bool isExprClosed() const { return hashcode!=0; }
     virtual bool isFullyBound() const { return fullyBound(); };
     virtual IAtom * queryName() const { return NULL; }
@@ -1008,6 +1022,7 @@ protected:
     IIdAtom * id;
     StringAttr fullName;                //Fully qualified name of this nested module   E.g.: PARENT.CHILD.GRANDCHILD
     SymbolTable symbols;
+    Owned<CIndirectHqlExpression> self;
 
     virtual bool equals(const IHqlExpression & other) const;
 

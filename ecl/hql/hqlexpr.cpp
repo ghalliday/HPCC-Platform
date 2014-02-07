@@ -349,6 +349,32 @@ ISourcePath * createSourcePath(size32_t len, const char *value)
 
 //==============================================================================================================
 
+static CriticalSection indirectCs;
+void CIndirectHqlExpression::clear()
+{
+    CriticalBlock block(indirectCs);
+    value = NULL;
+}
+
+IHqlExpression * CIndirectHqlExpression::getResolved()
+{
+    CriticalBlock block(indirectCs);
+    if (value)
+    {
+        value->Link();
+        if (value->isAlive())
+            return value;
+    }
+    return NULL;
+}
+
+void CIndirectHqlExpression::set(IHqlExpression * _value)
+{
+    CriticalBlock block(indirectCs);
+    value = _value;
+}
+
+//==============================================================================================================
 bool HqlExprArray::containsBody(IHqlExpression & expr)
 {
     IHqlExpression * body = expr.queryBody();
@@ -3110,6 +3136,11 @@ void CHqlExpression::appendOperands(IHqlExpression * arg0, ...)
         doAppendOperand(*parm);
     }
     va_end(args);
+}
+
+bool CHqlExpression::isAlive() const
+{
+    return CInterfaceOf<IHqlExpression>::isAlive();
 }
 
 IIdAtom * CHqlExpression::queryId() const
@@ -7535,6 +7566,7 @@ CHqlScope::CHqlScope(node_operator _op, IIdAtom * _id, const char * _fullName)
 : CHqlExpressionWithType(_op, NULL), id(_id), fullName(_fullName)
 {
     type = this;
+    self.setown(new CIndirectHqlExpression(this));
 }
 
 CHqlScope::CHqlScope(IHqlScope* scope)
@@ -7546,6 +7578,7 @@ CHqlScope::CHqlScope(IHqlScope* scope)
     if (s && s->text)
         text.set(s->text);
     type = this;
+    self.setown(new CIndirectHqlExpression(this));
 }
 
 CHqlScope::CHqlScope(node_operator _op) 
@@ -7553,10 +7586,12 @@ CHqlScope::CHqlScope(node_operator _op)
 {
     id = NULL;
     type = this;
+    self.setown(new CIndirectHqlExpression(this));
 }
 
 CHqlScope::~CHqlScope()
 {
+    self->clear();
     if (type == this)
         type = NULL;
 }

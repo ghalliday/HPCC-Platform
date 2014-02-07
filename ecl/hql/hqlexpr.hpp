@@ -96,6 +96,12 @@ protected:
     SpinLock lock;
 };
 
+//MORE: This could be a more general template class - if the same pattern used in more than one context
+interface IIndirectHqlExpression : public IInterface
+{
+    virtual IHqlExpression * getResolved() = 0;
+};
+
 
 typedef ICopyArrayOf<IHqlExpression> HqlExprCopyArray;
 typedef class MapXToMyClass<IAtom *, IAtom *, IAtom *> KeywordMap;
@@ -1079,6 +1085,7 @@ interface IHqlAnnotation;
 class HQL_API CUsedTablesBuilder;
 interface IHqlExpression : public IInterface
 {
+    virtual bool isAlive() const = 0;
     virtual IAtom * queryName() const = 0;
     virtual IIdAtom * queryId() const = 0;
     virtual node_operator getOperator() const = 0;
