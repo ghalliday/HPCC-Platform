@@ -305,7 +305,7 @@ IHqlExpression* HqlGram::bindTemplateFunctionParameters(IHqlExpression* funcdef,
         }
         //MORE: What should this be set to?
         IIndirectHqlExpression * container = NULL;
-        newScope->defineSymbol(formal->queryId(),container,actual,true,false,0);
+        newScope->defineSymbol(formal->queryId(),container,LINK(actual),true,false,0);
     }
 
     IHqlExpression* expr = reparseTemplateFunction(funcdef, newScope, lookupCtx, fieldMapUsed);

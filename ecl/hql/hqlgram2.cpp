@@ -2716,8 +2716,8 @@ public:
     PseudoPatternScope(IHqlExpression * _patternList);
     IMPLEMENT_IINTERFACE_USING(CHqlScope)
 
-    virtual void defineSymbol(IIdAtom * name, IIdAtom * moduleName, IHqlExpression *value, bool isExported, bool isShared, unsigned flags, IFileContents *fc, int bodystart, int lineno, int column) { ::Release(value); PSEUDO_UNIMPLEMENTED; }
-    virtual void defineSymbol(IIdAtom * name, IIdAtom * moduleName, IHqlExpression *value, bool isExported, bool isShared, unsigned flags) { ::Release(value); PSEUDO_UNIMPLEMENTED; }
+    virtual void defineSymbol(IIdAtom * name, IIndirectHqlExpression * container, IHqlExpression *value, bool isExported, bool isShared, unsigned flags, IFileContents *fc, int bodystart, int lineno, int column) { ::Release(value); ::Release(container); PSEUDO_UNIMPLEMENTED; }
+    virtual void defineSymbol(IIdAtom * name, IIndirectHqlExpression * container, IHqlExpression *value, bool isExported, bool isShared, unsigned flags) { ::Release(value); ::Release(container); PSEUDO_UNIMPLEMENTED; }
     virtual void defineSymbol(IHqlExpression * value) { PSEUDO_UNIMPLEMENTED; ::Release(value); }
     virtual IHqlExpression *lookupSymbol(IIdAtom * name, unsigned lookupFlags, HqlLookupContext & ctx);
     virtual void removeSymbol(IIdAtom * name) { PSEUDO_UNIMPLEMENTED; }
@@ -3413,7 +3413,7 @@ IHqlExpression *HqlGram::lookupSymbol(IIdAtom * searchName, const attribute& err
 IHqlExpression * HqlGram::recordLookupInTemplateContext(IIdAtom * name, IHqlExpression * expr, IHqlScope * templateScope)
 {
     if (expr && templateScope)
-        templateScope->defineSymbol(name,NULL,expr,true,false,0);
+        templateScope->defineSymbol(name,NULL,LINK(expr),true,false,0);
     return expr;
 }
 

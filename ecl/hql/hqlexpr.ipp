@@ -1259,8 +1259,8 @@ public:
     // copy constructor
     CHqlContextScope(IHqlScope* scope);
 
-    virtual void defineSymbol(IIdAtom * id, IIdAtom * moduleName, IHqlExpression *value,bool exported, bool shared, unsigned symbolFlags)
-    {  defined.setValue(id->lower(),value);  }
+    virtual void defineSymbol(IIdAtom * id, IIndirectHqlExpression * container, IHqlExpression *value,bool exported, bool shared, unsigned symbolFlags)
+    {  defined.setValue(id->lower(),value); ::Release(value); ::Release(container); }
 
     virtual IHqlExpression *lookupSymbol(IIdAtom * searchName, unsigned lookupFlags, HqlLookupContext & ctx)
     {  return defined.getLinkedValue(searchName->lower()); }
