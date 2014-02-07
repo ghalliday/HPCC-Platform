@@ -4321,12 +4321,13 @@ extern HQL_API IHqlExpression * createStoredModule(IHqlExpression * scopeExpr)
 
     symbols.sort(compareSymbolsByName);         // should really be in definition order, but that isn't currently preserved
 
+    //GHMORE: Should this have a container???
     Owned<IHqlScope> newScope = createVirtualScope();
     IHqlExpression * newScopeExpr = queryExpression(newScope);
     newScopeExpr->addOperand(LINK(scopeExpr));
 
     HqlExprArray noParameters;
-    IIdAtom * moduleName = NULL;
+    IIndirectHqlExpression * container = NULL;
     ForEachItemIn(i, symbols)
     {
         IHqlExpression & cur = symbols.item(i);
@@ -4343,7 +4344,7 @@ extern HQL_API IHqlExpression * createStoredModule(IHqlExpression * scopeExpr)
 
                 HqlExprArray meta;
                 value.setown(attachWorkflowOwn(meta, value.getClear(), failure, NULL));
-                newScope->defineSymbol(name, moduleName, value.getClear(), 
+                newScope->defineSymbol(name, container, value.getClear(),
                                        true, false, cur.getSymbolFlags());
             }
         }
@@ -8273,7 +8274,7 @@ static IHqlExpression * transformAttributeToQuery(IHqlExpression * expr, HqlLook
             return main.getClear();
 
         StringBuffer msg;
-        const char * name = scope->queryFullName();
+        const char * name = scope->queryFullId()->str();
         msg.appendf("Module %s does not EXPORT an attribute main()", name ? name : "");
         ctx.errs->reportError(HQLERR_CannotSubmitModule, msg.str(), NULL, 1, 0, 0);
         return NULL;

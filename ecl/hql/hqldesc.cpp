@@ -25,7 +25,7 @@ void getFullName(StringBuffer & name, IHqlExpression * expr)
     IHqlScope * scope = expr->queryScope();
     if (scope)
     {
-        name.append(scope->queryFullName());
+        name.append(scope->queryFullId()->str());
     }
     else
     {
@@ -52,7 +52,7 @@ void setFullNameProp(IPropertyTree * tree, const char * prop, IHqlExpression * e
 {
     IHqlScope * scope = expr->queryScope();
     if (scope)
-        tree->setProp(prop, scope->queryFullName());
+        tree->setProp(prop, scope->queryFullId()->str());
     else
         setFullNameProp(tree, prop, expr->queryFullModuleId()->lower()->str(), expr->queryName()->str());
 }

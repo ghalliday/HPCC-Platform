@@ -257,9 +257,9 @@ static IIdAtom * queryModuleIdFromFullName(const char * name)
 class HQL_API CNewEclRepository : public CInterface, implements IEclRepositoryCallback
 {
 public:
-    CNewEclRepository(IEclSourceCollection * _collection, const char * rootScopeFullName) : collection(_collection)
+    CNewEclRepository(IEclSourceCollection * _collection, IIdAtom * rootScopeFullId) : collection(_collection)
     {
-        rootScope.setown(createRemoteScope(queryModuleIdFromFullName(rootScopeFullName), rootScopeFullName, this, NULL, NULL, true, NULL));
+        rootScope.setown(createRemoteScope(queryModuleIdFromFullName(rootScopeFullId->str()), rootScopeFullId, this, NULL, NULL, true, NULL));
     }
     IMPLEMENT_IINTERFACE
 
@@ -305,7 +305,7 @@ IHqlExpression * CNewEclRepository::loadSymbol(IHqlRemoteScope * rScope, IIdAtom
 
 static void getFullName(StringBuffer & fullName, IHqlScope * scope, IIdAtom * attrName)
 {
-    fullName.append(scope->queryFullName());
+    fullName.append(scope->queryFullId()->str());
     if (fullName.length())
         fullName.append(".");
     fullName.append(attrName->str());
@@ -349,27 +349,27 @@ IHqlExpression * CNewEclRepository::createSymbol(IHqlRemoteScope * rScope, IEclS
             //Slightly ugly create a "delayed" nested scope instead.  But with a NULL owner - so will never be called back
             //Probably should be a difference class instance
             Owned<IProperties> props = source->getProperties();
-            Owned<IHqlRemoteScope> childScope = createRemoteScope(eclId, fullName.str(), NULL, props, contents, true, source);
+            Owned<IHqlRemoteScope> childScope = createRemoteScope(eclId, createIdAtom(fullName.str()), NULL, props, contents, true, source);
             body.set(queryExpression(childScope->queryScope()));
             break;
         }
     case ESTcontainer:
         {
             Owned<IProperties> props = source->getProperties();
-            Owned<IHqlRemoteScope> childScope = createRemoteScope(eclId, fullName.str(), this, props, NULL, true, source);
+            Owned<IHqlRemoteScope> childScope = createRemoteScope(eclId, createIdAtom(fullName.str()), this, props, NULL, true, source);
             body.set(queryExpression(childScope->queryScope()));
             break;
         }
     default:
         throwUnexpected();
     }
-    return ::createSymbol(eclId, scope->queryId(), body.getClear(), NULL, true, true, symbolFlags, contents, 0, 0, 0, 0, 0);
+    return ::createSymbol(eclId, scope->getSelf(), body.getClear(), NULL, true, true, symbolFlags, contents, 0, 0, 0, 0, 0);
 }
 
 
-extern HQL_API IEclRepository * createRepository(IEclSourceCollection * source, const char * rootScopeFullName)
+extern HQL_API IEclRepository * createRepository(IEclSourceCollection * source, IIdAtom * rootScopeFullId)
 {
-    return new CNewEclRepository(source, rootScopeFullName);
+    return new CNewEclRepository(source, rootScopeFullId);
 }
 
 extern HQL_API IEclRepository * createRepository(EclSourceCollectionArray & sources)

@@ -1335,7 +1335,7 @@ void EclCC::processFile(EclCompileInstance & instance)
                 repositories.append(*createRepository(inputFileCollection));
 
                 Owned<IEclSourceCollection> directory = createFileSystemEclCollection(instance.errs, thisDirectory, 0, 0);
-                Owned<IEclRepository> directoryRepository = createRepository(directory, moduleName);
+                Owned<IEclRepository> directoryRepository = createRepository(directory, moduleNameId);
                 Owned<IEclRepository> nested = createNestedRepository(moduleNameId, directoryRepository);
                 repositories.append(*LINK(nested));
             }

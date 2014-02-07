@@ -28,7 +28,7 @@ extern HQL_API IEclRepository * createSingleDefinitionEclRepository(const char *
 
 extern HQL_API IEclRepository * createCompoundRepositoryF(IEclRepository * repository, ...);
 extern HQL_API IEclRepository * createCompoundRepository(EclRepositoryArray & repositories);
-extern HQL_API IEclRepository * createRepository(IEclSourceCollection * source, const char * rootScopeFullName = NULL);
+extern HQL_API IEclRepository * createRepository(IEclSourceCollection * source, IIdAtom * rootScopeFullId = NULL);
 extern HQL_API IEclRepository * createRepository(EclSourceCollectionArray & sources);
 extern HQL_API IEclRepository * createNestedRepository(IIdAtom * name, IEclRepository * root);
 

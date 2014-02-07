@@ -367,7 +367,7 @@ bool retrieveWebServicesInfo(IWorkUnit *workunit, HqlLookupContext & ctx)
     OwnedHqlExpr s1 = ctx.queryRepository()->queryRootScope()->lookupSymbol(createIdAtom(moduleName.str()), LSFpublic, ctx);
     if (s1 && s1->queryScope())
     {
-        const char *caseSensitiveModuleName = s1->queryScope()->queryFullName();
+        const char *caseSensitiveModuleName = s1->queryScope()->queryFullId()->str();
         webServicesInfo->setModuleName(caseSensitiveModuleName);
     }
     

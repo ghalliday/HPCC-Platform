@@ -303,8 +303,9 @@ IHqlExpression* HqlGram::bindTemplateFunctionParameters(IHqlExpression* funcdef,
             actual = defaults->queryChild(idx);
             //MORE: rebind the parameter
         }
-        IIdAtom * parentModuleName = NULL;
-        newScope->defineSymbol(formal->queryId(),parentModuleName,actual,true,false,0);
+        //MORE: What should this be set to?
+        IIndirectHqlExpression * container = NULL;
+        newScope->defineSymbol(formal->queryId(),container,actual,true,false,0);
     }
 
     IHqlExpression* expr = reparseTemplateFunction(funcdef, newScope, lookupCtx, fieldMapUsed);

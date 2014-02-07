@@ -49,7 +49,7 @@ IPropertyTree * createPluginPropertyTree(IEclRepository * plugins, bool includeM
         IHqlScope * module = &scopes.item(idx);
         unsigned flags = module->getPropInt(flagsAtom, 0);
         IPropertyTree* prop = createPTree("Module", ipt_caseInsensitive);
-        prop->setProp("@name", module->queryFullName());
+        prop->setProp("@name", module->queryFullId()->str());
         prop->setProp("@path", module->querySourcePath()->str());
         prop->setPropInt("@access", module->getPropInt(accessAtom, 3));
         prop->setPropInt("@timestamp", 1);

@@ -1038,7 +1038,8 @@ interface IHqlScope : public IInterface
     virtual void getSymbols(HqlExprArray& exprs) const= 0;
     virtual IAtom * queryName() const = 0;
     virtual IIdAtom * queryId() const = 0;
-    virtual const char * queryFullName() const = 0;
+    virtual IIndirectHqlExpression * getSelf() const = 0;
+    virtual IIdAtom * queryFullId() const = 0;
     virtual ISourcePath * querySourcePath() const = 0;
     virtual bool hasBaseClass(IHqlExpression * searchBase) = 0;
     virtual bool allBasesFullyBound() const = 0;
@@ -1054,8 +1055,8 @@ interface IHqlScope : public IInterface
     virtual bool getProp(IAtom *, StringBuffer &) const = 0;
 
     //IHqlCreateScope
-    virtual void defineSymbol(IIdAtom * name, IIdAtom * moduleName, IHqlExpression *value, bool isExported, bool isShared, unsigned flags, IFileContents *fc, int lineno, int column, int _startpos, int _bodypos, int _endpos) = 0;
-    virtual void defineSymbol(IIdAtom * name, IIdAtom * moduleName, IHqlExpression *value, bool isExported, bool isShared, unsigned flags) = 0;
+    virtual void defineSymbol(IIdAtom * name, IIndirectHqlExpression * container, IHqlExpression *value, bool isExported, bool isShared, unsigned flags, IFileContents *fc, int lineno, int column, int _startpos, int _bodypos, int _endpos) = 0;
+    virtual void defineSymbol(IIdAtom * name, IIndirectHqlExpression * container, IHqlExpression *value, bool isExported, bool isShared, unsigned flags) = 0;
     virtual void defineSymbol(IHqlExpression * expr) = 0;       // use with great care, expr must be a named symbol.
     virtual void removeSymbol(IIdAtom * name) = 0;      // use with great care
 };
@@ -1114,6 +1115,7 @@ interface IHqlExpression : public IInterface
     virtual unsigned getInfoFlags2() const = 0;
 
     virtual ISourcePath * querySourcePath() const = 0;
+//    virtual IHqlExpression * getContainer() const = 0;            // only defined for a named symbol
     virtual IIdAtom * queryFullModuleId() const = 0;              // only defined for a named symbol
     virtual int  getStartLine() const = 0;
     virtual int  getStartColumn() const = 0;
@@ -1310,8 +1312,8 @@ extern HQL_API void expandDelayedFunctionCalls(IErrorReceiver * errors, HqlExprA
 extern HQL_API IHqlExpression *createQuoted(const char * name, ITypeInfo *type);
 extern HQL_API IHqlExpression *createVariable(const char * name, ITypeInfo *type);
 extern HQL_API IHqlExpression * createSymbol(IIdAtom * name, IHqlExpression *expr, unsigned exportFlags);
-extern HQL_API IHqlExpression * createSymbol(IIdAtom * _name, IIdAtom * _module, IHqlExpression *_expr, bool _exported, bool _shared, unsigned _flags);
-extern HQL_API IHqlExpression * createSymbol(IIdAtom * _name, IIdAtom * moduleName, IHqlExpression *expr, IHqlExpression * funcdef,
+extern HQL_API IHqlExpression * createSymbol(IIdAtom * _name, IIndirectHqlExpression * _container, IHqlExpression *_expr, bool _exported, bool _shared, unsigned _flags);
+extern HQL_API IHqlExpression * createSymbol(IIdAtom * _name, IIndirectHqlExpression * _container, IHqlExpression *expr, IHqlExpression * funcdef,
                                              bool exported, bool shared, unsigned symbolFlags,
                                              IFileContents *fc, int lineno, int column, int _startpos, int _bodypos, int _endpos);
 extern HQL_API IHqlExpression *createAttribute(IAtom * name, IHqlExpression * value = NULL, IHqlExpression * value2 = NULL, IHqlExpression * value3 = NULL);
@@ -1429,14 +1431,14 @@ extern HQL_API IHqlScope *createConcreteScope();
 extern HQL_API IHqlScope *createForwardScope(IHqlScope * parentScope, HqlGramCtx * parentCtx, HqlParseContext & parseCtx);
 extern HQL_API IHqlScope *createLibraryScope();
 extern HQL_API IHqlScope *createVirtualScope();
-extern HQL_API IHqlScope* createVirtualScope(IIdAtom * name, const char * fullName);
+extern HQL_API IHqlScope* createVirtualScope(IIdAtom * name, IIdAtom * fullId);
 extern HQL_API IHqlScope *createScope(node_operator op);
 extern HQL_API IHqlScope *createScope(IHqlScope * scope);
 extern HQL_API IHqlScope *createPrivateScope();
 extern HQL_API IHqlScope *createPrivateScope(IHqlScope * scope);
 extern HQL_API IHqlExpression * createDelayedScope(IHqlExpression * expr);
 extern HQL_API IHqlExpression * createDelayedScope(HqlExprArray &newkids);
-extern HQL_API IHqlRemoteScope *createRemoteScope(IIdAtom * name, const char * fullName, IEclRepositoryCallback *ds, IProperties* props, IFileContents * _text, bool lazy, IEclSource * eclSource);
+extern HQL_API IHqlRemoteScope *createRemoteScope(IIdAtom * name, IIdAtom * fullId, IEclRepositoryCallback *ds, IProperties* props, IFileContents * _text, bool lazy, IEclSource * eclSource);
 extern HQL_API IHqlExpression * populateScopeAndClose(IHqlScope * scope, const HqlExprArray & children, const HqlExprArray & symbols);
 
 extern HQL_API IHqlExpression* createTemplateFunctionContext(IHqlExpression* body, IHqlScope* helperScope);
@@ -1860,7 +1862,7 @@ extern HQL_API IFileContents * createFileContentsFromFile(const char * filename,
 extern HQL_API IFileContents * createFileContentsSubset(IFileContents * contents, size32_t offset, size32_t len);
 extern HQL_API IFileContents * createFileContents(IFile * file, ISourcePath * sourcePath);
 
-void addForwardDefinition(IHqlScope * scope, IIdAtom * symbolName, IIdAtom * moduleName, IFileContents * contents,
+void addForwardDefinition(IHqlScope * scope, IIdAtom * symbolName, IIndirectHqlExpression * container, IFileContents * contents,
                           unsigned symbolFlags, bool isExported, unsigned startLine, unsigned startColumn);
 
 extern HQL_API IPropertyTree * createAttributeArchive();

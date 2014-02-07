@@ -2617,8 +2617,9 @@ void HqlGram::enterScope(bool allowExternal)
 void HqlGram::enterVirtualScope()
 {
     //This isn't perfect, but it is the best I can do.
+    //GH: MORE
     StringBuffer fullName;
-    fullName.append(globalScope->queryFullName());
+    fullName.append(globalScope->queryFullId()->str());
     ForEachItemIn(i, savedIds)
     {
         IIdAtom * id = (IIdAtom *)savedIds.item(i);
@@ -2637,7 +2638,7 @@ void HqlGram::enterVirtualScope()
     }
 
     ActiveScopeInfo & next = * new ActiveScopeInfo;
-    next.localScope.setown(createVirtualScope(current_id, fullName));
+    next.localScope.setown(createVirtualScope(current_id, createIdAtom(fullName)));
     next.privateScope.setown(createPrivateScope());
     next.firstSideEffect = parseResults.ordinality();
     defineScopes.append(next);
@@ -2723,7 +2724,7 @@ public:
 
     virtual void    getSymbols(HqlExprArray& exprs) const { PSEUDO_UNIMPLEMENTED; }
     virtual IAtom * queryName() const { PSEUDO_UNIMPLEMENTED; return NULL; }
-    virtual const char * queryFullName() const { PSEUDO_UNIMPLEMENTED; return NULL; }
+    virtual IIdAtom * queryFullId() const { PSEUDO_UNIMPLEMENTED; return NULL; }
     virtual ISourcePath * querySourcePath() const { PSEUDO_UNIMPLEMENTED; return NULL; }
     virtual bool hasBaseClass(IHqlExpression * searchBase) { return false; }
     virtual bool allBasesFullyBound() const { return true; }
@@ -2862,9 +2863,9 @@ void HqlGram::processForwardModuleDefinition(const attribute & errpos)
                 checkNotAlreadyDefined(sharedSymbolName, newScope, errpos);
 
                 unsigned symbolFlags = 0;
-                IIdAtom * moduleName = NULL;
+                IIndirectHqlExpression * container = NULL;  // GH: MORE
                 Owned<IFileContents> contents = createFileContentsSubset(lexObject->queryFileContents(), start.position, end.position - start.position);
-                addForwardDefinition(newScope, sharedSymbolName, moduleName, contents,
+                addForwardDefinition(newScope, sharedSymbolName, LINK(container), contents,
                                      symbolFlags, (sharedSymbolKind == EXPORT), start.lineno, start.column);
 
                 //Looks like the end of the shared symbol => define it
@@ -8999,10 +9000,6 @@ IHqlExpression * HqlGram::attachMetaAttributes(IHqlExpression * ownedExpr, HqlEx
 void HqlGram::defineSymbolInScope(IHqlScope * scope, DefineIdSt * defineid, IHqlExpression * expr, IHqlExpression * failure, const attribute & idattr, int assignPos, int semiColonPos, bool isParametered, HqlExprArray & parameters, IHqlExpression * defaults)
 {
     IHqlExpression * scopeExpr = queryExpression(scope);
-    IIdAtom * moduleName = NULL;
-    if (!inType)
-        moduleName = createIdAtom(scope->queryFullName());
-
     unsigned symbolFlags = 0;
     if (scopeExpr && scopeExpr->getOperator() == no_virtualscope)
         symbolFlags |= ob_member;
@@ -9037,7 +9034,7 @@ void HqlGram::defineSymbolInScope(IHqlScope * scope, DefineIdSt * defineid, IHql
     if (doc)
         expr = createJavadocAnnotation(expr, LINK(doc));
 
-    scope->defineSymbol(defineid->id, moduleName, expr, (defineid->scope & EXPORT_FLAG) != 0, (defineid->scope & SHARED_FLAG) != 0, symbolFlags, lexObject->query_FileContents(), idattr.pos.lineno, idattr.pos.column, idattr.pos.position, assignPos+2, semiColonPos+1);
+    scope->defineSymbol(defineid->id, NULL, expr, (defineid->scope & EXPORT_FLAG) != 0, (defineid->scope & SHARED_FLAG) != 0, symbolFlags, lexObject->query_FileContents(), idattr.pos.lineno, idattr.pos.column, idattr.pos.position, assignPos+2, semiColonPos+1);
 }
 
 
@@ -11451,7 +11448,7 @@ void parseAttribute(IHqlScope * scope, IFileContents * contents, HqlLookupContex
     attrCtx.noteBeginAttribute(scope, contents, name);
 
     //The attribute will be added to the current scope as a side-effect of parsing the attribute.
-    const char * moduleName = scope->queryFullName();
+    const char * moduleName = scope->queryFullId()->str();
     Owned<IHqlScope> globalScope = getResolveDottedScope(moduleName, LSFpublic, ctx);
     HqlGram parser(globalScope, scope, contents, attrCtx, NULL, false, true);
     parser.setExpectedAttribute(name);
@@ -11683,10 +11680,9 @@ IHqlExpression *HqlGram::doParse()
     if (!expectedAttribute)
         return actions.getClear();
 
-    IIdAtom * moduleName = createIdAtom(globalScope->queryFullName());
     Owned<IFileContents> contents = LINK(lexObject->query_FileContents());
     unsigned lengthText = 0;
-    containerScope->defineSymbol(expectedAttribute, moduleName, actions.getClear(), true, false, 0, contents, 1, 1, 0, 0, lengthText);
+    containerScope->defineSymbol(expectedAttribute, globalScope->getSelf(), actions.getClear(), true, false, 0, contents, 1, 1, 0, 0, lengthText);
     return NULL;
 }
 
