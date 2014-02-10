@@ -1055,8 +1055,8 @@ interface IHqlScope : public IInterface
     virtual bool getProp(IAtom *, StringBuffer &) const = 0;
 
     //IHqlCreateScope
-    virtual void defineSymbol(IIdAtom * name, IIndirectHqlExpression * container, IHqlExpression *value, bool isExported, bool isShared, unsigned flags, IFileContents *fc, int lineno, int column, int _startpos, int _bodypos, int _endpos) = 0;
-    virtual void defineSymbol(IIdAtom * name, IIndirectHqlExpression * container, IHqlExpression *value, bool isExported, bool isShared, unsigned flags) = 0;
+    virtual void defineSymbol(IIdAtom * name, IHqlExpression *value, bool isExported, bool isShared, unsigned flags, IFileContents *fc, int lineno, int column, int _startpos, int _bodypos, int _endpos) = 0;
+    virtual void defineSymbol(IIdAtom * name, IHqlExpression *value, bool isExported, bool isShared, unsigned flags) = 0;
     virtual void defineSymbol(IHqlExpression * expr) = 0;       // use with great care, expr must be a named symbol.
     virtual void removeSymbol(IIdAtom * name) = 0;      // use with great care
 };
@@ -1862,7 +1862,7 @@ extern HQL_API IFileContents * createFileContentsFromFile(const char * filename,
 extern HQL_API IFileContents * createFileContentsSubset(IFileContents * contents, size32_t offset, size32_t len);
 extern HQL_API IFileContents * createFileContents(IFile * file, ISourcePath * sourcePath);
 
-void addForwardDefinition(IHqlScope * scope, IIdAtom * symbolName, IIndirectHqlExpression * container, IFileContents * contents,
+void addForwardDefinition(IHqlScope * scope, IIdAtom * symbolName, IFileContents * contents,
                           unsigned symbolFlags, bool isExported, unsigned startLine, unsigned startColumn);
 
 extern HQL_API IPropertyTree * createAttributeArchive();

@@ -79,7 +79,7 @@ extern HQL_API void importRootModulesToScope(IHqlScope * scope, HqlLookupContext
         IIdAtom * curName = cur.queryId();
         OwnedHqlExpr resolved = eclRepository->queryRootScope()->lookupSymbol(curName, LSFpublic, ctx);
         if (resolved)
-            scope->defineSymbol(curName, NULL, resolved.getClear(), false, true, ob_import);
+            scope->defineSymbol(curName, resolved.getClear(), false, true, ob_import);
     }
 }
 
@@ -163,7 +163,7 @@ IHqlScope * getResolveDottedScope(const char * modname, unsigned lookupFlags, Hq
 class HQL_API CompoundEclRepository : public CInterface, implements IEclRepository
 {
 public:
-    CompoundEclRepository() { rootScope.setown(new CHqlMergedScope(NULL, NULL)); }
+    CompoundEclRepository() { rootScope.setown(new CHqlMergedScope(NULL)); }
 
     IMPLEMENT_IINTERFACE;
 
@@ -221,7 +221,7 @@ public:
         rootScope.setown(createScope());
         IHqlExpression * scope = repository->queryRootScope()->queryExpression();
 
-        rootScope->defineSymbol(name, NULL, LINK(scope), true, false, 0);
+        rootScope->defineSymbol(name, LINK(scope), true, false, 0);
     }
 
     IMPLEMENT_IINTERFACE;

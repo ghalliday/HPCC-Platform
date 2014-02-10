@@ -350,12 +350,6 @@ ISourcePath * createSourcePath(size32_t len, const char *value)
 //==============================================================================================================
 
 static CriticalSection indirectCs;
-void CIndirectHqlExpression::clear()
-{
-    CriticalBlock block(indirectCs);
-    value = NULL;
-}
-
 IHqlExpression * CIndirectHqlExpression::getResolved()
 {
     CriticalBlock block(indirectCs);
@@ -366,6 +360,13 @@ IHqlExpression * CIndirectHqlExpression::getResolved()
             return value;
     }
     return NULL;
+}
+
+void CIndirectHqlExpression::remove(IHqlExpression * _value)
+{
+    CriticalBlock block(indirectCs);
+    if (value == _value)
+        value = NULL;
 }
 
 void CIndirectHqlExpression::set(IHqlExpression * _value)
@@ -7597,16 +7598,23 @@ CHqlScope::CHqlScope(node_operator _op, IIdAtom * _id, IIdAtom * _fullId)
     self.setown(new CIndirectHqlExpression(this));
 }
 
+CHqlScope::CHqlScope(node_operator _op, IHqlScope * scope)
+: CHqlExpressionWithType(_op, NULL)
+{
+    id = NULL;
+    if (scope)
+        inheritFromScope(scope);
+    else
+        self.setown(new CIndirectHqlExpression(this));
+
+    type = this;
+}
+
 CHqlScope::CHqlScope(IHqlScope* scope)
 : CHqlExpressionWithType(no_scope, NULL)
 {
-    id = scope->queryId();
-    fullId = scope->queryFullId();
-    CHqlScope* s = QUERYINTERFACE(scope, CHqlScope);
-    if (s && s->text)
-        text.set(s->text);
+    inheritFromScope(scope);
     type = this;
-    self.setown(new CIndirectHqlExpression(this));
 }
 
 CHqlScope::CHqlScope(node_operator _op) 
@@ -7619,9 +7627,25 @@ CHqlScope::CHqlScope(node_operator _op)
 
 CHqlScope::~CHqlScope()
 {
-    self->clear();
+    self->remove(this);
     if (type == this)
         type = NULL;
+}
+
+void CHqlScope::inheritFromScope(IHqlScope * scope)
+{
+    id = scope->queryId();
+    fullId = scope->queryFullId();
+    CHqlScope* s = QUERYINTERFACE(scope, CHqlScope);
+    if (s)
+    {
+        text.set(s->text);
+        self.set(s->self);
+    }
+    else
+        self.setown(new CIndirectHqlExpression(this));
+
+    type = this;
 }
 
 bool CHqlScope::assignableFrom(ITypeInfo * source)
@@ -7760,23 +7784,19 @@ IHqlExpression * createFunctionDefinition(IIdAtom * id, HqlExprArray & args)
 
 
 
-void CHqlScope::defineSymbol(IIdAtom * _id, IIndirectHqlExpression * container, IHqlExpression *value,
+void CHqlScope::defineSymbol(IIdAtom * _id, IHqlExpression *value,
                              bool exported, bool shared, unsigned symbolFlags,
                              IFileContents *fc, int lineno, int column,
                              int _startpos, int _bodypos, int _endpos)
 {
-    if (!container)
-        container = LINK(self);
-
-    IHqlExpression * symbol = createSymbol(_id, container, value, NULL, exported, shared, symbolFlags, fc, lineno, column, _startpos, _bodypos, _endpos);
+    IHqlExpression * symbol = createSymbol(_id, getSelf(), value, NULL, exported, shared, symbolFlags, fc, lineno, column, _startpos, _bodypos, _endpos);
     defineSymbol(symbol);
 }
 
-void CHqlScope::defineSymbol(IIdAtom * _id, IIndirectHqlExpression * container, IHqlExpression *value, bool exported, bool shared, unsigned symbolFlags)
+void CHqlScope::defineSymbol(IIdAtom * _id, IHqlExpression *value, bool exported, bool shared, unsigned symbolFlags)
 {
     assertex(_id);
-    if (!container) container = LINK(self);
-    defineSymbol(createSymbol(_id, container, value, exported, shared, symbolFlags));
+    defineSymbol(createSymbol(_id, getSelf(), value, exported, shared, symbolFlags));
 }
 
 void CHqlScope::defineSymbol(IHqlExpression * expr)
@@ -8235,6 +8255,11 @@ CHqlLocalScope::CHqlLocalScope(IHqlScope* scope)
 {
 }
 
+CHqlLocalScope::CHqlLocalScope(node_operator _op, IHqlScope * _scope)
+: CHqlScope(_op, _scope)
+{
+}
+
 CHqlLocalScope::CHqlLocalScope(node_operator _op, IIdAtom * _name, IIdAtom * _fullId)
 : CHqlScope(_op, _name, _fullId)
 {
@@ -8265,7 +8290,7 @@ IHqlExpression *CHqlLocalScope::clone(HqlExprArray &newkids)
 
 IHqlScope * CHqlLocalScope::clone(HqlExprArray & children, HqlExprArray & symbols)
 {
-    CHqlScope * cloned = new CHqlLocalScope(op, id, fullId);
+    CHqlScope * cloned = NULL;//new CHqlLocalScope(op, id, fullId);
     return cloned->cloneAndClose(children, symbols);
 }
 
@@ -8314,6 +8339,11 @@ bool CHqlMergedScope::allBasesFullyBound() const
             return false;
     }
     return true;
+}
+
+IHqlExpression * CHqlMergedScope::getContainer() const
+{
+    return container->getResolved();
 }
 
 inline bool canMergeDefinition(IHqlExpression * expr)
@@ -8370,7 +8400,7 @@ IHqlExpression * CHqlMergedScope::lookupSymbol(IIdAtom * searchId, unsigned look
             if (previousMatch)
             {
                 IHqlScope * previousScope = previousMatch->queryScope();
-                mergeScope.setown(new CHqlMergedScope(searchId, previousScope->queryFullId()));
+                mergeScope.setown(new CHqlMergedScope(searchId, previousScope->queryFullId(), getSelf()));
                 mergeScope->addScope(previousScope);
             }
 
@@ -8394,7 +8424,7 @@ IHqlExpression * CHqlMergedScope::lookupSymbol(IIdAtom * searchId, unsigned look
     if (mergeScope)
     {
         OwnedHqlExpr newScope = mergeScope.getClear()->closeExpr();
-        IHqlExpression * symbol = createSymbol(searchId, LINK(self), LINK(newScope), true, false, symbolFlags);
+        IHqlExpression * symbol = createSymbol(searchId, getSelf(), LINK(newScope), true, false, symbolFlags);
         defineSymbol(symbol);
         return LINK(symbol);
     }
@@ -8445,7 +8475,7 @@ void CHqlMergedScope::ensureSymbolsDefined(HqlLookupContext & ctx)
                         //a child scope hasn't resolved it yet.
                         if (prev->getOperator() != no_nobody)
                         {
-                            IHqlExpression * newSymbol = createSymbol(curName, LINK(self), NULL, true, false, 0);
+                            IHqlExpression * newSymbol = createSymbol(curName, getSelf(), NULL, true, false, 0);
                             defineSymbol(newSymbol);
                         }
                     }
@@ -9295,9 +9325,9 @@ IHqlScope * CHqlForwardScope::queryResolvedScope(HqlLookupContext * context)
 }
 
 
-void addForwardDefinition(IHqlScope * scope, IIdAtom * symbolName, IIndirectHqlExpression * container, IFileContents * contents, unsigned symbolFlags, bool isExported, unsigned startLine, unsigned startColumn)
+void addForwardDefinition(IHqlScope * scope, IIdAtom * symbolName, IFileContents * contents, unsigned symbolFlags, bool isExported, unsigned startLine, unsigned startColumn)
 {
-    IHqlExpression * cur = createSymbol(symbolName, container, NULL, NULL,
+    IHqlExpression * cur = createSymbol(symbolName, scope->getSelf(), NULL, NULL,
                             isExported, !isExported, symbolFlags,
                             contents, startLine, startColumn, 0, 0, 0);
 
@@ -12293,7 +12323,7 @@ extern IHqlScope *createPrivateScope()
 
 extern IHqlScope *createPrivateScope(IHqlScope * scope)
 {
-    return new CHqlLocalScope(no_privatescope, scope->queryId(), scope->queryFullId());
+    return new CHqlLocalScope(no_privatescope, scope);
 }
 
 extern IHqlScope* createScope(IHqlScope* scope)

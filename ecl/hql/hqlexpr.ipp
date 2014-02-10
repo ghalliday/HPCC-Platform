@@ -73,10 +73,10 @@ class CUsedTablesBuilder;
 class CIndirectHqlExpression : public CInterfaceOf<IIndirectHqlExpression>
 {
 public:
-    CIndirectHqlExpression(IHqlExpression * _value = NULL) : value(_value) {}
+    CIndirectHqlExpression(IHqlExpression * _value = NULL) : value(_value) { }
 
-    void clear();
     virtual IHqlExpression * getResolved();
+    void remove(IHqlExpression * _value);
     void set(IHqlExpression * _value);
 
 protected:
@@ -984,8 +984,8 @@ public:
     CHqlDelayedScopeCall(IHqlExpression * _param, ITypeInfo * type, HqlExprArray &parms);
     IMPLEMENT_IINTERFACE_USING(CHqlDelayedCall)
 
-    virtual void defineSymbol(IIdAtom * id, IIndirectHqlExpression * container, IHqlExpression *value, bool isExported, bool isShared, unsigned flags, IFileContents *fc, int lineno, int column, int _startpos, int _bodypos, int _endpos) { throwUnexpected(); }
-    virtual void defineSymbol(IIdAtom * id, IIndirectHqlExpression * container, IHqlExpression *value, bool isExported, bool isShared, unsigned flags) { throwUnexpected(); }
+    virtual void defineSymbol(IIdAtom * id, IHqlExpression *value, bool isExported, bool isShared, unsigned flags, IFileContents *fc, int lineno, int column, int _startpos, int _bodypos, int _endpos) { throwUnexpected(); }
+    virtual void defineSymbol(IIdAtom * id, IHqlExpression *value, bool isExported, bool isShared, unsigned flags) { throwUnexpected(); }
     virtual void defineSymbol(IHqlExpression * expr) { throwUnexpected(); }
     virtual void removeSymbol(IIdAtom * id) { throwUnexpected(); }
 
@@ -1031,8 +1031,9 @@ protected:
     virtual bool equals(const IHqlExpression & other) const;
 
 public:
-    CHqlScope(node_operator _op, IIdAtom * _id, IIdAtom * _fullId);
     CHqlScope(node_operator _op);
+    CHqlScope(node_operator _op, IHqlScope * scope);
+    CHqlScope(node_operator _op, IIdAtom * _id, IIdAtom * _fullId);
     CHqlScope(IHqlScope* scope);
     ~CHqlScope();
     IMPLEMENT_IINTERFACE_USING(CHqlExpression)
@@ -1046,8 +1047,8 @@ public:
 
 //interface IHqlScope
     virtual IHqlExpression * queryExpression() { return this; }
-    virtual void defineSymbol(IIdAtom * id, IIndirectHqlExpression * container, IHqlExpression *value, bool isPublic, bool isShared, unsigned symbolFlags, IFileContents *, int lineno, int column, int _startpos, int _bodypos, int _endpos);
-    virtual void defineSymbol(IIdAtom * id, IIndirectHqlExpression * container, IHqlExpression *value, bool exported, bool shared, unsigned symbolFlags);
+    virtual void defineSymbol(IIdAtom * id, IHqlExpression *value, bool isPublic, bool isShared, unsigned symbolFlags, IFileContents *, int lineno, int column, int _startpos, int _bodypos, int _endpos);
+    virtual void defineSymbol(IIdAtom * id, IHqlExpression *value, bool exported, bool shared, unsigned symbolFlags);
     virtual void defineSymbol(IHqlExpression * expr);
     virtual void removeSymbol(IIdAtom * id);
 
@@ -1109,7 +1110,9 @@ public:
     virtual void deserialize(MemoryBuffer &) { UNIMPLEMENTED; }
 
 protected:
+    void inheritFromScope(IHqlScope * scope);
     void throwRecursiveError(IIdAtom * id);
+
 };
 
 class HQL_API CHqlRemoteScope : public CHqlScope, implements IHqlRemoteScope
@@ -1168,6 +1171,7 @@ protected:
     virtual bool equals(const IHqlExpression & other) const;
 
 public:
+    CHqlLocalScope(node_operator _op, IHqlScope * _scope);
     CHqlLocalScope(node_operator _op, IIdAtom * _id, IIdAtom * _fullId);
     CHqlLocalScope(IHqlScope* scope);
 
@@ -1220,7 +1224,8 @@ public:
 class HQL_API CHqlMergedScope : public CHqlScope
 {
 public:
-    CHqlMergedScope(IIdAtom * _id, IIdAtom * _fullId) : CHqlScope(no_mergedscope, _id, _fullId) { mergedAll = false; }
+    CHqlMergedScope(IIdAtom * _id, IIdAtom * _fullId, IIndirectHqlExpression * _container) : CHqlScope(no_mergedscope, _id, _fullId), container(_container) { mergedAll = false; }
+    CHqlMergedScope(IHqlScope * scope) : CHqlScope(no_mergedscope, scope) { mergedAll = false; }
 
     void addScope(IHqlScope * scope);
 
@@ -1230,9 +1235,11 @@ public:
     virtual bool isImplicit() const;
     virtual bool isPlugin() const;
     virtual IHqlScope * queryConcreteScope()    { return this; }
+    virtual IHqlExpression * getContainer() const;
 
 protected:
     CriticalSection cs;
+    Owned<IIndirectHqlExpression> container;
     HqlScopeArray mergedScopes;
     bool mergedAll;
 };
@@ -1262,8 +1269,8 @@ public:
     // copy constructor
     CHqlContextScope(IHqlScope* scope);
 
-    virtual void defineSymbol(IIdAtom * id, IIndirectHqlExpression * container, IHqlExpression *value,bool exported, bool shared, unsigned symbolFlags)
-    {  defined.setValue(id->lower(),value); ::Release(value); ::Release(container); }
+    virtual void defineSymbol(IIdAtom * id, IHqlExpression *value,bool exported, bool shared, unsigned symbolFlags)
+    {  defined.setValue(id->lower(),value); ::Release(value); }
 
     virtual IHqlExpression *lookupSymbol(IIdAtom * searchName, unsigned lookupFlags, HqlLookupContext & ctx)
     {  return defined.getLinkedValue(searchName->lower()); }
@@ -1494,8 +1501,8 @@ public:
     virtual bool getProp(IAtom *, StringBuffer &) const { return false; }
 
 //IHqlCreateScope
-    virtual void defineSymbol(IIdAtom * id, IIndirectHqlExpression * container, IHqlExpression *value, bool isExported, bool isShared, unsigned flags, IFileContents *fc, int lineno, int column, int _startpos, int _bodypos, int _endpos) { throwUnexpected(); }
-    virtual void defineSymbol(IIdAtom * id, IIndirectHqlExpression * container, IHqlExpression *value, bool isExported, bool isShared, unsigned flags) { throwUnexpected(); }
+    virtual void defineSymbol(IIdAtom * id, IHqlExpression *value, bool isExported, bool isShared, unsigned flags, IFileContents *fc, int lineno, int column, int _startpos, int _bodypos, int _endpos) { throwUnexpected(); }
+    virtual void defineSymbol(IIdAtom * id, IHqlExpression *value, bool isExported, bool isShared, unsigned flags) { throwUnexpected(); }
     virtual void defineSymbol(IHqlExpression * expr) { throwUnexpected(); }
     virtual void removeSymbol(IIdAtom * id) { throwUnexpected(); }
 

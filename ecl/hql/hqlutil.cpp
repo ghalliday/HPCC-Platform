@@ -4327,7 +4327,6 @@ extern HQL_API IHqlExpression * createStoredModule(IHqlExpression * scopeExpr)
     newScopeExpr->addOperand(LINK(scopeExpr));
 
     HqlExprArray noParameters;
-    IIndirectHqlExpression * container = NULL;
     ForEachItemIn(i, symbols)
     {
         IHqlExpression & cur = symbols.item(i);
@@ -4344,8 +4343,7 @@ extern HQL_API IHqlExpression * createStoredModule(IHqlExpression * scopeExpr)
 
                 HqlExprArray meta;
                 value.setown(attachWorkflowOwn(meta, value.getClear(), failure, NULL));
-                newScope->defineSymbol(name, container, value.getClear(),
-                                       true, false, cur.getSymbolFlags());
+                newScope->defineSymbol(name, value.getClear(), true, false, cur.getSymbolFlags());
             }
         }
     }

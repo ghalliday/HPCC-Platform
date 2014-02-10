@@ -375,7 +375,7 @@ void HqlGram::init(IHqlScope * _globalScope, IHqlScope * _containerScope)
     parseScope.setown(createPrivateScope(_containerScope));
     transformScope = NULL;
     if (globalScope->queryName() && legacyEclSemantics)
-        parseScope->defineSymbol(globalScope->queryId(), NULL, LINK(queryExpression(globalScope)), false, false, ob_import);
+        parseScope->defineSymbol(globalScope->queryId(), LINK(queryExpression(globalScope)), false, false, ob_import);
 
     boolType = makeBoolType();
     defaultIntegralType = makeIntType(8, true);
@@ -1125,7 +1125,7 @@ void HqlGram::processServiceFunction(const attribute & idAttr, IIdAtom * name, I
     IHqlExpression * formals = defineScopes.tos().createFormals(oldSetFormat);
     IHqlExpression * defaults = defineScopes.tos().createDefaults();
     IHqlExpression * func = createFunctionDefinition(name, call, formals, defaults, NULL);
-    serviceScope->defineSymbol(name, NULL, func, true, false, 0, NULL, idAttr.pos.lineno, idAttr.pos.column, 0, 0, 0);
+    serviceScope->defineSymbol(name, func, true, false, 0, NULL, idAttr.pos.lineno, idAttr.pos.column, 0, 0, 0);
     resetParameters();
 }
 
@@ -2716,8 +2716,8 @@ public:
     PseudoPatternScope(IHqlExpression * _patternList);
     IMPLEMENT_IINTERFACE_USING(CHqlScope)
 
-    virtual void defineSymbol(IIdAtom * name, IIndirectHqlExpression * container, IHqlExpression *value, bool isExported, bool isShared, unsigned flags, IFileContents *fc, int bodystart, int lineno, int column) { ::Release(value); ::Release(container); PSEUDO_UNIMPLEMENTED; }
-    virtual void defineSymbol(IIdAtom * name, IIndirectHqlExpression * container, IHqlExpression *value, bool isExported, bool isShared, unsigned flags) { ::Release(value); ::Release(container); PSEUDO_UNIMPLEMENTED; }
+    virtual void defineSymbol(IIdAtom * name, IHqlExpression *value, bool isExported, bool isShared, unsigned flags, IFileContents *fc, int bodystart, int lineno, int column) { ::Release(value); PSEUDO_UNIMPLEMENTED; }
+    virtual void defineSymbol(IIdAtom * name, IHqlExpression *value, bool isExported, bool isShared, unsigned flags) { ::Release(value); PSEUDO_UNIMPLEMENTED; }
     virtual void defineSymbol(IHqlExpression * value) { PSEUDO_UNIMPLEMENTED; ::Release(value); }
     virtual IHqlExpression *lookupSymbol(IIdAtom * name, unsigned lookupFlags, HqlLookupContext & ctx);
     virtual void removeSymbol(IIdAtom * name) { PSEUDO_UNIMPLEMENTED; }
@@ -2863,9 +2863,8 @@ void HqlGram::processForwardModuleDefinition(const attribute & errpos)
                 checkNotAlreadyDefined(sharedSymbolName, newScope, errpos);
 
                 unsigned symbolFlags = 0;
-                IIndirectHqlExpression * container = NULL;  // GH: MORE
                 Owned<IFileContents> contents = createFileContentsSubset(lexObject->queryFileContents(), start.position, end.position - start.position);
-                addForwardDefinition(newScope, sharedSymbolName, LINK(container), contents,
+                addForwardDefinition(newScope, sharedSymbolName, contents,
                                      symbolFlags, (sharedSymbolKind == EXPORT), start.lineno, start.column);
 
                 //Looks like the end of the shared symbol => define it
@@ -3413,7 +3412,7 @@ IHqlExpression *HqlGram::lookupSymbol(IIdAtom * searchName, const attribute& err
 IHqlExpression * HqlGram::recordLookupInTemplateContext(IIdAtom * name, IHqlExpression * expr, IHqlScope * templateScope)
 {
     if (expr && templateScope)
-        templateScope->defineSymbol(name,NULL,LINK(expr),true,false,0);
+        templateScope->defineSymbol(name,LINK(expr),true,false,0);
     return expr;
 }
 
@@ -9034,7 +9033,7 @@ void HqlGram::defineSymbolInScope(IHqlScope * scope, DefineIdSt * defineid, IHql
     if (doc)
         expr = createJavadocAnnotation(expr, LINK(doc));
 
-    scope->defineSymbol(defineid->id, NULL, expr, (defineid->scope & EXPORT_FLAG) != 0, (defineid->scope & SHARED_FLAG) != 0, symbolFlags, lexObject->query_FileContents(), idattr.pos.lineno, idattr.pos.column, idattr.pos.position, assignPos+2, semiColonPos+1);
+    scope->defineSymbol(defineid->id, expr, (defineid->scope & EXPORT_FLAG) != 0, (defineid->scope & SHARED_FLAG) != 0, symbolFlags, lexObject->query_FileContents(), idattr.pos.lineno, idattr.pos.column, idattr.pos.position, assignPos+2, semiColonPos+1);
 }
 
 
@@ -10106,7 +10105,7 @@ void HqlGram::defineImport(const attribute & errpos, IHqlExpression * imported, 
         reportWarning(ERR_ID_REDEFINE, errpos.pos, "import hides previously defined identifier");
     }
 
-    parseScope->defineSymbol(newName, NULL, LINK(imported), false, false, ob_import, NULL, errpos.pos.lineno, errpos.pos.column, errpos.pos.position, 0, errpos.pos.position);
+    parseScope->defineSymbol(newName, LINK(imported), false, false, ob_import, NULL, errpos.pos.lineno, errpos.pos.column, errpos.pos.position, 0, errpos.pos.position);
 }
 
 
@@ -11700,7 +11699,7 @@ IHqlExpression *HqlGram::doParse()
 
     Owned<IFileContents> contents = LINK(lexObject->query_FileContents());
     unsigned lengthText = 0;
-    containerScope->defineSymbol(expectedAttribute, globalScope->getSelf(), actions.getClear(), true, false, 0, contents, 1, 1, 0, 0, lengthText);
+    containerScope->defineSymbol(expectedAttribute, actions.getClear(), true, false, 0, contents, 1, 1, 0, 0, lengthText);
     return NULL;
 }
 
