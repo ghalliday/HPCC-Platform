@@ -6665,6 +6665,11 @@ bool CHqlAnnotation::isFullyBound() const
     return body->isFullyBound();
 }
 
+IHqlExpression * CHqlAnnotation::getContainer() const
+{
+    return body->getContainer();
+}
+
 IIdAtom * CHqlAnnotation::queryFullModuleId() const
 {
     return body->queryFullModuleId();
@@ -6965,6 +6970,13 @@ IHqlExpression * CHqlSymbolAnnotation::cloneAnnotation(IHqlExpression * newbody)
     if (body == newbody)
         return LINK(this);
     return cloneSymbol(id, newbody, funcdef, NULL);
+}
+
+IHqlExpression * CHqlSymbolAnnotation::getContainer() const
+{
+    if (!container)
+        return NULL;
+    return container->getResolved();
 }
 
 IIdAtom * CHqlSymbolAnnotation::queryFullModuleId() const

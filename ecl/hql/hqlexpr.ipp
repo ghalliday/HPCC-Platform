@@ -267,6 +267,7 @@ public:
     virtual IHqlExpression * cloneAllAnnotations(IHqlExpression * body) { return LINK(body); }
     virtual void unwindList(HqlExprArray &dst, node_operator);
 
+    virtual IHqlExpression * getContainer() const { return NULL; }
     virtual IIdAtom *           queryFullModuleId() const { return NULL; }
     virtual ISourcePath *   querySourcePath() const { return NULL; }
 
@@ -543,6 +544,7 @@ public:
     virtual IHqlExpression * clone(HqlExprArray &);
     virtual IHqlExpression * cloneAnnotation(IHqlExpression * body) = 0;
     virtual IHqlExpression * cloneAllAnnotations(IHqlExpression * body);
+    virtual IHqlExpression * getContainer() const;
     virtual IIdAtom * queryFullModuleId() const;
     virtual bool isFullyBound() const;
     virtual IHqlExpression *addOperand(IHqlExpression *);
@@ -566,6 +568,7 @@ public:
 
     virtual IAtom * queryName() const { return id->lower(); }
     virtual IIdAtom * queryId() const { return id; }
+    virtual IHqlExpression * getContainer() const;
     virtual IIdAtom * queryFullModuleId() const;
     virtual IHqlExpression *queryFunctionDefinition() const;
     virtual unsigned getSymbolFlags() const;

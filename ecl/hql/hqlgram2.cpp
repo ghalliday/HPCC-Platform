@@ -9921,7 +9921,8 @@ IHqlExpression * HqlGram::resolveImportModule(const attribute & errpos, IHqlExpr
 {
     if (isDollarModule(expr))
         return LINK(queryExpression(globalScope));
-    if (expr->queryName() != _dot_Atom)
+    IAtom * name = expr->queryName();
+    if ((name != _dot_Atom) && (name != _container_Atom))
     {
         if (!lookupCtx.queryRepository())
         {
@@ -9961,18 +9962,35 @@ IHqlExpression * HqlGram::resolveImportModule(const attribute & errpos, IHqlExpr
     OwnedHqlExpr parent = resolveImportModule(errpos, expr->queryChild(0));
     if (!parent)
         return NULL;
+
+    const char * parentName = parent->queryName()->str();
+    if (!parentName)
+        parentName = "$";
+
+    if (name == _container_Atom)
+    {
+        OwnedHqlExpr resolved = parent->getContainer();
+        if (!resolved)
+        {
+            reportError(ERR_NOPARENTMODULE, errpos, "Unable to access the container of module '%s'", parentName);
+            return NULL;
+        }
+        if (!resolved->queryScope())
+        {
+            reportError(ERR_NOPARENTMODULE, errpos, "Container is not a module");
+            return NULL;
+        }
+        return resolved.getClear();
+    }
+
     IIdAtom * childId = expr->queryChild(1)->queryId();
     OwnedHqlExpr resolved = parent->queryScope()->lookupSymbol(childId, LSFpublic, lookupCtx);
     if (!resolved)
     {
-        const char * parentName = parent->queryName()->str();
-        if (!parentName)
-            parentName = "$";
         reportError(ERR_OBJ_NOSUCHFIELD, errpos, "Object '%s' does not have a field named '%s'", parentName, childId->str());
         return NULL;
     }
-    IHqlScope * ret = resolved->queryScope();
-    if (!ret)
+    if (!resolved->queryScope())
     {
         reportError(ERR_OBJ_NOSUCHFIELD, errpos, "'%s' is not a module", childId->str());
         return NULL;

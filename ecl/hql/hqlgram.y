@@ -713,6 +713,10 @@ importId
                         {
                             $$.setExpr(createAttribute(_dot_Atom, $1.getExpr(), createId($3.getId())), $1);
                         }
+    | importId '.' '^'
+                        {
+                            $$.setExpr(createAttribute(_container_Atom, $1.getExpr()), $1);
+                        }
     ;
 
 defineType
@@ -6697,6 +6701,20 @@ abstractModule
                             $1.release();
                             IHqlExpression *expr = $2.getExpr();
                             $$.setExpr(expr, $2);
+                        }
+    | moduleScopeDot '^' leaveScope
+                        {
+                            OwnedHqlExpr module = $1.getExpr();
+                            OwnedHqlExpr parent = module->getContainer();
+                            if (parent)
+                            {
+                                $$.setExpr(parent.getClear(), $2);
+                            }
+                            else
+                            {
+                                parser->reportError(ERR_NOPARENTMODULE, $1, "Unable to access the parent module");
+                                $$.setExpr(module.getClear(), $1); // error recovery
+                            }
                         }
     | '$'
                         {
