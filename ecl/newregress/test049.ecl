@@ -1,0 +1,4 @@
+r := RECORD
+    STRING s{MAXLENGTH(100),blob};
+END;
+ROW(TRANSFORM(r, SELF := []));

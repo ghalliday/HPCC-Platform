@@ -1,0 +1,4 @@
+r := RECORD, MAXLENGTH(50000)
+            STRING ID;
+END;
+ROW(TRANSFORM(r, SELF := []));

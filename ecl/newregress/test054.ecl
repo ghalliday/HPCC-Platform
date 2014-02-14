@@ -1,0 +1,4 @@
+r := RECORD
+    SET OF BIG_ENDIAN UNSIGNED INTEGER x := [ 0 ];
+END;
+ROW(r);
