@@ -3332,7 +3332,8 @@ bool CWsDfuEx::doLogicalFileSearch(IEspContext &context, IUserDescriptor* udesc,
         return true;
     }
 
-    if (queryDaliServerVersion().compare("5.0") < 0)
+    //GH- Why is this comparing against 5.0??
+    if (queryDefaultDali()->compareDaliServerVersion("5.0") < 0)
     {
         getAPageOfSortedLogicalFile(context, udesc, req, resp);
         return true;
