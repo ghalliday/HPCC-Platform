@@ -32,6 +32,7 @@ extern jlib_decl void ThreadYield();
 //#define SPINLOCK_USE_MUTEX // for testing
 //#define SPINLOCK_RR_CHECK     // checks for realtime threads
 #endif
+#define CHECK_NESTED_SPINLOCKS      // check for multiple spinlocks being nested
 
 #ifdef SPINLOCK_USE_MUTEX
 #define NRESPINLOCK_USE_SPINLOCK
@@ -297,7 +298,7 @@ class jlib_decl  SpinLock
     atomic_t value;
     unsigned nesting;           // not volatile since it is only accessed by one thread at a time
     struct { volatile ThreadId tid; } owner;
-    inline SpinLock(SpinLock & value) { assert(false); } // dummy to prevent inadvetant use as block
+    inline SpinLock(SpinLock & value) { assert(false); } // dummy to prevent inadvertent use as block
 public:
     inline SpinLock()       
     {   
@@ -334,9 +335,15 @@ public:
         while (!atomic_cas(&value,1,0)) 
             ThreadYield(); 
         owner.tid = self;
+#ifdef CHECK_NESTED_SPINLOCKS
+        checkEnter();
+#endif
     }
     inline void leave()
     {
+#ifdef CHECK_NESTED_SPINLOCKS
+        checkLeave();
+#endif
         //It is safe to access nesting - since this thread is the only one that can access
         //it, so no need for a synchronized access
         if (nesting == 0)
@@ -350,6 +357,8 @@ public:
         else
             nesting--;
     }
+    void checkEnter();
+    void checkLeave();
 };
 
 #endif

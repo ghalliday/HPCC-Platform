@@ -25,6 +25,24 @@
 #include <assert.h>
 
 //===========================================================================
+
+static __thread unsigned lockNesting;
+void SpinLock::checkEnter()
+{
+    if (lockNesting != nesting)
+    {
+        ERRLOG("Nested spin locks");
+        PrintStackReport();
+    }
+    lockNesting++;
+}
+
+void SpinLock::checkLeave()
+{
+    lockNesting--;
+}
+
+//===========================================================================
 #ifndef _WIN32
 
 Mutex::Mutex()
