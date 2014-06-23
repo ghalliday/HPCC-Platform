@@ -4637,8 +4637,10 @@ extern WORKUNIT_API bool isProcessCluster(const char *remoteDali, const char *pr
     return true;
 }
 
-IConstWUClusterInfo* getTargetClusterInfo(IPropertyTree *environment, IPropertyTree *cluster)
+static IConstWUClusterInfo* getTargetClusterInfo(IPropertyTree * environment, IPropertyTree *cluster)
 {
+    //MORE This should really be using environment functions
+
     const char *clustname = cluster->queryProp("@name");
 
     // MORE - at the moment configenf specifies eclagent and thor queues by (in effect) placing an 'example' thor or eclagent in the topology 
@@ -4673,15 +4675,14 @@ IConstWUClusterInfo* getTargetClusterInfo(IPropertyTree *environment, IPropertyT
     return new CEnvironmentClusterInfo(clustname, prefix, agent, thors, queryRoxieProcessTree(environment, roxieName));
 }
 
-IPropertyTree* getTopologyCluster(Owned<IRemoteConnection> &conn, const char *clustname)
+static IPropertyTree* getTopologyCluster(IConstEnvironment * env, const char *clustname)
 {
-    if (!clustname || !*clustname)
-        return NULL;
-    Owned<IEnvironmentFactory> factory = getEnvironmentFactory();
-    Owned<IConstEnvironment> env = factory->openEnvironment();
     if (!env)
         return NULL;
+    if (!clustname || !*clustname)
+        return NULL;
 
+    //MORE: This should be using functions from environment.hpp
     Owned<IPropertyTree> root = &env->getPTree();
     StringBuffer xpath;
     xpath.appendf("Software/Topology/Cluster[@name=\"%s\"]", clustname);
@@ -4690,18 +4691,23 @@ IPropertyTree* getTopologyCluster(Owned<IRemoteConnection> &conn, const char *cl
 
 bool validateTargetClusterName(const char *clustname)
 {
-    Owned<IRemoteConnection> conn;
-    Owned<IPropertyTree> cluster = getTopologyCluster(conn, clustname);
+    Owned<IEnvironmentFactory> factory = getEnvironmentFactory();
+    Owned<IConstEnvironment> env = factory->openEnvironment();
+    Owned<IPropertyTree> cluster = getTopologyCluster(env, clustname);
     return (cluster.get()!=NULL);
 }
 
 IConstWUClusterInfo* getTargetClusterInfo(const char *clustname)
 {
-    Owned<IRemoteConnection> conn;
-    Owned<IPropertyTree> cluster = getTopologyCluster(conn, clustname);
+    Owned<IEnvironmentFactory> factory = getEnvironmentFactory();
+    Owned<IConstEnvironment> env = factory->openEnvironment();
+    Owned<IPropertyTree> cluster = getTopologyCluster(env, clustname);
     if (!cluster)
         return NULL;
-    return getTargetClusterInfo(conn->queryRoot(), cluster);
+
+    //MORE: This should be using functions from environment.hpp
+    Owned<IPropertyTree> environment = &env->getPTree();
+    return getTargetClusterInfo(environment, cluster);
 }
 
 unsigned getEnvironmentClusterInfo(CConstWUClusterInfoArray &clusters)
