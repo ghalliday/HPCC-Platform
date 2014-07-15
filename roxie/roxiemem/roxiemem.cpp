@@ -27,6 +27,7 @@
 #ifdef _DEBUG
 #define _CLEAR_ALLOCATED_ROW
 //#define _CLEAR_ALLOCATED_HUGE_ROW
+//#define TRACE_MEMORY_EXHAUSTION
 #endif
 
 #ifdef _WIN32
@@ -387,6 +388,9 @@ static void throwHeapExhausted(unsigned pages)
 {
     VStringBuffer msg("Memory pool exhausted: pool (%u pages) exhausted, requested %u", heapTotalPages, pages);
     DBGLOG("%s", msg.str());
+#ifdef TRACE_MEMORY_EXHAUSTION
+    PrintStackReport();
+#endif
     throw MakeStringExceptionDirect(ROXIEMM_MEMORY_POOL_EXHAUSTED, msg.str());
 }
 
@@ -394,6 +398,9 @@ static void throwHeapExhausted(unsigned newPages, unsigned oldPages)
 {
     VStringBuffer msg("Memory pool exhausted: pool (%u pages) exhausted, requested %u, had %u", heapTotalPages, newPages, oldPages);
     DBGLOG("%s", msg.str());
+#ifdef TRACE_MEMORY_EXHAUSTION
+    PrintStackReport();
+#endif
     throw MakeStringExceptionDirect(ROXIEMM_MEMORY_POOL_EXHAUSTED, msg.str());
 }
 
