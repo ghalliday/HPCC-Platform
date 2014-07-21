@@ -200,8 +200,8 @@ private:
     void setESPTargetClusters(IEspContext& context, const CIArrayOf<CWsSMCTargetCluster>& targetClusters, IArrayOf<IEspTargetCluster>& respTargetClusters);
     ActivityInfo* createActivityInfo(IEspContext &context);
     void clearActivityInfoCache();
-    ActivityInfo* getActivityInfo(IEspContext &context);
-    void setActivityResponse(IEspContext &context, ActivityInfo* activityInfo, IEspActivityRequest &req, IEspActivityResponse& resp);
+    const ActivityInfo* getActivityInfo(IEspContext &context);
+    void setActivityResponse(IEspContext &context, const ActivityInfo* activityInfo, IEspActivityRequest &req, IEspActivityResponse& resp);
     void addWUsToResponse(IEspContext &context, const IArrayOf<IEspActiveWorkunit>& aws, IEspActivityResponse& resp);
     const char *getStatusServerTypeName(WsSMCStatusServerType type);
 

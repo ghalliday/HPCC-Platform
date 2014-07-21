@@ -656,7 +656,7 @@ void CWsSMCEx::clearActivityInfoCache()
     activityInfoCache.clear();
 }
 
-ActivityInfo* CWsSMCEx::getActivityInfo(IEspContext &context)
+const ActivityInfo* CWsSMCEx::getActivityInfo(IEspContext &context)
 {
     CriticalBlock b(getActivityCrit);
 
@@ -664,8 +664,11 @@ ActivityInfo* CWsSMCEx::getActivityInfo(IEspContext &context)
         return activityInfoCache.getLink();
 
     DBGLOG("CWsSMCEx::getActivityInfo - rebuild cached information");
+    {
+        EspTimeSection timer("createActivityInfo");
+        activityInfoCache.setown(createActivityInfo(context));
+    }
 
-    activityInfoCache.setown(createActivityInfo(context));
     return activityInfoCache.getLink();
 }
 
@@ -740,7 +743,7 @@ bool CWsSMCEx::onActivity(IEspContext &context, IEspActivityRequest &req, IEspAc
         if (version >= 1.06)
             setBannerAndChatData(version, resp);
 
-        Owned<ActivityInfo> activityInfo = getActivityInfo(context);
+        Owned<const ActivityInfo> activityInfo = getActivityInfo(context);
         setActivityResponse(context, activityInfo, req, resp);
     }
     catch(IException* e)
@@ -1059,11 +1062,12 @@ void CWsSMCEx::addWUsToResponse(IEspContext &context, const IArrayOf<IEspActiveW
     return;
 }
 
-void CWsSMCEx::setActivityResponse(IEspContext &context, ActivityInfo* activityInfo, IEspActivityRequest &req, IEspActivityResponse& resp)
+void CWsSMCEx::setActivityResponse(IEspContext &context, const ActivityInfo* activityInfo, IEspActivityRequest &req, IEspActivityResponse& resp)
 {
     double version = context.getClientVersion();
     const char* sortBy = req.getSortBy();
     bool descending = req.getDescending();
+    ActivityInfo* nonconstActivityInfo = const_cast<ActivityInfo*>(activityInfo); // The generated stubs below should take const parameters
     if (version >= 1.16)
     {
         IArrayOf<IEspTargetCluster> thorClusters;
@@ -1086,7 +1090,7 @@ void CWsSMCEx::setActivityResponse(IEspContext &context, ActivityInfo* activityI
         resp.setThorClusterList(thorClusters);
         resp.setRoxieClusterList(roxieClusters);
         resp.setHThorClusterList(hthorClusters);
-        resp.setServerJobQueues(activityInfo->serverJobQueues);
+        resp.setServerJobQueues(nonconstActivityInfo->serverJobQueues);
     }
     else
     {//for backward compatible
@@ -1146,9 +1150,9 @@ void CWsSMCEx::setActivityResponse(IEspContext &context, ActivityInfo* activityI
                 resp.setAccessRight("Access_Full");
         }
         if (version > 1.03)
-            resp.setServerJobQueues(activityInfo->serverJobQueues);
+            resp.setServerJobQueues(nonconstActivityInfo->serverJobQueues);
     }
-    resp.setDFUJobs(activityInfo->DFURecoveryJobs);
+    resp.setDFUJobs(nonconstActivityInfo->DFURecoveryJobs);
     addWUsToResponse(context, activityInfo->aws, resp);
     return;
 }
@@ -2033,7 +2037,7 @@ void CWsSMCEx::getStatusServerInfo(IEspContext &context, const char *serverType,
     if (!serverType || !*serverType)
         throw MakeStringException(ECLWATCH_MISSING_PARAMS, "Server type not specified.");
 
-    Owned<ActivityInfo> activityInfo = getActivityInfo(context);
+    Owned<const ActivityInfo> activityInfo = getActivityInfo(context);
     if (!activityInfo)
         throw MakeStringException(ECLWATCH_INTERNAL_ERROR, "Failed to get Activity Info cache.");
 
