@@ -1,3 +1,5 @@
+//class=embed
+
 import Javascript;
 
 string anagram(string word) := EMBED(Javascript)

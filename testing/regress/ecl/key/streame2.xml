@@ -30,3 +30,7 @@
 <Dataset name='Result 6'>
  <Row><name>Hello</name><value>10</value></Row>
 </Dataset>
+<Dataset name='Result 7'>
+ <Row><name>Richard</name><value>10</value></Row>
+ <Row><name>dsfg</name><value>10</value></Row>
+</Dataset>

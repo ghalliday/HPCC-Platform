@@ -65,9 +65,8 @@ EXPORT DG_FetchFile   := DATASET(DG_FetchFileName,{DG_FetchRecord,UNSIGNED8 __fi
 EXPORT DG_FetchFilePreload := PRELOAD(DATASET(DG_FetchFilePreloadName,{DG_FetchRecord,UNSIGNED8 __filepos {virtual(fileposition)}},FLAT));
 EXPORT DG_FetchFilePreloadIndexed := PRELOAD(DATASET(DG_FetchFilePreloadIndexedName,{DG_FetchRecord,UNSIGNED8 __filepos {virtual(fileposition)}},FLAT),1);
 
-EXPORT DG_FetchIndex1 := INDEX(DG_FetchFile,{Lname,Fname},{STRING fn := TRIM(Fname), state, STRING100 x {blob}:= fname, __filepos},DG_FetchIndex1Name);
-EXPORT DG_FetchIndex2 := INDEX(DG_FetchFile,{Lname,Fname},{STRING fn := TRIM(Fname), state, STRING100 x {blob}:= fname, __filepos},DG_FetchIndex2Name);
-EXPORT DG_TransFetchIndex1 := INDEX(DG_FetchFile,{Fname,Lname},{STRING fn := TRIM(Fname), state, STRING100 x {blob}:= fname, __filepos},DG_FetchIndex1Name);
+EXPORT DG_FetchIndex1 := INDEX(DG_FetchFile,{Lname,Fname},{STRING tfn := TRIM(Fname), state, STRING blobfield {blob}:= fname+lname, __filepos},DG_FetchIndex1Name);
+EXPORT DG_FetchIndex2 := INDEX(DG_FetchFile,{Lname,Fname},{STRING tfn := TRIM(Fname), state, STRING blobfield {blob}:= fname+lname, __filepos},DG_FetchIndex2Name);
 
 EXPORT DG_OutRec := RECORD
     unsigned4  DG_ParentID;

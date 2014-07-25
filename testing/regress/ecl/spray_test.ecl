@@ -23,6 +23,7 @@ import Std.File AS FileServices;
 //noRoxie
 //noThorLCR
 //noThor
+//class=dfu
 
 string SrcIP := 'localhost' : STORED('OriginalTextFilesIp');
 string Path := '' : STORED('OriginalTextFilesOsPath');

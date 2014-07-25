@@ -1,4 +1,5 @@
 //nothor
+//class=embed
 
 //Thor doesn't handle CATCH properly, see HPCC-9059
 //skip type==thorlcr TBD

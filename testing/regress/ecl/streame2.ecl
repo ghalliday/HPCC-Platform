@@ -15,6 +15,8 @@
     limitations under the License.
 ############################################################################## */
 
+//class=embed
+
 IMPORT Python;
 
 childrec := RECORD
@@ -74,12 +76,12 @@ transform(childrec) testTransform2(namerec inrec, unsigned p) := EMBED(Python)
   return (inrec.name, p)
 ENDEMBED;
 
-//output (testGenerator(10));
-//output (testNamedTuple(10));
-//output (testMissingTuple1(10));
-//output (testMissingTuple2(10));
+output (testGenerator(10));
+output (testNamedTuple(10));
+output (testMissingTuple1(10));
+output (testMissingTuple2(10));
 
-//output(testRowReturn(10));
-//output(row(testTransform(10)));
+output(testRowReturn(10));
+output(row(testTransform(10)));
 d := dataset([{'Richard'},{'dsfg'}], namerec);
 output(project(d, testTransform2(LEFT, 10)));

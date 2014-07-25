@@ -1,3 +1,5 @@
+//class=embed
+
 import python;
 
 string anagram(string word) := EMBED(Python)

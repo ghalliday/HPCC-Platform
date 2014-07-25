@@ -23,9 +23,13 @@ import Std.File AS FileServices;
 //noRoxie
 //noThorLCR
 //noThor
+//class=dfu
 
-SrcIP := 'localhost';
-File := tempFiles + '/spray_test.txt';
+string SrcIP := 'localhost' : STORED('OriginalTextFilesIp');
+string Path := '' : STORED('OriginalTextFilesOsPath');
+
+File := Path + '/download/spray_test.txt';
+
 ClusterName := 'mythor';
 DestFile := '~regress::spray_test2.txt';
 ESPportIP := 'http://127.0.0.1:8010/FileSpray';

@@ -1,3 +1,5 @@
+//class=embed
+
 IMPORT R;
 
 integer add1(integer VAL) := EMBED(R)

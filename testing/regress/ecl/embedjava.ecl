@@ -1,4 +1,5 @@
 //nothor
+//class=embed
 
 IMPORT java;
 

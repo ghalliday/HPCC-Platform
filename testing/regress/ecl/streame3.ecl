@@ -15,6 +15,8 @@
     limitations under the License.
 ############################################################################## */
 
+//class=embed
+
 IMPORT Python;
 
 childrec := RECORD
@@ -25,14 +27,13 @@ titleRec := { string title };
 titles := dataset(['', 'Mr. ', 'Rev. '], titleRec);
 
 // Test defining a transform
-transform(childrec) testTransformTitle(titleRec in, unsigned lim) := EMBED(Python)
-  return (in.title, lim)
+transform(childrec) testTransformTitle(titleRec inr, unsigned lim) := EMBED(Python)
+  return (inr.title, lim)
 ENDEMBED;
 
 // Test defining a transform
-//MORE: The embed function shpo
-transform(childrec) testTransformTitle2(_linkcounted_ row(titleRec) in, unsigned lim) := EMBED(Python)
-  return (in.title, lim)
+transform(childrec) testTransformTitle2(_linkcounted_ row(titleRec) inr, unsigned lim) := EMBED(Python)
+  return (inr.title, lim)
 ENDEMBED;
 
 sequential(

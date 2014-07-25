@@ -52,8 +52,8 @@ output(sort(twoways,record,local),,C.DG_FetchFilePreloadName,OVERWRITE);
 output(sort(twoways,record,local),,C.DG_FetchFilePreloadIndexedName,OVERWRITE);
 
 sortedFile := SORT(C.DG_FETCHFILE, Lname,Fname,state ,__filepos, LOCAL);
-BUILDINDEX(sortedFile,{Lname,Fname},{STRING fn := TRIM(Fname), state, STRING100 x {blob}:= fname, __filepos},C.DG_FetchIndex1Name, OVERWRITE, SORTED);
-BUILDINDEX(sortedFile,{Lname,Fname},{STRING fn := TRIM(Fname), state, STRING100 x {blob}:= fname, __filepos},C.DG_FetchIndex2Name, OVERWRITE, SORTED);
+BUILDINDEX(sortedFile,{Lname,Fname},{STRING tfn := TRIM(Fname), state, STRING blobfield {blob}:= fname, __filepos},C.DG_FetchIndex1Name, OVERWRITE, SORTED);
+BUILDINDEX(sortedFile,{Lname,Fname},{STRING tfn := TRIM(Fname), state, STRING blobfield {blob}:= fname, __filepos},C.DG_FetchIndex2Name, OVERWRITE, SORTED);
 
 fileServices.AddFileRelationship( C.DG_FetchFileName, C.DG_FetchFilePreloadName, '', '', 'view', '1:1', false);
 fileServices.AddFileRelationship( C.DG_FetchFileName, C.DG_FetchFilePreloadIndexedName, '', '', 'view', '1:1', false);
