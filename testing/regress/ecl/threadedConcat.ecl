@@ -28,6 +28,4 @@ combineDs(DATASET(r1) x1, DATASET(r1) x2, DATASET(r1) x3, DATASET(r1) x4, DATASE
 
 y(unsigned i) := combineDs(x(i), x(i+1000), x(i+2000), x(i+3000), x(i+4000), x(i+5000));
 
-//z(unsigned i) := combineDs(y(i), y(i+8), y(i+16), y(i+24), y(i+32), y(i+40));
-
 count(y(1));  // should be numRecords * 6

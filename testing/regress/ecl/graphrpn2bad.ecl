@@ -16,7 +16,6 @@
 ############################################################################## */
 
 //nothor
-//nothorlcr
 
 stepRecord :=
             record
@@ -41,6 +40,7 @@ mkState(unsigned step, unsigned value, unsigned docid = 1) := transform(stateRec
 processExpression(dataset(stepRecord) actions) := function
 
     processNext(set of dataset(stateRecord) in, unsigned thisStep, stepRecord action) := function
+        //This deliberately accesses an invalid previous action to ensure an error message is produced
         thisLeft := in[action.leftStep+5];
         thisRight := in[action.rightStep+5];
 

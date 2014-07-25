@@ -104,11 +104,8 @@ DG_VarOutRecs := PROJECT(DG_ParentRecs,Proj1(LEFT));
 sequential(
   output(DG_VarOutRecs,,C.DG_FileOut+'VAR',overwrite),
   buildindex(C.DG_VarIndex, overwrite),
-  buildindex(C.DG_VarVarIndex, overwrite),
   fileServices.AddFileRelationship( __nameof__(C.DG_VarFile), __nameof__(C.DG_VarIndex), '', '', 'view', '1:1', false),
   fileServices.AddFileRelationship( __nameof__(C.DG_VarFile), __nameof__(C.DG_VarIndex), '__fileposition__', '__filepos', 'link', '1:1', true),
-  fileServices.AddFileRelationship( __nameof__(C.DG_VarFile), __nameof__(C.DG_VarVarIndex), '', '', 'view', '1:1', false),
-  fileServices.AddFileRelationship( __nameof__(C.DG_VarFile), __nameof__(C.DG_VarVarIndex), '__fileposition__', '__filepos', 'link', '1:1', true)
 );
 
 

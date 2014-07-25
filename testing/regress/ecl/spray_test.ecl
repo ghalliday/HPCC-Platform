@@ -24,8 +24,11 @@ import Std.File AS FileServices;
 //noThorLCR
 //noThor
 
-SrcIP := 'localhost';
-File := tempFiles + '/spray_test.txt';
+string SrcIP := 'localhost' : STORED('OriginalTextFilesIp');
+string Path := '' : STORED('OriginalTextFilesOsPath');
+
+File := Path + '/download/spray_test.txt';
+
 RecordSize := 11;
 ClusterName := 'mythor';
 DestFile := '~regress::spray_test.txt';

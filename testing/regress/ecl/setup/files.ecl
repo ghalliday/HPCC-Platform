@@ -9,7 +9,7 @@
        http://www.apache.org/licenses/LICENSE-2.0
 
     Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
+    distributed under the License is distributed on an "AS IS" BASIS,s
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
@@ -19,7 +19,7 @@
 import $.TS;
 
 //define constants
-EXPORT files(string platform, boolean useLocal) := module
+EXPORT files(string platform, boolean useLocal, boolean useDynamic = FALSE) := module
 SHARED DG_GenFlat           := true;   //TRUE gens FlatFile
 SHARED DG_GenChild          := true;   //TRUE gens ChildFile
 SHARED DG_GenGrandChild     := true;   //TRUE gens GrandChildFile
@@ -35,17 +35,8 @@ EXPORT DG_MaxChildren       := 3;    //maximum (1 to n) number of child recs
 EXPORT DG_MaxGrandChildren  := 3;    //maximum (1 to n) number of grandchild recs
                     // generates (#children * DG_MaxGrandChildren) records
 
-SHARED useDynamic := false;
-SHARED useLayoutTrans := false;
-SHARED useVarIndex := false;
-
-#if (useDynamic=true)
 VarString EmptyString := '' : STORED('dummy');
-EXPORT  filePrefix := platform + EmptyString;
-#option ('allowVariableRoxieFilenames', 1);
-#else
-EXPORT  filePrefix := platform;
-#end
+EXPORT  filePrefix := platform + IF(useDynamic, EmptyString, '');
 
 EXPORT DG_FileOut           := '~REGRESS::' + filePrefix + '::DG_';
 EXPORT DG_ParentFileOut     := '~REGRESS::' + filePrefix + '::DG_Parent.d00';
@@ -74,24 +65,10 @@ EXPORT DG_FetchFile   := DATASET(DG_FetchFileName,{DG_FetchRecord,UNSIGNED8 __fi
 EXPORT DG_FetchFilePreload := PRELOAD(DATASET(DG_FetchFilePreloadName,{DG_FetchRecord,UNSIGNED8 __filepos {virtual(fileposition)}},FLAT));
 EXPORT DG_FetchFilePreloadIndexed := PRELOAD(DATASET(DG_FetchFilePreloadIndexedName,{DG_FetchRecord,UNSIGNED8 __filepos {virtual(fileposition)}},FLAT),1);
 
-#IF (useLayoutTrans=false)
-  #IF (useVarIndex=true)
-    EXPORT DG_FetchIndex1 := INDEX(DG_FetchFile,{Lname,Fname},{STRING fn := TRIM(Fname), state, STRING100 x {blob}:= fname, __filepos},DG_FetchIndex1Name);
-    EXPORT DG_FetchIndex2 := INDEX(DG_FetchFile,{Lname,Fname},{STRING fn := TRIM(Fname), state, STRING100 x {blob}:= fname, __filepos},DG_FetchIndex2Name);
-  #ELSE
-    EXPORT DG_FetchIndex1 := INDEX(DG_FetchFile,{Lname,Fname},{state ,__filepos},DG_FetchIndex1Name);
-    EXPORT DG_FetchIndex2 := INDEX(DG_FetchFile,{Lname,Fname},{state, __filepos}, DG_FetchIndex2Name);
-  #END
-#ELSE
- // Declare all indexes such that layout translation is required... Used at run-time only, not at setup time...
-  #IF (useVarIndex=true)
-    EXPORT DG_FetchIndex1 := INDEX(DG_FetchFile,{Fname,Lname},{STRING fn := TRIM(Fname), state, STRING100 x {blob}:= fname, __filepos},DG_FetchIndex1Name);
-    EXPORT DG_FetchIndex2 := INDEX(DG_FetchFile,{Fname,Lname},{STRING fn := TRIM(Fname), state, STRING100 x {blob}:= fname, __filepos},DG_FetchIndex2Name);
-  #ELSE
-    EXPORT DG_FetchIndex1 := INDEX(DG_FetchFile,{Fname,Lname},{state ,__filepos},DG_FetchIndex1Name);
-    EXPORT DG_FetchIndex2 := INDEX(DG_FetchFile,{Fname,Lname},{state, __filepos}, DG_FetchIndex2Name);
-  #END
-#END
+EXPORT DG_FetchIndex1 := INDEX(DG_FetchFile,{Lname,Fname},{STRING fn := TRIM(Fname), state, STRING100 x {blob}:= fname, __filepos},DG_FetchIndex1Name);
+EXPORT DG_FetchIndex2 := INDEX(DG_FetchFile,{Lname,Fname},{STRING fn := TRIM(Fname), state, STRING100 x {blob}:= fname, __filepos},DG_FetchIndex2Name);
+EXPORT DG_TransFetchIndex1 := INDEX(DG_FetchFile,{Fname,Lname},{STRING fn := TRIM(Fname), state, STRING100 x {blob}:= fname, __filepos},DG_FetchIndex1Name);
+
 EXPORT DG_OutRec := RECORD
     unsigned4  DG_ParentID;
     string10  DG_firstname;
@@ -117,18 +94,13 @@ END;
 //DATASET declarations
 EXPORT DG_BlankSet := dataset([{0,'','',0}],DG_OutRec);
 
-EXPORT DG_FlatFile      := DATASET(DG_FileOut+'FLAT',{DG_OutRec,UNSIGNED8 filepos{virtual(fileposition)}},FLAT);
-EXPORT DG_FlatFileEvens := DATASET(DG_FileOut+'FLAT_EVENS',{DG_OutRec,UNSIGNED8 filepos{virtual(fileposition)}},FLAT);
+EXPORT DG_FlatFile      := DATASET(DG_FileOut+'FLAT',       {DG_OutRec,UNSIGNED8 filepos{virtual(fileposition)}},FLAT);
+EXPORT DG_FlatFileEvens := DATASET(DG_FileOut+'FLAT_EVENS', {DG_OutRec,UNSIGNED8 filepos{virtual(fileposition)}},FLAT);
 
 EXPORT DG_indexFile      := INDEX(DG_FlatFile,
     RECORD
-#if(useLayoutTrans=false)
       DG_firstname;
       DG_lastname;
-#else
-      DG_lastname;
-      DG_firstname;
-#end
     END,
      RECORD
       DG_Prange;
@@ -137,13 +109,8 @@ EXPORT DG_indexFile      := INDEX(DG_FlatFile,
 
 EXPORT DG_indexFileEvens := INDEX(DG_FlatFileEvens,
     RECORD
-#if(useLayoutTrans=false)
       DG_firstname;
       DG_lastname;
-#else
-      DG_lastname;
-      DG_firstname;
-#end
     END,
     RECORD
       DG_Prange;
@@ -159,24 +126,7 @@ EXPORT DG_VarOutRecPlus := RECORD
 END;
 
 EXPORT DG_VarFile   := DATASET(DG_FileOut+'VAR',DG_VarOutRecPlus,FLAT);
-EXPORT DG_VarIndex  := INDEX(DG_VarFile,{
-#if(useLayoutTrans=false)
-      DG_firstname;
-      DG_lastname;
-#else
-      DG_lastname;
-      DG_firstname;
-#end
-__filepos},DG_FileOut+'VARINDEX');
-EXPORT DG_VarVarIndex  := INDEX(DG_VarFile,{
-#if(useLayoutTrans=false)
-      DG_firstname;
-      DG_lastname;
-#else
-      DG_lastname;
-      DG_firstname;
-#end
-__filepos},{ string temp_blob1 := TRIM(ExtraField); string10000 temp_blob2 {blob} := ExtraField },DG_FileOut+'VARVARINDEX');
+EXPORT DG_VarIndex  := INDEX(DG_VarFile,{ DG_firstname; DG_lastname; __filepos}, DG_FileOut+'VARINDEX');
 
 EXPORT DG_ParentFile  := DATASET(DG_ParentFileOut,{DG_OutRec,UNSIGNED8 filepos{virtual(fileposition)}},FLAT);
 EXPORT DG_ChildFile   := DATASET(DG_ChildFileOut,{DG_OutRecChild,UNSIGNED8 filepos{virtual(fileposition)}},FLAT);
