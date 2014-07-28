@@ -15,9 +15,9 @@
     limitations under the License.
 ############################################################################## */
 
-import $.^.setup;
+import $.setup;
 
-EXPORT aggds1(string source) := function
+EXPORT aggds1(string source = __PLATFORM__) := function
 
 sq := setup.sq(source);
 

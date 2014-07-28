@@ -17,9 +17,9 @@
 
 //Find all anagrams of a word, that match the list of known words
 
-import $.^.setup.TS;
+import $.setup.TS;
 
-export dict15a(string searchWord, DICTIONARY({TS.wordType word}) knownWords) := FUNCTION
+generate(string searchWord, DICTIONARY({TS.wordType word}) knownWords) := FUNCTION
 
   R := RECORD
     STRING Word;
@@ -39,3 +39,17 @@ export dict15a(string searchWord, DICTIONARY({TS.wordType word}) knownWords) := 
   RETURN Anagrams(Word in knownWords);
 END;
 
+EXPORT dict15a(string source = __PLATFORM__) := FUNCTION
+
+    //Find all anagrams of a word, that match the list of known words
+    import $.Common;
+    import $.Common.TextSearch;
+    
+    wordIndex := TextSearch.getWordIndex(source, false);
+    allWordsDs := DEDUP(SORTED(wordIndex), word);
+    knownWords := DICTIONARY(allWordsDs, { word });
+    
+    string searchWord := 'gabs' : stored('word');
+    
+    RETURN OUTPUT(generate(searchWord, knownWords));
+END;

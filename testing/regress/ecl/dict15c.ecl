@@ -17,9 +17,9 @@
 
 //Find all anagrams of a word, that match the list of known words
 
-import $.^.setup.TS;
+import $.setup.TS;
 
-export dict15b(string searchWord, DICTIONARY({TS.wordType word}) knownWords) := FUNCTION
+generate(string searchWord, DICTIONARY({TS.wordType word}) knownWords) := FUNCTION
 
   R := RECORD
     STRING Word;
@@ -36,7 +36,28 @@ export dict15b(string searchWord, DICTIONARY({TS.wordType word}) knownWords) := 
   END;
     
   anagrams := LOOP(Initial,LENGTH(trimmedWord),Pluck1(ROWS(LEFT),COUNTER-1));
-    
+   
   uniqueAnagrams := DEDUP(anagrams, Word, HASH);
   RETURN uniqueAnagrams(Word in knownWords);
+END;
+
+EXPORT dict15c(string source = __PLATFORM__) := FUNCTION
+
+    //Find all anagrams of a word, that match the list of known words
+    import $.Common;
+    import $.Common.TextSearch;
+    
+    wordIndex := TextSearch.getWordIndex(source, false);
+    allWordsDs := DEDUP(wordIndex, word, HASH);
+    knownWords := DICTIONARY(allWordsDs, { word });
+    
+    shortWords := TABLE(allWordsDs, { Word })(LENGTH(TRIM(Word)) <= 6); 
+    
+    //Find all words that have anagrams 
+    //BUG: Without the NOFOLD the code generator merges the projects, and introduces an ambiguous dataset
+    withAnagrams := TABLE(NOFOLD(shortWords), { word, anagrams := generate(Word, knownWords) });
+    
+    moreThanOne := withAnagrams(count(anagrams)>1);
+    
+    RETURN OUTPUT(sort(moreThanOne, RECORD));
 END;

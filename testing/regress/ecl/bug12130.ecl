@@ -17,8 +17,9 @@
 
 //class=file
 //class=index
+//dynamic:source
 
-EXPORT bug12130(string source = 'hthor') := FUNCTION
+EXPORT bug12130(string source = __PLATFORM__) := FUNCTION
 
 import $.Setup;
 Files := Setup.Files(source, false);
