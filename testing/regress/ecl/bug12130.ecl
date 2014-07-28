@@ -15,9 +15,13 @@
     limitations under the License.
 ############################################################################## */
 
-//UseStandardFiles
-//UseIndexes
-//nolocal
+//class=file
+//class=index
+
+EXPORT bug12130(string source = 'hthor') := FUNCTION
+
+import $.Setup;
+Files := Setup.Files(source, false);
 
 import lib_stringlib;
 
@@ -34,23 +38,25 @@ recpair := record
   END;
 
 
-recpair makeVarPair(varrec L, DG_varfile R, string name) := TRANSFORM
+recpair makeVarPair(varrec L, Files.DG_varfile R, string name) := TRANSFORM
     self.name := name;
     self.leftrec  := L.DG_firstname + L.DG_lastname; 
     self.rightrec := R.DG_firstname + R.DG_lastname;
   END;
 
 
-varrec mv(DG_FlatFile L) := TRANSFORM
+varrec mv(Files.DG_FlatFile L) := TRANSFORM
   self := l;
   self.varname := TRIM(L.dg_firstname) + ' ' + L.dg_lastname;
 END;
 
-vv := PROJECT(DG_FlatFile, mv(LEFT));
+vv := PROJECT(Files.DG_FlatFile, mv(LEFT));
 
 boolean postfilter(string f, integer y) := length(f)*1000 > y;
 
-Out1 :=JOIN(vv, DG_varFile, KEYED(left.DG_firstname = right.DG_firstname) AND KEYED(left.DG_lastname = right.DG_lastname) AND postfilter(left.varname, right.dg_prange)
-      , makeVarPair(left, right, 'Full keyed to var file: simple inner'), KEYED(DG_VARINDEX));
+Out1 :=JOIN(vv, Files.DG_varFile, KEYED(left.DG_firstname = right.DG_firstname) AND KEYED(left.DG_lastname = right.DG_lastname) AND postfilter(left.varname, right.dg_prange)
+      , makeVarPair(left, right, 'Full keyed to var file: simple inner'), KEYED(Files.DG_VARINDEX));
 
-output(SORT(Out1,record));
+   RETURN output(SORT(Out1,record));
+
+END;
