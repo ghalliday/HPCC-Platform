@@ -30,10 +30,10 @@ protected:
     ArrayOf<bits_t> bits;
     mutable CriticalSection crit;
 
-    inline bits_t &getBitSet(unsigned i, bits_t &tmp) { tmp = bits.item(i); return tmp;}
+    inline bits_t &getBitSet(unsigned i, bits_t &tmp) { return bits.element(i); }
     inline void setBitSet(unsigned i, bits_t m)
     {
-        bits.replace(m, i);
+//        bits.replace(m, i);
     }
     inline void addBitSet(bits_t m)
     {
@@ -85,59 +85,55 @@ protected:
         unsigned j=from%BitsPerItem;
         // returns index of first = val >= from
         unsigned n=getWidth();
-        unsigned i;
         bits_t tmpBitSet; // NB: for getBitSet, not all impls. will use it
-        for (i=from/BitsPerItem;i<n;i++)
+        unsigned i = from/BitsPerItem;
+        if (j != 0 && i < n)
+        {
+            bits_t &m = getBitSet(i, tmpBitSet);
+            bits_t testMask = m ^ noMatchMask;
+
+            //Set all the bottom bits to the value we're not searching for
+            bits_t mask = (((bits_t)1)<<j)-1;
+            testMask &= ~mask;
+
+            //May possibly match exactly - if so continue main loop
+            if (testMask!=0)
+            {
+                //Guaranteed a match at this point
+                //Returns one plus the index of the least significant 1-bit of testMask
+                //(testMask != 0) since that has been checked above (noMatchMask == 0)
+                unsigned pos = __builtin_ctz(testMask);
+                if (scninv)
+                {
+                    bits_t t = ((bits_t)1)<<pos;
+                    m ^= t;
+                    setBitSet(i, m);
+                }
+                return i*BitsPerItem+pos;
+            }
+            j = 0;
+            i++;
+        }
+        for (;i<n;i++)
         {
             bits_t &m = getBitSet(i, tmpBitSet);
             if (m!=noMatchMask)
             {
 #if defined(__GNUC__)
                 //Use the __builtin_ffs instead of a loop to find the first bit set/cleared
-                bits_t testMask = m;
-                if (j != 0)
-                {
-                    //Set all the bottom bits to the value we're not searching for
-                    bits_t mask = (((bits_t)1)<<j)-1;
-                    if (tst)
-                        testMask &= ~mask;
-                    else
-                        testMask |= mask;
-
-                    //May possibly match exactly - if so continue main loop
-                    if (testMask==noMatchMask)
-                    {
-                        j = 0;
-                        continue;
-                    }
-                }
-
+                //bits_t testMask = tst ? m : ~m;
+                bits_t testMask = m ^ noMatchMask;
                 //Guaranteed a match at this point
-                if (tst)
+                //Returns one plus the index of the least significant 1-bit of testMask
+                //(testMask != 0) since that has been checked above (noMatchMask == 0)
+                unsigned pos = __builtin_ffs(testMask)-1;
+                if (scninv)
                 {
-                    //Returns one plus the index of the least significant 1-bit of testMask
-                    //(testMask != 0) since that has been checked above (noMatchMask == 0)
-                    unsigned pos = __builtin_ffs(testMask)-1;
-                    if (scninv)
-                    {
-                        bits_t t = ((bits_t)1)<<pos;
-                        m &= ~t;
-                        setBitSet(i, m);
-                    }
-                    return i*BitsPerItem+pos;
+                    bits_t t = ((bits_t)1)<<pos;
+                    m ^= t;
+                    setBitSet(i, m);
                 }
-                else
-                {
-                    //Same as above but invert the bitmask
-                    unsigned pos = __builtin_ffs(~testMask)-1;
-                    if (scninv)
-                    {
-                        bits_t t = ((bits_t)1)<<pos;
-                        m |= t;
-                        setBitSet(i, m);
-                    }
-                    return i*BitsPerItem+pos;
-                }
+                return i*BitsPerItem+pos;
 #else
                 bits_t t = ((bits_t)1)<<j;
                 for (;j<BitsPerItem;j++)
@@ -170,7 +166,6 @@ protected:
                 }
 #endif
             }
-            j = 0;
         }
         if (tst)
             return (unsigned)-1;
