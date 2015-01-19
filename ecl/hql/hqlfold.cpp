@@ -3219,19 +3219,28 @@ IHqlExpression * foldConstantOperator(IHqlExpression * expr, unsigned foldOption
             node_operator leftOp = leftChild->getOperator();
             if (leftOp == no_null)
                 return createNullValue(expr);
-            if ((leftOp != no_list) && (leftOp != no_datasetlist))
-                break;
-            IValue * rightValue = rightChild->queryValue();
-            if(rightValue)
+            if ((leftOp == no_list) || (leftOp == no_datasetlist))
             {
-                unsigned idx = (unsigned)rightValue->getIntValue();
-                if ((idx != 0) && (leftChild->numChildren()>=idx))
-                    return LINK(leftChild->queryChild(idx-1));
-                else
+                IValue * rightValue = rightChild->queryValue();
+                if(rightValue)
+                {
+                    unsigned idx = (unsigned)rightValue->getIntValue();
+                    if ((idx != 0) && (leftChild->numChildren()>=idx))
+                        return LINK(leftChild->queryChild(idx-1));
+                    else
+                        return createNullValue(expr);
+                }
+                else if (!leftChild->numChildren())
                     return createNullValue(expr);
             }
-            else if (!leftChild->numChildren())
-                return createNullValue(expr);
+            else if (leftOp == no_createset)
+            {
+                IHqlExpression * ds = leftChild->queryChild(0);
+                IHqlExpression * select = leftChild->queryChild(1);
+                OwnedHqlExpr selectNth = createRow(no_selectnth, LINK(ds), LINK(rightChild));
+                OwnedHqlExpr newRow = createRow(no_newrow, LINK(selectNth));
+                return replaceSelector(select, ds->queryNormalizedSelector(), newRow);
+            }
         }
         break;
     case no_addsets:
