@@ -227,7 +227,7 @@ class CConstGraphProgress : public CInterface, implements IConstWUGraphProgress
         {
             parent.unlock();
         }
-        virtual IPropertyTree * getProgressTree() { return parent.getProgressTree(); }
+        virtual IPropertyTree * getProgressTree(bool includeLegacyTags) { return parent.getProgressTree(includeLegacyTags); }
         virtual WUGraphState queryGraphState() { return parent.queryGraphState(); }
         virtual WUGraphState queryNodeState(WUGraphIDType nodeId) { return parent.queryNodeState(nodeId); }
         virtual IWUGraphProgress * update() { throwUnexpected(); }
@@ -359,11 +359,11 @@ public:
             }
         }
     }
-    virtual IPropertyTree * getProgressTree()
+    virtual IPropertyTree * getProgressTree(bool includeLegacyTags)
     {
         if (!connected) connect();
         if (progress->getPropBool("@stats"))
-            return createProcessTreeFromStats();
+            return createProcessTreeFromStats(includeLegacyTags);
         return LINK(progress);
     }
     virtual WUGraphState queryGraphState()
@@ -432,7 +432,7 @@ private:
         if (!connected) connect();
         return progress;
     }
-    static void expandStats(IPropertyTree * target, IStatisticCollection & collection)
+    static void expandStats(IPropertyTree * target, IStatisticCollection & collection, bool includeLegacyTags)
     {
         StringBuffer formattedValue;
         unsigned numStats = collection.getNumStatistics();
@@ -442,36 +442,37 @@ private:
             unsigned __int64 value;
             collection.getStatistic(kind, value, i);
             formatStatistic(formattedValue.clear(), value, kind);
-
-                //Until 6.0 generate the backward compatible tag name
-            const char * legacyTreeTag = queryLegacyTreeTag(kind);
-            if (legacyTreeTag)
-            {
-                StatisticMeasure measure = queryMeasure(kind);
-                if (measure == SMeasureSkew)
-                {
-                    //Minimum stats were always output as +ve numbers
-                    if (queryStatsVarient(kind) == StSkewMin)
-                        value = -value;
-
-                    target->setPropInt64(legacyTreeTag, value/100);
-                }
-                else if (measure == SMeasureTimeNs)
-                {
-                    //Legacy timings are in ms => scale
-                    target->setPropInt64(legacyTreeTag, value/1000000);
-                }
-                else
-                    target->setProp(legacyTreeTag, formattedValue);
-            }
-
-            //Unconditionally output in the new format.
             target->setProp(queryTreeTag(kind), formattedValue);
+
+            if (includeLegacyTags)
+            {
+                //Until 6.0 generate the backward compatible tag name
+                const char * legacyTreeTag = queryLegacyTreeTag(kind);
+                if (legacyTreeTag)
+                {
+                    StatisticMeasure measure = queryMeasure(kind);
+                    if (measure == SMeasureSkew)
+                    {
+                        //Minimum stats were always output as +ve numbers
+                        if (queryStatsVarient(kind) == StSkewMin)
+                            value = -value;
+
+                        target->setPropInt64(legacyTreeTag, value/100);
+                    }
+                    else if (measure == SMeasureTimeNs)
+                    {
+                        //Legacy timings are in ms => scale
+                        target->setPropInt64(legacyTreeTag, value/1000000);
+                    }
+                    else
+                        target->setProp(legacyTreeTag, formattedValue);
+                }
+            }
         }
     }
-    void expandProcessTreeFromStats(IPropertyTree * rootTarget, IPropertyTree * target, IStatisticCollection * collection)
+    void expandProcessTreeFromStats(IPropertyTree * rootTarget, IPropertyTree * target, IStatisticCollection * collection, bool includeLegacyTags)
     {
-        expandStats(target, *collection);
+        expandStats(target, *collection, includeLegacyTags);
 
         StringBuffer scopeName;
         Owned<IStatisticCollectionIterator> activityIter = &collection->getScopes(NULL);
@@ -504,11 +505,11 @@ private:
 
             IPropertyTree * next = curTarget->addPropTree(tag, createPTree());
             next->setProp("@id", id);
-            expandProcessTreeFromStats(rootTarget, next, &cur);
+            expandProcessTreeFromStats(rootTarget, next, &cur, includeLegacyTags);
         }
     }
 
-    IPropertyTree * createProcessTreeFromStats()
+    IPropertyTree * createProcessTreeFromStats(bool includeLegacyTags)
     {
         MemoryBuffer compressed;
         MemoryBuffer serialized;
@@ -524,7 +525,7 @@ private:
                 decompressToBuffer(serialized.clear(), compressed);
                 Owned<IStatisticCollection> collection = createStatisticCollection(serialized);
 
-                expandProcessTreeFromStats(progressTree, progressTree, collection);
+                expandProcessTreeFromStats(progressTree, progressTree, collection, includeLegacyTags);
             }
         }
         return progressTree.getClear();
@@ -2140,7 +2141,7 @@ public:
     virtual IStringVal & getTypeName(IStringVal & ret) const;
     virtual WUGraphType getType() const;
     virtual WUGraphState getState() const;
-    virtual IPropertyTree * getXGMMLTree(bool mergeProgress) const;
+    virtual IPropertyTree * getXGMMLTree(bool mergeProgress, bool includeLegacyTags) const;
     virtual IPropertyTree * getXGMMLTreeRaw() const;
 
     virtual void setName(const char *str);
@@ -6837,7 +6838,7 @@ IPropertyTree *CLocalWorkUnit::getUnpackedTree(bool includeProgress) const
     ForEach(*graphIter)
     {
         IConstWUGraph &graph  = graphIter->query();
-        Owned<IPropertyTree> graphTree = graph.getXGMMLTree(includeProgress);
+        Owned<IPropertyTree> graphTree = graph.getXGMMLTree(includeProgress, false);
         SCMStringBuffer gName;
         graph.getName(gName);
         StringBuffer xpath("Graphs/Graph[@name=\"");
@@ -6907,7 +6908,7 @@ IStringVal& CLocalWUGraph::getLabel(IStringVal &str) const
     }
     else
     {
-        Owned<IPropertyTree> xgmml = getXGMMLTree(false);
+        Owned<IPropertyTree> xgmml = getXGMMLTree(false, false);
         str.set(xgmml->queryProp("@label"));
         return str;
     }
@@ -6922,9 +6923,9 @@ WUGraphState CLocalWUGraph::getState() const
 }
 
 
-IStringVal& CLocalWUGraph::getXGMML(IStringVal &str, bool mergeProgress) const
+IStringVal& CLocalWUGraph::getXGMML(IStringVal &str, bool mergeProgress, bool includeLegacyTags) const
 {
-    Owned<IPropertyTree> xgmml = getXGMMLTree(mergeProgress);
+    Owned<IPropertyTree> xgmml = getXGMMLTree(mergeProgress, includeLegacyTags);
     if (xgmml)
     {
         StringBuffer x;
@@ -7376,7 +7377,7 @@ IPropertyTree * CLocalWUGraph::getXGMMLTreeRaw() const
     return p->getPropTree("xgmml");
 }
 
-IPropertyTree * CLocalWUGraph::getXGMMLTree(bool doMergeProgress) const
+IPropertyTree * CLocalWUGraph::getXGMMLTree(bool doMergeProgress, bool includeLegacyTags) const
 {
     if (!graph)
     {
@@ -7402,7 +7403,7 @@ IPropertyTree * CLocalWUGraph::getXGMMLTree(bool doMergeProgress) const
 
         //MORE: Eventually this should directly access the new stats structure
         unsigned progressV = _progress->queryFormatVersion();
-        Owned<IPropertyTree> progressTree = _progress->getProgressTree();
+        Owned<IPropertyTree> progressTree = _progress->getProgressTree(includeLegacyTags);
         Owned<IPropertyTreeIterator> nodeIterator = copy->getElements("node");
         ForEach (*nodeIterator)
             mergeProgress(nodeIterator->query(), *progressTree, progressV);

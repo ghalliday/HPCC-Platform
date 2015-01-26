@@ -202,8 +202,8 @@ interface IConstWUGraphMeta : extends IInterface
 
 interface IConstWUGraph : extends IConstWUGraphMeta
 {
-    virtual IStringVal & getXGMML(IStringVal & ret, bool mergeProgress) const = 0;
-    virtual IPropertyTree * getXGMMLTree(bool mergeProgress) const = 0;
+    virtual IStringVal & getXGMML(IStringVal & ret, bool mergeProgress, bool includeLegacyTags) const = 0;
+    virtual IPropertyTree * getXGMMLTree(bool mergeProgress, bool includeLegacyTags) const = 0;
     virtual IPropertyTree * getXGMMLTreeRaw() const = 0;
 };
 
@@ -745,7 +745,7 @@ interface IWUGraphStats;
 interface IPropertyTree;
 interface IConstWUGraphProgress : extends IInterface
 {
-    virtual IPropertyTree * getProgressTree() = 0;
+    virtual IPropertyTree * getProgressTree(bool includeLegacyTags) = 0;
     virtual WUGraphState queryGraphState() = 0;
     virtual WUGraphState queryNodeState(WUGraphIDType nodeId) = 0;
     virtual IWUGraphProgress * update() = 0;

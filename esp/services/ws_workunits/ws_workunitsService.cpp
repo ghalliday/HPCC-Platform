@@ -3356,7 +3356,8 @@ bool CWsWorkunitsEx::onWUProcessGraph(IEspContext &context,IEspWUProcessGraphReq
         ensureWsWorkunitAccess(context, *cw, SecAccess_Read);
 
         Owned <IConstWUGraph> graph = cw->getGraph(req.getName());
-        Owned <IPropertyTree> xgmml = graph->getXGMMLTree(true); // merge in graph progress information
+        bool includeLegacyTags = true;
+        Owned <IPropertyTree> xgmml = graph->getXGMMLTree(true, includeLegacyTags); // merge in graph progress information
 
         StringBuffer xml;
         resp.setTheGraph(toXML(xgmml.get(), xml).str());
@@ -3438,7 +3439,8 @@ bool CWsWorkunitsEx::onWUGetGraph(IEspContext& context, IEspWUGetGraphRequest& r
                     g->setFailed(true);
             }
 
-            Owned<IPropertyTree> xgmml = graph->getXGMMLTree(true);
+            bool includeLegacyTags = true;
+            Owned<IPropertyTree> xgmml = graph->getXGMMLTree(true, includeLegacyTags);
 
             // New functionality, if a subgraph id is specified and we only want to load the xgmml for that subgraph
             // then we need to conditionally pull a propertytree from the xgmml graph one and use that for the xgmml.

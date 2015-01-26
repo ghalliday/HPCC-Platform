@@ -1494,7 +1494,7 @@ EclGraph * EclAgent::loadGraph(const char * graphName, IConstWorkUnit * wu, ILoa
 {
     Owned<IConstWUGraph> wuGraph = wu->getGraph(graphName);
     assertex(wuGraph);
-    Owned<IPropertyTree> xgmml = wuGraph->getXGMMLTree(false);
+    Owned<IPropertyTree> xgmml = wuGraph->getXGMMLTree(false, false);
 
     bool probeEnabled = wuRead->getDebugValueBool("_Probe", false);
 
