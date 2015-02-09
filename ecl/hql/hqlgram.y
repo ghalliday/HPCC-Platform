@@ -361,6 +361,7 @@ static void eclsyntaxerror(HqlGram * parser, const char * s, short yystate, int 
   PROXYADDRESS
   PULL
   PULLED
+  QUANTILE
   QUOTE
   RANDOM
   RANGE
@@ -392,6 +393,7 @@ static void eclsyntaxerror(HqlGram * parser, const char * s, short yystate, int 
   RULE
   SAMPLE
   SCAN
+  SCORE
   SECTION
   SELF
   SEPARATOR
@@ -9274,6 +9276,12 @@ simpleDataSet
                         {
                             $$.setExpr(parser->processUserAggregate($1, $3, $5, $7, &$10, &$12, $14, $15), $1);
                         }
+    | QUANTILE '(' startTopLeftSeqFilter ',' expression ',' simpleSortList quantileOptions ')' endTopLeftFilter endSelectorSequence
+                        {
+                            parser->normalizeExpression($5, type_int, false);
+                            NeedToMoveTransformToArg3orchangeproduction;
+                            $$.setExpr(createDatasetF(no_quantile, $3.getExpr(), $5.getExpr(), $7.getExpr(), $8.getExpr(), NULL), $1);
+                        }
 /*
   //This may cause s/r problems with the attribute version if a dataset name clashes with a hint id
     | HINT '(' dataSet ','  hintList ')'
@@ -9351,6 +9359,36 @@ cogroupDataSetItem
                         }
     ;
 
+quantileOptions
+    :
+                        {
+                            $$.setNullExpr();
+                        }
+    | quantileOptions ',' quantileOption
+                        {
+                            $$.setExpr(createComma($1.getExpr(), $3.getExpr()), $1);
+                        }
+    ;
+
+quantileOption
+    : FIRST
+                        {
+                            $$.setExpr(createExprAttribute(firstAtom), $1);
+                        }
+    | LAST
+                        {
+                            $$.setExpr(createExprAttribute(lastAtom), $1);
+                        }
+    | transform
+    | SCORE '(' expression ')'
+                        {
+                            parser->normalizeExpression($3, type_int, false);
+                            $$.setExpr(createExprAttribute(scoreAtom, $3.getExpr()), $1);
+                        }
+    | skewAttribute
+    ;
+    
+    
 sideEffectOptions
     :
                         {
@@ -11240,7 +11278,27 @@ sortList
                         }
     ;
 
-sortItem
+
+simpleSortList
+    : simpleSortItem
+                        {
+                            parser->addListElement($1.getExpr());
+                            $$.clear();
+                        }
+    |   simpleSortList ',' simpleSortItem
+                        {
+                            parser->addListElement($3.getExpr());
+                            $$.clear();
+                        }
+    |   simpleSortList ';' simpleSortItem
+                        {
+                            parser->addListElement($3.getExpr());
+                            $$.clear();
+                        }
+    ;
+
+
+simpleSortItem
     : expression            
                         {
                             node_operator op = $1.getOperator();
@@ -11273,6 +11331,11 @@ sortItem
                             $$.setPosition($1);
                         }
     | dictionary
+    | expandedSortListByReference
+    ;
+    
+ sortItem
+    : simpleSortItem
     | FEW               {   $$.setExpr(createAttribute(fewAtom));   }
     | MANY              {   $$.setExpr(createAttribute(manyAtom));  }
     | MERGE             {   $$.setExpr(createAttribute(mergeAtom)); }
@@ -11347,7 +11410,6 @@ sortItem
                             $$.setPosition($1);
                         }
     | prefetchAttribute
-    | expandedSortListByReference
     ;
 
 expandedSortListByReference

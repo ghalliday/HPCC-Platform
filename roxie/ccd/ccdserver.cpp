@@ -8242,6 +8242,81 @@ IRoxieServerActivityFactory *createRoxieServerSortActivityFactory(unsigned _id, 
 
 //=====================================================================================================
 
+class CRoxieServerQuantileActivity : public CRoxieServerActivity
+{
+protected:
+    IHThorQuantileArg &helper;
+    ICompare *compare;
+    unsigned flags;
+    double skew;
+    unsigned numDivisions;
+    bool calculated;
+    unsigned idx;
+    bool eof;
+
+public:
+    CRoxieServerQuantileActivity(const IRoxieServerActivityFactory *_factory, IProbeManager *_probeManager, unsigned _flags)
+        : CRoxieServerActivity(_factory, _probeManager), helper((IHThorQuantileArg &)basehelper), flags(_flags)
+    {
+        compare = helper.queryCompare();
+        skew = 0.0;
+        numDivisions = 0;
+        calculated = false;
+        eof = false;
+        idx = 0;
+    }
+
+    virtual void start(unsigned parentExtractSize, const byte *parentExtract, bool paused)
+    {
+        skew = helper.getSkew();
+        numDivisions = helper.getNumDivisions();
+        calculated = false;
+        eof = false;
+        idx = 0;
+        CRoxieServerActivity::start(parentExtractSize, parentExtract, paused);
+    }
+
+    virtual const void * nextInGroup()
+    {
+        ActivityTimer t(totalCycles, timeActivities);
+        if (eof)
+            return NULL;
+        if (!calculated)
+        {
+            //create sorter
+            //read all data into a single array
+            //handle 0 entries, non dedup.
+            //calculate the total score.
+        }
+        return NULL;
+    }
+};
+
+class CRoxieServerQuantileActivityFactory : public CRoxieServerActivityFactory
+{
+    unsigned flags;
+
+public:
+    CRoxieServerQuantileActivityFactory(unsigned _id, unsigned _subgraphId, IQueryFactory &_queryFactory, HelperFactory *_helperFactory, ThorActivityKind _kind)
+        : CRoxieServerActivityFactory(_id, _subgraphId, _queryFactory, _helperFactory, _kind)
+    {
+        Owned<IHThorQuantileArg> quantileHelper = (IHThorQuantileArg *) helperFactory();
+        flags = quantileHelper->getFlags();
+    }
+
+    virtual IRoxieServerActivity *createActivity(IProbeManager *_probeManager) const
+    {
+        return new CRoxieServerQuantileActivity(this, _probeManager, flags);
+    }
+};
+
+IRoxieServerActivityFactory *createRoxieServerQuantileActivityFactory(unsigned _id, unsigned _subgraphId, IQueryFactory &_queryFactory, HelperFactory *_helperFactory, ThorActivityKind _kind)
+{
+    return new CRoxieServerQuantileActivityFactory(_id, _subgraphId, _queryFactory, _helperFactory, _kind);
+}
+
+//=====================================================================================================
+
 class CRoxieServerSortedActivity : public CRoxieServerActivity
 {
     IHThorSortedArg &helper;

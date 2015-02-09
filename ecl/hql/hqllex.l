@@ -847,6 +847,7 @@ PROJECT             { RETURNSYM(PROJECT); }
 PROXYADDRESS        { RETURNSYM(PROXYADDRESS); }
 PULL                { RETURNSYM(PULL); }
 PULLED              { RETURNSYM(PULLED); }
+QUANTILE            { RETURNSYM(QUANTILE); }
 QUOTE               { RETURNSYM(QUOTE); }
 RANGE               { RETURNSYM(RANGE); }
 RANK                { RETURNSYM(RANK); }
@@ -880,6 +881,7 @@ ROWDIFF             { RETURNSYM(ROWDIFF); }
 RULE                { RETURNSYM(RULE); }
 SAMPLE              { RETURNSYM(SAMPLE); }
 SCAN                { RETURNSYM(SCAN); }
+SCORE               { RETURNSYM(SCORE); }
 SECTION             { RETURNSYM(SECTION); }
 SELF                { RETURNSYM(SELF); }
 SEPARATOR           { RETURNSYM(SEPARATOR); }
