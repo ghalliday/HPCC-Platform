@@ -67,6 +67,15 @@ static void setHashResources(IHqlExpression * expr, CResources & resources, cons
     resources.set(RESslavememory, memneeded).set(REShashdist, 1);
 }
 
+static const char * foreignPrefix = "~foreign::";
+static bool isForeignFilename(IHqlExpression * filename)
+{
+    StringBuffer text;
+    getStringValue(text, filename);
+    if (text.length() > strlen(foreignPrefix))
+        return strnicmp(text.str(), foreignPrefix, strlen(foreignPrefix)) == 0;
+    return false;
+}
 
 //MORE: Use a single function to map an hqlexpression to an activity kind.
 void getResources(IHqlExpression * expr, CResources & resources, const CResourceOptions & options)
@@ -1592,6 +1601,8 @@ bool ResourcerInfo::expandRatherThanSpill(bool noteOtherSpills)
         {
         case no_table:
             {
+                if (isForeignFilename(expr->queryChild(0)))
+                    return false;
                 //This is only executed for hthor/thor.  Roxie has used expandRatherThanSplit().
                 //We need to balance the saving from reading reduced data in the other branches with the cost of
                 //writing the spill file to disk.
@@ -1630,7 +1641,10 @@ bool ResourcerInfo::expandRatherThanSpill(bool noteOtherSpills)
         case no_getgraphresult:
             return !expr->hasAttribute(_streaming_Atom);         // we must not duplicate streaming inputs!
         case no_keyindex:
+            throwUnexpected();
         case no_newkeyindex:
+            if (isForeignFilename(expr->queryChild(3)))
+                return false;
             if (!isFiltered)
                 return true;
             return options->cloneFilteredIndex;
@@ -1735,8 +1749,10 @@ bool ResourcerInfo::expandRatherThanSplit()
             return true;
         switch (expr->getOperator())
         {
-        case no_keyindex:
         case no_newkeyindex:
+            if (isForeignFilename(expr->queryChild(3)))
+                return false;
+            return true;
         case no_rowset:
         case no_getgraphloopresultset:
             return true;
