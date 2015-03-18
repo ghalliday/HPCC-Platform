@@ -736,6 +736,7 @@ protected:
     bool isVirtualFunction(DefineIdSt * defineid, const attribute & errpos);
     
     IHqlExpression * processSortList(const attribute & errpos, node_operator op, IHqlExpression * dataset, HqlExprArray & items, OwnedHqlExpr *joinedClause, OwnedHqlExpr *attributes);
+    IHqlExpression * processSortList(const attribute & errpos, node_operator op, IHqlExpression * dataset, OwnedHqlExpr * joinedClause, OwnedHqlExpr * attributes);
     void expandSortedAsList(HqlExprArray & args);
     bool expandWholeAndExcept(IHqlExpression * dataset, const attribute & errpos, HqlExprArray & parms);
     void expandWholeAndExcept(IHqlExpression * dataset, attribute & a);

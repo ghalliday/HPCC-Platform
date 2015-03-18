@@ -9276,11 +9276,30 @@ simpleDataSet
                         {
                             $$.setExpr(parser->processUserAggregate($1, $3, $5, $7, &$10, &$12, $14, $15), $1);
                         }
-    | QUANTILE '(' startTopLeftSeqFilter ',' expression ',' simpleSortList quantileOptions ')' endTopLeftFilter endSelectorSequence
+    | QUANTILE '(' startTopLeftSeqFilter ',' expression ',' sortListExpr beginCounterScope ',' transform optQuantileOptions endCounterScope ')' endTopLeftFilter endSelectorSequence
                         {
                             parser->normalizeExpression($5, type_int, false);
-                            NeedToMoveTransformToArg3orchangeproduction;
-                            $$.setExpr(createDatasetF(no_quantile, $3.getExpr(), $5.getExpr(), $7.getExpr(), $8.getExpr(), NULL), $1);
+                            OwnedHqlExpr ds = $3.getExpr();
+                            OwnedHqlExpr sortlist = $7.getExpr();
+                            OwnedHqlExpr transform = $10.getExpr();
+                            OwnedHqlExpr options = $11.getExpr();
+                            OwnedHqlExpr counter = $12.getExpr();
+                            if (counter)
+                                options.setown(createComma(options.getClear(), createAttribute(_countProject_Atom, counter.getClear())));
+                            OwnedHqlExpr selSeq = $15.getExpr(); 
+                            $$.setExpr(createDatasetF(no_quantile, ds.getClear(), $5.getExpr(), sortlist.getClear(), transform.getClear(), selSeq.getClear(), options.getClear(), NULL), $1);
+                        }
+    | QUANTILE '(' startTopLeftSeqFilter ',' expression ',' sortListExpr beginCounterScope optQuantileOptions endCounterScope ')' endTopLeftFilter endSelectorSequence
+                        {
+                            parser->normalizeExpression($5, type_int, false);
+                            OwnedHqlExpr ds = $3.getExpr();
+                            OwnedHqlExpr sortlist = $7.getExpr();
+                            OwnedHqlExpr options = $9.getExpr();
+                            OwnedHqlExpr counter = $10.getExpr();
+                            OwnedHqlExpr selSeq = $13.getExpr(); 
+                            OwnedHqlExpr leftSelect = createSelector(no_left, ds, selSeq);
+                            OwnedHqlExpr transform = parser->createDefaultAssignTransform(ds->queryRecord(), leftSelect, $1);
+                            $$.setExpr(createDatasetF(no_quantile, ds.getClear(), $5.getExpr(), sortlist.getClear(), transform.getClear(), selSeq.getClear(), options.getClear(), NULL), $1);
                         }
 /*
   //This may cause s/r problems with the attribute version if a dataset name clashes with a hint id
@@ -9359,36 +9378,6 @@ cogroupDataSetItem
                         }
     ;
 
-quantileOptions
-    :
-                        {
-                            $$.setNullExpr();
-                        }
-    | quantileOptions ',' quantileOption
-                        {
-                            $$.setExpr(createComma($1.getExpr(), $3.getExpr()), $1);
-                        }
-    ;
-
-quantileOption
-    : FIRST
-                        {
-                            $$.setExpr(createExprAttribute(firstAtom), $1);
-                        }
-    | LAST
-                        {
-                            $$.setExpr(createExprAttribute(lastAtom), $1);
-                        }
-    | transform
-    | SCORE '(' expression ')'
-                        {
-                            parser->normalizeExpression($3, type_int, false);
-                            $$.setExpr(createExprAttribute(scoreAtom, $3.getExpr()), $1);
-                        }
-    | skewAttribute
-    ;
-    
-    
 sideEffectOptions
     :
                         {
@@ -9410,6 +9399,46 @@ sideEffectOptions
                         {
                             $$.setExpr(createAttribute(parallelAtom), $2);
                         }
+    ;
+
+optQuantileOptions
+    :
+                        {
+                            $$.setNullExpr();
+                        }
+    | quantileOptions
+    ;
+    
+quantileOptions
+    : ',' quantileOption
+                        {
+                            $$.inherit($2);
+                        }
+    | quantileOptions ',' quantileOption
+                        {
+                            $$.setExpr(createComma($1.getExpr(), $3.getExpr()), $1);
+                        }
+    ;
+
+quantileOption
+    : FIRST
+                        {
+                            $$.setExpr(createExprAttribute(firstAtom), $1);
+                        }
+    | LAST
+                        {
+                            $$.setExpr(createExprAttribute(lastAtom), $1);
+                        }
+    | SCORE '(' expression ')'
+                        {
+                            parser->normalizeExpression($3, type_int, false);
+                            $$.setExpr(createExprAttribute(scoreAtom, $3.getExpr()), $1);
+                        }
+    | DEDUP
+                        {
+                            $$.setExpr(createExprAttribute(dedupAtom), $1);
+                        }
+    | skewAttribute
     ;
 
 limitOptions
@@ -11273,25 +11302,6 @@ sortList
                         }
     |   sortList ';' sortItem
                         {   
-                            parser->addListElement($3.getExpr());
-                            $$.clear();
-                        }
-    ;
-
-
-simpleSortList
-    : simpleSortItem
-                        {
-                            parser->addListElement($1.getExpr());
-                            $$.clear();
-                        }
-    |   simpleSortList ',' simpleSortItem
-                        {
-                            parser->addListElement($3.getExpr());
-                            $$.clear();
-                        }
-    |   simpleSortList ';' simpleSortItem
-                        {
                             parser->addListElement($3.getExpr());
                             $$.clear();
                         }

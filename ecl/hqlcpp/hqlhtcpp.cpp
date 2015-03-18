@@ -6494,7 +6494,7 @@ ABoundActivity * HqlCppTranslator::buildActivity(BuildCtx & ctx, IHqlExpression 
                 result = doBuildActivityCase(ctx, expr, isRoot);
                 break;
             case no_quantile:
-                result = doBuildActivityQuantile(ctx, expr, isRoot);
+                result = doBuildActivityQuantile(ctx, expr);
                 break;
             case no_chooseds:
             case no_choose:

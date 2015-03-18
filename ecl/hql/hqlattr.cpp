@@ -2820,7 +2820,7 @@ IHqlExpression * calcRowInformation(IHqlExpression * expr)
     case no_quantile:
         {
             __int64 limit = getIntValue(expr->queryChild(1), 0);
-            if ((limit != 0) && !isGrouped(expr) && !isLocalActivity(expr))
+            if ((limit > 0) && !isGrouped(expr) && !isLocalActivity(expr))
             {
                 if (expr->hasAttribute(firstAtom))
                     limit++;
@@ -2829,9 +2829,9 @@ IHqlExpression * calcRowInformation(IHqlExpression * expr)
 
                 IHqlExpression * transform = queryNewColumnProvider(expr);
                 if (transformContainsSkip(transform))
-                    info.setRange(0,limit);
+                    info.setRange(0,limit-1);
                 else
-                    info.setN(limit);
+                    info.setN(limit-1);
             }
             else
                 info.setUnknown(RCMfew);

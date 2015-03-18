@@ -5767,6 +5767,14 @@ IHqlExpression * HqlGram::processSortList(const attribute & errpos, node_operato
     return NULL;
 }
 
+
+IHqlExpression * HqlGram::processSortList(const attribute & errpos, node_operator op, IHqlExpression * dataset, OwnedHqlExpr * joinedClause, OwnedHqlExpr * attributes)
+{
+    HqlExprArray sortItems;
+    endList(sortItems);
+    return processSortList(errpos, op, dataset, sortItems, joinedClause, attributes);
+}
+
 IHqlExpression * HqlGram::createDistributeCond(IHqlExpression * leftDs, IHqlExpression * rightDs, const attribute & err, const attribute & seqAttr)
 {
     IHqlSimpleScope * leftScope = leftDs->queryRecord()->querySimpleScope();
