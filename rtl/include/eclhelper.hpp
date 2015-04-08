@@ -1322,18 +1322,29 @@ struct IHThorSelectNArg : public IHThorArg
 
 enum
 {
-    TXFfirst            = 0x0001,      // default flags is zero
+    TXFfirst            = 0x0001,       // default flags is zero
     TXFlast             = 0x0002,
     TXFsorted           = 0x0004,
     TXFlocalsorted      = 0x0008,
+    TXFhasscore         = 0x0010,
+    TXFhasrange         = 0x0020,
+    TXFhasskew          = 0x0040,
+    TXFdedup            = 0x0080,
+    TXFunstable         = 0x0100,
+    TXFvariabledivisions= 0x0200,       // num divisions is not a constant
+    TXFneedtransform    = 0x0400,       // if not set the records are returned as-is
 };
 
 struct IHThorQuantileArg : public IHThorArg
 {
     virtual unsigned getFlags() = 0;
+    virtual unsigned __int64 getNumDivisions() = 0;
     virtual double getSkew() = 0;
     virtual ICompare * queryCompare() = 0;
-    virtual unsigned getNumDivisions() = 0;
+    virtual size32_t createDefault(ARowBuilder & rowBuilder) = 0;
+    virtual size32_t transform(ARowBuilder & rowBuilder, const void * _left, unsigned __int64 _counter) = 0;
+    virtual unsigned __int64 getScore(const void * _left) = 0;
+    virtual void getRange(bool & isAll, size32_t & tlen, void * & tgt) = 0;
 };
 
 struct IHThorCombineArg : public IHThorArg

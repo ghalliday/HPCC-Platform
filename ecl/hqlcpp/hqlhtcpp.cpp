@@ -16427,31 +16427,79 @@ ABoundActivity * HqlCppTranslator::doBuildActivitySort(BuildCtx & ctx, IHqlExpre
 ABoundActivity * HqlCppTranslator::doBuildActivityQuantile(BuildCtx & ctx, IHqlExpression * expr)
 {
     IHqlExpression * dataset = expr->queryChild(0);
-    IHqlExpression * number = expr->queryChild(1);
-    IHqlExpression * sortlist = expr->queryChild(2);
-    IHqlExpression * transform = expr->queryChild(3);
-
     Owned<ABoundActivity> boundDataset = buildCachedActivity(ctx, dataset);
 
     Owned<ActivityInstance> instance = new ActivityInstance(*this, ctx, TAKquantile, expr, "Quantile");
     buildActivityFramework(instance);
     buildInstancePrefix(instance);
 
+    IHqlExpression * number = expr->queryChild(1);
+    IHqlExpression * sortlist = expr->queryChild(2);
+    IHqlExpression * transform = expr->queryChild(3);
+    IHqlExpression * score = queryAttributeChild(expr, scoreAtom, 0);
+    IHqlExpression * skew = queryAttributeChild(expr, skewAtom, 0);
+    IHqlExpression * dedupAttr = expr->queryAttribute(dedupAtom);
+    IHqlExpression * range = queryAttributeChild(expr, rangeAtom, 0);
+
     instance->classctx.addQuotedLiteral("virtual ICompare * queryCompare() { return &compare; }");
 
     buildCompareClass(instance->nestedctx, "compare", sortlist, DatasetReference(dataset));
 
-    doBuildUnsignedFunction(instance->startctx, "getNumDivisions", number);
+    doBuildUnsigned64Function(instance->startctx, "getNumDivisions", number);
 
-    IHqlExpression * skew = queryAttributeChild(expr, skewAtom, 0);
     if (skew)
         doBuildFunction(instance->startctx, doubleType, "getSkew", skew);
+
+    if (range)
+    {
+        Owned<ITypeInfo> setType = makeSetType(makeIntType(8, false));
+        doBuildFunction(instance->startctx, setType, "getRange", range);
+    }
+
+    if (score)
+    {
+        BuildCtx funcctx(instance->startctx);
+        funcctx.addQuotedCompound("virtual unsigned __int64 getScore(const void * _self)");
+        funcctx.addQuotedLiteral("unsigned char * self = (unsigned char *) _self;");
+        bindTableCursor(funcctx, dataset, "self");
+        buildReturn(funcctx, score);
+    }
+
+    IHqlExpression * counter = queryAttributeChild(expr, _countProject_Atom, 0);
+    IHqlExpression * selSeq = querySelSeq(expr);
+    {
+        BuildCtx funcctx(instance->startctx);
+        funcctx.addQuotedCompound("virtual size32_t transform(ARowBuilder & crSelf, const void * _left, unsigned __int64 counter)");
+        if (counter)
+            associateCounter(funcctx, counter, "counter");
+        buildTransformBody(funcctx, transform, dataset, NULL, instance->dataset, selSeq);
+    }
+
+    buildClearRecordMember(instance->createctx, "", dataset);
 
     StringBuffer flags;
     if (expr->hasAttribute(firstAtom))
         flags.append("|TXFfirst");
     if (expr->hasAttribute(lastAtom))
         flags.append("|TXFlast");
+    if (isAlreadySorted(dataset, sortlist, false, false))
+        flags.append("|TXFsorted|TXFlocalsorted");
+    else if (isAlreadySorted(dataset, sortlist, true, false))
+        flags.append("|TXFlocalsorted");
+    if (score)
+        flags.append("|TXFhasscore");
+    if (range)
+        flags.append("|TXFhasrange");
+    if (skew)
+        flags.append("|TXFhasskew");
+    if (dedupAttr)
+        flags.append("|TXFdedup");
+    if (expr->hasAttribute(unstableAtom))
+        flags.append("|TXFunstable");
+    if (!number->queryValue())
+        flags.append("|TXFvariabledivisions");
+    if (!transformReturnsSide(expr, no_left, 0))
+        flags.append("|TXFneedtransform");
 
     if (flags.length())
         instance->classctx.addQuotedF("virtual unsigned getFlags() { return %s; }", flags.str()+1);

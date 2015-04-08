@@ -15,13 +15,13 @@
     limitations under the License.
 ############################################################################## */
 
-rawRec := { unsigned id; };
+rawRecord := { unsigned id; };
 
-quantRec := RECORD(rawRec)
+quantRec := RECORD(rawRecord)
     UNSIGNED4 quant;
 END;
 
-rawRec createRaw(UNSIGNED id) := TRANSFORM
+rawRecord createRaw(UNSIGNED id) := TRANSFORM
     SELF.id := id;
 END;
 
@@ -30,13 +30,13 @@ inRecord := RECORD
     DATASET(rawRecord) ids;
 END;
 
-quantRec createQuantile(rawRec l, UNSIGNED quant) := TRANSFORM
+quantRec createQuantile(rawRecord l, UNSIGNED quant) := TRANSFORM
     SELF := l;
     SELF.quant := quant;
 END;
 
 createDataset(unsigned cnt, integer scale, unsigned delta = 0) := FUNCTION
-    RETURN NOFOLD(SORT(DATASET(cnt, createRaw((COUNTER-1) * scale + delta), DISTRIBUTED), HASH(id));
+    RETURN NOFOLD(SORT(DATASET(cnt, createRaw((COUNTER-1) * scale + delta), DISTRIBUTED), HASH(id)));
 END;
 
 inRecord createIn(unsigned rid, unsigned cnt, integer scale, unsigned delta) := TRANSFORM
@@ -48,8 +48,8 @@ END;
 inDs := DATASET([
             createIn(1, 10, 1, 1),
             createIn(2, 10, 0.3, 1),
-            createIn(3, 10, 15, 1)
-            createIn(4, 32767, 1, 1)
+            createIn(3, 10, 15, 1),
+            createIn(4, 32767, 1, 1),
             createIn(5, 99, 0.03, 1)
             ]);
 

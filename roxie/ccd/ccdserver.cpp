@@ -8250,8 +8250,11 @@ protected:
     unsigned flags;
     double skew;
     unsigned numDivisions;
-    bool calculated;
     unsigned idx;
+    bool rangeIsAll;
+    size32_t rangeSize;
+    rtlDataAttr rangeValues;
+    bool calculated;
     bool eof;
 
 public:
@@ -8264,12 +8267,20 @@ public:
         calculated = false;
         eof = false;
         idx = 0;
+        rangeIsAll = true;
+        rangeSize = 0;
     }
 
     virtual void start(unsigned parentExtractSize, const byte *parentExtract, bool paused)
     {
         skew = helper.getSkew();
         numDivisions = helper.getNumDivisions();
+        helper.getRange(rangeIsAll, rangeSize, rangeValues.refdata());
+        if (rangeSize)
+        {
+            //Sort the range items into order and remove any duplicates
+            //::qsort (rangeValue.get(),);
+        }
         calculated = false;
         eof = false;
         idx = 0;

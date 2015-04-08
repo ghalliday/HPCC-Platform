@@ -27,6 +27,7 @@ END;
 
 inRecord := RECORD
     UNSIGNED rid;
+    UNSIGNED numParts;
     DATASET(rawRecord) ids;
 END;
 
@@ -39,25 +40,24 @@ createDataset(unsigned cnt, integer scale, unsigned delta = 0) := FUNCTION
     RETURN NOFOLD(SORT(DATASET(cnt, createRaw((COUNTER-1) * scale + delta), DISTRIBUTED), HASH(id)));
 END;
 
-inRecord createIn(unsigned rid, unsigned cnt, integer scale, unsigned delta) := TRANSFORM
+inRecord createIn(unsigned rid, unsigned numParts, unsigned cnt, integer scale, unsigned delta) := TRANSFORM
     SELF.rid := rid;
+    SELF.numParts := numParts; 
     SELF.ids := createDataset(cnt, scale, delta);
 END;
 
 
 inDs := DATASET([
-            createIn(1, 10, 1, 1),
-            createIn(2, 10, 0.3, 1),
-            createIn(3, 10, 15, 1),
-            createIn(4, 32767, 1, 1),
-            createIn(5, 99, 0.03, 1)
+            createIn(1, 2, 10, 1, 1),
+            createIn(2, 3, 10, 0.3, 1),
+            createIn(3, 5, 10, 15, 1),
+            createIn(4, 3, 32767, 1, 1),
+            createIn(5, 7, 99, 0.03, 1)
             ]);
 
 //Check quantile inside a child query
-selectMedian(dataset(rawRecord) inDs) := QUANTILE(inDs, 2, { id });
-
 inRecord t(inRecord l) := TRANSFORM
-    SELF.ids := selectMedian(l.ids);
+    SELF.ids := QUANTILE(l.ids, 1000, { id }, RANGE([l.numParts]));
     SELF := l;
 END;
 

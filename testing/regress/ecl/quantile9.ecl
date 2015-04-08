@@ -15,34 +15,34 @@
     limitations under the License.
 ############################################################################## */
 
-rawRec := { unsigned id; };
+rawRecord := { unsigned id; };
 
-quantRec := RECORD(rawRec)
+quantRec := RECORD(rawRecord)
     UNSIGNED4 quant;
 END;
 
-rawRec createRaw(UNSIGNED id) := TRANSFORM
+rawRecord createRaw(UNSIGNED id) := TRANSFORM
     SELF.id := id;
 END;
 
 inRecord := RECORD
     UNSIGNED rid;
-    UNSIGNED numSplits;
+    UNSIGNED numParts;
     DATASET(rawRecord) ids;
 END;
 
-quantRec createQuantile(rawRec l, UNSIGNED quant) := TRANSFORM
+quantRec createQuantile(rawRecord l, UNSIGNED quant) := TRANSFORM
     SELF := l;
     SELF.quant := quant;
 END;
 
 createDataset(unsigned cnt, integer scale, unsigned delta = 0) := FUNCTION
-    RETURN NOFOLD(SORT(DATASET(cnt, createRaw((COUNTER-1) * scale + delta), DISTRIBUTED), HASH(id));
+    RETURN NOFOLD(SORT(DATASET(cnt, createRaw((COUNTER-1) * scale + delta), DISTRIBUTED), HASH(id)));
 END;
 
 inRecord createIn(unsigned rid, unsigned numParts, unsigned cnt, integer scale, unsigned delta) := TRANSFORM
     SELF.rid := rid;
-    SELF.numParts = numParts; 
+    SELF.numParts := numParts;
     SELF.ids := createDataset(cnt, scale, delta);
 END;
 
@@ -50,13 +50,13 @@ END;
 inDs := DATASET([
             createIn(1, 2, 10, 1, 1),
             createIn(2, 3, 10, 0.3, 1),
-            createIn(3, 5, 10, 15, 1)
-            createIn(4, 3, 32767, 1, 1)
+            createIn(3, 5, 10, 15, 1),
+            createIn(4, 3, 32767, 1, 1),
             createIn(5, 7, 99, 0.03, 1)
             ]);
 
 //Check quantile inside a child query
-inRec t(inRec l) := TRANSFORM
+inRecord t(inRecord l) := TRANSFORM
     SELF.ids := QUANTILE(l.ids, l.numParts, { id });
     SELF := l;
 END;

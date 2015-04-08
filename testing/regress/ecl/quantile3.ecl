@@ -36,7 +36,7 @@ END;
 show(virtual dataset({ unsigned id }) ds) := OUTPUT(SORT(ds, {id}));
 
 nullDataset := DATASET([], rawRec);
-dupsDataset := createDataset(47, 0, 0)); 
+dupsDataset := createDataset(47, 0, 0);
 
 show(QUANTILE(dupsDataset, 2, {id}));    // 0
 show(QUANTILE(dupsDataset, 3, {id}));    // 0,0

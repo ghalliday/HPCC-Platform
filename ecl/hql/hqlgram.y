@@ -9438,6 +9438,11 @@ quantileOption
                         {
                             $$.setExpr(createExprAttribute(dedupAtom), $1);
                         }
+    | RANGE '(' expression ')'
+                        {
+                            parser->normalizeExpression($3, type_set, false);
+                            $$.setExpr(createExprAttribute(rangeAtom, $3.getExpr()), $1);
+                        }
     | skewAttribute
     ;
 
