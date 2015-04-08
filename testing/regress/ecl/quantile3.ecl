@@ -40,4 +40,4 @@ dupsDataset := createDataset(47, 0, 0);
 
 show(QUANTILE(dupsDataset, 2, {id}));    // 0
 show(QUANTILE(dupsDataset, 3, {id}));    // 0,0
-show(QUANTILE(dupsDataset, 3, {id}, DEDUP));    // 0
+show(QUANTILE(dupsDataset, 3, {id}, DEDUP));    // 0,0  - not it does not remove duplicate entries, it prevents returning duplicate rows. 

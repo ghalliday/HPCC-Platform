@@ -7395,6 +7395,17 @@ interface ISortAlgorithm : extends IInterface
     virtual void prepare(IRoxieInput *input) = 0;
     virtual const void *next() = 0;
     virtual void reset() = 0;
+    //Default implementation - can be overridden
+    virtual void getSortedGroup(ConstPointerArray & result)
+    {
+        for (;;)
+        {
+            const void * row = next();
+            if (!row)
+                return;
+            result.append(row);
+        }
+    }
 };
 
 class CQuickSortAlgorithm : implements CInterfaceOf<ISortAlgorithm>
@@ -7430,6 +7441,12 @@ public:
             ReleaseRoxieRow(sorted.item(curIndex++));
         curIndex = 0;
         sorted.kill();
+    }
+
+    virtual void getSortedGroup(ConstPointerArray & result)
+    {
+        sorted.swapWith(result);
+        curIndex = 0;
     }
 };
 
@@ -8245,17 +8262,26 @@ IRoxieServerActivityFactory *createRoxieServerSortActivityFactory(unsigned _id, 
 class CRoxieServerQuantileActivity : public CRoxieServerActivity
 {
 protected:
+    Owned<ISortAlgorithm> sorter;
     IHThorQuantileArg &helper;
+    ConstPointerArray sorted;
     ICompare *compare;
     unsigned flags;
     double skew;
     unsigned numDivisions;
-    unsigned idx;
     bool rangeIsAll;
     size32_t rangeSize;
     rtlDataAttr rangeValues;
     bool calculated;
+    bool processedAny;
+    bool anyThisGroup;
     bool eof;
+    unsigned curQuantile;
+    unsigned curIndex;
+    unsigned curIndexExtra;
+    unsigned skipSize;
+    unsigned skipExtra;
+    unsigned prevIndex;
 
 public:
     CRoxieServerQuantileActivity(const IRoxieServerActivityFactory *_factory, IProbeManager *_probeManager, unsigned _flags)
@@ -8265,16 +8291,39 @@ public:
         skew = 0.0;
         numDivisions = 0;
         calculated = false;
+        processedAny = false;
+        anyThisGroup = false;
         eof = false;
-        idx = 0;
         rangeIsAll = true;
         rangeSize = 0;
+        curQuantile = 0;
+        prevIndex = 0;
+        curIndex = 0;
+        curIndexExtra = 0;
+        skipSize = 0;
+        skipExtra = 0;
+        if (flags & TQFunstable)
+            sorter.setown(new CQuickSortAlgorithm(compare));
+        else
+            sorter.setown(new CStableQuickSortAlgorithm(compare));
+    }
+
+    virtual void reset()
+    {
+        sorter->reset();
+        calculated = false;
+        processedAny = false;
+        anyThisGroup = false;
+        CRoxieServerActivity::reset();
     }
 
     virtual void start(unsigned parentExtractSize, const byte *parentExtract, bool paused)
     {
+        CRoxieServerActivity::start(parentExtractSize, parentExtract, paused);
         skew = helper.getSkew();
         numDivisions = helper.getNumDivisions();
+        if (numDivisions < 1)
+            numDivisions = 1;
         helper.getRange(rangeIsAll, rangeSize, rangeValues.refdata());
         if (rangeSize)
         {
@@ -8282,24 +8331,128 @@ public:
             //::qsort (rangeValue.get(),);
         }
         calculated = false;
+        processedAny = false;
+        anyThisGroup = false;
         eof = false;
-        idx = 0;
-        CRoxieServerActivity::start(parentExtractSize, parentExtract, paused);
+        curQuantile = 0;
+        prevIndex = 0;
+        curIndex = 0;
+        curIndexExtra = 0;
     }
+
+    virtual bool needsAllocator() const { return true; }
 
     virtual const void * nextInGroup()
     {
         ActivityTimer t(totalCycles, timeActivities);
         if (eof)
             return NULL;
-        if (!calculated)
+
+        const void * ret = NULL;
+        for(;;)
         {
-            //create sorter
-            //read all data into a single array
-            //handle 0 entries, non dedup.
-            //calculate the total score.
+            if (!calculated)
+            {
+                sorter->prepare(input);
+                sorter->getSortedGroup(sorted);
+
+                if (sorted.ordinality() == 0)
+                {
+                    if (processedAny)
+                    {
+                        eof = true;
+                        return NULL;
+                    }
+
+                    //Unusual case 0 rows - add a default row instead
+                    RtlDynamicRowBuilder rowBuilder(rowAllocator);
+                    size32_t thisSize = helper.createDefault(rowBuilder);
+                    sorted.append(rowBuilder.finalizeRowClear(thisSize));
+                }
+
+                calculated = true;
+                processedAny = true;
+                curQuantile = 0;
+                curIndex = 0;
+                curIndexExtra = (numDivisions-1) / 2;   // to ensure correctly rounded up
+                prevIndex = curIndex-1; // Ensure it doesn't match
+                skipSize = (sorted.ordinality() / numDivisions);
+                skipExtra = (sorted.ordinality() % numDivisions);
+            }
+
+            if (isQuantileIncluded(curQuantile))
+            {
+                if (!(flags & TQFdedup) || (prevIndex != curIndex))
+                {
+                    const void * lhs = sorted.item(curIndex);
+                    if (flags & TQFneedtransform)
+                    {
+                        unsigned outSize;
+                        RtlDynamicRowBuilder rowBuilder(rowAllocator);
+                        try
+                        {
+                            outSize = helper.transform(rowBuilder, lhs, curQuantile);
+                        }
+                        catch (IException *E)
+                        {
+                            throw makeWrappedException(E);
+                        }
+
+                        if (outSize)
+                            ret = rowBuilder.finalizeRowClear(outSize);
+                    }
+                    else
+                    {
+                        LinkRoxieRow(lhs);
+                        ret = lhs;
+                    }
+                    prevIndex = curIndex; // even if output was skipped?
+                }
+            }
+
+            curIndex += skipSize;
+            curIndexExtra += skipExtra;
+            if (curIndexExtra >= numDivisions)
+            {
+                curIndex++;
+                curIndexExtra -= numDivisions;
+            }
+            //Ensure the current index always stays valid.
+            if (curIndex >= sorted.ordinality())
+                curIndex = sorted.ordinality()-1;
+            curQuantile++;
+            if (curQuantile > numDivisions)
+            {
+                sorted.kill();
+                sorter->reset();
+                calculated = false; // ready for next group
+            }
+
+            if (ret)
+            {
+                anyThisGroup = true;
+                processed++;
+                return ret;
+            }
+
+            if (curQuantile > numDivisions)
+            {
+                if (anyThisGroup)
+                    return NULL;
+            }
         }
-        return NULL;
+    }
+
+    bool isQuantileIncluded(unsigned quantile) const
+    {
+        if (quantile == 0)
+            return (flags & TQFfirst) != 0;
+        if (quantile == numDivisions)
+            return (flags & TQFlast) != 0;
+        if (rangeIsAll)
+            return true;
+        //MORE Test range
+        return true;
     }
 };
 

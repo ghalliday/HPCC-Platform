@@ -16479,27 +16479,27 @@ ABoundActivity * HqlCppTranslator::doBuildActivityQuantile(BuildCtx & ctx, IHqlE
 
     StringBuffer flags;
     if (expr->hasAttribute(firstAtom))
-        flags.append("|TXFfirst");
+        flags.append("|TQFfirst");
     if (expr->hasAttribute(lastAtom))
-        flags.append("|TXFlast");
+        flags.append("|TQFlast");
     if (isAlreadySorted(dataset, sortlist, false, false))
-        flags.append("|TXFsorted|TXFlocalsorted");
+        flags.append("|TQFsorted|TQFlocalsorted");
     else if (isAlreadySorted(dataset, sortlist, true, false))
-        flags.append("|TXFlocalsorted");
+        flags.append("|TQFlocalsorted");
     if (score)
-        flags.append("|TXFhasscore");
+        flags.append("|TQFhasscore");
     if (range)
-        flags.append("|TXFhasrange");
+        flags.append("|TQFhasrange");
     if (skew)
-        flags.append("|TXFhasskew");
+        flags.append("|TQFhasskew");
     if (dedupAttr)
-        flags.append("|TXFdedup");
+        flags.append("|TQFdedup");
     if (expr->hasAttribute(unstableAtom))
-        flags.append("|TXFunstable");
+        flags.append("|TQFunstable");
     if (!number->queryValue())
-        flags.append("|TXFvariabledivisions");
+        flags.append("|TQFvariabledivisions");
     if (!transformReturnsSide(expr, no_left, 0))
-        flags.append("|TXFneedtransform");
+        flags.append("|TQFneedtransform");
 
     if (flags.length())
         instance->classctx.addQuotedF("virtual unsigned getFlags() { return %s; }", flags.str()+1);

@@ -1322,17 +1322,17 @@ struct IHThorSelectNArg : public IHThorArg
 
 enum
 {
-    TXFfirst            = 0x0001,       // default flags is zero
-    TXFlast             = 0x0002,
-    TXFsorted           = 0x0004,
-    TXFlocalsorted      = 0x0008,
-    TXFhasscore         = 0x0010,
-    TXFhasrange         = 0x0020,
-    TXFhasskew          = 0x0040,
-    TXFdedup            = 0x0080,
-    TXFunstable         = 0x0100,
-    TXFvariabledivisions= 0x0200,       // num divisions is not a constant
-    TXFneedtransform    = 0x0400,       // if not set the records are returned as-is
+    TQFfirst            = 0x0001,       // default flags is zero
+    TQFlast             = 0x0002,
+    TQFsorted           = 0x0004,
+    TQFlocalsorted      = 0x0008,
+    TQFhasscore         = 0x0010,
+    TQFhasrange         = 0x0020,
+    TQFhasskew          = 0x0040,
+    TQFdedup            = 0x0080,
+    TQFunstable         = 0x0100,
+    TQFvariabledivisions= 0x0200,       // num divisions is not a constant
+    TQFneedtransform    = 0x0400,       // if not set the records are returned as-is
 };
 
 struct IHThorQuantileArg : public IHThorArg
