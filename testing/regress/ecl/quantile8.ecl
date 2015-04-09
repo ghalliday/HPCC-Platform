@@ -15,11 +15,12 @@
     limitations under the License.
 ############################################################################## */
 
+//version scale=32
 //version scale=0x400
 //version scale=0x10000
 //version scale=0x100000
 //version scale=0x1000000
-//version scale=0x10000000
+//xversion scale=0x10000000
 
 import ^ as root;
 scale := #IFDEFINED(root.scale, 1024);
@@ -50,9 +51,8 @@ calcId(integer cnt, integer delta, unsigned c) := FUNCTION
 END;
     
 createDataset(integer cnt, integer delta) := FUNCTION
-    prime := 181;
     RETURN DATASET(cnt, createRaw(calcId(cnt, delta, COUNTER)), DISTRIBUTED);
 END;
 
-inDs := createDataset(scale*2+1, scale);
+inDs := createDataset(scale*2, scale);
 output(QUANTILE(inDs, 64, { id }, RANGE([2,62])));

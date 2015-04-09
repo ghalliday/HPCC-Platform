@@ -15,19 +15,18 @@
     limitations under the License.
 ############################################################################## */
 
-rawRecord := { real id; };
+rawRecord := { unsigned id; };
 
 quantRec := RECORD(rawRecord)
-    UNSIGNED quant;
+    UNSIGNED4 quant;
 END;
 
-rawRecord createRaw(REAL id) := TRANSFORM
+rawRecord createRaw(UNSIGNED id) := TRANSFORM
     SELF.id := id;
 END;
 
 inRecord := RECORD
     UNSIGNED rid;
-    UNSIGNED whichPercentile;
     DATASET(rawRecord) ids;
 END;
 
@@ -40,26 +39,28 @@ createDataset(unsigned cnt, real scale, unsigned delta = 0) := FUNCTION
     RETURN NOFOLD(SORT(DATASET(cnt, createRaw((COUNTER-1) * scale + delta), DISTRIBUTED), HASH(id)));
 END;
 
-inRecord createIn(unsigned rid, unsigned whichPercentile, unsigned cnt, real scale, unsigned delta) := TRANSFORM
+inRecord createIn(unsigned rid, unsigned cnt, real scale, unsigned delta) := TRANSFORM
     SELF.rid := rid;
-    SELF.whichPercentile := whichPercentile; 
     SELF.ids := createDataset(cnt, scale, delta);
 END;
 
 
 inDs := DATASET([
-            createIn(1, 2, 10, 1, 1),
-            createIn(2, 13, 50, 0.3, 1),
-            createIn(3, 15, 10, 15, 1),
-            createIn(4, 3, 32767, 1, 1),
-            createIn(5, 27, 99, 0.03, 1)
+            createIn(1, 10, 1, 1),
+            createIn(2, 10, 0.3, 1),
+            createIn(3, 10, 15, 1),
+            createIn(4, 32767, 1, 1),
+            createIn(5, 99, 0.03, 1)
             ]);
 
-//Check quantile inside a child query
-inRecord t(inRecord l) := TRANSFORM
-    SELF.ids := QUANTILE(l.ids, 100, { id }, RANGE([l.whichPercentile]));
+normRecord := { UNSIGNED rid; UNSIGNED id, };
+norm := NORMALIZE(inDs, LEFT.ids, TRANSFORM(normRecord, SELF := LEFT; SELF := RIGHT));
+
+normRecord createSkipQuantile(normRecord l) := TRANSFORM,SKIP(l.rid IN [2,3])
     SELF := l;
 END;
 
-
-output(PROJECT(inDs, t(LEFT)));
+//Grouped quantile..
+gr := GROUP(norm, rid);
+q := QUANTILE(gr, 2, { id }, createSkipQuantile(LEFT));
+output(q);

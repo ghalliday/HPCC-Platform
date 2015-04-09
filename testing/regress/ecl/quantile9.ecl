@@ -36,7 +36,7 @@ quantRec createQuantile(rawRecord l, UNSIGNED quant) := TRANSFORM
     SELF.quant := quant;
 END;
 
-createDataset(unsigned cnt, integer scale, unsigned delta = 0) := FUNCTION
+createDataset(unsigned cnt, real scale, unsigned delta = 0) := FUNCTION
     RETURN NOFOLD(SORT(DATASET(cnt, createRaw((COUNTER-1) * scale + delta), DISTRIBUTED), HASH(id)));
 END;
 

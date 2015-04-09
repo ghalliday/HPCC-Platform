@@ -8259,6 +8259,17 @@ IRoxieServerActivityFactory *createRoxieServerSortActivityFactory(unsigned _id, 
 
 //=====================================================================================================
 
+static int compareUint64(const void * _left, const void * _right)
+{
+    const unsigned __int64 left = *static_cast<const unsigned __int64 *>(_left);
+    const unsigned __int64 right = *static_cast<const unsigned __int64 *>(_right);
+    if (left < right)
+        return -1;
+    if (left > right)
+        return -1;
+    return 0;
+}
+
 class CRoxieServerQuantileActivity : public CRoxieServerActivity
 {
 protected:
@@ -8268,7 +8279,7 @@ protected:
     ICompare *compare;
     unsigned flags;
     double skew;
-    unsigned numDivisions;
+    unsigned __int64 numDivisions;
     bool rangeIsAll;
     size32_t rangeSize;
     rtlDataAttr rangeValues;
@@ -8322,13 +8333,20 @@ public:
         CRoxieServerActivity::start(parentExtractSize, parentExtract, paused);
         skew = helper.getSkew();
         numDivisions = helper.getNumDivisions();
-        if (numDivisions < 1)
+        //Check for -ve integer values and treat as out of range
+        if ((__int64)numDivisions < 1)
             numDivisions = 1;
-        helper.getRange(rangeIsAll, rangeSize, rangeValues.refdata());
+        if (flags & TQFhasrange)
+            helper.getRange(rangeIsAll, rangeSize, rangeValues.refdata());
+        else
+        {
+            rangeIsAll = true;
+            rangeSize = 0;
+        }
         if (rangeSize)
         {
-            //Sort the range items into order and remove any duplicates
-            //::qsort (rangeValue.get(),);
+            //Sort the range items into order to allow quick comparison
+            qsort(rangeValues.getdata(), rangeSize / sizeof(unsigned __int64), sizeof(unsigned __int64), compareUint64);
         }
         calculated = false;
         processedAny = false;
@@ -8353,8 +8371,21 @@ public:
         {
             if (!calculated)
             {
-                sorter->prepare(input);
-                sorter->getSortedGroup(sorted);
+                if (flags & TQFlocalsorted)
+                {
+                    for (;;)
+                    {
+                        const void * next = input->nextInGroup();
+                        if (!next)
+                            break;
+                        sorted.append(next);
+                    }
+                }
+                else
+                {
+                    sorter->prepare(input);
+                    sorter->getSortedGroup(sorted);
+                }
 
                 if (sorted.ordinality() == 0)
                 {
@@ -8372,6 +8403,7 @@ public:
 
                 calculated = true;
                 processedAny = true;
+                anyThisGroup = false;
                 curQuantile = 0;
                 curIndex = 0;
                 curIndexExtra = (numDivisions-1) / 2;   // to ensure correctly rounded up
@@ -8451,8 +8483,16 @@ public:
             return (flags & TQFlast) != 0;
         if (rangeIsAll)
             return true;
-        //MORE Test range
-        return true;
+        //Compare against the list of ranges provided
+        //MORE: Since the list is sorted should only need to compare the next (and allow for dups)
+        unsigned rangeNum = rangeSize / sizeof(unsigned __int64);
+        const unsigned __int64 * ranges = static_cast<const unsigned __int64 *>(rangeValues.getdata());
+        for (unsigned i = 0; i < rangeNum; i++)
+        {
+            if (ranges[i] == quantile)
+                return true;
+        }
+        return false;
     }
 };
 

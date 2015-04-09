@@ -16477,6 +16477,13 @@ ABoundActivity * HqlCppTranslator::doBuildActivityQuantile(BuildCtx & ctx, IHqlE
 
     buildClearRecordMember(instance->createctx, "", dataset);
 
+    //If a dataset is sorted by all fields then it is impossible to determine if the original order
+    //was preserved - so mark the sort as potentially unstable (to reduce memory usage at runtime)
+    bool unstable = expr->hasAttribute(unstableAtom);
+    if (options.optimizeSortAllFields &&
+        allFieldsAreSorted(expr->queryRecord(), sortlist, dataset->queryNormalizedSelector(), options.optimizeSortAllFieldsStrict))
+        unstable = true;
+
     StringBuffer flags;
     if (expr->hasAttribute(firstAtom))
         flags.append("|TQFfirst");
@@ -16494,7 +16501,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityQuantile(BuildCtx & ctx, IHqlE
         flags.append("|TQFhasskew");
     if (dedupAttr)
         flags.append("|TQFdedup");
-    if (expr->hasAttribute(unstableAtom))
+    if (unstable)
         flags.append("|TQFunstable");
     if (!number->queryValue())
         flags.append("|TQFvariabledivisions");

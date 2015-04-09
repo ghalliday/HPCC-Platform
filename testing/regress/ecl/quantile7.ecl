@@ -22,7 +22,6 @@
 //version scale=100000
 //version scale=1000000
 //version scale=10000000
-//version scale=100000000
 
 import ^ as root;
 scale := #IFDEFINED(root.scale, 1000000);

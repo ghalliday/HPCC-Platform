@@ -38,7 +38,7 @@ createHashDataset(unsigned cnt, integer scale, unsigned delta = 0) := FUNCTION
     RETURN DATASET(cnt, createRaw(HASH32((COUNTER-1) * scale + delta)), DISTRIBUTED);
 END;
 
-calcQuantile(unsigned c, unsigned num, unsigned total) := IF(c = total, num, ((c-1) * num) DIV total);
+calcQuantile(unsigned c, unsigned num, unsigned total) := IF(c = total, num, ((c-1) * num + (num DIV 2)) DIV total);
 
 //Does not work if num < count(in)
 simpleQuantile(dataset(rawRec) in, unsigned num, boolean first = false, boolean last = false) := FUNCTION

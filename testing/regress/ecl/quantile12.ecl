@@ -16,6 +16,7 @@
 ############################################################################## */
 
 rawRec := { unsigned id; };
+
 quantRec := RECORD(rawRec)
     UNSIGNED4 quant;
 END;
@@ -30,14 +31,25 @@ quantRec createQuantile(rawRec l, UNSIGNED quant) := TRANSFORM
 END;
 
 createDataset(unsigned cnt, integer scale, unsigned delta = 0) := FUNCTION
-    RETURN DATASET(cnt, createRaw(((COUNTER-1) * scale + delta) % cnt));
+    RETURN DATASET(cnt, createRaw(((COUNTER-1) * scale + delta) % cnt), DISTRIBUTED);
 END;
 
-show(virtual dataset({ unsigned id }) ds) := OUTPUT(SORT(ds, {id}));
+createHashDataset(unsigned cnt, integer scale, unsigned delta = 0) := FUNCTION
+    RETURN DATASET(cnt, createRaw(HASH32((COUNTER-1) * scale + delta)), DISTRIBUTED);
+END;
 
-nullDataset := DATASET([], rawRec);
-dupsDataset := createDataset(47, 0, 0);
+calcQuantile(unsigned c, unsigned num, unsigned total) := IF(c = total, num, ((c-1) * num + (num DIV 2)) DIV total);
 
-show(QUANTILE(dupsDataset, 2, {id}));    // 0
-show(QUANTILE(dupsDataset, 3, {id}));    // 0,0
-show(QUANTILE(dupsDataset, 3, {id}, DEDUP));    // 0,0  - DEDUP does not remove duplicate entries, it prevents QUANTILE returning duplicated rows. 
+//Does not work if num < count(in)
+simpleQuantile(dataset(rawRec) in, unsigned num, boolean first = false, boolean last = false) := FUNCTION
+    s := SORT(in, id);
+    q := PROJECT(s, createQuantile(LEFT, calcQuantile(COUNTER, num, COUNT(in))));
+    RETURN DEDUP(q, quant)(first OR quant!=0, last OR quant!=num);
+END;
+
+
+//Check that quantile on a sorted dataset produces the same results.
+ds100 := createDataset(100, 1, 0);
+ds100sort := SORTED(ds100, { id });
+output(QUANTILE(ds100sort, 5, { id }, createQuantile(LEFT, COUNTER), FIRST, LAST));
+output(QUANTILE(ds100sort, 27, { id }, createQuantile(LEFT, COUNTER)));

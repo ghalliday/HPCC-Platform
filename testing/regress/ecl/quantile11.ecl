@@ -16,7 +16,6 @@
 ############################################################################## */
 
 rawRec := { unsigned id; };
-
 quantRec := RECORD(rawRec)
     UNSIGNED4 quant;
 END;
@@ -25,20 +24,20 @@ rawRec createRaw(UNSIGNED id) := TRANSFORM
     SELF.id := id;
 END;
 
+quantRec createQuantile(rawRec l, UNSIGNED quant) := TRANSFORM
+    SELF := l;
+    SELF.quant := quant;
+END;
+
 createDataset(unsigned cnt, integer scale, unsigned delta = 0) := FUNCTION
     RETURN DATASET(cnt, createRaw(((COUNTER-1) * scale + delta) % cnt));
 END;
 
-ascending := createDataset(100, 1, 0);
+show(virtual dataset({ unsigned id }) ds) := OUTPUT(SORT(ds, {id}));
 
-integer zero := 0 : stored('zero');
-integer minusOne := -1 : stored('minusOne');
-integer oneHundred := 100 : stored('oneHundred');
-
-//Out of range number of items
-OUTPUT(QUANTILE(ascending, zero, {id}));  
-//Out of range number of items
-OUTPUT(QUANTILE(ascending, minusOne, {id}));  
-
-//Number of items is sensible, but range items are invalid
-OUTPUT(QUANTILE(ascending, 5, {id}, range([minusOne,oneHundred])));  
+ascending100 := createDataset(100, 1, 0);
+show(QUANTILE(ascending100, 4, {id}));    // 25, 50, 75  
+ascending99 := createDataset(99, 1, 0);
+show(QUANTILE(ascending99, 4, {id}));    // 25, 49, 74  
+ascending101 := createDataset(101, 1, 0);
+show(QUANTILE(ascending101, 4, {id}));    // 25, 50, 76

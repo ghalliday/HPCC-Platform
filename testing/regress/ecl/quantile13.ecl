@@ -25,20 +25,22 @@ rawRec createRaw(UNSIGNED id) := TRANSFORM
     SELF.id := id;
 END;
 
-createDataset(unsigned cnt, integer scale, unsigned delta = 0) := FUNCTION
-    RETURN DATASET(cnt, createRaw(((COUNTER-1) * scale + delta) % cnt));
+quantRec createQuantile(rawRec l, UNSIGNED quant) := TRANSFORM
+    SELF := l;
+    SELF.quant := quant;
 END;
 
-ascending := createDataset(100, 1, 0);
+createDataset(unsigned cnt, integer scale, unsigned delta = 0) := FUNCTION
+    RETURN DATASET(cnt, createRaw(((COUNTER-1) * scale + delta) % cnt), DISTRIBUTED);
+END;
 
-integer zero := 0 : stored('zero');
-integer minusOne := -1 : stored('minusOne');
-integer oneHundred := 100 : stored('oneHundred');
+rawRec createSkipMatch(rawRec l, UNSIGNED c) := TRANSFORM, SKIP(c IN [2,3,4])
+    SELF := l;
+END;
 
-//Out of range number of items
-OUTPUT(QUANTILE(ascending, zero, {id}));  
-//Out of range number of items
-OUTPUT(QUANTILE(ascending, minusOne, {id}));  
-
-//Number of items is sensible, but range items are invalid
-OUTPUT(QUANTILE(ascending, 5, {id}, range([minusOne,oneHundred])));  
+//Check that skip on a quantile prevents the fixed numbers of outputs being generated.
+ds100 := createDataset(100, 1, 0);
+output(COUNT(QUANTILE(ds100, 5, { id }))); // 4
+output(COUNT(QUANTILE(ds100, 5, { id }, FIRST, LAST))); // 6
+output(COUNT(QUANTILE(ds100, 5, { id }, createSkipMatch(LEFT, COUNTER)))); // 1
+output(COUNT(QUANTILE(ds100, 5, { id }, createSkipMatch(LEFT, COUNTER), FIRST, LAST))); // 3
