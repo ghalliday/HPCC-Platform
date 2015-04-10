@@ -33,7 +33,7 @@ ascending := createDataset(100, 1, 0);
 
 integer zero := 0;
 integer minusOne := -1;
-integer oneHunded := 100;
+integer oneHundred := 100;
 
 //Out of range number of items
 OUTPUT(QUANTILE(ascending, zero, {id}));    // 10, 20, 30, 40, 50, 60, 70, 80, 90  
