@@ -18554,8 +18554,15 @@ static bool needsRealThor(IHqlExpression *expr, unsigned flags)
     switch (expr->getOperator())
     {
     case no_table:
-        //only allow non filtered limited outputs, and non filtered counts
-        return !((flags == NRTlimited) || (flags == NRTcount));
+        {
+            //If reading from a pipe then the number of slaves is significant...
+            IHqlExpression * mode = expr->queryChild(2);
+            if (mode->getOperator() == no_pipe)
+                return true;
+
+            //only allow non filtered limited outputs, and non filtered counts
+            return !((flags == NRTlimited) || (flags == NRTcount));
+        }
 
     case no_newkeyindex:
     case no_keyindex:
