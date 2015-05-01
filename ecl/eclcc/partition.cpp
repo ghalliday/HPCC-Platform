@@ -298,12 +298,14 @@ void traceResult(PartitionArray & partition)
 
 //----------------------------------------------------------------------------------
 
+//Bettwe
 struct MedianSet : public CInterface
 {
 public:
     void calcMedian() // not const.. could modify the array
     {
         KeyArray copyValues;
+        copyValues.ensure(values.ordinality());
         ForEachItemIn(i, values)
             copyValues.append(values.item(i));
         //simple but O(n log(n))
@@ -317,6 +319,8 @@ public:
         chunks.append(chunk);
         values.append(value);
     }
+
+    void ensure(unsigned value) { chunks.ensure(value); values.ensure(value); }
 
     unsigned getMatchingChunk() const
     {
@@ -341,6 +345,8 @@ public:
         ForEachItemIn(i, values)
             values.item(i).calcMedian();
     }
+
+    void ensure(unsigned value) { values.ensure(value); }
 
     CIArrayOf<MedianSet> values;
 };
@@ -372,15 +378,31 @@ protected:
 
 void RemotePartitioner::getMedians(MedianArray & medians, const PartitionArray & partitions)
 {
+    medians.ensure(partitions.ordinality());
     ForEachItemIn(i1, partitions)
+    {
         medians.values.append(*new MedianSet);
+
+        unsigned numActiveChunks = 0;
+        ForEachItemIn(iChunk, chunks)
+        {
+            const Chunk & curChunk = chunks.item(iChunk);
+
+            //For this chunk, find the median value from each of the active partitions
+            const PartitionRange & curPartition = partitions.item(i1);
+            rowcount_t from = curPartition.lowPos.localPos[iChunk];
+            rowcount_t to = curPartition.highPos.localPos[iChunk];
+            if (from != to)
+                numActiveChunks++;
+        }
+        medians.values.item(i1).ensure(numActiveChunks);
+    }
 
     //This should be done asynchronusly in parallel, batching all chunks for a given target node.
     //Need to be careful about aggregating results
     ForEachItemIn(iChunk, chunks)
     {
         const Chunk & curChunk = chunks.item(iChunk);
-        //For this chunk, find the median value from each of the active partitions
         ForEachItemIn(iPart, partitions)
         {
             const PartitionRange & curPartition = partitions.item(iPart);
@@ -430,6 +452,8 @@ void RemotePartitioner::calcPartition(PartitionArray & result)
     const unsigned numChunks = chunks.ordinality();
 
     //Start off with (1..N) [0..maxpos]
+    //Start off with a single partition entry covering all the partitions,
+    //for each node, record the range of filepositions within that node i.e. [0..chunk(i).#rows)]
     PartitionRange * initialRange = new PartitionRange(numChunks, 1, numPartitions-1);
     rowcount_t totalRows = 0;
     for (unsigned i1 = 0; i1 < numChunks; i1++)
@@ -447,13 +471,16 @@ void RemotePartitioner::calcPartition(PartitionArray & result)
     PartitionArray active;
     active.append(*initialRange);
 
+    //Keep looping until all the partition points have been sufficiently resolved
     while (active.ordinality())
     {
         MedianArray medians;
         //For each of the active partitions, find the medians from each of the chunks
         getMedians(medians, active);
+
         //Find the median of the medians from each partition point
         medians.calcPivots();
+
         //Find out where each of those medians maps in each of the chunks.
         getSplits(medians, active);
 
