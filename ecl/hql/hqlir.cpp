@@ -448,6 +448,7 @@ const char * getOperatorIRText(node_operator op)
     EXPAND_CASE(no,pat_x_before_y);
     EXPAND_CASE(no,pat_x_after_y);
     EXPAND_CASE(no,xml);
+    EXPAND_CASE(no,json);
     EXPAND_CASE(no,compound_fetch);
     EXPAND_CASE(no,pat_index);
     EXPAND_CASE(no,pat_beginpattern);
