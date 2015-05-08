@@ -15669,6 +15669,21 @@ ITypeInfo * createRecordType(IHqlExpression * record)
 }
 
 
+IHqlExpression * queryFunctionAttribute(IHqlExpression * funcdef, IAtom * name)
+{
+    dbgassertex(funcdef->getOperator() == no_funcdef);
+    IHqlExpression * body = funcdef->queryChild(0);
+    if (body->getOperator() == no_externalcall)
+        return body->queryAttribute(name);
+    if (body->getOperator() == no_outofline)
+    {
+        IHqlExpression * embed = body->queryChild(0);
+        if (embed->getOperator() == no_embedbody)
+            return embed->queryAttribute(name);
+    }
+    return NULL;
+}
+
 ITypeInfo * getSumAggType(ITypeInfo * argType)
 {
     type_t tc = argType->getTypeCode();

@@ -13688,6 +13688,12 @@ ABoundActivity * HqlCppTranslator::doBuildActivityStreamedCall(BuildCtx & ctx, I
     StringBuffer s;
 
     Owned<ActivityInstance> instance = new ActivityInstance(*this, ctx, TAKstreamediterator, expr, "StreamedIterator");
+    IHqlExpression * funcdef = expr->queryBody()->queryExternalDefinition();
+    if (!funcdef)
+        funcdef = expr->queryBody()->queryFunctionDefinition();
+
+    if (funcdef && queryFunctionAttribute(funcdef, distributedAtom))
+        instance->setLocal(true);
     buildActivityFramework(instance);
 
     buildInstancePrefix(instance);
