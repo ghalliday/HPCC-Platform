@@ -3873,8 +3873,16 @@ void CHqlExpression::onAppendOperand(IHqlExpression & child, unsigned whichOpera
         break;
     case no_limit:
     case no_keyedlimit:
+        {
         if (whichOperand > 1)
             childFlags &= ~(HEFthrowscalar|HEFthrowds);
+        IHqlExpression * onFail = queryAttribute(onFailAtom);
+        if (onFail, false)
+        {
+            IHqlExpression * record = onFail->queryChild(0)->queryRecord();
+            assertRecordTypesMatch(queryRecord(), record);
+        }
+        }
         break;
 #ifdef _DEBUG
     case no_transform:
