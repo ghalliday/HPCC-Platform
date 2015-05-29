@@ -64,6 +64,7 @@ protected:
     IHqlExpression * forceSwapNodeWithChild(IHqlExpression * parent);
     IHqlExpression * swapNodeWithChild(IHqlExpression * parent);
     IHqlExpression * swapNodeWithChild(IHqlExpression * parent, unsigned childIndex);
+    IHqlExpression * swapNodeWithProjection(IHqlExpression * parent);
     IHqlExpression * swapIntoAddFiles(IHqlExpression * expr, bool force=false);
     IHqlExpression * swapIntoIf(IHqlExpression * expr, bool force = false);
     TableProjectMapper * getMapper(IHqlExpression * expr);

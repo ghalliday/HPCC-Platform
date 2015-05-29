@@ -405,6 +405,21 @@ void SteppingFieldSelection::expandTransform(IHqlExpression * expr)
     ds.set(parent);
 }
 
+void SteppingFieldSelection::collapseTransform(IHqlExpression * expr)
+{
+    IHqlExpression * parent = expr->queryChild(0)->queryNormalizedSelector();
+
+    TableProjectMapper mapper(expr);
+    if (!mapper.isMappingKnown())
+        throwError(HQLERR_CantProjectStepping);
+
+    bool collapsedAll = true;
+    fields.setown(mapper.collapseFields(fields, parent, expr->queryNormalizedSelector(), &collapsedAll));
+    if (!collapsedAll)
+        throwError(HQLERR_CantProjectStepping);
+    ds.set(expr->queryNormalizedSelector());
+}
+
 void SteppingFieldSelection::extractFields(SteppingFieldSelection & steppingFields)
 {
     steppingFields.ds.set(ds);

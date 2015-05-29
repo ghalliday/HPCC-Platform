@@ -2542,7 +2542,15 @@ void SourceBuilder::gatherSteppingMeta(IHqlExpression * expr, SteppingFieldSelec
             else
             {
                 gatherSteppingMeta(expr->queryChild(0), outputStepping, rawStepping);
-                outputStepping.clear();
+                try
+                {
+                    outputStepping.collapseTransform(expr);
+                }
+                catch (IException * e)
+                {
+                    outputStepping.clear();
+                    e->Release();
+                }
                 return;
                 //throwError(HQLERR_CantProjectStepping);
                 //gatherSteppingMeta(expr->queryChild(0), outputStepping, rawStepping);

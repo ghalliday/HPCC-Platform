@@ -280,6 +280,42 @@ IHqlExpression * CTreeOptimizer::swapNodeWithChild(IHqlExpression * parent)
     return newParent.getClear();
 }
 
+IHqlExpression * CTreeOptimizer::swapNodeWithProjection(IHqlExpression * parent)
+{
+    IHqlExpression * child = parent->queryChild(0);
+    DBGLOG("Optimizer: Swap %s and %s", queryNode0Text(parent), queryNode1Text(child));
+
+    if (child->hasAttribute(prefetchAtom))
+        return NULL;
+
+    OwnedMapper mapper = getMapper(child);
+    IHqlExpression * oldDs = child;
+    IHqlExpression * newDs = child->queryChild(0);
+    HqlExprArray args;
+    args.append(*LINK(newDs));
+
+    ExpandSelectorMonitor expandMonitor(*this);
+    ForEachChildFrom(i, parent, 1)
+    {
+        IHqlExpression * cur = parent->queryChild(i);
+        OwnedHqlExpr mapped = expandFields(mapper, cur, oldDs, newDs, &expandMonitor);
+        if (containsCounter(mapped))
+            return NULL;
+        args.append(*mapped.getClear());
+    }
+
+    if (expandMonitor.isComplex())
+        return NULL;
+
+    OwnedHqlExpr newChild = parent->clone(args);
+    OwnedHqlExpr newParent = insertChildDataset(child, newChild, 0);
+    noteUnused(child);
+    if (!alreadyHasUsage(newParent))
+        incUsage(newParent->queryChild(0));
+
+    return newParent.getClear();
+}
+
 IHqlExpression * CTreeOptimizer::forceSwapNodeWithChild(IHqlExpression * parent)
 {
     OwnedHqlExpr swapped = swapNodeWithChild(parent);
@@ -3114,7 +3150,16 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
             {
             case no_limit:
             case no_keyedlimit:
+            case no_compound_indexread:
                 return swapNodeWithChild(transformed);
+            case no_hqlproject:
+            case no_newusertable:
+                {
+                    OwnedHqlExpr swapped = swapNodeWithProjection(transformed);
+                    if (swapped)
+                        return swapped.getClear();
+                    break;
+                }
             }
             break;
         }
@@ -3255,8 +3300,8 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                 if (transformedCountProject)
                     break;
                 return moveProjectionOverSimple(transformed, false, false);
-            case no_stepped:
-                return moveProjectionOverSimple(transformed, true, false);
+            //case no_stepped:
+                //return moveProjectionOverSimple(transformed, true, false);
             case no_keyedlimit:
                 if (child->hasAttribute(onFailAtom))
                     return moveProjectionOverLimit(transformed);
@@ -3447,8 +3492,8 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
             case no_sorted:
             case no_grouped:
                 return moveProjectionOverSimple(transformed, false, false);
-            case no_stepped:
-                return moveProjectionOverSimple(transformed, false, true);
+//            case no_stepped:
+//                return moveProjectionOverSimple(transformed, false, true);
             case no_keyedlimit:
             case no_limit:
             case no_choosen:

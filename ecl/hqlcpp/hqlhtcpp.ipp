@@ -64,6 +64,7 @@ class SteppingFieldSelection
 {
 public:
     void clear() { ds.clear(); fields.clear(); }
+    void collapseTransform(IHqlExpression * expr);
     bool exists() { return ds != NULL; }
     void expandTransform(IHqlExpression * expr);
     void extractFields(SteppingFieldSelection & steppingFields);
