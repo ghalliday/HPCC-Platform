@@ -26,6 +26,7 @@
 #include "jfile.hpp"
 #include "jthread.hpp"
 #include "jqueue.tpp"
+#include "jtask.hpp"
 
 #ifdef _DEBUG
 // #define PARANOID
@@ -623,6 +624,40 @@ void parqsortvecstableinplace(void ** rows, size32_t n, const ICompare & compare
 
 //-----------------------------------------------------------------------------------------------------------------------------
 
+inline void * * mergePartitions(const ICompare & compare, void * * result, unsigned n1, void * * ret1, unsigned n2, void * * ret2)
+{
+    void * * tgt = result;
+    loop
+    {
+       if (compare.docompare(*ret1, *ret2) <= 0)
+       {
+           *tgt++ = *ret1++;
+           if (--n1 == 0)
+           {
+               //There must be at least one row in the right partition - copy any that remain
+               do
+               {
+                   *tgt++ = *ret2++;
+               } while (--n2);
+               return result;
+           }
+       }
+       else
+       {
+           *tgt++ = *ret2++;
+           if (--n2 == 0)
+           {
+               //There must be at least one row in the left partition - copy any that remain
+               do
+               {
+                   *tgt++ = *ret1++;
+               } while (--n1);
+               return result;
+           }
+       }
+    }
+}
+
 static void * * mergeSort(void ** rows, size32_t n, const ICompare & compare, void ** tmp, unsigned depth)
 {
     void * * result = (depth & 1) ? tmp : rows;
@@ -700,6 +735,105 @@ void msortvecstableinplace(void ** rows, size32_t n, const ICompare & compare, v
         return;
     mergeSort(rows, n, compare, temp, 0);
 }
+
+//=========================================================================
+
+static const size_t singleThreadedMSortThreshold = 3;   // Must be at least 3!
+
+class ParallelMergeSorter
+{
+    class SubSortTask : public NullTask
+    {
+    public:
+        SubSortTask(ParallelMergeSorter & _sorter, void ** _rows, size32_t _n, void ** _temp, unsigned _depth, ATask * _next)
+        : NullTask(0), sorter(_sorter), rows(_rows), n(_n), temp(_temp), depth(_depth), next(_next)
+        {
+        }
+
+        virtual ATask * execute()
+        {
+            return sorter.sort(rows, n, temp, depth, *next);
+        }
+    protected:
+        ParallelMergeSorter & sorter;
+        Owned<ATask> next;
+        void ** rows;
+        void ** temp;
+        size32_t n;
+        unsigned depth;
+    };
+
+
+    class MergeTask : public AncestorTask
+    {
+    public:
+        MergeTask(const ICompare & _compare, void * * _result, size_t _n1, void * * _src1, size_t _n2, void * * _src2, ATask * _next)
+        : AncestorTask(2, _next), compare(_compare),result(_result), n1(_n1), src1(_src1), n2(_n2), src2(_src2)
+        {
+        }
+
+        virtual ATask * execute()
+        {
+            mergePartitions(compare, result, n1, src1, n2, src2);
+            return NULL;
+        }
+
+    protected:
+        const ICompare & compare;
+        void * * result;
+        void * * src1;
+        void * * src2;
+        size_t n1;
+        size_t n2;
+    };
+
+public:
+    ParallelMergeSorter(const ICompare & _compare) : compare(_compare)
+    {
+        //Aim to execute in parallel until the width is 8*the maximum number of parallel task
+        singleThreadDepth = queryTaskManager().getLog2Parallel() + 3;
+    }
+
+    ATask * sort(void ** rows, size32_t n, void ** temp, unsigned depth, ATask & next)
+    {
+        if ((n <= singleThreadedMSortThreshold) || (depth >= singleThreadDepth))
+        {
+            mergeSort(rows, n, compare, temp, depth);
+            noteAncestorCompleteAndSchedule(next);
+            return NULL;
+        }
+
+        void * * result = (depth & 1) ? temp : rows;
+        void * * src = (depth & 1) ? rows : temp;
+        unsigned n1 = (n+1)/2;
+        unsigned n2 = n-n1;
+        Owned<ATask> doneTask = new MergeTask(compare, result, n1, src, n2, src+n1, LINK(&next));
+        Owned<ATask> sortLeftTask = new SubSortTask(*this, rows, n1, temp, depth+1, LINK(doneTask));
+        Owned<ATask> sortRightTask = new SubSortTask(*this, rows+n1, n2, temp+n1, depth+1, doneTask.getClear());
+        scheduleTask(*sortLeftTask.getClear());
+        scheduleTask(*sortRightTask.getClear());
+        return NULL;
+    }
+
+protected:
+    const ICompare & compare;
+    unsigned singleThreadDepth;
+};
+
+//-------------------------------------------------------------------------------------------------------------------
+void parmsortvecstableinplace(void ** rows, size32_t n, const ICompare & compare, void ** temp, unsigned ncpus)
+{
+    if ((n <= singleThreadedMSortThreshold) || ncpus == 1)
+        return msortvecstableinplace(rows, n, compare, temp);
+
+    Semaphore done;
+    Owned<SignalTask> completeTask = new SignalTask(done);
+    completeTask->setNumAncestors(1);
+    ParallelMergeSorter sorter(compare);
+    sorter.sort(rows, n, temp, 0, *completeTask);
+    done.wait();
+}
+
 
 //=========================================================================
 
