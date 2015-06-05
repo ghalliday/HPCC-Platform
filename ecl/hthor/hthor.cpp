@@ -4005,8 +4005,10 @@ void CStableQuickSorter::performSort()
     size32_t numRows = rowsToSort.numCommitted();
     if (numRows)
     {
+        unsigned startTime = msTick();
         const void * * rows = rowsToSort.getBlock(numRows);
         qsortvecstableinplace((void * *)rows, numRows, *compare, (void * *)index);
+        //printf("Sort %u, Time = %u\n", numRows, (msTick()- startTime));
         finger = 0;
     }
 }

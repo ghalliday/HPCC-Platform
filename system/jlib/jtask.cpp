@@ -23,6 +23,7 @@
 #include "jtask.hpp"
 #include "jqueue.tpp"
 #include "jexcept.hpp"
+#include "jthread.hpp"
 #include "jset.hpp"
 
 static __thread ATask * currentTask;
@@ -35,6 +36,16 @@ extern jlib_decl ATask * queryActiveTask() { return currentTask; }
  - value returned from execute() must be linked.
  - task is release when execution has completed
  */
+
+inline ATask * executeTask(ATask & task)
+{
+    assertex(!currentTask);
+    ATask * next = task.execute();
+    currentTask = NULL;
+    task.onComplete();
+    task.Release();
+    return next;
+}
 
 //--------------------------------------------------------------------------------------------------------------------
 
@@ -50,24 +61,64 @@ class SingleThreadedTaskManager : public ATaskManager
 public:
     virtual unsigned getNumParallel() const { return 1; }
     virtual unsigned getLog2Parallel() const { return 1; }
-    virtual void schedule(ATask & task)
+    virtual void schedule(ATask & task, bool isLocal)
     {
-        assertex(!currentTask);
-        ATask * next = task.execute();
-        currentTask = NULL;
-        task.onComplete();
-        task.Release();
-        if (next)
-            schedule(*next);
+        ATask * cur = &task;
+        do
+        {
+            cur = executeTask(*cur);
+        } while (cur);
     }
     virtual void setNumParallel(unsigned _numCpus) {}
 };
 
+//--------------------------------------------------------------------------------------------------------------------
 
 class TaskManager : public ATaskManager
 {
+private:
+    friend class TaskExecutionThread;
+    class TaskExecutionThread : public Thread, implements ITaskExecutor
+    {
+    public:
+        TaskExecutionThread(TaskManager * _parent)
+            : Thread("TaskExecutionThread")
+        {
+            parent = _parent;
+        }
+
+        int run()
+        {
+            loop
+            {
+                ATask * task = parent->nextTask();
+                if (!task)
+                    break;
+                do
+                {
+                    task = executeTask(*task);
+                } while (task);
+            }
+            parent->noteThreadStopped(*this);
+            return 0;
+        }
+
+        virtual void schedule(ATask & task, bool isLocal)
+        {
+            //MORE? Add local queues?
+            parent->schedule(task, isLocal);
+        }
+
+        TaskManager * parent;
+    };
+
 public:
-    TaskManager(unsigned _numCpus);
+    TaskManager(unsigned _numCpus) : numCpus(0), ln2Cpus(1)
+    {
+        atomic_set(&threadsToKill, 0);
+        setNumParallel(_numCpus);
+    }
+
     ~TaskManager()
     {
         setNumParallel(0);
@@ -76,32 +127,95 @@ public:
     virtual unsigned getNumParallel() const { return numCpus; }
     virtual unsigned getLog2Parallel() const { return ln2Cpus; }
 
-    virtual void setNumParallel(unsigned _numCpus);
-
-    virtual void schedule(ATask & task)
+    virtual void setNumParallel(unsigned newNumCpus)
     {
-        task.execute();
+        unsigned numToWaitFor = 0;
+        {
+            CriticalBlock block2(threadCs);  // Protect threads variable
+            if (newNumCpus > numCpus)
+            {
+                for (unsigned i = numCpus; i < newNumCpus; i++)
+                {
+                    TaskExecutionThread * thread = new TaskExecutionThread(this);
+                    threads.append(*thread);
+                    thread->start();
+                }
+            }
+            else
+            {
+                numToWaitFor = numCpus - newNumCpus;
+                atomic_add(&threadsToKill, numToWaitFor);
+                taskAvailable.signal(numToWaitFor);
+            }
+            numCpus = newNumCpus;
+            //ln2Cpus defined so that 2^(ln2Cpus-1) <= numCpus <= 2^ln2Cpus
+            if (numCpus <= 1)
+                ln2Cpus = 0;
+            else
+                ln2Cpus = getMostSignificantBit(numCpus-1);
+            assertex(numCpus <= (1U << ln2Cpus));
+
+            SpinBlock block1(taskCs); // Protect task
+            tasks.ensure(20 * numCpus);
+        }
+
+        for (unsigned i=0; i < numToWaitFor; i++)
+            threadsStopped.wait();
+    }
+
+    virtual ATask * nextTask()
+    {
+        taskAvailable.wait();
+        //Check for closing some threads down - fast path is num = 0.  Don't block the spin block while checking.
+        if (atomic_read(&threadsToKill))
+        {
+            loop
+            {
+                unsigned numToKill = atomic_read(&threadsToKill);
+                if (numToKill == 0)
+                    break;
+                if (atomic_cas(&threadsToKill, numToKill-1, numToKill))
+                    return NULL;
+            }
+        }
+        SpinBlock block(taskCs);
+        return tasks.dequeueTail();
+    }
+
+    virtual void schedule(ATask & task, bool isLocal)
+    {
+        {
+            SpinBlock block(taskCs);
+            if (isLocal)
+                tasks.enqueue(&task);
+            else
+                tasks.enqueueHead(&task);
+        }
+        taskAvailable.signal();
+    }
+
+protected:
+    void noteThreadStopped(TaskExecutionThread & thread)
+    {
+        {
+            CriticalBlock block(threadCs);
+            threads.zap(thread);
+        }
+        threadsStopped.signal();
     }
 
 protected:
     unsigned numCpus;
     unsigned ln2Cpus;
+    atomic_t threadsToKill;
+    Semaphore alive;
+    Semaphore taskAvailable;
+    Semaphore threadsStopped;
+    CIArrayOf<TaskExecutionThread> threads;
+    CriticalSection threadCs;
+    SpinLock taskCs;
+    QueueOf<ATask,false> tasks;
 };
-
-TaskManager::TaskManager(unsigned _numCpus) : numCpus(0)
-{
-    setNumParallel(_numCpus);
-}
-
-void TaskManager::setNumParallel(unsigned _numCpus)
-{
-    numCpus = _numCpus;
-    if (numCpus == 0)
-        ln2Cpus = 1;
-    else
-        ln2Cpus = getMostSignificantBit(numCpus);
-    throwUnexpected();//trace this
-}
 
 //--------------------------------------------------------------------------------------------------------------------
 
@@ -134,14 +248,14 @@ void killTaskManager()
 
 //--------------------------------------------------------------------------------------------------------------------
 
-extern jlib_decl void scheduleTask(ATask & task)
+void scheduleTask(ATask & task, bool isLocal)
 {
-    queryTaskManager().schedule(task);
+    queryTaskManager().schedule(task, isLocal);
 }
 
 MODULE_INIT(INIT_PRIORITY_JLIB_DEPENDENT)
 {
-    taskManager = new SingleThreadedTaskManager;
+//    taskManager = new SingleThreadedTaskManager;
     return true;
 }
 MODULE_EXIT()

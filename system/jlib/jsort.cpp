@@ -658,6 +658,45 @@ inline void * * mergePartitions(const ICompare & compare, void * * result, unsig
     }
 }
 
+class InlineBlockRowProvider : implements CInterfaceOf<IRowProvider>
+{
+    struct RowInfo
+    {
+        size32_t cur;
+        size32_t num;
+        void * * rows;
+    };
+public:
+    InlineBlockRowProvider(unsigned _num) { inputs = new RowInfo[_num]; }
+    ~InlineBlockRowProvider() { delete [] inputs; }
+
+    virtual void linkRow(const void *row) { throwUnexpected(); }
+    virtual void releaseRow(const void *row) { throwUnexpected(); }
+    virtual const void *nextRow(unsigned idx)
+    {
+        RowInfo & curInput = inputs[idx];
+        unsigned cur = curInput.cur;
+        if (cur >= curInput.num)
+            return NULL;
+        void * ret = curInput.rows[cur];
+        curInput.cur = cur+1;
+        return ret;
+    }
+    virtual void stop(unsigned idx) { }
+
+    void setInput(unsigned idx, size_t _num, void * * _rows)
+    {
+        inputs[idx].cur = 0;
+        inputs[idx].num = _num;
+        inputs[idx].rows = _rows;
+    }
+
+private:
+    RowInfo * inputs;
+};
+
+static void mergePartitionsX(const ICompare & compare, void * * result, unsigned n, size_t * counts, void * * * rows);
+
 static void * * mergeSort(void ** rows, size32_t n, const ICompare & compare, void ** tmp, unsigned depth)
 {
     void * * result = (depth & 1) ? tmp : rows;
@@ -738,6 +777,8 @@ void msortvecstableinplace(void ** rows, size32_t n, const ICompare & compare, v
 
 //=========================================================================
 
+#define NWAY_MERGE
+
 static const size_t singleThreadedMSortThreshold = 3;   // Must be at least 3!
 
 class ParallelMergeSorter
@@ -775,7 +816,7 @@ class ParallelMergeSorter
         virtual ATask * execute()
         {
             mergePartitions(compare, result, n1, src1, n2, src2);
-            return NULL;
+            return getNextTask();
         }
 
     protected:
@@ -787,37 +828,124 @@ class ParallelMergeSorter
         size_t n2;
     };
 
-public:
-    ParallelMergeSorter(const ICompare & _compare) : compare(_compare)
+    class MergeNWayTask : public AncestorTask
     {
+    public:
+        MergeNWayTask(const ICompare & _compare, void * * _result, unsigned _numInputs, ATask * _next)
+        : AncestorTask(_numInputs, _next), compare(_compare), result(_result), numInputs(_numInputs)
+        {
+            counts = new size_t[numInputs];
+            rows = new void * * [numInputs];
+        }
+        ~MergeNWayTask()
+        {
+            delete [] counts;
+            delete [] rows;
+        }
+
+        virtual ATask * execute()
+        {
+            mergePartitionsX(compare, result, numInputs, counts, rows);
+            return getNextTask();
+        }
+
+        void setResult(unsigned i, size_t count, void * * _rows)
+        {
+            counts[i] = count;
+            rows[i] = _rows;
+        }
+
+    protected:
+        const ICompare & compare;
+        unsigned numInputs;
+        void * * result;
+        size_t * counts;
+        void * * * rows;
+    };
+
+public:
+    ParallelMergeSorter(void * * _rows, const ICompare & _compare) : compare(_compare), baseRows(_rows)
+    {
+#ifdef NWAY_MERGE
+        singleThreadDepth = 3;
+#else
         //Aim to execute in parallel until the width is 8*the maximum number of parallel task
         singleThreadDepth = queryTaskManager().getLog2Parallel() + 3;
+#endif
+    }
+    ~ParallelMergeSorter()
+    {
     }
 
     ATask * sort(void ** rows, size32_t n, void ** temp, unsigned depth, ATask & next)
     {
-        if ((n <= singleThreadedMSortThreshold) || (depth >= singleThreadDepth))
+        if ((n <= singleThreadedMSortThreshold * 2) || (depth >= singleThreadDepth))
         {
             mergeSort(rows, n, compare, temp, depth);
-            noteAncestorCompleteAndSchedule(next);
+            if (next.noteAncestorComplete())
+                return &OLINK(next);
             return NULL;
         }
 
         void * * result = (depth & 1) ? temp : rows;
         void * * src = (depth & 1) ? rows : temp;
+#ifdef NWAY_MERGE
+        MORE!
+        if (depth == 0)
+        {
+            unsigned numSplits = queryTaskManager().getNumParallel();
+            if (n / numSplits < singleThreadedMSortThreshold)
+                numSplits = n / singleThreadedMSortThreshold;
+
+    //        printf("%u -> %u\n", n, numSplits);
+
+            if (numSplits > 4)  ??? what constant
+            {
+                Owned<MergeNWayTask> doneTask = new MergeNWayTask(compare, result, numSplits, LINK(&next));
+                {
+                    size32_t prev = 0;
+                    for (unsigned i=0; i < numSplits; i++)
+                    {
+                        size32_t next = (size32_t)(((unsigned __int64)n * (i+1)) / numSplits);
+                        doneTask->setResult(i, next-prev, src+prev);
+                        prev = next;
+                    }
+                    assertex(prev == n);
+                }
+
+                {
+                    size32_t prev = 0;
+                    for (unsigned i=0; i < numSplits; i++)
+                    {
+                        size32_t next = (size32_t)(((unsigned __int64)n * (i+1)) / numSplits);
+                        Owned<ATask> sortTask = new SubSortTask(*this, rows+prev, next-prev, temp+prev, depth+1, LINK(doneTask));
+                        scheduleTask(*sortTask.getClear(), true);
+                        prev = next;
+                    }
+                    assertex(prev == n);
+                }
+
+                return NULL;
+            }
+#else
         unsigned n1 = (n+1)/2;
         unsigned n2 = n-n1;
         Owned<ATask> doneTask = new MergeTask(compare, result, n1, src, n2, src+n1, LINK(&next));
-        Owned<ATask> sortLeftTask = new SubSortTask(*this, rows, n1, temp, depth+1, LINK(doneTask));
-        Owned<ATask> sortRightTask = new SubSortTask(*this, rows+n1, n2, temp+n1, depth+1, doneTask.getClear());
-        scheduleTask(*sortLeftTask.getClear());
-        scheduleTask(*sortRightTask.getClear());
+        Owned<ATask> sortRightTask = new SubSortTask(*this, rows+n1, n2, temp+n1, depth+1, LINK(doneTask));
+        scheduleTask(*sortRightTask.getClear(), (depth != 0));
+
+        Owned<ATask> sortLeftTask = new SubSortTask(*this, rows, n1, temp, depth+1, doneTask.getClear());
+        if (depth != 0)
+            return sortLeftTask.getClear();
+        scheduleTask(*sortLeftTask.getClear(), (depth != 0));
         return NULL;
+#endif
     }
 
 protected:
     const ICompare & compare;
     unsigned singleThreadDepth;
+    void * * baseRows;
 };
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -829,8 +957,10 @@ void parmsortvecstableinplace(void ** rows, size32_t n, const ICompare & compare
     Semaphore done;
     Owned<SignalTask> completeTask = new SignalTask(done);
     completeTask->setNumAncestors(1);
-    ParallelMergeSorter sorter(compare);
-    sorter.sort(rows, n, temp, 0, *completeTask);
+    ParallelMergeSorter sorter(rows, compare);
+    ATask * task = sorter.sort(rows, n, temp, 0, *completeTask);
+    if (task)
+        scheduleTask(*task, true);
     done.wait();
 }
 
@@ -944,7 +1074,7 @@ class CRowStreamMerger
     unsigned *mergeheap;
     unsigned activeInputs; 
     count_t recno;
-    ICompare *icmp;
+    const ICompare *icmp;
     bool partdedup;
 
     IRowProvider &provider;
@@ -1116,7 +1246,7 @@ class CRowStreamMerger
     }
 
 public:
-    CRowStreamMerger(IRowProvider &_provider,unsigned numstreams,ICompare *_icmp,bool _partdedup=false)
+    CRowStreamMerger(IRowProvider &_provider,unsigned numstreams, const ICompare *_icmp,bool _partdedup=false)
         : provider(_provider)
     {
         partdedup = _partdedup;
@@ -1283,3 +1413,18 @@ IRowStream *createRowStreamMerger(unsigned numstreams,IRowProvider &provider,ICo
 }
 
 
+
+static void mergePartitionsX(const ICompare & compare, void * * result, unsigned n, size_t * counts, void * * * rows)
+{
+    InlineBlockRowProvider input(n);
+    for (unsigned i=0; i < n; i++)
+        input.setInput(i, counts[i], rows[i]);
+    CRowStreamMerger merger(input,n,&compare,false);
+    loop
+    {
+        void * next = (void *)merger.next();
+        if (!next)
+            return;
+        *result++ = next;
+    }
+}

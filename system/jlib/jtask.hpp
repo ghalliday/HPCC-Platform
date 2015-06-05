@@ -39,16 +39,16 @@ public:
     inline bool noteAncestorComplete() { return atomic_dec_and_test(&ancestors); }
 
 private:
-    mutable atomic_t ancestors;
+    atomic_t ancestors;
 };
 
 //--------------------------------------------------------------------------------------------------------------------
 
-extern jlib_decl void scheduleTask(ATask & task);
+extern jlib_decl void scheduleTask(ATask & task, bool isLocal);
 inline void noteAncestorCompleteAndSchedule(ATask & task)
 {
     if (task.noteAncestorComplete())
-        scheduleTask(OLINK(task));
+        scheduleTask(OLINK(task), true);
 }
 
 //--------------------------------------------------------------------------------------------------------------------
@@ -82,6 +82,16 @@ public:
         if (next)
             noteAncestorCompleteAndSchedule(*next);
     }
+    ATask * getNextTask()
+    {
+        if (next)
+        {
+            if (next->noteAncestorComplete())
+                return next.getClear();
+            next.clear();
+        }
+        return NULL;
+    }
 protected:
     Owned<ATask> next;
 };
@@ -94,7 +104,7 @@ interface ITaskManager
 {
     virtual unsigned getNumParallel() const = 0;
     virtual unsigned getLog2Parallel() const = 0;
-    virtual void schedule(ATask & task) = 0;
+    virtual void schedule(ATask & task, bool isLocal) = 0;
     virtual void setNumParallel(unsigned _numCpus) = 0;
 };
 
@@ -105,7 +115,7 @@ extern jlib_decl void initTaskManager(unsigned numCpus);
 
 interface ITaskExecutor
 {
-    virtual void schedule(ATask & task) = 0;
+    virtual void schedule(ATask & task, bool isLocal) = 0;
 };
 
 extern jlib_decl ITaskManager * queryTaskExecutor();
