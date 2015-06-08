@@ -35,6 +35,7 @@ public:
 
 //Public implemented functions
 public:
+    inline void incNumAncestors() { atomic_inc(&ancestors); }
     inline void setNumAncestors(unsigned num) { atomic_set(&ancestors, num); }
     inline bool noteAncestorComplete() { return atomic_dec_and_test(&ancestors); }
 

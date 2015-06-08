@@ -658,6 +658,75 @@ inline void * * mergePartitions(const ICompare & compare, void * * result, unsig
     }
 }
 
+inline void * * mergePartitions(const ICompare & compare, void * * result, size_t n1, void * * ret1, size_t n2, void * * ret2, size_t n)
+{
+    void * * tgt = result;
+    while (n--)
+    {
+       if (compare.docompare(*ret1, *ret2) <= 0)
+       {
+           *tgt++ = *ret1++;
+           if (--n1 == 0)
+           {
+               while (n--)
+               {
+                   *tgt++ = *ret2++;
+               }
+               return result;
+           }
+       }
+       else
+       {
+           *tgt++ = *ret2++;
+           if (--n2 == 0)
+           {
+               while (n--)
+               {
+                   *tgt++ = *ret1++;
+               }
+               return result;
+           }
+       }
+    }
+    return result;
+}
+
+inline void * * mergePartitionsRev(const ICompare & compare, void * * result, size_t n1, void * * ret1, size_t n2, void * * ret2, size_t n)
+{
+    void * * tgt = result+n1+n2-1;
+    ret1 += (n1-1);
+    ret2 += (n2-1);
+    while (n--)
+    {
+       if (compare.docompare(*ret1, *ret2) >= 0)
+       {
+           *tgt-- = *ret1--;
+           if (--n1 == 0)
+           {
+               while (n--)
+               {
+                   *tgt-- = *ret2--;
+               }
+               return result;
+           }
+       }
+       else
+       {
+           *tgt-- = *ret2--;
+           if (--n2 == 0)
+           {
+               //There must be at least one row in the left partition - copy any that remain
+               while (n--)
+               {
+                   *tgt-- = *ret1--;
+               }
+               return result;
+           }
+       }
+    }
+    return result;
+}
+
 class InlineBlockRowProvider : implements CInterfaceOf<IRowProvider>
 {
     struct RowInfo
@@ -777,12 +846,32 @@ void msortvecstableinplace(void ** rows, size32_t n, const ICompare & compare, v
 
 //=========================================================================
 
-#define NWAY_MERGE
+//#define NWAY_MERGE
 
 static const size_t singleThreadedMSortThreshold = 3;   // Must be at least 3!
 
 class ParallelMergeSorter
 {
+    class SplitTask : public NullTask
+    {
+    public:
+        SplitTask(unsigned _ancestors, ATask * _next1, ATask * _next2) : NullTask(_ancestors), next1(_next1), next2(_next2)
+        {
+        }
+
+        virtual ATask * execute()
+        {
+            noteAncestorCompleteAndSchedule(*next1);
+            if (next2->noteAncestorComplete())
+                return LINK(next2);
+            return NULL;
+        }
+    protected:
+        Owned<ATask> next1;
+        Owned<ATask> next2;
+    };
+
+
     class SubSortTask : public NullTask
     {
     public:
@@ -808,14 +897,14 @@ class ParallelMergeSorter
     class MergeTask : public AncestorTask
     {
     public:
-        MergeTask(const ICompare & _compare, void * * _result, size_t _n1, void * * _src1, size_t _n2, void * * _src2, ATask * _next)
-        : AncestorTask(2, _next), compare(_compare),result(_result), n1(_n1), src1(_src1), n2(_n2), src2(_src2)
+        MergeTask(unsigned _ancestors, const ICompare & _compare, void * * _result, size_t _n1, void * * _src1, size_t _n2, void * * _src2, ATask * _next, size32_t _n)
+        : AncestorTask(_ancestors, _next), compare(_compare),result(_result), n1(_n1), src1(_src1), n2(_n2), src2(_src2), n(_n)
         {
         }
 
         virtual ATask * execute()
         {
-            mergePartitions(compare, result, n1, src1, n2, src2);
+            mergePartitions(compare, result, n1, src1, n2, src2, n);
             return getNextTask();
         }
 
@@ -826,6 +915,22 @@ class ParallelMergeSorter
         void * * src2;
         size_t n1;
         size_t n2;
+        size_t n;
+    };
+
+    class MergeRevTask : public MergeTask
+    {
+    public:
+        MergeRevTask(unsigned _ancestors, const ICompare & _compare, void * * _result, size_t _n1, void * * _src1, size_t _n2, void * * _src2, ATask * _next, size_t n)
+        : MergeTask(_ancestors, _compare, _result, _n1, _src1, _n2, _src2, _next, n)
+        {
+        }
+
+        virtual ATask * execute()
+        {
+            mergePartitionsRev(compare, result, n2, src2, n1, src1, n);
+            return getNextTask();
+        }
     };
 
     class MergeNWayTask : public AncestorTask
@@ -866,6 +971,7 @@ class ParallelMergeSorter
 public:
     ParallelMergeSorter(void * * _rows, const ICompare & _compare) : compare(_compare), baseRows(_rows)
     {
+        parallelMergeDepth = queryTaskManager().getLog2Parallel()+1;
 #ifdef NWAY_MERGE
         singleThreadDepth = 3;
 #else
@@ -889,17 +995,18 @@ public:
 
         void * * result = (depth & 1) ? temp : rows;
         void * * src = (depth & 1) ? rows : temp;
+
 #ifdef NWAY_MERGE
-        MORE!
         if (depth == 0)
         {
             unsigned numSplits = queryTaskManager().getNumParallel();
+            if (numSplits > 4)
+                numSplits = 4;
+
             if (n / numSplits < singleThreadedMSortThreshold)
                 numSplits = n / singleThreadedMSortThreshold;
 
-    //        printf("%u -> %u\n", n, numSplits);
-
-            if (numSplits > 4)  ??? what constant
+            if (numSplits >= 4)
             {
                 Owned<MergeNWayTask> doneTask = new MergeNWayTask(compare, result, numSplits, LINK(&next));
                 {
@@ -927,24 +1034,36 @@ public:
 
                 return NULL;
             }
-#else
+        }
+#endif
         unsigned n1 = (n+1)/2;
         unsigned n2 = n-n1;
-        Owned<ATask> doneTask = new MergeTask(compare, result, n1, src, n2, src+n1, LINK(&next));
-        Owned<ATask> sortRightTask = new SubSortTask(*this, rows+n1, n2, temp+n1, depth+1, LINK(doneTask));
-        scheduleTask(*sortRightTask.getClear(), (depth != 0));
 
-        Owned<ATask> sortLeftTask = new SubSortTask(*this, rows, n1, temp, depth+1, doneTask.getClear());
+
+        Owned<ATask> mergeTask;
+        if (depth < parallelMergeDepth)
+        {
+            next.incNumAncestors();
+            Owned<ATask> mergeFwdTask = new MergeTask(1, compare, result, n1, src, n2, src+n1, LINK(&next), n1);
+            Owned<ATask> mergeRevTask = new MergeRevTask(1, compare, result, n1, src, n2, src+n1, LINK(&next), n2);
+            mergeTask.setown(new SplitTask(2, mergeFwdTask.getClear(), mergeRevTask.getClear()));
+        }
+        else
+            mergeTask.setown(new MergeTask(2, compare, result, n1, src, n2, src+n1, LINK(&next), n));
+
+        Owned<ATask> sortRightTask = new SubSortTask(*this, rows+n1, n2, temp+n1, depth+1, LINK(mergeTask));
+        scheduleTask(*sortRightTask.getClear(), (depth != 0));
+        Owned<ATask> sortLeftTask = new SubSortTask(*this, rows, n1, temp, depth+1, mergeTask.getClear());
         if (depth != 0)
             return sortLeftTask.getClear();
         scheduleTask(*sortLeftTask.getClear(), (depth != 0));
         return NULL;
-#endif
     }
 
 protected:
     const ICompare & compare;
     unsigned singleThreadDepth;
+    unsigned parallelMergeDepth;
     void * * baseRows;
 };
 
