@@ -178,15 +178,24 @@ MappingKey::MappingKey(const void * inKey, int keysize)
 
 //-- Default atom implementations --------------------------------------------
 
+static bool isNull(const IAtom * x) { return x == NULL; }
+static bool isNull(const IIdAtom * x) { return x == NULL; }
+
 const char *IAtom::getAtomNamePtr() const
 {
-   if (!this) return NULL;
+   if (isNull(this)) return NULL;
+   return getNamePtr();
+}
+
+const char *IIdAtom::getAtomNamePtr() const
+{
+   if (isNull(this)) return NULL;
    return getNamePtr();
 }
 
 IAtom * IIdAtom::lower() const
 {
-    if (!this)
+    if (isNull(this))
         return NULL;
     return queryLower();
 }

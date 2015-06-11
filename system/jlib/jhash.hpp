@@ -63,7 +63,8 @@ interface jlib_decl IIdAtom : extends IMapping
  public:
     virtual const char * getNamePtr() const = 0;
 
-    const char *         getAtomNamePtr() const { return this ? getNamePtr() : NULL; }
+    //const char *         getAtomNamePtr() const { return this ? getNamePtr() : NULL; }
+    const char *         getAtomNamePtr() const;// { return getNamePtr(); }
     inline const char * str() const { return getAtomNamePtr(); }
     inline operator const char *() const { return getAtomNamePtr(); }
 
