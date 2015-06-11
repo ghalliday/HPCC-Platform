@@ -841,7 +841,7 @@ class ParallelMergeSorter
 
         virtual ATask * execute()
         {
-            return sorter.sort(rows, n, temp, depth, *next);
+            return sorter.sortLevel(rows, n, temp, depth, *next);
         }
     protected:
         ParallelMergeSorter & sorter;
@@ -895,17 +895,21 @@ class ParallelMergeSorter
 public:
     ParallelMergeSorter(void * * _rows, const ICompare & _compare) : compare(_compare), baseRows(_rows)
     {
+        const char * depth = getenv("MSORTDEPTH");
+        unsigned extraDepth = depth ? atoi(depth) : 3;
+        printf("Depth = %u\n", extraDepth);
+        //Merge in parallel once it is likely to be beneficial
         parallelMergeDepth = queryTaskManager().getLog2Parallel()+1;
         //Aim to execute in parallel until the width is 8*the maximum number of parallel task
-        singleThreadDepth = queryTaskManager().getLog2Parallel() + 3;
+        singleThreadDepth = queryTaskManager().getLog2Parallel() + extraDepth;
     }
     ~ParallelMergeSorter()
     {
     }
 
-    ATask * sort(void ** rows, size32_t n, void ** temp, unsigned depth, ATask & next)
+    ATask * sortLevel(void ** rows, size32_t n, void ** temp, unsigned depth, ATask & next)
     {
-        if ((n <= singleThreadedMSortThreshold * 2) || (depth >= singleThreadDepth))
+        if ((n <= singleThreadedMSortThreshold) || (depth >= singleThreadDepth))
         {
             mergeSort(rows, n, compare, temp, depth);
             if (next.noteAncestorComplete())
@@ -938,6 +942,16 @@ public:
         return NULL;
     }
 
+    void sortRoot(void ** rows, size32_t n, void ** temp)
+    {
+        Semaphore done;
+        Owned<SignalTask> completeTask = new SignalTask(done);
+        completeTask->setNumAncestors(1);
+        ATask * task = sortLevel(rows, n, temp, 0, *completeTask);
+        assertex(!task);
+        done.wait();
+    }
+
 protected:
     const ICompare & compare;
     unsigned singleThreadDepth;
@@ -951,14 +965,8 @@ void parmsortvecstableinplace(void ** rows, size32_t n, const ICompare & compare
     if ((n <= singleThreadedMSortThreshold) || ncpus == 1)
         return msortvecstableinplace(rows, n, compare, temp);
 
-    Semaphore done;
-    Owned<SignalTask> completeTask = new SignalTask(done);
-    completeTask->setNumAncestors(1);
     ParallelMergeSorter sorter(rows, compare);
-    ATask * task = sorter.sort(rows, n, temp, 0, *completeTask);
-    if (task)
-        scheduleTask(*task, true);
-    done.wait();
+    sorter.sortRoot(rows, n, temp);
 }
 
 
