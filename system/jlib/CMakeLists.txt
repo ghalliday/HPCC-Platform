@@ -174,6 +174,8 @@ target_link_libraries ( jlib
         lzma
        )
 
+target_link_libraries ( jlib tbb)
+
 if ( ${HAVE_LIBDL} )
 target_link_libraries ( jlib dl)
 endif ( ${HAVE_LIBDL} )

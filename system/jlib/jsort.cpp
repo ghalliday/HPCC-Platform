@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 
+#define USE_TBB
 
 #include "platform.h"
 #include <string.h>
@@ -27,6 +28,11 @@
 #include "jthread.hpp"
 #include "jqueue.tpp"
 #include "jtask.hpp"
+
+#ifdef USE_TBB
+#include "tbb/task.h"
+#include "tbb/task_scheduler_init.h"
+#endif
 
 #ifdef _DEBUG
 // #define PARANOID
@@ -897,11 +903,11 @@ public:
     {
         const char * depth = getenv("MSORTDEPTH");
         unsigned extraDepth = depth ? atoi(depth) : 3;
-        printf("Depth = %u\n", extraDepth);
         //Merge in parallel once it is likely to be beneficial
         parallelMergeDepth = queryTaskManager().getLog2Parallel()+1;
         //Aim to execute in parallel until the width is 8*the maximum number of parallel task
         singleThreadDepth = queryTaskManager().getLog2Parallel() + extraDepth;
+        printf("Task: Depth = %u Parallel = %u\n", extraDepth, parallelMergeDepth);
     }
     ~ParallelMergeSorter()
     {
@@ -960,13 +966,192 @@ protected:
 };
 
 //-------------------------------------------------------------------------------------------------------------------
+
+using tbb::task;
+class TbbParallelMergeSorter
+{
+    class SplitTask : public tbb::task
+    {
+    public:
+        SplitTask(task * _next1, task * _next2) : next1(_next1), next2(_next2)
+        {
+        }
+
+        virtual task * execute()
+        {
+            if (next1->decrement_ref_count() == 0)
+                spawn(*next1);
+            if (next2->decrement_ref_count() == 0)
+                return next2;
+            return NULL;
+        }
+    protected:
+        task * next1;
+        task * next2;
+    };
+
+    class BisectTask : public tbb::task
+    {
+    public:
+        BisectTask(TbbParallelMergeSorter & _sorter, void ** _rows, size32_t _n, void ** _temp, unsigned _depth, task * _next)
+        : sorter(_sorter), rows(_rows), n(_n), temp(_temp), depth(_depth), next(_next)
+        {
+        }
+        virtual task * execute()
+        {
+            //On entry next is assumed to be used once by this function
+            if ((n <= singleThreadedMSortThreshold) || (depth >= sorter.singleThreadDepth))
+            {
+                task * sort = new (next->allocate_child()) SubSortTask(sorter, rows, n, temp, depth);
+                return sort;
+            }
+
+            void * * result = (depth & 1) ? temp : rows;
+            void * * src = (depth & 1) ? rows : temp;
+            unsigned n1 = (n+1)/2;
+            unsigned n2 = n-n1;
+            task * mergeTask;
+            if (depth < sorter.parallelMergeDepth)
+            {
+                task * mergeFwdTask = new (allocate_additional_child_of(*next)) MergeTask(sorter.compare, result, n1, src, n2, src+n1, n1);
+                mergeFwdTask->set_ref_count(1);
+                task * mergeRevTask = new (next->allocate_child()) MergeRevTask(sorter.compare, result, n1, src, n2, src+n1, n2);
+                mergeRevTask->set_ref_count(1);
+                mergeTask = new (allocate_root()) SplitTask(mergeFwdTask, mergeRevTask);
+
+            }
+            else
+            {
+                mergeTask = new (next->allocate_child()) MergeTask(sorter.compare, result, n1, src, n2, src+n1, n);
+            }
+
+            mergeTask->set_ref_count(2);
+            task * bisectRightTask = new (allocate_root()) BisectTask(sorter, rows+n1, n2, temp+n1, depth+1, mergeTask);
+            task * bisectLeftTask = new (allocate_root()) BisectTask(sorter, rows, n1, temp, depth+1, mergeTask);
+            spawn(*bisectRightTask);
+            spawn(*bisectLeftTask);
+            return NULL;
+        }
+    protected:
+        TbbParallelMergeSorter & sorter;
+        void ** rows;
+        void ** temp;
+        task * next;
+        size32_t n;
+        unsigned depth;
+    };
+
+
+    class SubSortTask : public tbb::task
+    {
+    public:
+        SubSortTask(TbbParallelMergeSorter & _sorter, void ** _rows, size32_t _n, void ** _temp, unsigned _depth)
+        : sorter(_sorter), rows(_rows), n(_n), temp(_temp), depth(_depth)
+        {
+        }
+
+        virtual task * execute()
+        {
+            mergeSort(rows, n, sorter.compare, temp, depth);
+            return NULL;
+        }
+    protected:
+        TbbParallelMergeSorter & sorter;
+        void ** rows;
+        void ** temp;
+        size32_t n;
+        unsigned depth;
+    };
+
+
+    class MergeTask : public tbb::task
+    {
+    public:
+        MergeTask(const ICompare & _compare, void * * _result, size_t _n1, void * * _src1, size_t _n2, void * * _src2, size32_t _n)
+        : compare(_compare),result(_result), n1(_n1), src1(_src1), n2(_n2), src2(_src2), n(_n)
+        {
+        }
+
+        virtual task * execute()
+        {
+            mergePartitions(compare, result, n1, src1, n2, src2, n);
+            return NULL;
+        }
+
+    protected:
+        const ICompare & compare;
+        void * * result;
+        void * * src1;
+        void * * src2;
+        size_t n1;
+        size_t n2;
+        size_t n;
+    };
+
+    class MergeRevTask : public MergeTask
+    {
+    public:
+        MergeRevTask(const ICompare & _compare, void * * _result, size_t _n1, void * * _src1, size_t _n2, void * * _src2, size_t _n)
+        : MergeTask(_compare, _result, _n1, _src1, _n2, _src2, _n)
+        {
+        }
+
+        virtual task * execute()
+        {
+            mergePartitionsRev(compare, result, n2, src2, n1, src1, n);
+            return NULL;
+        }
+    };
+
+public:
+    TbbParallelMergeSorter(void * * _rows, const ICompare & _compare) : compare(_compare), baseRows(_rows)
+    {
+        const char * depth = getenv("MSORTDEPTH");
+        unsigned extraDepth = depth ? atoi(depth) : 3;
+        //Merge in parallel once it is likely to be beneficial
+        parallelMergeDepth = queryTaskManager().getLog2Parallel()+1;
+        //Aim to execute in parallel until the width is 8*the maximum number of parallel task
+        singleThreadDepth = queryTaskManager().getLog2Parallel() + extraDepth;
+        printf("TBB: Depth = %u Parallel = %u\n", extraDepth, parallelMergeDepth);
+    }
+    ~TbbParallelMergeSorter()
+    {
+    }
+
+    void sortRoot(void ** rows, size32_t n, void ** temp)
+    {
+        task * end = new (task::allocate_root()) tbb::empty_task();
+        end->set_ref_count(1+1);
+        task * task = new (task::allocate_root()) BisectTask(*this, rows, n, temp, 0, end);
+        end->spawn(*task);
+        end->wait_for_all();
+        end->destroy(*end);
+    }
+
+public:
+    const ICompare & compare;
+    unsigned singleThreadDepth;
+    unsigned parallelMergeDepth;
+    void * * baseRows;
+};
+
+//-------------------------------------------------------------------------------------------------------------------
 void parmsortvecstableinplace(void ** rows, size32_t n, const ICompare & compare, void ** temp, unsigned ncpus)
 {
     if ((n <= singleThreadedMSortThreshold) || ncpus == 1)
         return msortvecstableinplace(rows, n, compare, temp);
 
-    ParallelMergeSorter sorter(rows, compare);
-    sorter.sortRoot(rows, n, temp);
+    const char * tbb = getenv("USETBB");
+    if (tbb && streq(tbb, "1"))
+    {
+        TbbParallelMergeSorter sorter(rows, compare);
+        sorter.sortRoot(rows, n, temp);
+    }
+    else
+    {
+        ParallelMergeSorter sorter(rows, compare);
+        sorter.sortRoot(rows, n, temp);
+    }
 }
 
 
