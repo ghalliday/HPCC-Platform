@@ -1182,14 +1182,7 @@ protected:
     //classes, but that means it is hard to common up some of the code efficiently
 
 public:
-    ChunkedHeaplet(CHeap * _heap, const IRowAllocatorCache *_allocatorCache, size32_t _chunkSize, size32_t _chunkCapacity)
-        : Heaplet(_heap, _allocatorCache, _chunkCapacity), chunkSize(_chunkSize)
-    {
-        sharedAllocatorId = 0;
-        atomic_set(&freeBase, 0);
-        atomic_set(&r_blocks, 0);
-    }
-
+    ChunkedHeaplet(CHeap * _heap, const IRowAllocatorCache *_allocatorCache, size32_t _chunkSize, size32_t _chunkCapacity);
     virtual size32_t sizeInPages() { return 1; }
 
     inline unsigned numChunks() const { return queryCount()-1; }
@@ -2754,6 +2747,28 @@ void Heaplet::verifySpaceList()
     }
 }
 
+ChunkedHeaplet::ChunkedHeaplet(CHeap * _heap, const IRowAllocatorCache *_allocatorCache, size32_t _chunkSize, size32_t _chunkCapacity)
+    : Heaplet(_heap, _allocatorCache, _chunkCapacity), chunkSize(_chunkSize)
+{
+    sharedAllocatorId = 0;
+    atomic_set(&freeBase, 0);
+    atomic_set(&r_blocks, 0);
+
+    //Create a free chain throughout the block of all the possible allocations.  This can use non atomic operations..
+    unsigned curFreeBase = 0;
+    unsigned nextFree = 0;
+    size32_t maxOffset = dataAreaSize() - chunkSize;
+    while (curFreeBase <= maxOffset)
+    {
+        const char * ptr = data() + curFreeBase;
+        * (unsigned *) ptr = nextFree;
+        nextFree = makeRelative(ptr);
+        curFreeBase += chunkSize;
+   }
+    atomic_set(&freeBase, curFreeBase);
+    atomic_set(&r_blocks, nextFree);
+}
+
 void ChunkedHeaplet::verifySpaceList()
 {
     if (atomic_read(&nextSpace) == 0)
@@ -2770,7 +2785,8 @@ char * ChunkedHeaplet::allocateChunk()
     {
         unsigned old_blocks = atomic_read(&r_blocks);
         unsigned r_ret = (old_blocks & RBLOCKS_OFFSET_MASK);
-        if (r_ret)
+        if (!r_ret)
+            return NULL;
         {
             ret = makeAbsolute(r_ret);
             //may have been allocated by another thread, but still legal to dereference
@@ -2785,6 +2801,7 @@ char * ChunkedHeaplet::allocateChunk()
             if (atomic_cas(&r_blocks, new_blocks, old_blocks))
                 break;
         }
+        /*
         else
         {
             unsigned curFreeBase = atomic_read(&freeBase);
@@ -2800,7 +2817,7 @@ char * ChunkedHeaplet::allocateChunk()
             }
             else
                 return NULL;
-        }
+        }*/
     }
 
     atomic_inc(&count);
