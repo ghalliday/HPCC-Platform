@@ -422,13 +422,13 @@ interface IVariableRowHeap : extends IInterface
 interface IBlockedRowReleaser : public IInterface
 {
 public:
-    virtual void releaseRows(bool reuse) = 0;
+    virtual IBlockedRowReleaser * releaseRows(bool reuse) = 0;
 };
 
 class CBlockedRowReleaser : public CInterfaceOf<IBlockedRowReleaser>
 {
 public:
-    CBlockedRowReleaser(unsigned _max, const void * * _rows) : num(0), max(_max), rows(_rows) {}
+    CBlockedRowReleaser(unsigned _max, const void * * _rows) : num(0), max(_max), rows(_rows) { }
     virtual ~CBlockedRowReleaser() {};
 
     inline void appendRow(const void * row)
@@ -440,10 +440,12 @@ public:
     {
         return (num >= max);
     }
-    virtual void releaseRows(bool reuse)
+    virtual IBlockedRowReleaser * releaseRows(bool reuse)
     {
         releaseAllRows();
+        return NULL;
     }
+
 protected:
     void releaseAllRows()
     {

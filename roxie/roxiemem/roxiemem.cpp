@@ -19,6 +19,7 @@
 #include "roxierowbuff.hpp"
 #include "jlog.hpp"
 #include "jset.hpp"
+#include "jqueue.tpp"
 #include <new>
 #ifdef _USE_TBBXXXX
 #include "tbb/task.h"
@@ -3237,6 +3238,7 @@ void initAllocSizeMappings(const unsigned * sizes)
 
 //---------------------------------------------------------------------------------------------------------------------
 
+
 class CHeapBlockedRowReleaser : public CBlockedRowReleaser
 {
 public:
@@ -3258,8 +3260,15 @@ public:
 
     virtual task * execute()
     {
-        releaser->releaseRows(true);
-        releaser.clear();
+        IBlockedRowReleaser * next = releaser->releaseRows(true);
+        releaser.setown(next);
+        if (next)
+        {
+            return new (tbb::task::allocate_additional_child_of(*parent())) releaser_task(releaser.getClear());
+            set_ref_count(1);
+            recycle_as_safe_continuation();
+            return this;
+        }
         return NULL;
     }
 
@@ -3321,6 +3330,7 @@ class CChunkingRowManager : public CInterface, implements IRowManager
     }
 
     unsigned numReleasers;
+    unsigned numReleaseTasks;
 public:
     IMPLEMENT_IINTERFACE;
 
@@ -3372,20 +3382,25 @@ public:
 
         const char * granularity = getenv("RELEASE_GRANULARITY");
         releaseGranularity = granularity ? atoi(granularity) : 1000;
+        const char * threads = getenv("RELEASE_THREADS");
 
+        numReleaseTasks = 0;
 #ifdef _USE_TBBXXXX
+        numReleaseTasks = threads ? atoi(threads) : tbb::task_scheduler_init::default_num_threads();
         blocks_released = new (tbb::task::allocate_root()) tbb::empty_task();
         blocks_released->set_ref_count(1);
-        releaserSem.reinit(tbb::task_scheduler_init::default_num_threads());
+        releaserSem.reinit(numReleaseTasks);
 #endif
         numReleasers = 0;
+        releaseRunning = 0;
+        numSpawned = 0;
     }
 
     ~CChunkingRowManager()
     {
         callbacks.stopReleaseBufferThread();
 
-        printf("%d releasers", numReleasers);
+        printf("%d tasks, %d releasers %d spawned %u granularity\n", numReleaseTasks, numReleasers, numSpawned, releaseGranularity);
 #ifdef _USE_TBBXXXX
         //Ensure all parallel block releases are completed before the row manager is destroyed
         //MORE: Investigate how to abort a set of tasks
@@ -3974,11 +3989,12 @@ public:
         {
         }
 
-        virtual void releaseRows(bool recycle)
+        virtual IBlockedRowReleaser * releaseRows(bool recycle)
         {
             releaseAllRows();
             if (recycle)
-                rowManager->recycleReleaser(this);
+                return rowManager->recycleReleaser(this);
+            return NULL;
         }
 
     protected:
@@ -4005,26 +4021,56 @@ public:
     virtual void releaseBlocked(IBlockedRowReleaser * ownedRows)
     {
 #ifdef _USE_TBBXXXX
+        {
+            NonReentrantSpinBlock block(pendingSpin);
+            pendingQueue.enqueue(ownedRows);
+        }
+
         releaserSem.wait();
-        tbb::task * next = new (tbb::task::allocate_additional_child_of(*blocks_released)) releaser_task(ownedRows);
-        tbb::task::spawn(*next);
+
+        IBlockedRowReleaser * nextRows = NULL;
+        {
+            NonReentrantSpinBlock block(pendingSpin);
+            if (releaseRunning < numReleaseTasks)
+            {
+                nextRows = pendingQueue.dequeue();
+                if (nextRows)
+                {
+                    releaseRunning++;
+                    numSpawned++;
+                }
+            }
+        }
+        if (nextRows)
+        {
+            tbb::task * next = new (tbb::task::allocate_additional_child_of(*blocks_released)) releaser_task(nextRows);
+            tbb::task::spawn(*next);
+        }
 #else
         ownedRows->releaseRows(true);
         ownedRows->Release();
 #endif
     }
 
-
-    void recycleReleaser(CRowManagerRowReleaser * releaser)
+    IBlockedRowReleaser * recycleReleaser(CRowManagerRowReleaser * releaser)
     {
         {
             NonReentrantSpinBlock block(releaseSpin);
             releaser->next.setown(freeList.getClear());
             freeList.set(releaser);
         }
+
+        IBlockedRowReleaser * nextRows = NULL;
+        {
+            NonReentrantSpinBlock block(pendingSpin);
+            nextRows = pendingQueue.dequeue();
+            if (!nextRows)
+                releaseRunning--;
+        }
 #ifdef _USE_TBBXXXX
         releaserSem.signal();
 #endif
+        return nextRows;
     }
 
 protected:
@@ -4244,7 +4290,11 @@ protected:
 
 protected:
     Owned<CRowManagerRowReleaser> freeList;
+    QueueOf<IBlockedRowReleaser, false> pendingQueue;
     NonReentrantSpinLock releaseSpin;
+    NonReentrantSpinLock pendingSpin;
+    unsigned releaseRunning;
+    unsigned numSpawned;
 };
 
 
