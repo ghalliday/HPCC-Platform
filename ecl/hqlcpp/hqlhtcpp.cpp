@@ -7860,8 +7860,9 @@ void HqlCppTranslator::doBuildStmtSetGraphResult(BuildCtx & ctx, IHqlExpression 
     //Create an expression we can associate with the context so that subsequent get results
     //can access the values that have been calculated
 
+    OwnedHqlExpr value = dataset->isDatarow() ? createDatasetFromRow(LINK(dataset)) : LINK(dataset);
     CHqlBoundExpr bound;
-    buildTempExpr(ctx, dataset, bound);
+    buildTempExpr(ctx, value, bound);
     ctx.associateExpr(result, bound);
 }
 

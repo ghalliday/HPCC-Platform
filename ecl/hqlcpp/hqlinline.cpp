@@ -113,6 +113,7 @@ static unsigned calcInlineFlags(BuildCtx * ctx, IHqlExpression * expr)
     case no_call:
     case no_externalcall:               // no so sure about this - should possibly be assignable only. (also no_call above)
     case no_getresult:
+    case no_split:
         return RETassign;
     }
 
@@ -417,6 +418,7 @@ bool mustAssignInline(BuildCtx *ctx, IHqlExpression *expr)
     case no_right:
     case no_workunit_dataset:
     case no_getresult:
+    case no_createrow:
         //MORE: what else?
         return true;
     case no_alias:
