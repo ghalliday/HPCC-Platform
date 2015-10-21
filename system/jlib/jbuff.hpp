@@ -31,7 +31,7 @@ class jlib_decl MemoryAttr
 {
 public:
     inline MemoryAttr() { len = 0; ptr = NULL; }
-    MemoryAttr(size32_t _len);                      
+    MemoryAttr(size32_t _len);
     MemoryAttr(size32_t _len, const void * _ptr);
     MemoryAttr(const MemoryAttr & src);
     inline ~MemoryAttr() { free(ptr); }

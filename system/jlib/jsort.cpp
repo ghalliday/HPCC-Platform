@@ -26,6 +26,7 @@
 #include "jthread.hpp"
 #include "jqueue.tpp"
 #include "jset.hpp"
+#include "jutil.hpp"
 
 #ifdef _USE_TBB
 #include "tbb/task.h"
@@ -38,6 +39,8 @@
 //#define TESTPARSORT
 //#define MCMERGESTATS
 #endif
+
+//#define TRACE_PARTITION
 
 #define PARALLEL_GRANULARITY 1024
 static const unsigned numPartitionSamples = 3;
@@ -780,79 +783,6 @@ void msortvecstableinplace(void ** rows, size32_t n, const ICompare & compare, v
     mergeSort(rows, n, compare, temp, 0);
 }
 
-//Issues:
-//What variables and members are passed around?
-//How code once an item is exhaused
-//Carefully look at the number of partitions and the theory on the errors.  s(P-1) or sP-1?
-//
-
-#if 0
-void calculatePartitions(size_t * posLeft, size_t * posRight)
-{
-    //If dividing into P parts, need P-1 split points
-    unsigned numSamples = numPartitionSamples*(numPartitions-1);
-    QuantileIterator iterLeft(numLeft, numSamples+1);
-    QuantileIterator iterLeft(numRight, numSamples+1);
-    size_t prevLeft = 0;
-    size_t prevRight =0;
-    posLeft[0] = 0;
-    posRight[0] = 0;
-    unsigned curPartition = 1;
-    unsigned numToSkip = numPartitionSamples;
-    unsigned numToCompare = 2*numSamples - (numPartitionSamples-1);
-    for (unsigned i = 0; i < numToCompare; i++)
-    {
-        //version 1
-        size_t leftPos = leftIter.get();
-        size_t rightPos = rightIter.get();
-        int c = compare(left+leftPos, right+rightPos);
-        //cmpare
-        if (--numToSkip == 0)
-        {
-            if (c < 0)
-            {
-                //value in left is smallest.
-                posLeft[curPartition] = leftPos;
-                posRight[curPartition] = findGE(right, prevRight, rightPos, left[leftPos]);
-            }
-            else
-            {
-                posLeft[curPartition] = findGT(left, prevLeft, leftPos, right[rightPos]);
-                posRight[curPartition] = rightPos;
-            }
-            curPartition++;
-            numToSkip = 2*numSamples;
-        }
-        else
-            numToSkip--;
-        //if this is a partition point that we're interested in then...
-
-        if (c < 0)
-        {
-            prevLeft = leftPos;
-            if (!iterLeft.next())
-            {
-                //if run out, then other split positions can be calculated directly - without looping, and avoiding nasty
-                //comparison testing
-                //MORE
-            }
-        }
-        else
-        {
-            prevRight = rightPos;
-            if (!iterRight.next())
-            {
-                //MORE:
-            }
-        }
-    }
-
-    assertex(curPartition == numPartitions);
-    posLeft[numPartitions] = numLeft;
-    posRight[numPartitions] = numRight;
-}
-#endif
-
 //=========================================================================
 
 //These constants are probably architecture and number of core dependent
@@ -883,50 +813,6 @@ class TbbParallelMergeSorter
         task * next2;
     };
 
-#if 0
-    class PartitionSplitTask : public tbb::task
-    {
-    public:
-        PartitionSplitTask(size_t _n1, void * * _src1, size_t _n2, void * * _src2, unsigned _numPartitions)
-            : numPartitions(_numPartitions)
-        {
-        }
-
-        void calculatePartitions()
-        {
-            assertex(numPartitions == 2*next.ordinality());
-            for (unsigned i= 0; i < numPartitions; i++)
-            {
-                size_t start = posLeft[i] + posRight[i];
-                size_t end = posLeft[i+1] + posRight[i+1];
-                size_t num = end - start;
-                size_t numFwd = num/2;
-
-                task & mergeFwdTask = tasks.item(i*2);
-                task & mergeRevTask = tasks.item(i*2+1);
-                mergeFwdTask.setDelta(posLeft[i], posLeft[i+1]-posLeft[i],
-                                      posRight[i], posRight[i+1]-posRight[i],
-                                      numFwd);
-                ; task & new (allocate_additional_child_of(*next)) MergeTask(sorter.compare, result, n1, src, n2, src+n1, n1);
-                .setArea(
-            }
-
-        }
-
-        virtual task * execute()
-        {
-            if (next1->decrement_ref_count() == 0)
-                spawn(*next1);
-            if (next2->decrement_ref_count() == 0)
-                return next2;
-            return NULL;
-        }
-    protected:
-        unsigned numPartitions;
-        tbb::task_list tasks;
-    };
-#endif
-
     class BisectTask : public tbb::task
     {
     public:
@@ -954,11 +840,29 @@ class TbbParallelMergeSorter
                 task * mergeTask;
                 if (depth < sorter.parallelMergeDepth)
                 {
-                    task * mergeFwdTask = new (allocate_additional_child_of(*next)) MergeTask(sorter.compare, result, n1, src, n2, src+n1, n1);
-                    mergeFwdTask->set_ref_count(1);
-                    task * mergeRevTask = new (next->allocate_child()) MergeRevTask(sorter.compare, result, n1, src, n2, src+n1, n2);
-                    mergeRevTask->set_ref_count(1);
-                    mergeTask = new (allocate_root()) SplitTask(mergeFwdTask, mergeRevTask);
+                    unsigned partitions = sorter.numPartitionCores() >> depth;
+                    if (partitions > 1)
+                    {
+                        PartitionSplitTask * splitTask = new (allocate_root()) PartitionSplitTask(n1, src, n2, src+n1, partitions, sorter.compare);
+                        for (unsigned i=0; i < partitions; i++)
+                        {
+                            MergeTask * mergeFwdTask = new (allocate_additional_child_of(*next)) MergeTask(sorter.compare, result, n1, src, n2, src+n1, n1);
+                            mergeFwdTask->set_ref_count(1);
+                            MergeTask * mergeRevTask = new (allocate_additional_child_of(*next)) MergeRevTask(sorter.compare, result, n1, src, n2, src+n1, n2);
+                            mergeRevTask->set_ref_count(1);
+                            splitTask->setTasks(i, mergeFwdTask, mergeRevTask);
+                        }
+                        next->decrement_ref_count();
+                        mergeTask = splitTask;
+                    }
+                    else
+                    {
+                        task * mergeFwdTask = new (allocate_additional_child_of(*next)) MergeTask(sorter.compare, result, n1, src, n2, src+n1, n1);
+                        mergeFwdTask->set_ref_count(1);
+                        task * mergeRevTask = new (next->allocate_child()) MergeRevTask(sorter.compare, result, n1, src, n2, src+n1, n2);
+                        mergeRevTask->set_ref_count(1);
+                        mergeTask = new (allocate_root()) SplitTask(mergeFwdTask, mergeRevTask);
+                    }
                 }
                 else
                 {
@@ -1021,6 +925,16 @@ class TbbParallelMergeSorter
             return NULL;
         }
 
+        void adjustRange(unsigned deltaLeft, unsigned numLeft, unsigned deltaRight, unsigned numRight, unsigned num)
+        {
+            src1 += deltaLeft;
+            n1 = numLeft;
+            src2 += deltaRight;
+            n2 = numRight;
+            result += (deltaLeft + deltaRight);
+            n = num;
+        }
+
     protected:
         const ICompare & compare;
         void * * result;
@@ -1046,6 +960,194 @@ class TbbParallelMergeSorter
         }
     };
 
+    class PartitionSplitTask : public tbb::task
+    {
+    public:
+        PartitionSplitTask(size_t _n1, void * * _src1, size_t _n2, void * * _src2, unsigned _numPartitions, const ICompare & _compare)
+            : numPartitions(_numPartitions), n1(_n1), n2(_n2), src1(_src1), src2(_src2), compare(_compare)
+        {
+            posLeft = new unsigned[numPartitions+1];
+            posRight = new unsigned[numPartitions+1];
+            tasks = new MergeTask *[numPartitions*2];
+            for (unsigned i=0; i < numPartitions*2; i++)
+                tasks[i] = NULL;
+        }
+        ~PartitionSplitTask()
+        {
+            delete [] posLeft;
+            delete [] posRight;
+            delete [] tasks;
+        }
+
+        void calculatePartitions()
+        {
+            //If dividing into P parts, select S*P-1 even points from each side.
+            unsigned numSamples = numPartitionSamples*numPartitions-1;
+            QuantilePositionIterator iterLeft(n1, numSamples+1, false);
+            QuantilePositionIterator iterRight(n2, numSamples+1, false);
+            iterLeft.first();
+            iterLeft.next();
+            iterRight.first();
+            iterRight.next();
+
+            size_t prevLeft = 0;
+            size_t prevRight =0;
+            posLeft[0] = 0;
+            posRight[0] = 0;
+
+            //From the merged list, for sample i [zero based], we can guarantee that there are at least (i+1)*(n1+n2)/numSamples*2
+            //rows before sample i, and at most (i+2)*(n1+n2)/numSamples*2 samples after it.
+            //=> pick samples [0, 2*numSamples, 4*numSamples ...]
+            for (unsigned part = 1; part < numPartitions; part++)
+            {
+                for (unsigned skip=numPartitionSamples*2; skip-- != 0; )
+                {
+                    size_t leftPos = iterLeft.get();
+                    size_t rightPos = iterRight.get();
+                    if (leftPos == n1)
+                    {
+                        if (skip == 0)
+                        {
+                            posLeft[part] = leftPos;
+                            posRight[part] = rightPos;
+                        }
+                        iterRight.next();
+                    }
+                    else if (rightPos == n2)
+                    {
+                        if (skip == 0)
+                        {
+                            posLeft[part] = leftPos;
+                            posRight[part] = rightPos;
+                        }
+                        iterLeft.next();
+                    }
+                    else
+                    {
+                        int c = compare.docompare(src1[leftPos], src2[rightPos]);
+                        if (skip == 0)
+                        {
+                            if (c <= 0)
+                            {
+                                //value in left is smallest.  Find the position of the value <= the left value
+                                posLeft[part] = leftPos;
+                                posRight[part] = findFirstGE(src1[leftPos], prevRight, rightPos, src2);
+                            }
+                            else
+                            {
+                                posLeft[part] = findFirstGT(src2[rightPos], prevLeft, leftPos, src1);
+                                posRight[part] = rightPos;
+                            }
+                        }
+                        if (c <= 0)
+                        {
+                            iterLeft.next();
+                            prevLeft = leftPos;
+                        }
+                        else
+                        {
+                            iterRight.next();
+                            prevRight = rightPos;
+                        }
+                    }
+                }
+            }
+
+            posLeft[numPartitions] = n1;
+            posRight[numPartitions] = n2;
+#ifdef TRACE_PARTITION
+            printf("%d,%d -> {", (unsigned)n1, (unsigned)n2);
+#endif
+            for (unsigned i= 0; i < numPartitions; i++)
+            {
+                size_t start = posLeft[i] + posRight[i];
+                size_t end = posLeft[i+1] + posRight[i+1];
+                size_t num = end - start;
+                size_t numFwd = num/2;
+#ifdef TRACE_PARTITION
+                printf("([%d..%d],[%d..%d] %d,%d = %d)\n",
+                        (unsigned)posLeft[i], (unsigned)posLeft[i+1], (unsigned)posRight[i], (unsigned)posRight[i+1],
+                        (unsigned)start, (unsigned)end, (unsigned)num);
+#endif
+
+                MergeTask & mergeFwdTask = *tasks[i*2];
+                MergeTask & mergeRevTask = *tasks[i*2+1];
+                mergeFwdTask.adjustRange(posLeft[i], posLeft[i+1]-posLeft[i],
+                                      posRight[i], posRight[i+1]-posRight[i],
+                                      numFwd);
+                mergeRevTask.adjustRange(posLeft[i], posLeft[i+1]-posLeft[i],
+                                      posRight[i], posRight[i+1]-posRight[i],
+                                      num-numFwd);
+            }
+#ifdef TRACE_PARTITION
+            printf("}\n");
+#endif
+        }
+
+        virtual task * execute()
+        {
+            calculatePartitions();
+            for (unsigned i=0; i < numPartitions*2; i++)
+            {
+                if (tasks[i]->decrement_ref_count() == 0)
+                    spawn(*tasks[i]);
+            }
+            return NULL;
+        }
+
+        void setTasks(unsigned i, MergeTask * fwd, MergeTask * rev)
+        {
+            tasks[i*2] = fwd;
+            tasks[i*2+1] = rev;
+        }
+
+    protected:
+        size_t findFirstGE(void * seek, size_t low, size_t high, void * * rows)
+        {
+            if (low == high)
+                return low;
+            while (high - low > 1)
+            {
+                unsigned mid = (low + high) / 2;
+                if (compare.docompare(rows[mid], seek) < 0)
+                    low = mid;
+                else
+                    high = mid;
+            }
+            if (compare.docompare(rows[low], seek) < 0)
+                return low+1;
+            return low;
+        }
+
+        size_t findFirstGT(void * seek, size_t low, size_t high, void * * rows)
+        {
+            if (low == high)
+                return low;
+            while (high - low > 1)
+            {
+                unsigned mid = (low + high) / 2;
+                if (compare.docompare(rows[mid], seek) <= 0)
+                    low = mid;
+                else
+                    high = mid;
+            }
+            if (compare.docompare(rows[low], seek) <= 0)
+                return low+1;
+            return low;
+        }
+
+    protected:
+        const ICompare & compare;
+        unsigned numPartitions;
+        size_t n1;
+        size_t n2;
+        void * * src1;
+        void * * src2;
+        unsigned * posLeft;
+        unsigned * posRight;
+        MergeTask * * tasks;
+    };
+
 public:
     TbbParallelMergeSorter(void * * _rows, const ICompare & _compare) : compare(_compare), baseRows(_rows)
     {
@@ -1061,9 +1163,13 @@ public:
 
         //Merge in parallel once it is likely to be beneficial
         parallelMergeDepth = ln2NumCpus+ extraParallelMergeDepth;
+
         //Aim to execute in parallel until the width is 8*the maximum number of parallel task
         singleThreadDepth = ln2NumCpus + extraBisectDepth;
+        partitionCores = 0;//numCpus / 2;
     }
+
+    unsigned numPartitionCores() const { return partitionCores; }
 
     void sortRoot(void ** rows, size32_t n, void ** temp)
     {
@@ -1079,6 +1185,7 @@ public:
     const ICompare & compare;
     unsigned singleThreadDepth;
     unsigned parallelMergeDepth;
+    unsigned partitionCores;
     void * * baseRows;
 };
 

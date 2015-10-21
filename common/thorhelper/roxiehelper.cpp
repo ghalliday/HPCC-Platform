@@ -696,7 +696,10 @@ public:
             void **rows = const_cast<void * *>(sorted.getArray());
             MemoryAttr tempAttr(numRows*sizeof(void **)); // Temp storage for stable sort. This should probably be allocated from roxiemem
             void **temp = (void **) tempAttr.bufferBase();
+            cycle_t start = get_cycles_now();
             sortRows(rows, numRows, temp);
+            cycle_t end = get_cycles_now();
+            printf("Sort %u took %ums\n", numRows, (unsigned)cycle_to_millisec(end-start));
         }
     }
 };
