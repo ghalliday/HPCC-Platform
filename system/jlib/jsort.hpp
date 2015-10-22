@@ -104,6 +104,8 @@ inline void parsortvecstableinplace(void ** rows, size32_t n, const ICompare & c
 #endif
 }
 
+extern jlib_decl void tbbqsortvec(void **a, size_t n, const ICompare & compare);
+extern jlib_decl void tbbqsortstable(void ** rows, size_t n, const ICompare & compare, void ** temp);
 
 
 extern jlib_decl IRowStream *createRowStreamMerger(unsigned numstreams,IRowProvider &provider,ICompare *icmp, bool partdedup=false);

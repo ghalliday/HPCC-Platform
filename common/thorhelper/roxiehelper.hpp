@@ -103,6 +103,7 @@ typedef enum { heapSortAlgorithm, insertionSortAlgorithm,
               quickSortAlgorithm, stableQuickSortAlgorithm, spillingQuickSortAlgorithm, stableSpillingQuickSortAlgorithm,
               mergeSortAlgorithm, spillingMergeSortAlgorithm,
               parallelMergeSortAlgorithm, spillingParallelMergeSortAlgorithm,
+              tbbQuickSortAlgorithm, tbbStableQuickSortAlgorithm,
               unknownSortAlgorithm } RoxieSortAlgorithm;
 
 interface ISortAlgorithm : extends IInterface
@@ -120,6 +121,8 @@ extern THORHELPER_API ISortAlgorithm *createHeapSortAlgorithm(ICompare *_compare
 extern THORHELPER_API ISortAlgorithm *createSpillingQuickSortAlgorithm(ICompare *_compare, roxiemem::IRowManager &_rowManager, IOutputMetaData * _rowMeta, ICodeContext *_ctx, const char *_tempDirectory, unsigned _activityId, bool _stable);
 extern THORHELPER_API ISortAlgorithm *createMergeSortAlgorithm(ICompare *_compare);
 extern THORHELPER_API ISortAlgorithm *createParallelMergeSortAlgorithm(ICompare *_compare);
+extern THORHELPER_API ISortAlgorithm *createTbbQuickSortAlgorithm(ICompare *_compare);
+extern THORHELPER_API ISortAlgorithm *createTbbStableQuickSortAlgorithm(ICompare *_compare);
 
 extern THORHELPER_API ISortAlgorithm *createSortAlgorithm(RoxieSortAlgorithm algorithm, ICompare *_compare, roxiemem::IRowManager &_rowManager, IOutputMetaData * _rowMeta, ICodeContext *_ctx, const char *_tempDirectory, unsigned _activityId);
 

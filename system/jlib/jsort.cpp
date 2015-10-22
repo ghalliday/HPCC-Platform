@@ -31,6 +31,7 @@
 #ifdef _USE_TBB
 #include "tbb/task.h"
 #include "tbb/task_scheduler_init.h"
+#include "tbb/parallel_sort.h"
 #endif
 
 #ifdef _DEBUG
@@ -243,6 +244,70 @@ void qsortvec(void **a, size32_t n, sortCompareFunction compare)
 #undef CMP
 #undef MED3
 #undef RECURSE
+
+//---------------------------------------------------------------------------
+// tbb versions of the quick sort to provide a useful base comparison
+
+class TbbCompareWrapper
+{
+public:
+    TbbCompareWrapper(const ICompare & _compare) : compare(_compare) {}
+    bool operator()(void * const & l, void * const & r) const { return compare.docompare(l, r) < 0; }
+    const ICompare & compare;
+};
+
+
+class TbbCompareIndirectWrapper
+{
+public:
+    TbbCompareIndirectWrapper(const ICompare & _compare) : compare(_compare) {}
+    bool operator()(void * * const & l, void * * const & r) const
+    {
+        int ret = compare.docompare(*l,*r);
+        if (ret==0)
+        {
+            if (l < r)
+                return true;
+            else
+                return false;
+        }
+        return (ret < 0);
+    }
+    const ICompare & compare;
+};
+
+
+void tbbqsortvec(void **a, size_t n, const ICompare & compare)
+{
+#ifdef _USE_TBB
+//  tbb::parallel_sort(a, a+n, [&compare](void * const & l, void * const & r) -> bool { return compare.docompare(l, r) < 0; });
+    TbbCompareWrapper tbbcompare(compare);
+    tbb::parallel_sort(a, a+n, tbbcompare);
+#else
+    throwUnexpected();
+#endif
+}
+
+void tbbqsortstable(void ** rows, size_t n, const ICompare & compare, void ** temp)
+{
+#ifdef _USE_TBB
+    void * * * rowsAsIndex = (void * * *)rows;
+    memcpy(temp, rows, n * sizeof(void*));
+
+    for(unsigned i=0; i<n; ++i)
+        rowsAsIndex[i] = temp+i;
+
+    TbbCompareIndirectWrapper tbbcompare(compare);
+    tbb::parallel_sort(rowsAsIndex, rowsAsIndex+n, tbbcompare);
+
+    //I'm sure this violates the aliasing rules...
+    for(unsigned i=0; i<n; ++i)
+        rows[i] = *rowsAsIndex[i];
+#else
+    throwUnexpected();
+#endif
+}
+
 
 //---------------------------------------------------------------------------
 
@@ -1166,7 +1231,7 @@ public:
 
         //Aim to execute in parallel until the width is 8*the maximum number of parallel task
         singleThreadDepth = ln2NumCpus + extraBisectDepth;
-        partitionCores = 0;//numCpus / 2;
+        partitionCores = numCpus / 2;
     }
 
     unsigned numPartitionCores() const { return partitionCores; }

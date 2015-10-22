@@ -676,7 +676,30 @@ public:
     {
         curIndex = 0;
         if (input->nextGroup(sorted))
+        {
+            cycle_t start = get_cycles_now();
             qsortvec(const_cast<void * *>(sorted.getArray()), sorted.ordinality(), *compare);
+            cycle_t end = get_cycles_now();
+            printf("QSort %u took %ums\n", (unsigned)sorted.ordinality(), (unsigned)cycle_to_millisec(end-start));
+        }
+    }
+};
+
+class CTbbQuickSortAlgorithm : public CInplaceSortAlgorithm
+{
+public:
+    CTbbQuickSortAlgorithm(ICompare *_compare) : CInplaceSortAlgorithm(_compare) {}
+
+    virtual void prepare(IInputBase *input)
+    {
+        curIndex = 0;
+        if (input->nextGroup(sorted))
+        {
+            cycle_t start = get_cycles_now();
+            tbbqsortvec(const_cast<void * *>(sorted.getArray()), sorted.ordinality(), *compare);
+            cycle_t end = get_cycles_now();
+            printf("Sort %u took %ums\n", (unsigned)sorted.ordinality(), (unsigned)cycle_to_millisec(end-start));
+        }
     }
 };
 
@@ -734,6 +757,17 @@ public:
     virtual void sortRows(void * * rows, size_t numRows, void * * temp)
     {
         parmsortvecstableinplace(rows, numRows, *compare, temp);
+    }
+};
+
+class CTbbStableQuickSortAlgorithm : public CStableInplaceSortAlgorithm
+{
+public:
+    CTbbStableQuickSortAlgorithm(ICompare *_compare) : CStableInplaceSortAlgorithm(_compare) {}
+
+    virtual void sortRows(void * * rows, size_t numRows, void * * temp)
+    {
+        tbbqsortstable(rows, numRows, *compare, temp);
     }
 };
 
@@ -1375,6 +1409,16 @@ extern ISortAlgorithm *createStableQuickSortAlgorithm(ICompare *_compare)
     return new CStableQuickSortAlgorithm(_compare);
 }
 
+extern ISortAlgorithm *createTbbQuickSortAlgorithm(ICompare *_compare)
+{
+    return new CTbbQuickSortAlgorithm(_compare);
+}
+
+extern ISortAlgorithm *createTbbStableQuickSortAlgorithm(ICompare *_compare)
+{
+    return new CTbbStableQuickSortAlgorithm(_compare);
+}
+
 extern ISortAlgorithm *createInsertionSortAlgorithm(ICompare *_compare, roxiemem::IRowManager *_rowManager, unsigned _activityId)
 {
     return new CInsertionSortAlgorithm(_compare, _rowManager, _activityId);
@@ -1423,6 +1467,10 @@ extern ISortAlgorithm *createSortAlgorithm(RoxieSortAlgorithm _algorithm, ICompa
         return new CSpillingMergeSortAlgorithm(_compare, _rowManager, _rowMeta, _ctx, _tempDirectory, _activityId, false);
     case spillingParallelMergeSortAlgorithm:
         return new CSpillingMergeSortAlgorithm(_compare, _rowManager, _rowMeta, _ctx, _tempDirectory, _activityId, true);
+    case tbbQuickSortAlgorithm:
+        return createTbbQuickSortAlgorithm(_compare);
+    case tbbStableQuickSortAlgorithm:
+        return createTbbStableQuickSortAlgorithm(_compare);
     default:
         break;
     }
