@@ -2874,6 +2874,7 @@ class BufferedRowCallbackManager
         : Thread("ReleaseBufferThread"), owner(_owner), abort(false)
         {
             args.critical = false;
+            args.slaveId = 0;
             args.result = false;
         }
 
@@ -2885,21 +2886,23 @@ class BufferedRowCallbackManager
                 if (abort)
                     break;
                 //This class is only used for stress testing => free all we can.
-                args.result = owner.releaseBuffersNow(SpillAllCost, args.critical, false, 0);
+                args.result = owner.releaseBuffersNow(args.slaveId, SpillAllCost, args.critical, false, 0);
                 doneSem.signal();
             }
             return 0;
         }
 
-        bool releaseBuffers(unsigned maxSpillCost, const bool critical)
+        bool releaseBuffers(unsigned slaveId, unsigned maxSpillCost, const bool critical)
         {
             if (isCurrentThread())
-                return owner.releaseBuffersNow(maxSpillCost, critical, false, 0);
+                return owner.releaseBuffersNow(slaveId, maxSpillCost, critical, false, 0);
 
             bool ok;
             {
                 CriticalBlock block(cs);
                 args.critical = critical;
+                args.slaveId = slaveId;
+
                 goSem.signal();
                 doneSem.wait();
                 ok = args.result;
@@ -2922,11 +2925,54 @@ class BufferedRowCallbackManager
         Semaphore doneSem;
         struct
         {
+            unsigned slaveId;
             bool critical;
             bool result;
         } args;
         bool abort;
     };
+
+    class CallbackItem : public CInterface
+    {
+    public:
+        CallbackItem(unsigned _numSlaves, unsigned slaveId, IBufferedRowCallback * _callback) : numSlaves(_numSlaves)
+        {
+            cost = _callback->getSpillCost();
+            assertex(slaveId == 0);
+            globalCallback = _callback;
+            slaveCallbacks = NULL;
+        }
+        ~CallbackItem()
+        {
+            delete [] slaveCallbacks;
+        }
+        IBufferedRowCallback * queryCallback(unsigned id)
+        {
+            if (id == 0)
+                return globalCallback;
+            if (slaveCallbacks)
+                return slaveCallbacks[id-1];
+            return NULL;
+        }
+        inline unsigned getSpillCost() const { return cost; }
+        bool removeCallback(unsigned slaveId, IBufferedRowCallback * callback)
+        {
+            assertex(slaveId == 0);
+            if (callback == globalCallback)
+            {
+                globalCallback = NULL;
+                return true;
+            }
+            return false;
+        }
+
+    protected:
+        unsigned cost;
+        unsigned numSlaves;
+        IBufferedRowCallback * globalCallback;
+        IBufferedRowCallback * * slaveCallbacks;
+    };
+
 
 public:
     BufferedRowCallbackManager(IRowManager * _owner) : owner(_owner)
@@ -2948,10 +2994,10 @@ public:
     //trying to allocate again.
     inline unsigned getReleaseSeq() const { return atomic_read(&releaseSeq); }
 
-    void addRowBuffer(IBufferedRowCallback * callback)
+    void addRowBuffer(unsigned slaveId, IBufferedRowCallback * callback)
     {
         if (releaseWhenModifyCallback)
-            releaseBuffers(SpillAllCost, releaseWhenModifyCallbackCritical, false, 0);
+            releaseBuffers(slaveId, SpillAllCost, releaseWhenModifyCallbackCritical, false, 0);
 
         CriticalBlock block(callbackCrit);
         //Assuming a small number so perform an insertion sort.
@@ -2960,21 +3006,32 @@ public:
         unsigned insertPos = 0;
         for (; insertPos < max; insertPos++)
         {
-            IBufferedRowCallback * curCallback = rowBufferCallbacks.item(insertPos);
-            if (curCallback->getSpillCost() > cost)
+            CallbackItem & curCallback = rowBufferCallbacks.item(insertPos);
+            if (curCallback.getSpillCost() > cost)
                 break;
         }
-        rowBufferCallbacks.add(callback, insertPos);
+        //MORE: This needs to common up with existing
+        CallbackItem * newCallback = new CallbackItem(0, 0, callback);
+        rowBufferCallbacks.add(*newCallback, insertPos);
         updateCallbackInfo();
     }
 
-    void removeRowBuffer(IBufferedRowCallback * callback)
+    void removeRowBuffer(unsigned slaveId, IBufferedRowCallback * callback)
     {
         if (releaseWhenModifyCallback)
-            releaseBuffers(SpillAllCost, releaseWhenModifyCallbackCritical, false, 0);
+            releaseBuffers(slaveId, SpillAllCost, releaseWhenModifyCallbackCritical, false, 0);
 
         CriticalBlock block(callbackCrit);
-        rowBufferCallbacks.zap(callback);
+        ForEachItemIn(i, rowBufferCallbacks)
+        {
+            CallbackItem & curCallback = rowBufferCallbacks.item(i);
+            if (curCallback.removeCallback(slaveId, callback))
+            {
+                //MORE: Only if empty
+                rowBufferCallbacks.remove(i);
+                break;
+            }
+        }
         updateCallbackInfo();
     }
 
@@ -2988,7 +3045,7 @@ public:
         unsigned prevCost = 0;
         ForEachItemIn(i, rowBufferCallbacks)
         {
-            unsigned cost = rowBufferCallbacks.item(i)->getSpillCost();
+            unsigned cost = rowBufferCallbacks.item(i).getSpillCost();
             if (i && (cost != prevCost))
             {
                 callbackRanges.append(i);
@@ -3023,11 +3080,11 @@ public:
     }
 
     //Release buffers will ensure that the rows are attempted to be cleaned up before returning
-    bool releaseBuffers(unsigned maxSpillCost, const bool critical, bool checkSequence, unsigned prevReleaseSeq)
+    bool releaseBuffers(unsigned slaveId, unsigned maxSpillCost, const bool critical, bool checkSequence, unsigned prevReleaseSeq)
     {
         if (!releaseBuffersThread)
-            return releaseBuffersNow(maxSpillCost, critical, checkSequence, prevReleaseSeq);
-        return releaseBuffersThread->releaseBuffers(maxSpillCost, critical);
+            return releaseBuffersNow(slaveId, maxSpillCost, critical, checkSequence, prevReleaseSeq);
+        return releaseBuffersThread->releaseBuffers(slaveId, maxSpillCost, critical);
     }
 
     void runReleaseBufferThread()
@@ -3037,7 +3094,7 @@ public:
             releaseBuffersSem.wait();
             if (abortBufferThread)
                 break;
-            releaseBuffersNow(backgroundReleaseCost, false, false, 0);
+            releaseBuffersNow(0, backgroundReleaseCost, false, false, 0);
             atomic_set(&releasingBuffers, 0);
         }
     }
@@ -3107,7 +3164,7 @@ public:
     }
 
 protected:
-    bool doReleaseBuffers(unsigned maxSpillCost, const bool critical, const unsigned minSuccess)
+    bool doReleaseBuffers(unsigned slaveId, unsigned maxSpillCost, const bool critical, const unsigned minSuccess)
     {
         const unsigned numCallbacks = rowBufferCallbacks.ordinality();
         if (numCallbacks == 0)
@@ -3118,7 +3175,7 @@ protected:
         //Loop through each set of different costs
         ForEachItemIn(level, callbackRanges)
         {
-            if (rowBufferCallbacks.item(first)->getSpillCost() > maxSpillCost)
+            if (rowBufferCallbacks.item(first).getSpillCost() > maxSpillCost)
                 break;
 
             unsigned last = callbackRanges.item(level);
@@ -3128,13 +3185,12 @@ protected:
             //First perform a round robin on the elements with the same cost
             loop
             {
-                IBufferedRowCallback * curCallback = rowBufferCallbacks.item(cur);
+                CallbackItem & curCallback = rowBufferCallbacks.item(cur);
                 unsigned next = cur+1;
                 if (next == last)
                     next = first;
 
-
-                if (callbackReleasesRows(curCallback, critical))
+                if (callbackReleasesRows(curCallback.queryCallback(0), critical))
                 {
                     if (++numSuccess >= minSuccess)
                     {
@@ -3153,7 +3209,7 @@ protected:
     }
 
     //Release buffers will ensure that the rows are attempted to be cleaned up before returning
-    bool releaseBuffersNow(unsigned maxSpillCost, const bool critical, bool checkSequence, unsigned prevReleaseSeq)
+    bool releaseBuffersNow(unsigned slaveId, unsigned maxSpillCost, const bool critical, bool checkSequence, unsigned prevReleaseSeq)
     {
         const unsigned minSuccess = minCallbackThreshold;
         CriticalBlock block(callbackCrit);
@@ -3164,7 +3220,7 @@ protected:
 
         //Call non critical first, then critical - if applicable.
         //Should there be more levels of importance than critical/non critical?
-        if (doReleaseBuffers(maxSpillCost, false, minSuccess) || (critical && doReleaseBuffers(maxSpillCost, true, minSuccess)))
+        if (doReleaseBuffers(slaveId, maxSpillCost, false, minSuccess) || (critical && doReleaseBuffers(slaveId, maxSpillCost, true, minSuccess)))
         {
             //Increment first so that any called knows some rows may have been freed
             atomic_inc(&releaseSeq);
@@ -3185,7 +3241,7 @@ protected:
 protected:
     CriticalSection callbackCrit;
     Semaphore releaseBuffersSem;
-    PointerArrayOf<IBufferedRowCallback> rowBufferCallbacks;
+    CIArrayOf<CallbackItem> rowBufferCallbacks;
     PointerArrayOf<IBufferedRowCallback> activeCallbacks;
     Owned<BackgroundReleaseBufferThread> backgroundReleaseBuffersThread;
     Owned<ReleaseBufferThread> releaseBuffersThread;
@@ -4157,7 +4213,7 @@ public:
 
     virtual bool releaseCallbackMemory(unsigned maxSpillCost, bool critical, bool checkSequence, unsigned prevReleaseSeq)
     {
-        return callbacks.releaseBuffers(maxSpillCost, critical, checkSequence, prevReleaseSeq);
+        return callbacks.releaseBuffers(0, maxSpillCost, critical, checkSequence, prevReleaseSeq);
     }
 
     virtual unsigned getReleaseSeq() const
@@ -4173,12 +4229,12 @@ public:
 protected:
     virtual void addRowBuffer(IBufferedRowCallback * callback)
     {
-        callbacks.addRowBuffer(callback);
+        callbacks.addRowBuffer(0, callback);
     }
 
     virtual void removeRowBuffer(IBufferedRowCallback * callback)
     {
-        callbacks.removeRowBuffer(callback);
+        callbacks.removeRowBuffer(0, callback);
     }
 
 protected:
@@ -4237,17 +4293,17 @@ public:
     bool releaseSlaveCallbackMemory(unsigned slaveId, unsigned maxSpillCost, bool critical, bool checkSequence, unsigned prevReleaseSeq)
     {
         //MORE:
-        return callbacks.releaseBuffers(maxSpillCost, critical, checkSequence, prevReleaseSeq);
+        return callbacks.releaseBuffers(slaveId, maxSpillCost, critical, checkSequence, prevReleaseSeq);
     }
 
     void addSlaveRowBuffer(unsigned slaveId, IBufferedRowCallback * callback)
     {
-        callbacks.addRowBuffer(callback);
+        callbacks.addRowBuffer(slaveId, callback);
     }
 
     void removeSlaveRowBuffer(unsigned slaveId, IBufferedRowCallback * callback)
     {
-        callbacks.removeRowBuffer(callback);
+        callbacks.removeRowBuffer(slaveId, callback);
     }
 
     virtual unsigned getPageLimit() const
