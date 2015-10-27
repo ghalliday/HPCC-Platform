@@ -487,6 +487,7 @@ interface IRowManager : extends IInterface
     virtual void setMinimizeFootprint(bool value, bool critical) = 0;
     //If set, and changes to the callback list always triggers the callbacks to be called.
     virtual void setReleaseWhenModifyCallback(bool value, bool critical) = 0;
+    virtual IRowManager * querySlaveRowManager(unsigned slave) = 0;
 };
 
 extern roxiemem_decl void setDataAlignmentSize(unsigned size);

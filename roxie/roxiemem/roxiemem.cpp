@@ -2946,7 +2946,7 @@ public:
 
     //If this sequence number has changed then it is likely that some rows have been freed up, so worth
     //trying to allocate again.
-    inline unsigned getReleaseSeq() { return atomic_read(&releaseSeq); }
+    inline unsigned getReleaseSeq() const { return atomic_read(&releaseSeq); }
 
     void addRowBuffer(IBufferedRowCallback * callback)
     {
@@ -3264,7 +3264,7 @@ class CChunkingRowManager : public CInterface, implements IRowManager
     friend class CHugeHeap;
     friend class CChunkedHeap;
     friend class CFixedChunkedHeap;
-
+private:
     CriticalSection activeBufferCS; // Potentially slow
     mutable NonReentrantSpinLock peakSpinLock; // Very small window, low contention so fine to be a spin lock
     mutable SpinLock fixedSpinLock; // Main potential for contention releasingEmptyHeaps and gathering peak usage.  Shouldn't be likely.
@@ -3274,14 +3274,11 @@ class CChunkingRowManager : public CInterface, implements IRowManager
     ITimeLimiter *timeLimit;
     DataBufferBase *activeBuffs;
     const IContextLogger &logctx;
-    unsigned pageLimit;
-    unsigned spillPageLimit;
     unsigned peakPages;
     unsigned dataBuffs;
     unsigned dataBuffPages;
     atomic_t possibleGoers;
     atomic_t totalHeapPages;
-    BufferedRowCallbackManager callbacks;
     Owned<IActivityMemoryUsageMap> peakUsageMap;
     CIArrayOf<CHeap> fixedHeaps;
     CICopyArrayOf<CRoxieFixedRowHeapBase> fixedRowHeaps;  // These are observed, NOT linked
@@ -3294,6 +3291,10 @@ class CChunkingRowManager : public CInterface, implements IRowManager
     bool minimizeFootprint;
     bool minimizeFootprintCritical;
 
+protected:
+    unsigned maxPageLimit;
+    unsigned spillPageLimit;
+
     inline unsigned getActivityId(unsigned rawId) const
     {
         return getRealActivityId(rawId, allocatorCache);
@@ -3303,7 +3304,7 @@ public:
     IMPLEMENT_IINTERFACE;
 
     CChunkingRowManager(memsize_t _memLimit, ITimeLimiter *_tl, const IContextLogger &_logctx, const IRowAllocatorCache *_allocatorCache, bool _ignoreLeaks, bool _outputOOMReports)
-        : callbacks(this), logctx(_logctx), allocatorCache(_allocatorCache), hugeHeap(this, _logctx, _allocatorCache)
+        : logctx(_logctx), allocatorCache(_allocatorCache), hugeHeap(this, _logctx, _allocatorCache)
     {
         logctx.Link();
         //Use roundup() to calculate the sizes of the different heaps, and double check that the heap mapping
@@ -3317,7 +3318,7 @@ public:
             normalHeaps.append(*new CFixedChunkedHeap(this, _logctx, _allocatorCache, thisSize, RHFvariable, SpillAllCost));
             prevSize = thisSize;
         }
-        pageLimit = (unsigned) PAGES(_memLimit, HEAP_ALIGNMENT_SIZE);
+        maxPageLimit = (unsigned) PAGES(_memLimit, HEAP_ALIGNMENT_SIZE);
         spillPageLimit = 0;
         timeLimit = _tl;
         peakPages = 0;
@@ -3336,7 +3337,7 @@ public:
         trackMemoryByActivity = false;
 #endif
         if (memTraceLevel >= 2)
-            logctx.CTXLOG("RoxieMemMgr: CChunkingRowManager c-tor memLimit=%" I64F "u pageLimit=%u rowMgr=%p", (unsigned __int64)_memLimit, pageLimit, this);
+            logctx.CTXLOG("RoxieMemMgr: CChunkingRowManager c-tor memLimit=%" I64F "u pageLimit=%u rowMgr=%p", (unsigned __int64)_memLimit, maxPageLimit, this);
         if (timeLimit)
         {
             cyclesChecked = get_cycles_now();
@@ -3351,11 +3352,9 @@ public:
 
     ~CChunkingRowManager()
     {
-        callbacks.stopReleaseBufferThread();
-
         if (memTraceLevel >= 2)
             logctx.CTXLOG("RoxieMemMgr: CChunkingRowManager d-tor pageLimit=%u peakPages=%u dataBuffs=%u dataBuffPages=%u possibleGoers=%u rowMgr=%p", 
-                    pageLimit, peakPages, dataBuffs, dataBuffPages, atomic_read(&possibleGoers), this);
+                    maxPageLimit, peakPages, dataBuffs, dataBuffPages, atomic_read(&possibleGoers), this);
 
         if (!ignoreLeaks)
             reportLeaks(2);
@@ -3611,38 +3610,17 @@ public:
             bytes = systemMemoryLimit;
         if (spillSize > systemMemoryLimit)
             spillSize = systemMemoryLimit;
-        pageLimit = (unsigned) PAGES(bytes, HEAP_ALIGNMENT_SIZE);
+        maxPageLimit = (unsigned) PAGES(bytes, HEAP_ALIGNMENT_SIZE);
         spillPageLimit = (unsigned) PAGES(spillSize, HEAP_ALIGNMENT_SIZE);
 
-        //The test allows no limit on memory, but spill above a certain amount.  Not sure if useful...
-        if (spillPageLimit && (pageLimit != spillPageLimit))
-            callbacks.startReleaseBufferThread(backgroundReleaseCost);
-        else
-            callbacks.stopReleaseBufferThread();
-
         if (memTraceLevel >= 2)
-            logctx.CTXLOG("RoxieMemMgr: CChunkingRowManager::setMemoryLimit new memlimit=%" I64F "u pageLimit=%u spillLimit=%u rowMgr=%p", (unsigned __int64) bytes, pageLimit, spillPageLimit, this);
-    }
-
-    virtual void setMemoryCallbackThreshold(unsigned value)
-    {
-        callbacks.setMemoryCallbackThreshold(value);
-    }
-
-    virtual void setCallbackOnThread(bool value)
-    {
-        callbacks.setCallbackOnThread(value);
+            logctx.CTXLOG("RoxieMemMgr: CChunkingRowManager::setMemoryLimit new memlimit=%" I64F "u pageLimit=%u spillLimit=%u rowMgr=%p", (unsigned __int64) bytes, maxPageLimit, spillPageLimit, this);
     }
 
     virtual void setMinimizeFootprint(bool value, bool critical)
     {
         minimizeFootprint = value;
         minimizeFootprintCritical = critical;
-    }
-
-    virtual void setReleaseWhenModifyCallback(bool value, bool critical)
-    {
-        callbacks.setReleaseWhenModifyCallback(value, critical);
     }
 
     virtual void resizeRow(memsize_t &capacity, void * & ptr, memsize_t copysize, memsize_t newsize, unsigned activityId)
@@ -3825,21 +3803,22 @@ public:
         return new CRoxieVariableRowHeap(this, activityId, (RoxieHeapFlags)roxieHeapFlags);
     }
 
-    void checkLimit(unsigned numRequested, unsigned maxSpillCost)
+    virtual unsigned checkLimit(unsigned numRequested, unsigned maxSpillCost)
     {
         unsigned totalPages;
         releaseEmptyPages(false);
         if (minimizeFootprint)
-            callbacks.releaseBuffers(SpillAllCost, minimizeFootprintCritical, false, 0);
+            releaseCallbackMemory(SpillAllCost, minimizeFootprintCritical, false, 0);
 
         loop
         {
-            unsigned lastReleaseSeq = callbacks.getReleaseSeq();
+            unsigned lastReleaseSeq = getReleaseSeq();
             //We need to ensure that the number of allocated pages is updated atomically so multiple threads can't all
             //succeed and have the total take them over the limit.
             unsigned numHeapPages = atomic_read(&totalHeapPages);
             unsigned pageCount = dataBuffPages + numHeapPages;
             totalPages = pageCount + numRequested;
+            unsigned pageLimit = getPageLimit();
             if (totalPages <= pageLimit)
             {
                 //Use atomic_cas so that only one thread can increase the number of pages at a time.
@@ -3862,11 +3841,11 @@ public:
             //The following reduces the nubmer of times the callback is called, but I'm not sure how this affects
             //performance.  I think better if a single free is likely to free up some memory, and worse if not.
             const bool skipReleaseIfAnotherThreadReleases = true;
-            if (!callbacks.releaseBuffers(maxSpillCost, true, skipReleaseIfAnotherThreadReleases, lastReleaseSeq))
+            if (!releaseCallbackMemory(maxSpillCost, true, skipReleaseIfAnotherThreadReleases, lastReleaseSeq))
             {
                 //Check if a background thread has freed up some memory.  That can be checked by a comparing value of a counter
                 //which is incremented each time releaseBuffers is successful.
-                if (lastReleaseSeq == callbacks.getReleaseSeq())
+                if (lastReleaseSeq == getReleaseSeq())
                 {
                     //very unusual: another thread may have just released a lot of memory (e.g., it has finished), but
                     //the empty pages haven't been cleaned up
@@ -3888,17 +3867,13 @@ public:
             }
         }
 
-        if (spillPageLimit && (totalPages > spillPageLimit))
-        {
-            callbacks.releaseBuffersInBackground();
-        }
-
         if (totalPages > peakPages)
         {
             if (trackMemoryByActivity)
                 getPeakActivityUsage();
             peakPages = totalPages;
         }
+        return totalPages;
     }
 
     virtual void reportPeakStatistics(IStatisticTarget & target, unsigned detail)
@@ -3918,10 +3893,17 @@ public:
         atomic_add(&totalHeapPages, -(int)numRequested);
     }
 
-    bool releaseCallbackMemory(unsigned maxSpillCost, bool critical)
+    inline bool releaseCallbackMemory(unsigned maxSpillCost, bool critical)
     {
-        return callbacks.releaseBuffers(maxSpillCost, critical, false, 0);
+        return releaseCallbackMemory(maxSpillCost, critical, false, 0);
     }
+
+    virtual bool releaseCallbackMemory(unsigned maxSpillCost, bool critical, bool checkSequence, unsigned prevReleaseSeq) = 0;
+    virtual unsigned getReleaseSeq() const = 0;
+    virtual unsigned getPageLimit() const = 0;
+
+    inline unsigned getActiveHeapPages() const { return atomic_read(&totalHeapPages); }
+
 
 protected:
     CRoxieFixedRowHeapBase * doCreateFixedRowHeap(size32_t fixedSize, unsigned activityId, unsigned roxieHeapFlags, unsigned maxSpillCost)
@@ -4047,16 +4029,6 @@ protected:
         }
     }
 
-    virtual void addRowBuffer(IBufferedRowCallback * callback)
-    {
-        callbacks.addRowBuffer(callback);
-    }
-
-    virtual void removeRowBuffer(IBufferedRowCallback * callback)
-    {
-        callbacks.removeRowBuffer(callback);
-    }
-
     virtual memsize_t compactRows(memsize_t count, const void * * rows)
     {
         HeapCompactState state;
@@ -4088,7 +4060,7 @@ protected:
         else
         {
             logctx.CTXLOG("RoxieMemMgr: pageLimit=%u peakPages=%u dataBuffs=%u dataBuffPages=%u possibleGoers=%u rowMgr=%p",
-                          pageLimit, peakPages, dataBuffs, dataBuffPages, atomic_read(&possibleGoers), this);
+                          maxPageLimit, peakPages, dataBuffs, dataBuffPages, atomic_read(&possibleGoers), this);
             Owned<IActivityMemoryUsageMap> map = getActivityUsage();
             map->report(logctx, allocatorCache);
         }
@@ -4127,8 +4099,217 @@ protected:
         size32_t heapSize = ROUNDEDSIZE(rounded);
         return heapSize;
     }
+
+    virtual IRowManager * querySlaveRowManager(unsigned slave) { return NULL; }
 };
 
+//================================================================================
+
+class CSimpleChunkingRowManager : public CChunkingRowManager
+{
+public:
+
+    CSimpleChunkingRowManager(memsize_t _memLimit, ITimeLimiter *_tl, const IContextLogger &_logctx, const IRowAllocatorCache *_allocatorCache, bool _ignoreLeaks, bool _outputOOMReports)
+        : callbacks(this), CChunkingRowManager(_memLimit, _tl, _logctx, _allocatorCache, _ignoreLeaks, _outputOOMReports)
+    {
+    }
+
+    ~CSimpleChunkingRowManager()
+    {
+        callbacks.stopReleaseBufferThread();
+    }
+
+    virtual void setMemoryLimit(memsize_t bytes, memsize_t spillSize, unsigned backgroundReleaseCost)
+    {
+        CChunkingRowManager::setMemoryLimit(bytes, spillSize, backgroundReleaseCost);
+        //The test allows no limit on memory, but spill above a certain amount.  Not sure if useful...
+        if (spillPageLimit && (maxPageLimit != spillPageLimit))
+            callbacks.startReleaseBufferThread(backgroundReleaseCost);
+        else
+            callbacks.stopReleaseBufferThread();
+    }
+
+    virtual void setMemoryCallbackThreshold(unsigned value)
+    {
+        callbacks.setMemoryCallbackThreshold(value);
+    }
+
+    virtual void setCallbackOnThread(bool value)
+    {
+        callbacks.setCallbackOnThread(value);
+    }
+
+    virtual void setReleaseWhenModifyCallback(bool value, bool critical)
+    {
+        callbacks.setReleaseWhenModifyCallback(value, critical);
+    }
+
+    virtual unsigned checkLimit(unsigned numRequested, unsigned maxSpillCost)
+    {
+        unsigned totalPages = CChunkingRowManager::checkLimit(numRequested, maxSpillCost);
+
+        if (spillPageLimit && (totalPages > spillPageLimit))
+        {
+            callbacks.releaseBuffersInBackground();
+        }
+        return totalPages;
+    }
+
+    virtual bool releaseCallbackMemory(unsigned maxSpillCost, bool critical, bool checkSequence, unsigned prevReleaseSeq)
+    {
+        return callbacks.releaseBuffers(maxSpillCost, critical, checkSequence, prevReleaseSeq);
+    }
+
+    virtual unsigned getReleaseSeq() const
+    {
+        return callbacks.getReleaseSeq();
+    }
+
+    virtual unsigned getPageLimit() const
+    {
+        return maxPageLimit;
+    }
+
+protected:
+    virtual void addRowBuffer(IBufferedRowCallback * callback)
+    {
+        callbacks.addRowBuffer(callback);
+    }
+
+    virtual void removeRowBuffer(IBufferedRowCallback * callback)
+    {
+        callbacks.removeRowBuffer(callback);
+    }
+
+protected:
+    BufferedRowCallbackManager callbacks;
+};
+
+//================================================================================
+
+class CGlobalRowManager;
+class CSlaveRowManager : public CChunkingRowManager
+{
+public:
+    CSlaveRowManager(unsigned _slaveId, CGlobalRowManager * _globalManager, memsize_t _memLimit, ITimeLimiter *_tl, const IContextLogger &_logctx, const IRowAllocatorCache *_allocatorCache, bool _ignoreLeaks, bool _outputOOMReports)
+        : CChunkingRowManager(_memLimit, _tl, _logctx, _allocatorCache, _ignoreLeaks, _outputOOMReports), slaveId(_slaveId), globalManager(_globalManager)
+    {
+    }
+
+    virtual bool releaseCallbackMemory(unsigned maxSpillCost, bool critical, bool checkSequence, unsigned prevReleaseSeq);
+    virtual unsigned getReleaseSeq() const;
+    virtual void addRowBuffer(IBufferedRowCallback * callback);
+    virtual void removeRowBuffer(IBufferedRowCallback * callback);
+    virtual void setMemoryCallbackThreshold(unsigned value) { throwUnexpected(); }
+    virtual void setCallbackOnThread(bool value) { throwUnexpected(); }
+    virtual void setMinimizeFootprint(bool value, bool critical) { throwUnexpected(); }
+    virtual void setReleaseWhenModifyCallback(bool value, bool critical) { throwUnexpected(); }
+
+protected:
+    virtual unsigned getPageLimit() const;
+
+protected:
+    unsigned slaveId;
+    CGlobalRowManager * globalManager;
+};
+
+//================================================================================
+
+class CGlobalRowManager : public CSimpleChunkingRowManager
+{
+public:
+    CGlobalRowManager(memsize_t _memLimit, memsize_t _globalLimit, unsigned _numSlaves, ITimeLimiter *_tl, const IContextLogger &_logctx, const IRowAllocatorCache *_allocatorCache, bool _ignoreLeaks, bool _outputOOMReports)
+        : CSimpleChunkingRowManager(_memLimit, _tl, _logctx, _allocatorCache, _ignoreLeaks, _outputOOMReports), numSlaves(_numSlaves)
+    {
+        assertex(_globalLimit <= _memLimit);
+        globalPageLimit = (unsigned) PAGES(_globalLimit, HEAP_ALIGNMENT_SIZE);
+        slaveRowManagers = new CChunkingRowManager * [numSlaves];
+        for (unsigned i=0; i < numSlaves; i++)
+            slaveRowManagers[i] = new CSlaveRowManager(i+1, this, _memLimit, _tl, _logctx, _allocatorCache, _ignoreLeaks, _outputOOMReports);
+    }
+    ~CGlobalRowManager()
+    {
+        for (unsigned i=0; i < numSlaves; i++)
+            slaveRowManagers[i]->Release();
+        delete [] slaveRowManagers;
+    }
+
+    bool releaseSlaveCallbackMemory(unsigned slaveId, unsigned maxSpillCost, bool critical, bool checkSequence, unsigned prevReleaseSeq)
+    {
+        //MORE:
+        return callbacks.releaseBuffers(maxSpillCost, critical, checkSequence, prevReleaseSeq);
+    }
+
+    void addSlaveRowBuffer(unsigned slaveId, IBufferedRowCallback * callback)
+    {
+        callbacks.addRowBuffer(callback);
+    }
+
+    void removeSlaveRowBuffer(unsigned slaveId, IBufferedRowCallback * callback)
+    {
+        callbacks.removeRowBuffer(callback);
+    }
+
+    virtual unsigned getPageLimit() const
+    {
+        //Sum the total pages allocated by the slaves.  Not called very frequently.
+        //Do this in preference to maintaining a slaveTotal sine that would involve an atomic add for
+        //each slave page allocation.
+        unsigned slavePages = 0;
+        for (unsigned i=0; i < numSlaves; i++)
+            slavePages += slaveRowManagers[i]->getActiveHeapPages();
+        return globalPageLimit - slavePages;
+    }
+
+    virtual IRowManager * querySlaveRowManager(unsigned slave)
+    {
+        if (slave < numSlaves)
+            return slaveRowManagers[slave];
+        return NULL;
+    }
+
+public:
+    unsigned getSlavePageLimit() const
+    {
+        return (maxPageLimit - getActiveHeapPages()) / numSlaves;
+    }
+
+protected:
+    unsigned numSlaves;
+    unsigned globalPageLimit;
+    CChunkingRowManager * * slaveRowManagers;
+};
+
+
+//================================================================================
+
+bool CSlaveRowManager::releaseCallbackMemory(unsigned maxSpillCost, bool critical, bool checkSequence, unsigned prevReleaseSeq)
+{
+    return globalManager->releaseSlaveCallbackMemory(slaveId, maxSpillCost, critical, checkSequence, prevReleaseSeq);
+}
+
+unsigned CSlaveRowManager::getReleaseSeq() const
+{
+    return globalManager->getReleaseSeq();
+}
+
+void CSlaveRowManager::addRowBuffer(IBufferedRowCallback * callback)
+{
+    globalManager->addSlaveRowBuffer(slaveId, callback);
+}
+
+void CSlaveRowManager::removeRowBuffer(IBufferedRowCallback * callback)
+{
+    globalManager->removeSlaveRowBuffer(slaveId, callback);
+}
+
+unsigned CSlaveRowManager::getPageLimit() const
+{
+    return globalManager->getSlavePageLimit();
+}
+
+
+//================================================================================
 
 void CRoxieFixedRowHeapBase::beforeDispose()
 {
@@ -4215,7 +4396,7 @@ void * CHugeHeap::doAllocate(memsize_t _size, unsigned allocatorId, unsigned max
     {
         unsigned numPages = head->sizeInPages();
         logctx.CTXLOG("RoxieMemMgr: CChunkingRowManager::allocate(size %" I64F "u) allocated new HugeHeaplet size %" I64F "u - addr=%p pages=%u pageLimit=%u peakPages=%u rowMgr=%p",
-            (unsigned __int64) _size, (unsigned __int64) (numPages*HEAP_ALIGNMENT_SIZE), head, numPages, rowManager->pageLimit, rowManager->peakPages, this);
+            (unsigned __int64) _size, (unsigned __int64) (numPages*HEAP_ALIGNMENT_SIZE), head, numPages, rowManager->getPageLimit(), rowManager->peakPages, this);
     }
 
     NonReentrantSpinBlock b(heapletLock);
@@ -4398,7 +4579,7 @@ void * CChunkedHeap::inlineDoAllocate(unsigned allocatorId, unsigned maxSpillCos
 
     if (memTraceLevel >= 5 || (memTraceLevel >= 3 && chunkSize > 32000))
         logctx.CTXLOG("RoxieMemMgr: CChunkingRowManager::allocate(size %u) allocated new FixedSizeHeaplet size %u - addr=%p pageLimit=%u peakPages=%u rowMgr=%p",
-                chunkSize, chunkSize, donorHeaplet, rowManager->pageLimit, rowManager->peakPages, this);
+                chunkSize, chunkSize, donorHeaplet, rowManager->getPageLimit(), rowManager->peakPages, this);
 
     {
         NonReentrantSpinBlock b(heapletLock);
@@ -4821,7 +5002,15 @@ extern IRowManager *createRowManager(memsize_t memLimit, ITimeLimiter *tl, const
     if (numDirectBuckets == 0)
         throw MakeStringException(ROXIEMM_HEAP_ERROR, "createRowManager() called before setTotalMemoryLimit()");
 
-    return new CChunkingRowManager(memLimit, tl, logctx, allocatorCache, ignoreLeaks, outputOOMReports);
+    return new CSimpleChunkingRowManager(memLimit, tl, logctx, allocatorCache, ignoreLeaks, outputOOMReports);
+}
+
+extern IRowManager *createGlobalRowManager(memsize_t memLimit, memsize_t globalLimit, unsigned numSlaves, ITimeLimiter *tl, const IContextLogger &logctx, const IRowAllocatorCache *allocatorCache, bool ignoreLeaks, bool outputOOMReports)
+{
+    if (numDirectBuckets == 0)
+        throw MakeStringException(ROXIEMM_HEAP_ERROR, "createRowManager() called before setTotalMemoryLimit()");
+
+    return new CGlobalRowManager(memLimit, globalLimit, numSlaves, tl, logctx, allocatorCache, ignoreLeaks, outputOOMReports);
 }
 
 extern void setMemoryStatsInterval(unsigned secs)
