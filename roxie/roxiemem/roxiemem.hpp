@@ -87,6 +87,7 @@ const static unsigned SpillAllCost = (unsigned)-1;
 interface IBufferedRowCallback
 {
     virtual unsigned getSpillCost() const = 0; // lower values get freed up first.
+    virtual unsigned getActivityId() const = 0;
     virtual bool freeBufferedRows(bool critical) = 0; // return true if and only if managed to free something.
 };
 

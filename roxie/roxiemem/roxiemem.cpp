@@ -5148,12 +5148,14 @@ namespace roxiemem {
 class SimpleRowBuffer : implements IBufferedRowCallback
 {
 public:
-    SimpleRowBuffer(IRowManager * rowManager, unsigned _cost) : cost(_cost), rows(rowManager, 0, 1, UNKNOWN_ROWSET_ID)
+    SimpleRowBuffer(IRowManager * rowManager, unsigned _cost, unsigned _id) : cost(_cost), rows(rowManager, 0, 1, UNKNOWN_ROWSET_ID), id(_id)
     {
     }
 
 //interface IBufferedRowCallback
     virtual unsigned getSpillCost() const { return cost; }
+    virtual unsigned getActivityId() const { return id; }
+
     virtual bool freeBufferedRows(bool critical)
     {
         RoxieOutputRowArrayLock block(rows);
@@ -5195,19 +5197,21 @@ public:
 protected:
     DynamicRoxieOutputRowArray rows;
     unsigned cost;
+    unsigned id;
 };
 
 // A row buffer which does not allocate memory for the row array from roxiemem
 class TestingRowBuffer : implements IBufferedRowCallback
 {
 public:
-    TestingRowBuffer(unsigned _cost) : cost(_cost)
+    TestingRowBuffer(unsigned _cost, unsigned _id) : cost(_cost), id(_id)
     {
     }
     ~TestingRowBuffer() { kill(); }
 
 //interface IBufferedRowCallback
     virtual unsigned getSpillCost() const { return cost; }
+    virtual unsigned getActivityId() const { return id; }
     virtual bool freeBufferedRows(bool critical)
     {
         if (rows.ordinality() == 0)
@@ -5231,13 +5235,14 @@ public:
 protected:
     PointerArray rows;
     unsigned cost;
+    unsigned id;
 };
 
 //A buffered row class - used for testing
 class CallbackBlockAllocator : implements IBufferedRowCallback
 {
 public:
-    CallbackBlockAllocator(IRowManager * _rowManager, memsize_t _size, unsigned _cost) : cost(_cost), rowManager(_rowManager), size(_size)
+    CallbackBlockAllocator(IRowManager * _rowManager, memsize_t _size, unsigned _cost, unsigned _id) : cost(_cost), id(_id), rowManager(_rowManager), size(_size)
     {
         rowManager->addRowBuffer(this);
     }
@@ -5248,6 +5253,7 @@ public:
 
 //interface IBufferedRowCallback
     virtual unsigned getSpillCost() const { return cost; }
+    virtual unsigned getActivityId() const { return id; }
 
     void allocate()
     {
@@ -5274,6 +5280,7 @@ protected:
     IRowManager * rowManager;
     memsize_t size;
     unsigned cost;
+    unsigned id;
 };
 
 
@@ -5281,8 +5288,8 @@ protected:
 class SimpleCallbackBlockAllocator : public CallbackBlockAllocator
 {
 public:
-    SimpleCallbackBlockAllocator(IRowManager * _rowManager, memsize_t _size, unsigned _cost)
-        : CallbackBlockAllocator(_rowManager, _size, _cost)
+    SimpleCallbackBlockAllocator(IRowManager * _rowManager, memsize_t _size, unsigned _cost, unsigned _id)
+        : CallbackBlockAllocator(_rowManager, _size, _cost, _id)
     {
     }
 
@@ -5299,8 +5306,8 @@ public:
 class NastyCallbackBlockAllocator : public CallbackBlockAllocator
 {
 public:
-    NastyCallbackBlockAllocator(IRowManager * _rowManager, unsigned _size, unsigned _cost)
-        : CallbackBlockAllocator(_rowManager, _size, _cost)
+    NastyCallbackBlockAllocator(IRowManager * _rowManager, unsigned _size, unsigned _cost, unsigned _id)
+        : CallbackBlockAllocator(_rowManager, _size, _cost, _id)
     {
     }
 
@@ -6111,7 +6118,7 @@ protected:
     class CasAllocatorThread : public Thread
     {
     public:
-        CasAllocatorThread(Semaphore & _sem, IRowManager * _rm) : Thread("AllocatorThread"), sem(_sem), rm(_rm), cost(0)
+        CasAllocatorThread(Semaphore & _sem, IRowManager * _rm, unsigned _id) : Thread("AllocatorThread"), sem(_sem), rm(_rm), cost(0), id(_id)
         {
         }
 
@@ -6122,7 +6129,7 @@ protected:
 
         int run()
         {
-            SimpleRowBuffer saved(rm, cost);
+            SimpleRowBuffer saved(rm, cost, id);
             if (rm)
                 rm->addRowBuffer(&saved);
             sem.wait();
@@ -6160,6 +6167,7 @@ protected:
         Semaphore & sem;
         IRowManager * rm;
         unsigned cost;
+        unsigned id;
     };
     void runCasTest(const char * title, Semaphore & sem, CasAllocatorThread * threads[])
     {
@@ -6181,7 +6189,7 @@ protected:
     class HeapletCasAllocatorThread : public CasAllocatorThread
     {
     public:
-        HeapletCasAllocatorThread(FixedSizeHeaplet * _heaplet, Semaphore & _sem, IRowManager * _rm) : CasAllocatorThread(_sem, _rm), heaplet(_heaplet)
+        HeapletCasAllocatorThread(FixedSizeHeaplet * _heaplet, Semaphore & _sem, IRowManager * _rm, unsigned _id) : CasAllocatorThread(_sem, _rm, _id), heaplet(_heaplet)
         {
         }
 
@@ -6194,7 +6202,7 @@ protected:
     class NullCasAllocatorThread : public CasAllocatorThread
     {
     public:
-        NullCasAllocatorThread(Semaphore & _sem, IRowManager * _rm) : CasAllocatorThread(_sem, _rm)
+        NullCasAllocatorThread(Semaphore & _sem, IRowManager * _rm, unsigned _id) : CasAllocatorThread(_sem, _rm, _id)
         {
         }
 
@@ -6223,9 +6231,9 @@ protected:
         Semaphore sem;
         CasAllocatorThread * threads[numCasThreads];
         for (unsigned i1 = 0; i1 < numThreads; i1++)
-            threads[i1] = new HeapletCasAllocatorThread(heaplet, sem, rowManager);
+            threads[i1] = new HeapletCasAllocatorThread(heaplet, sem, rowManager, i1);
         for (unsigned i2 = numThreads; i2 < numCasThreads; i2++)
-            threads[i2] = new NullCasAllocatorThread(sem, rowManager);
+            threads[i2] = new NullCasAllocatorThread(sem, rowManager, i2);
 
         VStringBuffer label("heaplet.%u", numThreads);
         runCasTest(label.str(), sem, threads);
@@ -6236,7 +6244,7 @@ protected:
     class FixedCasAllocatorThread : public CasAllocatorThread
     {
     public:
-        FixedCasAllocatorThread(IFixedRowHeap * _rowHeap, Semaphore & _sem, IRowManager * _rm) : CasAllocatorThread(_sem, _rm), rowHeap(_rowHeap)
+        FixedCasAllocatorThread(IFixedRowHeap * _rowHeap, Semaphore & _sem, IRowManager * _rm, unsigned _id) : CasAllocatorThread(_sem, _rm, _id), rowHeap(_rowHeap)
         {
         }
 
@@ -6254,7 +6262,7 @@ protected:
         Semaphore sem;
         CasAllocatorThread * threads[numCasThreads];
         for (unsigned i1 = 0; i1 < numCasThreads; i1++)
-            threads[i1] = new FixedCasAllocatorThread(rowHeap, sem, rowManager);
+            threads[i1] = new FixedCasAllocatorThread(rowHeap, sem, rowManager, i1);
 
         runCasTest("old fixed allocator", sem, threads);
         ASSERT(atomic_read(&rowCache.counter) == 2 * numCasThreads * numCasIter * numCasAlloc);
@@ -6269,7 +6277,7 @@ protected:
         Semaphore sem;
         CasAllocatorThread * threads[numCasThreads];
         for (unsigned i1 = 0; i1 < numCasThreads; i1++)
-            threads[i1] = new FixedCasAllocatorThread(rowHeap, sem, rowManager);
+            threads[i1] = new FixedCasAllocatorThread(rowHeap, sem, rowManager, i1);
 
         runCasTest("shared fixed allocator", sem, threads);
         ASSERT(atomic_read(&rowCache.counter) == 2 * numCasThreads * numCasIter * numCasAlloc);
@@ -6283,7 +6291,7 @@ protected:
         for (unsigned i1 = 0; i1 < numCasThreads; i1++)
         {
             Owned<IFixedRowHeap> rowHeap = rowManager->createFixedRowHeap(8, ACTIVITY_FLAG_ISREGISTERED|0, RHFunique|RHFhasdestructor);
-            threads[i1] = new FixedCasAllocatorThread(rowHeap, sem, rowManager);
+            threads[i1] = new FixedCasAllocatorThread(rowHeap, sem, rowManager, i1);
         }
 
         runCasTest("separate fixed allocator", sem, threads);
@@ -6298,7 +6306,7 @@ protected:
         for (unsigned i1 = 0; i1 < numCasThreads; i1++)
         {
             Owned<IFixedRowHeap> rowHeap = rowManager->createFixedRowHeap(8, ACTIVITY_FLAG_ISREGISTERED|0, RHFunique|RHFpacked|RHFhasdestructor);
-            threads[i1] = new FixedCasAllocatorThread(rowHeap, sem, rowManager);
+            threads[i1] = new FixedCasAllocatorThread(rowHeap, sem, rowManager, i1);
         }
 
         runCasTest("separate packed allocator", sem, threads);
@@ -6307,7 +6315,7 @@ protected:
     class GeneralCasAllocatorThread : public CasAllocatorThread
     {
     public:
-        GeneralCasAllocatorThread(IRowManager * _rowManager, Semaphore & _sem) : CasAllocatorThread(_sem, _rowManager), rowManager(_rowManager)
+        GeneralCasAllocatorThread(IRowManager * _rowManager, Semaphore & _sem, unsigned _id) : CasAllocatorThread(_sem, _rowManager, _id), rowManager(_rowManager)
         {
         }
 
@@ -6324,7 +6332,7 @@ protected:
         Semaphore sem;
         CasAllocatorThread * threads[numCasThreads];
         for (unsigned i1 = 0; i1 < numCasThreads; i1++)
-            threads[i1] = new GeneralCasAllocatorThread(rowManager, sem);
+            threads[i1] = new GeneralCasAllocatorThread(rowManager, sem, i1);
 
         runCasTest("general allocator", sem, threads);
         ASSERT(atomic_read(&rowCache.counter) == 2 * numCasThreads * numCasIter * numCasAlloc);
@@ -6332,7 +6340,7 @@ protected:
     class VariableCasAllocatorThread : public CasAllocatorThread
     {
     public:
-        VariableCasAllocatorThread(IRowManager * _rowManager, Semaphore & _sem, unsigned _seed) : CasAllocatorThread(_sem, _rowManager), rowManager(_rowManager), seed(_seed)
+        VariableCasAllocatorThread(IRowManager * _rowManager, Semaphore & _sem, unsigned _seed, unsigned _id) : CasAllocatorThread(_sem, _rowManager, _id), rowManager(_rowManager), seed(_seed)
         {
         }
 
@@ -6362,7 +6370,7 @@ protected:
         Semaphore sem;
         CasAllocatorThread * threads[numCasThreads];
         for (unsigned i1 = 0; i1 < numCasThreads; i1++)
-            threads[i1] = new VariableCasAllocatorThread(rowManager, sem, i1);
+            threads[i1] = new VariableCasAllocatorThread(rowManager, sem, i1, i1);
 
         runCasTest("variable allocator", sem, threads);
         ASSERT(atomic_read(&rowCache.counter) == 2 * numCasThreads * numCasIter * numCasAlloc);
@@ -6483,7 +6491,7 @@ protected:
         for (unsigned i1 = 0; i1 < numCasThreads; i1++)
         {
             Owned<IFixedRowHeap> rowHeap = rowManager->createFixedRowHeap(allocSize, ACTIVITY_FLAG_ISREGISTERED|0, RHFhasdestructor|flags);
-            FixedCasAllocatorThread * cur = new FixedCasAllocatorThread(rowHeap, sem, rowManager);
+            FixedCasAllocatorThread * cur = new FixedCasAllocatorThread(rowHeap, sem, rowManager, i1);
             cur->setCost((unsigned)(i1*scale)+1);
             threads[i1] = cur;
         }
@@ -6587,8 +6595,8 @@ protected:
 
         //The lower cost allocator allocates an extra row when it is called to free all its rows.
         //this will only succeed if the higher cost allocator is then called to free its data.
-        NastyCallbackBlockAllocator alloc1(rowManager, bigRowSize, 10);
-        SimpleCallbackBlockAllocator alloc2(rowManager, bigRowSize, 20);
+        NastyCallbackBlockAllocator alloc1(rowManager, bigRowSize, 10, 1);
+        SimpleCallbackBlockAllocator alloc2(rowManager, bigRowSize, 20, 2);
 
         alloc1.allocate();
         alloc2.allocate();
@@ -6601,8 +6609,8 @@ protected:
 
         //Both allocators allocate extra memory when they are requested to free.  Ensure that an exception
         //is thrown instead of the previous stack fault.
-        NastyCallbackBlockAllocator alloc1(rowManager, bigRowSize, 10);
-        NastyCallbackBlockAllocator alloc2(rowManager, bigRowSize, 20);
+        NastyCallbackBlockAllocator alloc1(rowManager, bigRowSize, 10, 1);
+        NastyCallbackBlockAllocator alloc2(rowManager, bigRowSize, 20, 2);
 
         alloc1.allocate();
         alloc2.allocate();
@@ -6621,8 +6629,8 @@ protected:
     void testFragmentCallbacks(IRowManager * rowManager, unsigned numPages)
     {
         //Allocate rows, but only free a proportion in the callbacks
-        TestingRowBuffer buff1(1);
-        TestingRowBuffer buff2(2);
+        TestingRowBuffer buff1(1, 1);
+        TestingRowBuffer buff2(2, 2);
 
         rowManager->addRowBuffer(&buff2);
         unsigned numPerPage = 32;
@@ -6668,8 +6676,8 @@ protected:
         const size32_t bigRowSize = HEAP_ALIGNMENT_SIZE * 2 / 3;
         Owned<IRowManager> rowManager = createRowManager(1, NULL, logctx, NULL);
 
-        SimpleCallbackBlockAllocator alloc1(rowManager, bigRowSize, 20);
-        SimpleCallbackBlockAllocator alloc2(rowManager, bigRowSize, 10);
+        SimpleCallbackBlockAllocator alloc1(rowManager, bigRowSize, 20, 1);
+        SimpleCallbackBlockAllocator alloc2(rowManager, bigRowSize, 10, 2);
 
         alloc1.allocate();
         ASSERT(alloc1.hasRow());
@@ -6686,8 +6694,8 @@ protected:
         Owned<IRowManager> rowManager = createRowManager(0, NULL, logctx, NULL);
 
         const memsize_t bigRowSize = HEAP_ALIGNMENT_SIZE * (heapTotalPages * 2 / 3);
-        SimpleCallbackBlockAllocator alloc1(rowManager, bigRowSize, 20);
-        SimpleCallbackBlockAllocator alloc2(rowManager, bigRowSize, 10);
+        SimpleCallbackBlockAllocator alloc1(rowManager, bigRowSize, 20, 1);
+        SimpleCallbackBlockAllocator alloc2(rowManager, bigRowSize, 10, 2);
 
         alloc1.allocate();
         ASSERT(alloc1.hasRow());
