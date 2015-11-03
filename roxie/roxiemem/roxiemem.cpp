@@ -2519,7 +2519,7 @@ public:
         else if (preserved)
         {
             //Add this page back onto the potential-space list
-            atomic_set(&possibleEmptyPages, 1);
+            noteEmptyPage();
             addToSpaceList(preserved);
         }
 
@@ -2558,7 +2558,7 @@ public:
         return false;
     }
 
-    void noteEmptyPage() { atomic_set(&possibleEmptyPages, 1); }
+    void noteEmptyPage();
 
 protected:
     virtual void reportHeapUsage(IActivityMemoryUsageMap * usageMap, unsigned numPages, memsize_t numAllocs) const = 0;
@@ -3366,6 +3366,7 @@ private:
     unsigned dataBuffPages;
     atomic_t possibleGoers;
     atomic_t totalHeapPages;
+    atomic_t possibleEmptyPages;
     Owned<IActivityMemoryUsageMap> peakUsageMap;
     CIArrayOf<CHeap> fixedHeaps;
     CICopyArrayOf<CRoxieFixedRowHeapBase> fixedRowHeaps;  // These are observed, NOT linked
@@ -3414,6 +3415,7 @@ public:
         dataBuffs = 0;
         atomic_set(&possibleGoers, 0);
         atomic_set(&totalHeapPages, 0);
+        atomic_set(&possibleEmptyPages, 0);
         activeBuffs = NULL;
         dataBuffPages = 0;
         ignoreLeaks = _ignoreLeaks;
@@ -3544,8 +3546,23 @@ public:
                 i++;
         }
     }
+
+    void noteEmptyPage() { atomic_set(&possibleEmptyPages, 1); }
+
     virtual bool releaseEmptyPages(bool forceFreeAll)
     {
+        //Possible empty pages is only set once it is ready to be freed => if set this function will free
+        if (atomic_read(&possibleEmptyPages) == 0)
+            return false;
+
+        //The flag can only be reset if forcing all empty pages to be freed
+        if (forceFreeAll)
+        {
+            //Check if someone else freed the pages (or started) in the meantime - possible if memory is very low
+            if (atomic_xchg(0, &possibleEmptyPages) == 0)
+                return true;
+        }
+
         unsigned total = 0;
         ForEachItemIn(iNormal, normalHeaps)
             total += normalHeaps.item(iNormal).releaseEmptyPages(forceFreeAll);
@@ -4477,6 +4494,14 @@ void * CRoxieVariableRowHeap::finalizeRow(void *final, memsize_t originalSize, m
     if (flags & RHFhasdestructor)
         HeapletBase::setDestructorFlag(final);
     return final;
+}
+
+//================================================================================
+
+void CHeap::noteEmptyPage()
+{
+    atomic_set(&possibleEmptyPages, 1);
+    rowManager->noteEmptyPage();
 }
 
 //================================================================================
