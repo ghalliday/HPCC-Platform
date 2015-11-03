@@ -45,6 +45,8 @@ unsigned memTraceLevel = 1;
 memsize_t memTraceSizeLimit = 0;
 
 unsigned DATA_ALIGNMENT_SIZE=0x400;
+const static unsigned UNLIMITED_PAGES = (unsigned)-1;
+
 /*------------
 Some thoughts on improving this memory manager:
 1. There is no real reason that the link counts need to be adjacent to the data (nor indeed ahead of it)
@@ -2934,11 +2936,18 @@ class BufferedRowCallbackManager
 
     class CallbackItem : public CInterface
     {
+        class CallbackElement
+        {
+        public:
+            IBufferedRowCallback * globalCallback;
+        };
+
     public:
-        CallbackItem(unsigned _numSlaves, unsigned slaveId, IBufferedRowCallback * _callback) : numSlaves(_numSlaves)
+        CallbackItem(unsigned _numSlaves, unsigned _slaveId, IBufferedRowCallback * _callback) : numSlaves(_numSlaves)
         {
             cost = _callback->getSpillCost();
-            assertex(slaveId == 0);
+            activityId = _callback->getActivityId();
+            slaveId = _slaveId;
             globalCallback = _callback;
             slaveCallbacks = NULL;
         }
@@ -2946,19 +2955,33 @@ class BufferedRowCallbackManager
         {
             delete [] slaveCallbacks;
         }
-        IBufferedRowCallback * queryCallback(unsigned id)
+        unsigned releaseRows(BufferedRowCallbackManager & manager, unsigned whichSlave, unsigned minCalls, bool critical)
         {
-            if (id == 0)
+            if ((whichSlave == slaveId) || (whichSlave == 0) || (slaveId == 0))
+            {
+                if (globalCallback &&  manager.callbackReleasesRows(globalCallback, critical))
+                    return 1;
+            }
+            return 0;
+        }
+        IBufferedRowCallback * queryCallback(unsigned whichSlave)
+        {
+            if (whichSlave == slaveId)
+                return globalCallback;
+            return 0;
+            if (whichSlave == 0)
                 return globalCallback;
             if (slaveCallbacks)
-                return slaveCallbacks[id-1];
+                return slaveCallbacks[whichSlave-1];
             return NULL;
         }
         inline unsigned getSpillCost() const { return cost; }
-        bool removeCallback(unsigned slaveId, IBufferedRowCallback * callback)
+        inline unsigned getActivityId() const { return activityId; }
+        bool removeCallback(unsigned searchSlaveId, IBufferedRowCallback * searchCallback)
         {
-            assertex(slaveId == 0);
-            if (callback == globalCallback)
+            if (searchSlaveId != slaveId)
+                return false;
+            if (searchCallback == globalCallback)
             {
                 globalCallback = NULL;
                 return true;
@@ -2968,7 +2991,9 @@ class BufferedRowCallbackManager
 
     protected:
         unsigned cost;
+        unsigned activityId;
         unsigned numSlaves;
+        unsigned slaveId;
         IBufferedRowCallback * globalCallback;
         IBufferedRowCallback * * slaveCallbacks;
     };
@@ -3003,15 +3028,19 @@ public:
         //Assuming a small number so perform an insertion sort.
         unsigned max = rowBufferCallbacks.ordinality();
         unsigned cost = callback->getSpillCost();
+        unsigned activityId = callback->getActivityId();
         unsigned insertPos = 0;
         for (; insertPos < max; insertPos++)
         {
             CallbackItem & curCallback = rowBufferCallbacks.item(insertPos);
-            if (curCallback.getSpillCost() > cost)
+            unsigned curCost = curCallback.getSpillCost();
+            if (curCost > cost)
+                break;
+            if ((curCost == cost) && (curCallback.getActivityId() > activityId))
                 break;
         }
         //MORE: This needs to common up with existing
-        CallbackItem * newCallback = new CallbackItem(0, 0, callback);
+        CallbackItem * newCallback = new CallbackItem(0, slaveId, callback);
         rowBufferCallbacks.add(*newCallback, insertPos);
         updateCallbackInfo();
     }
@@ -3190,9 +3219,11 @@ protected:
                 if (next == last)
                     next = first;
 
-                if (callbackReleasesRows(curCallback.queryCallback(0), critical))
+                unsigned numReleased = curCallback.releaseRows(*this, slaveId, minSuccess-numReleased, critical);
+                if (numReleased)
                 {
-                    if (++numSuccess >= minSuccess)
+                    numSuccess += numReleased;
+                    if (numSuccess >= minSuccess)
                     {
                         nextCallbacks.replace(next, level);
                         return true;
@@ -3375,6 +3406,8 @@ public:
             prevSize = thisSize;
         }
         maxPageLimit = (unsigned) PAGES(_memLimit, HEAP_ALIGNMENT_SIZE);
+        if (maxPageLimit == 0)
+            maxPageLimit = UNLIMITED_PAGES;
         spillPageLimit = 0;
         timeLimit = _tl;
         peakPages = 0;
@@ -3877,15 +3910,18 @@ public:
             unsigned pageLimit = getPageLimit();
             if (totalPages <= pageLimit)
             {
-                //Use atomic_cas so that only one thread can increase the number of pages at a time.
-                //(Don't use atomic_add because we need to check the limit hasn't been exceeded.)
-                if (!atomic_cas(&totalHeapPages, numHeapPages + numRequested, numHeapPages))
-                    continue;
-                break;
-            }
-            else if (!pageLimit)
-            {
-                atomic_add(&totalHeapPages, numRequested);
+                if (pageLimit != UNLIMITED_PAGES)
+                {
+                    //Use atomic_cas so that only one thread can increase the number of pages at a time.
+                    //(Don't use atomic_add because we need to check the limit hasn't been exceeded.)
+                    if (!atomic_cas(&totalHeapPages, numHeapPages + numRequested, numHeapPages))
+                        continue;
+                }
+                else
+                {
+                    //Unlimited pages => just increment the total
+                    atomic_add(&totalHeapPages, numRequested);
+                }
                 break;
             }
 
@@ -3913,10 +3949,7 @@ public:
 
                         //Avoid a stack trace if the allocation is optional
                         if (maxSpillCost == SpillAllCost)
-                        {
-                            reportMemoryUsage(false);
-                            PrintStackReport();
-                        }
+                            doOomReport();
                         throw MakeStringExceptionDirect(ROXIEMM_MEMORY_LIMIT_EXCEEDED, msg.str());
                     }
                 }
@@ -4157,6 +4190,7 @@ protected:
     }
 
     virtual IRowManager * querySlaveRowManager(unsigned slave) { return NULL; }
+    virtual unsigned querySlaveId() const { return 0; }
 };
 
 //================================================================================
@@ -4213,6 +4247,7 @@ public:
 
     virtual bool releaseCallbackMemory(unsigned maxSpillCost, bool critical, bool checkSequence, unsigned prevReleaseSeq)
     {
+        //Note: slaveId == 0 - this function is overridden in the slave row manager
         return callbacks.releaseBuffers(0, maxSpillCost, critical, checkSequence, prevReleaseSeq);
     }
 
@@ -4260,6 +4295,7 @@ public:
     virtual void setCallbackOnThread(bool value) { throwUnexpected(); }
     virtual void setMinimizeFootprint(bool value, bool critical) { throwUnexpected(); }
     virtual void setReleaseWhenModifyCallback(bool value, bool critical) { throwUnexpected(); }
+    virtual unsigned querySlaveId() const { return slaveId; }
 
 protected:
     virtual unsigned getPageLimit() const;
@@ -4306,6 +4342,26 @@ public:
         callbacks.removeRowBuffer(slaveId, callback);
     }
 
+    virtual bool releaseEmptyPages(bool forceFreeAll)
+    {
+        if (!forceFreeAll)
+            return CSimpleChunkingRowManager::releaseEmptyPages(false);
+
+        for (unsigned pass=0; pass < 2; pass++)
+        {
+            bool success = CSimpleChunkingRowManager::releaseEmptyPages(pass == 1);
+            for (unsigned slave = 0; slave < numSlaves; slave++)
+            {
+                if (slaveRowManagers[slave]->releaseEmptyPages(pass == 1))
+                    success = true;
+            }
+
+            if (success)
+                return true;
+        }
+        return false;
+    }
+
     virtual unsigned getPageLimit() const
     {
         //Sum the total pages allocated by the slaves.  Not called very frequently.
@@ -4325,9 +4381,14 @@ public:
     }
 
 public:
-    unsigned getSlavePageLimit() const
+    unsigned getSlavePageLimit(unsigned slaveId) const
     {
-        return (maxPageLimit - getActiveHeapPages()) / numSlaves;
+        //ugly....If there are 4 pages, 2 slaves, and 1 global page allocated, slave1 has a limit of 1, while slave 2 has a limit of 2
+        const bool strict = true;
+        if (strict)
+            return (maxPageLimit - getActiveHeapPages() + (slaveId-1)) / numSlaves;
+
+        return (maxPageLimit - getActiveHeapPages() + (numSlaves-1)) / numSlaves;
     }
 
 protected:
@@ -4361,7 +4422,7 @@ void CSlaveRowManager::removeRowBuffer(IBufferedRowCallback * callback)
 
 unsigned CSlaveRowManager::getPageLimit() const
 {
-    return globalManager->getSlavePageLimit();
+    return globalManager->getSlavePageLimit(slaveId);
 }
 
 
@@ -5339,6 +5400,9 @@ class RoxieMemTests : public CppUnit::TestFixture
 {
     CPPUNIT_TEST_SUITE( RoxieMemTests );
         CPPUNIT_TEST(testSetup);
+        //CPPUNIT_TEST(testRegisterCallbacks);
+        CPPUNIT_TEST(testGlobalCallbacks);
+        /*
         CPPUNIT_TEST(testCostCallbacks);
         CPPUNIT_TEST(testRoundup);
         CPPUNIT_TEST(testCompressSize);
@@ -5354,7 +5418,7 @@ class RoxieMemTests : public CppUnit::TestFixture
         CPPUNIT_TEST(testResize);
         //MORE: The following currently leak pages, so should go last
         CPPUNIT_TEST(testDatamanager);
-        CPPUNIT_TEST(testDatamanagerThreading);
+        CPPUNIT_TEST(testDatamanagerThreading);*/
         CPPUNIT_TEST(testCleanup);
     CPPUNIT_TEST_SUITE_END();
     const IContextLogger &logctx;
@@ -5383,7 +5447,8 @@ protected:
         ASSERT(HugeHeaplet::dataOffset() >= sizeof(HugeHeaplet));
 
         memsize_t memory = (useLargeMemory ? largeMemory : smallMemory) * (unsigned __int64)0x100000U;
-        initializeHeap(false, true, false, (unsigned)(memory / HEAP_ALIGNMENT_SIZE), 0, NULL);
+        const bool retainMemory = true; // remove the time releasing pages from the timing overhead
+        initializeHeap(false, true, retainMemory, (unsigned)(memory / HEAP_ALIGNMENT_SIZE), 0, NULL);
         initAllocSizeMappings(defaultAllocSizes);
     }
 
@@ -6711,6 +6776,115 @@ protected:
         testCostCallbacks1();
         testCostCallbacks2();
     }
+
+    void testRegisterCallbacks1(unsigned numCallbacks, unsigned numCosts, unsigned numIter, unsigned numIds, unsigned numSlaves)
+    {
+        TestingRowBuffer * * callbacks = new TestingRowBuffer *[numCallbacks];
+
+        for (unsigned i=0; i < numCallbacks; i++)
+            callbacks[i] = new TestingRowBuffer(i % numCosts, i % (numCosts * numIds));
+
+        Owned<IRowManager> rowManager = createRowManager(0, NULL, logctx, NULL);
+        unsigned startTime = msTick();
+        for (unsigned iter=0; iter < numIter; iter++)
+        {
+            for (unsigned cur=0; cur < numCallbacks; cur++)
+                rowManager->addRowBuffer(callbacks[cur]);
+
+            for (unsigned cur2=0; cur2 < numCallbacks; cur2++)
+                rowManager->removeRowBuffer(callbacks[cur2]);
+        }
+        unsigned endTime = msTick();
+        unsigned elapsed = endTime - startTime;
+        unsigned ns = (unsigned)(((unsigned __int64)elapsed * 1000000) / (numCallbacks * numIter));
+        DBGLOG("Register/Unregister %u*%u (%u,%u) = %ums (%uns)", numCallbacks, numIter, numCosts, numIds, elapsed, ns);
+
+        for (unsigned i2=0; i2 < numCallbacks; i2++)
+            delete callbacks[i2];
+        delete [] callbacks;
+    }
+    void testRegisterCallbacks()
+    {
+        testRegisterCallbacks1(4, 20, 20000, 1, 1);
+        testRegisterCallbacks1(40, 20, 2000, 1, 10);
+        testRegisterCallbacks1(400, 20, 200, 1, 1);
+        testRegisterCallbacks1(4000, 20, 20, 1, 10);
+    }
+    void testGlobalCallbacks(unsigned numSlaves, unsigned numIter)
+    {
+        const memsize_t allMemory = HEAP_ALIGNMENT_SIZE * numSlaves;
+        const memsize_t halfPage = HEAP_ALIGNMENT_SIZE / 2;
+        const memsize_t allMemoryAlloc = allMemory - halfPage;
+        IRowManager * * slaveManagers = new IRowManager * [numSlaves];
+        SimpleCallbackBlockAllocator * * allocators = new SimpleCallbackBlockAllocator * [numSlaves];
+        Owned<IRowManager> globalManager = createGlobalRowManager(allMemory, allMemory, numSlaves, NULL, logctx, NULL, true, false);
+        for (unsigned i1 = 0; i1 < numSlaves; i1++)
+        {
+            slaveManagers[i1] = globalManager->querySlaveRowManager(i1);
+            allocators[i1] = new SimpleCallbackBlockAllocator(slaveManagers[i1], HEAP_ALIGNMENT_SIZE / 16, 100, 0);
+        }
+
+        SimpleCallbackBlockAllocator globalAllocator(globalManager, allMemoryAlloc, 100, 0);
+
+        unsigned startTime = msTick();
+        //Check that each slave can allocate a block of memory
+        {
+            for (unsigned i=0; i < numSlaves; i++)
+                allocators[i]->allocate();
+        }
+
+        //check that global can allocate and cause each of the slaves to spill
+        {
+            globalAllocator.allocate();
+            ASSERT(globalAllocator.hasRow());
+            for (unsigned i=0; i < numSlaves; i++)
+                ASSERT(!allocators[i]->hasRow());
+        }
+
+        //Check that slave can allocate and cause global to spill
+        for (unsigned iter = 0; iter < numIter; iter++)
+        {
+            for (unsigned i=0; i < numSlaves; i++)
+            {
+                allocators[i]->allocate();
+                ASSERT(!globalAllocator.hasRow());
+                globalAllocator.allocate();
+                ASSERT(!allocators[i]->hasRow());
+            }
+        }
+        unsigned endTime = msTick();
+
+        //check that a slave cannot cause other slaves to spill.
+        {
+            OwnedRoxieRow globalAllocation = globalManager->allocate(allMemoryAlloc - HEAP_ALIGNMENT_SIZE, 0);
+            ASSERT(!globalAllocator.hasRow());
+
+            allocators[numSlaves-1]->allocate();
+            ASSERT(allocators[numSlaves-1]->hasRow());
+
+            try
+            {
+                allocators[0]->allocate();
+                ASSERT(!"Should have failed to allocate");
+            }
+            catch (IException * e)
+            {
+                e->Release();
+            }
+        }
+
+        delete [] slaveManagers;
+
+        unsigned elapsed = endTime - startTime;
+        DBGLOG("Slave spill (%u,%u) = %ums", numSlaves, numIter, elapsed);
+    }
+    void testGlobalCallbacks()
+    {
+        testGlobalCallbacks(2, 1000);
+        testGlobalCallbacks(20, 100);
+        testGlobalCallbacks(200, 10);
+    }
+
     //Useful to add to the test list to see what is leaking pages.
     void testDump()
     {

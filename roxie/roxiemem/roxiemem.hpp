@@ -489,6 +489,7 @@ interface IRowManager : extends IInterface
     //If set, and changes to the callback list always triggers the callbacks to be called.
     virtual void setReleaseWhenModifyCallback(bool value, bool critical) = 0;
     virtual IRowManager * querySlaveRowManager(unsigned slave) = 0;
+    virtual unsigned querySlaveId() const = 0;
 };
 
 extern roxiemem_decl void setDataAlignmentSize(unsigned size);
@@ -511,6 +512,7 @@ interface IActivityMemoryUsageMap : public IInterface
 };
 
 extern roxiemem_decl IRowManager *createRowManager(memsize_t memLimit, ITimeLimiter *tl, const IContextLogger &logctx, const IRowAllocatorCache *allocatorCache, bool ignoreLeaks = false, bool outputOOMReports = false);
+extern roxiemem_decl IRowManager *createGlobalRowManager(memsize_t memLimit, memsize_t globalLimit, unsigned numSlaves, ITimeLimiter *tl, const IContextLogger &logctx, const IRowAllocatorCache *allocatorCache, bool ignoreLeaks, bool outputOOMReports);
 
 // Fixed size aggregated link-counted zero-overhead data Buffer manager
 
