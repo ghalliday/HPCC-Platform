@@ -13151,9 +13151,7 @@ bool HqlCppTranslator::transformGraphForGeneration(HqlQueryContext & query, Work
 
         convertLogicalToActivities(curWorkflow);                                           // e.g., merge disk reads, transform group, all to sort etc.
 
-    #ifndef _DEBUG
         if (options.regressionTest)
-    #endif
         {
             cycle_t startCycles = get_cycles_now();
             checkDependencyConsistency(curWorkflow.queryExprs());

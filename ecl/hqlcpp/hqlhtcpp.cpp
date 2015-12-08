@@ -7798,7 +7798,8 @@ IHqlExpression * HqlCppTranslator::calculatePersistInputCrc(BuildCtx & ctx, Depe
         if (name->isAttribute())
         {
             assertex(name->queryName() == wuidAtom);
-            wuid = name;
+            if (wuid->queryChild(0)->getOperator() != no_wuid)
+                wuid = name;
             name = NULL;
         }
 

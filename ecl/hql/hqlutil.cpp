@@ -2431,6 +2431,8 @@ void DependenciesUsed::addResultRead(IHqlExpression * wuid, IHqlExpression * seq
     if (!isGraphResult)
         if (!seq || !seq->queryValue())
             return;         //Can be called in parser when no sequence has been allocated
+    if (wuid)// && (wuid->queryChild(0)->getOperator() == no_wuid))
+        wuid = NULL;
     OwnedHqlExpr result = createAttribute(resultAtom, LINK(seq), LINK(name), LINK(wuid));
     if (resultsWritten.find(*result) == NotFound)
         appendUniqueExpr(resultsRead, LINK(result));
