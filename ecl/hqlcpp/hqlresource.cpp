@@ -192,6 +192,7 @@ CResourceOptions::CResourceOptions(ClusterType _targetClusterType, unsigned _clu
     useResultsForChildSpills = _translatorOptions.useResultsForChildSpills;
     newBalancedSpotter = _translatorOptions.newBalancedSpotter;
     alwaysReuseGlobalSpills = _translatorOptions.alwaysReuseGlobalSpills;
+    optimizeInlineOperations = _translatorOptions.optimizeInlineOperations;
 }
 
 void CResourceOptions::setChildQuery(bool value)
@@ -3771,7 +3772,7 @@ void EclResourcer::deriveUsageCounts(IHqlExpression * expr)
             else
             {
                 LinkedHqlExpr invariant;
-                OwnedHqlExpr cond = extractFilterConditions(invariant, expr, expr->queryNormalizedSelector(), false, false);
+                OwnedHqlExpr cond = extractFilterConditions(invariant, expr, expr->queryNormalizedSelector(), false, false, options.optimizeInlineOperations);
                 if (invariant)
                     info->isConditionalFilter = true;
             }
@@ -3842,7 +3843,7 @@ void EclResourcer::deriveUsageCounts(const HqlExprArray & exprs)
 void EclResourcer::createInitialGraph(IHqlExpression * expr, IHqlExpression * owner, ResourceGraphInfo * ownerGraph, LinkKind linkKind, bool forceNewGraph)
 {
     ResourcerInfo * info = queryResourceInfo(expr);
-    if (!info || !info->containsActivity)
+    if (!info || !(info->containsActivity || info->isActivity))
         return;
 
     LinkKind childLinkKind = UnconditionalLink;
@@ -4012,6 +4013,9 @@ void EclResourcer::createInitialGraph(IHqlExpression * expr, IHqlExpression * ow
             break;
         }
     }
+
+    if (!(info->containsActivity))
+        return;
 
     unsigned first = getFirstActivityArgument(expr);
     unsigned last = first + getNumActivityArguments(expr);

@@ -1288,6 +1288,7 @@ void NewHqlTransformer::analyseExpr(IHqlExpression * expr)
     case no_file_logicalname:
     case no_offsetof:
     case no_joined:
+    case no_blob2id:
         analyseSelector(expr->queryChild(0));
         break;
     case no_activerow:
@@ -2186,6 +2187,7 @@ bool ConditionalHqlTransformer::analyseThis(IHqlExpression * expr)
         ConditionalTransformInfo * extra = queryBodyExtra(expr);
         if (alreadyVisited(extra))
         {
+            extra->noteMultipleUse();
             if (extra->isUnconditional() || (conditionDepth > 0))
                 return false;
             extra->setUnconditional();

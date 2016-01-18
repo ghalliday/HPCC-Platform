@@ -52,7 +52,7 @@ class CseSpotter : public NewHqlTransformer
 {
     typedef NewHqlTransformer PARENT;
 public:
-    CseSpotter(bool _spotCseInIfDatasetConditions);
+    CseSpotter(bool _spotCseInIfDatasetConditions, bool _optimizeInlineOperations);
 
     void analyseAssociated(IHqlExpression * expr, unsigned pass);
     bool foundCandidates() const                            { return spottedCandidate; }
@@ -85,6 +85,7 @@ protected:
     bool createLocalAliases;
     bool createdAlias;
     bool spotCseInIfDatasetConditions;
+    bool optimizeInlineOperations;
 };
 
 class ConjunctionTransformer : public NewHqlTransformer
@@ -213,9 +214,9 @@ protected:
 #endif
 
 
-IHqlExpression * spotScalarCSE(IHqlExpression * expr, IHqlExpression * limit, bool spotCseInIfDatasetConditions);
-void spotScalarCSE(SharedHqlExpr & expr, SharedHqlExpr & associated, IHqlExpression * limit, IHqlExpression * invariantSelector, bool spotCseInIfDatasetConditions);
-void spotScalarCSE(HqlExprArray & exprs, HqlExprArray & associated, IHqlExpression * limit, IHqlExpression * invariantSelector, bool spotCseInIfDatasetConditions);
+IHqlExpression * spotScalarCSE(IHqlExpression * expr, IHqlExpression * limit, bool spotCseInIfDatasetConditions, bool optimizeInlineOperations);
+void spotScalarCSE(SharedHqlExpr & expr, SharedHqlExpr & associated, IHqlExpression * limit, IHqlExpression * invariantSelector, bool spotCseInIfDatasetConditions, bool optimizeInlineOperations);
+void spotScalarCSE(HqlExprArray & exprs, HqlExprArray & associated, IHqlExpression * limit, IHqlExpression * invariantSelector, bool spotCseInIfDatasetConditions, bool optimizeInlineOperations);
 
 //---------------------------------------------------------------------------
 

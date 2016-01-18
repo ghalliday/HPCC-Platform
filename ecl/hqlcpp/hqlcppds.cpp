@@ -516,6 +516,14 @@ IReferenceSelector * HqlCppTranslator::buildNewRow(BuildCtx & ctx, IHqlExpressio
     case no_matchrow:
         return doBuildRowMatchRow(ctx, expr, true);
     case no_getgraphresult:
+        {
+            if (expr->hasAttribute(externalAtom))
+            {
+                OwnedHqlExpr translated = translateGetGraphResult(ctx, expr);
+                return buildNewRow(ctx, translated);
+            }
+            //fall through
+        }
     case no_call:
     case no_externalcall:
     case no_alias:
@@ -577,7 +585,7 @@ IReferenceSelector * HqlCppTranslator::buildNewRow(BuildCtx & ctx, IHqlExpressio
             return buildNewRow(ctx, expr->queryChild(0));
         }
     case no_split:
-        throwUnexpected();
+        //throwUnexpected();
         //not at all sure about this.....
         return buildNewRow(ctx, expr->queryChild(0));
     default:
@@ -860,7 +868,7 @@ void HqlCppTranslator::doBuildAssignAggregateLoop(BuildCtx & ctx, const CHqlBoun
         }
     case no_sum:
         {
-            OwnedHqlExpr cseArg = options.spotCSE ? spotScalarCSE(arg, NULL, queryOptions().spotCseInIfDatasetConditions) : LINK(arg);
+            OwnedHqlExpr cseArg = options.spotCSE ? spotScalarCSE(arg, NULL, queryOptions().spotCseInIfDatasetConditions, queryOptions().optimizeInlineOperations) : LINK(arg);
             buildIncrementAssign(loopctx, target, cseArg);
             break;
         }
@@ -870,7 +878,7 @@ void HqlCppTranslator::doBuildAssignAggregateLoop(BuildCtx & ctx, const CHqlBoun
             BuildCtx maxctx(loopctx);
             OwnedHqlExpr resultExpr = target.getTranslatedExpr();
 
-            OwnedHqlExpr cseArg = options.spotCSE ? spotScalarCSE(arg, NULL, queryOptions().spotCseInIfDatasetConditions) : LINK(arg);
+            OwnedHqlExpr cseArg = options.spotCSE ? spotScalarCSE(arg, NULL, queryOptions().spotCseInIfDatasetConditions, queryOptions().optimizeInlineOperations) : LINK(arg);
             OwnedHqlExpr simpleArg = buildSimplifyExpr(loopctx, cseArg);
             OwnedHqlExpr test = createBoolExpr((op == no_min) ? no_lt : no_gt, LINK(simpleArg), LINK(resultExpr));
             if (doneFirstVar)
@@ -1320,7 +1328,7 @@ ChildGraphExprBuilder::ChildGraphExprBuilder(unsigned _numInputs)
     resultsExpr.setown(createAttribute(resultsAtom, LINK(represents)));
 }
 
-IHqlExpression * ChildGraphExprBuilder::addDataset(IHqlExpression * expr)
+IHqlExpression * ChildGraphExprBuilder::addDataset(IHqlExpression * expr, bool isSingleUse)
 {
     OwnedHqlExpr resultNumExpr;
     ForEachItemIn(i, results)
@@ -1329,6 +1337,7 @@ IHqlExpression * ChildGraphExprBuilder::addDataset(IHqlExpression * expr)
         if (expr->queryBody() == curSetResult.queryChild(0)->queryBody())
         {
             resultNumExpr.set(curSetResult.queryChild(2));
+            assertex(!isSingleUse && !curSetResult.hasAttribute(singleAtom));
             break;
         }
     }
@@ -1336,7 +1345,13 @@ IHqlExpression * ChildGraphExprBuilder::addDataset(IHqlExpression * expr)
     if (!resultNumExpr)
     {
         resultNumExpr.setown(getSizetConstant(numResults()));
-        results.append(*createValue(no_setgraphresult, makeVoidType(), LINK(expr), LINK(represents), LINK(resultNumExpr)));
+        HqlExprArray args;
+        args.append(*LINK(expr));
+        args.append(*LINK(represents));
+        args.append(*LINK(resultNumExpr));
+        if (isSingleUse)
+            args.append(*createAttribute(singleAtom));
+        results.append(*createValue(no_setgraphresult, makeVoidType(), args));
         numOutputs++;
     }
 
@@ -1353,10 +1368,11 @@ IHqlExpression * ChildGraphExprBuilder::addDataset(IHqlExpression * expr)
     IHqlExpression * recordCountAttr = queryRecordCountInfo(expr);
     if (recordCountAttr)
         args.append(*LINK(recordCountAttr));
-    OwnedHqlExpr ret = expr->isDictionary() ? createDictionary(no_getgraphresult, args) : createDataset(no_getgraphresult, args);
+    if (expr->isDictionary())
+        return createDictionary(no_getgraphresult, args);
     if (expr->isDatarow())
-        ret.setown(createRow(no_selectnth, LINK(ret), createComma(getSizetConstant(1), createAttribute(noBoundCheckAtom))));
-    return ret.getClear();
+        return createRow(no_getgraphresult, args);
+    return createDataset(no_getgraphresult, args);
 }
 
 void ChildGraphExprBuilder::addAction(IHqlExpression * expr)
@@ -1383,6 +1399,112 @@ IHqlExpression * ChildGraphExprBuilder::getGraph(node_operator listOp)
 //---------------------------------------------------------------------------
 // Child dataset processing
 
+class InlineGraphInfo : public ConditionalTransformInfo
+{
+public:
+    InlineGraphInfo(IHqlExpression * _original) : ConditionalTransformInfo(_original)
+    {
+        canEvaluateInline = true;
+        subGraph = NULL;
+    }
+
+    bool canEvaluateInline;
+    InlineGraphInfo * subGraph;
+    IArrayOf<InlineGraphInfo> inputGraphs;
+};
+
+static HqlTransformerInfo inlineGraphSpotterInfo("InlineGraphSpotter");
+class InlineGraphSpotter : public ConditionalHqlTransformer
+{
+public:
+    InlineGraphSpotter(HqlCppTranslator & _translator, BuildCtx & _ctx, IHqlExpression * _graphId)
+        : ConditionalHqlTransformer(inlineGraphSpotterInfo, true), translator(_translator), ctx(_ctx), graphId(_graphId)
+    {
+        activeSubGraph = NULL;
+        inlineOk = true;
+    }
+
+    virtual void analyseExpr(IHqlExpression * expr)
+    {
+        InlineGraphInfo * info = queryBodyExtra(expr);
+        node_operator op = expr->getOperator();
+        switch (op)
+        {
+        case no_subgraph:
+            {
+                activeSubGraph = info;
+                inlineOk = translator.canProcessInline(&ctx, expr);
+                VStringBuffer title("Can evaluate inline %u", inlineOk);
+                translator.traceExpression(title, expr);
+                break;
+            }
+        case no_getgraphresult:
+            {
+                if (expr->queryChild(1) == graphId)
+                {
+                    InlineGraphInfo * info = queryBodyExtra(expr->queryChild(2));
+                    assertex(info->subGraph);
+                    assertex(activeSubGraph);
+                    activeSubGraph->inputGraphs.append(*LINK(info->subGraph));
+                    if (!info->subGraph->canEvaluateInline)
+                        inlineOk = false;
+                }
+                break;
+            }
+        case no_setgraphresult:
+        case no_spillgraphresult:
+            {
+                if (expr->queryChild(1) == graphId)
+                {
+                    InlineGraphInfo * info = queryBodyExtra(expr->queryChild(2));
+                    info->subGraph = activeSubGraph;
+                }
+                if (expr->hasAttribute(_accessedFromChild_Atom))
+                    inlineOk = false;
+                break;
+            }
+        }
+
+        //If a dependent result is in a subgraph that cannot be executed inline, then mark this subgraph as unable to
+        //be executed inline.
+        bool wasInlineOk = inlineOk;
+        inlineOk = true;
+        ConditionalHqlTransformer::analyseExpr(expr);
+        //If already visited this expression, then inlineOk may not have been updated
+        if (!info->canEvaluateInline)
+            inlineOk = false;
+        if (!wasInlineOk)
+            inlineOk = false;
+        if (!inlineOk)
+            info->canEvaluateInline = false;
+
+        if (op == no_subgraph)
+            activeSubGraph = NULL;
+    }
+
+    bool evaluateInline(IHqlExpression * expr) //should be const
+    {
+        InlineGraphInfo * info = queryBodyExtra(expr);
+        return info->canEvaluateInline;
+    }
+
+protected:
+    virtual ANewTransformInfo * createTransformInfo(IHqlExpression * expr) { return new InlineGraphInfo(expr); }
+    inline InlineGraphInfo * queryBodyExtra(IHqlExpression * expr)
+    {
+        return static_cast<InlineGraphInfo *>(ConditionalHqlTransformer::queryBodyExtra(expr));
+    }
+
+protected:
+    HqlCppTranslator & translator;
+    BuildCtx & ctx;
+    InlineGraphInfo * activeSubGraph;
+    IHqlExpression * graphId;
+    bool inlineOk;
+};
+
+//---------------------------------------------------------------------------
+
 ChildGraphBuilder::ChildGraphBuilder(HqlCppTranslator & _translator, IHqlExpression * subgraph)
 : translator(_translator), childQuery(subgraph)
 {
@@ -1396,6 +1518,75 @@ ChildGraphBuilder::ChildGraphBuilder(HqlCppTranslator & _translator, IHqlExpress
     StringBuffer s;
     resultInstanceExpr.setown(createQuoted(appendUniqueId(s.append("res"), id), makeBoolType()));
     numResults = (unsigned)getIntValue(subgraph->queryChild(1));
+}
+
+IHqlExpression * ChildGraphBuilder::spotInlineActivities(BuildCtx & ctx, HqlExprArray & inlineSubGraphs, IHqlExpression * resourcedGraph, IHqlExpression * graphId)
+{
+    assertex(resourcedGraph->getOperator() == no_subgraph);
+    InlineGraphSpotter inlineSpotter(translator, ctx, graphId);
+
+    //Calculate if expressions are conditional, and link the subgraphs with dependencies.
+    inlineSpotter.analyse(resourcedGraph, 0);
+
+    //Any conditional subgraphs should not be executed inline - except for trivial IF(..,LEFT,RIGHT) etc.
+
+    //Any subgraph that is required as an input to a outofline graph must be executed outofline
+
+    //Now filter the inline subgraphs into one list, and return a graph for subgraphs to be executed out of line
+    HqlExprArray outofline;
+    bool hasChildGraph = false;
+    ForEachChild(i, resourcedGraph)
+    {
+        IHqlExpression * subgraph = resourcedGraph->queryChild(i);
+        if (subgraph->isAttribute())
+        {
+            outofline.append(*LINK(subgraph));
+            continue;
+        }
+
+        assertex(subgraph->getOperator() == no_subgraph);
+        if (inlineSpotter.evaluateInline(subgraph))
+        {
+            inlineSubGraphs.append(*LINK(subgraph));
+        }
+        else
+        {
+            outofline.append(*LINK(subgraph));
+            hasChildGraph = true;
+        }
+    }
+
+    //If all activities are expanded inline then there is nothing left to go in the child query, so
+    //return NULL to indicate that no subquery should be generated.
+    if (!hasChildGraph)
+        return NULL;
+
+    //If no activities are done inline then you can return the following as a special case optimization.
+    //Alternatively it could use the clone code below.
+    if (inlineSubGraphs.empty())
+        return LINK(resourcedGraph);
+
+    //Produce a filtered graph that only contains the subgraphs to be executed in a child query
+    return resourcedGraph->clone(outofline);
+}
+
+void ChildGraphBuilder::generateInlineActivities(BuildCtx & ctx, HqlExprArray & subgraphs)
+{
+    ForEachItemIn(i, subgraphs)
+    {
+        IHqlExpression & subgraph = subgraphs.item(i);
+        assertex(subgraph.getOperator() == no_subgraph);
+
+        ForEachChild(iActivity, &subgraph)
+        {
+            IHqlExpression * cur = subgraph.queryChild(iActivity);
+            if (!cur->isAttribute())
+            {
+                assertex(cur->isAction());
+                translator.buildStmt(ctx, cur);
+            }
+        }
+    }
 }
 
 void ChildGraphBuilder::generateGraph(BuildCtx & ctx)
@@ -1413,6 +1604,18 @@ void ChildGraphBuilder::generateGraph(BuildCtx & ctx)
     if (numResults == 0) numResults++;
 
     OwnedHqlExpr resourced = translator.getResourcedChildGraph(graphctx, childQuery, numResults, no_none);
+
+    if (translator.queryOptions().optimizeInlineOperations)
+    {
+        translator.traceExpression("OutOfLine child graph\n", resourced);
+        HqlExprArray inlineSubGraphs;
+        resourced.setown(spotInlineActivities(graphctx, inlineSubGraphs, resourced, represents));
+        translator.traceExpressions("Inline child graph\n", inlineSubGraphs);
+        generateInlineActivities(graphctx, inlineSubGraphs);
+        if (!resourced)
+            return;
+        translator.traceExpression("OutOfLine graph\n", resourced);
+    }
 
     Owned<ParentExtract> extractBuilder = translator.createExtractBuilder(graphctx, PETchild, represents, resourced, true);
     if (!translator.queryOptions().serializeRowsetInExtract)
@@ -1676,7 +1879,7 @@ void HqlCppTranslator::buildAssignChildDataset(BuildCtx & ctx, const CHqlBoundTa
     OwnedHqlExpr call;
     {
         ChildGraphExprBuilder builder(0);
-        call.setown(builder.addDataset(expr));
+        call.setown(builder.addDataset(expr, false));
 
         OwnedHqlExpr subquery = builder.getGraph();
         buildStmt(ctx, subquery);
@@ -1813,7 +2016,7 @@ unique_id_t HqlCppTranslator::buildRemoteSubgraph(BuildCtx & ctx, IHqlExpression
     }
     else
     {
-        OwnedHqlExpr ignoredResult = graphBuilder.addDataset(dataset);
+        OwnedHqlExpr ignoredResult = graphBuilder.addDataset(dataset, false);
     }
 
     OwnedHqlExpr subquery = graphBuilder.getGraph();
@@ -1850,6 +2053,14 @@ bool HqlCppTranslator::canProcessInline(BuildCtx * ctx, IHqlExpression * expr)
     if (!isInlineOk())
         return false;
     return ::canProcessInline(ctx, expr);
+}
+
+// for optimizing child query
+bool HqlCppTranslator::mustAssignInline(BuildCtx * ctx, IHqlExpression * expr)
+{
+    if (!isInlineOk())
+        return false;
+    return ::mustAssignInline(ctx, expr);
 }
 
 bool HqlCppTranslator::isInlineOk()
@@ -2067,8 +2278,12 @@ void HqlCppTranslator::buildDataset(BuildCtx & ctx, IHqlExpression * expr, CHqlB
 
 void HqlCppTranslator::doBuildDataset(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt, ExpressionFormat format)
 {
-    if (expr->isPure() && ctx.getMatchExpr(expr, tgt))
-        return;
+    node_operator op = expr->getOperator();
+    if (ctx.getMatchExpr(expr, tgt))
+    {
+        if (expr->isPure() || (op == no_split))
+            return;
+    }
 
 /*
     OwnedHqlExpr transformed = normalizeAnyDatasetAliases(expr);
@@ -2080,7 +2295,6 @@ void HqlCppTranslator::doBuildDataset(BuildCtx & ctx, IHqlExpression * expr, CHq
     }
 */
 
-    node_operator op = expr->getOperator();
     switch (op)
     {
     case no_dataset_alias:
@@ -2120,6 +2334,13 @@ void HqlCppTranslator::doBuildDataset(BuildCtx & ctx, IHqlExpression * expr, CHq
         if (!buildExprInCorrectContext(ctx, expr, tgt, false))
             throwUnexpected();
         return;
+    case no_split:
+        {
+            IHqlExpression * ds = expr->queryChild(0);
+            buildDataset(ctx, ds, tgt, FormatNatural);
+            ctx.associateExpr(expr, tgt);
+            return;
+        }
     case no_call:
     case no_externalcall:
         buildTempExpr(ctx, expr, tgt);
@@ -2397,8 +2618,16 @@ void HqlCppTranslator::buildDatasetAssign(BuildCtx & ctx, const CHqlBoundTarget 
         doBuildCall(ctx, &target, expr, NULL);
         return;
     case no_getgraphresult:
-        doBuildAssignGetGraphResult(ctx, target, expr);
-        return;
+        {
+            OwnedHqlExpr matched = matchLocalResult(ctx, expr);
+            if (matched)
+            {
+                buildDatasetAssign(ctx, target, matched);
+                return;
+            }
+            doBuildAssignGetGraphResult(ctx, target, expr);
+            return;
+        }
     case no_workunit_dataset:
     case no_getresult:
         buildExprAssign(ctx, target, expr);
@@ -3301,7 +3530,7 @@ void HqlCppTranslator::buildDatasetAssignJoin(BuildCtx & ctx, IHqlCppDatasetBuil
     BoundRow * rightCursor = buildDatasetIterate(rightIterCtx, right, false);
     bindTableCursor(rightIterCtx, right, rightCursor->queryBound(), no_right, selSeq);
 
-    OwnedHqlExpr cseCond = options.spotCSE ? spotScalarCSE(cond, NULL, queryOptions().spotCseInIfDatasetConditions) : LINK(cond);
+    OwnedHqlExpr cseCond = options.spotCSE ? spotScalarCSE(cond, NULL, queryOptions().spotCseInIfDatasetConditions, queryOptions().optimizeInlineOperations) : LINK(cond);
     buildFilter(rightIterCtx, cseCond);
     if (!expr->hasAttribute(leftonlyAtom))
     {
@@ -3993,7 +4222,15 @@ BoundRow * HqlCppTranslator::buildDatasetIterate(BuildCtx & ctx, IHqlExpression 
         if (hasStreamedModifier(expr->queryType()))
             return buildDatasetIterateStreamedCall(ctx, expr, needToBreak);
         break;
-
+    case no_split:
+        {
+            //Simplest to create a temporary, and share the value that way.
+            //More complex would be to allow multiple dataset targets within the dataset iterator..
+            IHqlExpression * ds = expr->queryChild(0);
+            if (mustAssignInline(&ctx, ds))
+                return buildDatasetIterate(ctx, ds, needToBreak);
+            break;
+        }
 #if 0
     //Following should improve the code, but I'm not sure how to correctly convert a referenceSelector to a boundExpr (since it may be with an existing row)
     case no_datasetfromrow:
@@ -4213,6 +4450,22 @@ void HqlCppTranslator::doBuildRowAssignAggregate(BuildCtx & ctx, IReferenceSelec
 {
     IHqlExpression * dataset = expr->queryChild(0);
     IHqlExpression * transform = expr->queryChild(2);
+
+    OwnedHqlExpr simpleAggregate = convertToSimpleAggregate(expr);
+    CHqlBoundExpr optimized;
+    if (simpleAggregate && canBuildOptimizedCount(ctx, dataset, optimized))
+    {
+        node_operator aggOp = simpleAggregate->getOperator();
+        if (aggOp == no_exists || aggOp == no_count)
+        {
+            IHqlExpression * assign = transform->queryChild(0);
+            IHqlExpression * lhs = assign->queryChild(0);
+            Owned<IReferenceSelector> selected = target->select(ctx, lhs);
+            selected->set(ctx, simpleAggregate);
+            return;
+        }
+    }
+
     unsigned numAggregates = transform->numChildren();
 
     if (isKeyedCountAggregate(expr))
@@ -4609,15 +4862,20 @@ BoundRow * HqlCppTranslator::buildOptimizeSelectFirstRow(BuildCtx & ctx, IHqlExp
         //fall through
     case no_newaggregate:
         {
-            Owned<BoundRow> tempRow = declareTempAnonRow(ctx, ctx, expr);
+            OwnedHqlExpr selectRow = createRow(no_selectnth, LINK(expr), getSizetConstant(1));
+            BoundRow * match = static_cast<BoundRow *>(ctx.queryAssociation(selectRow, AssocRow, NULL));
+            if (match)
+                return LINK(match);
+
+            Owned<BoundRow> tempRow = declareTempRow(ctx, ctx, selectRow);
             Owned<BoundRow> rowBuilder = createRowBuilder(ctx, tempRow);
 
             Owned<IReferenceSelector> createdRef = createReferenceSelector(rowBuilder);
 
             BuildCtx subctx(ctx);
-            subctx.addGroup();
             if (parentRow)
             {
+                subctx.addGroup();
                 if (op == no_hqlproject)
                     bindTableCursor(ctx, expr->queryChild(0), tempRow->queryBound(), no_left, querySelSeq(expr));
                 else
@@ -4626,6 +4884,7 @@ BoundRow * HqlCppTranslator::buildOptimizeSelectFirstRow(BuildCtx & ctx, IHqlExp
                 
             doBuildRowAssignAggregate(subctx, createdRef, expr);
             finalizeTempRow(ctx, tempRow, rowBuilder);
+            ctx.associate(*tempRow);
 
             return tempRow;
         }
@@ -4893,6 +5152,18 @@ IReferenceSelector * HqlCppTranslator::buildDatasetIndex(BuildCtx & ctx, IHqlExp
 #endif
 
     OwnedHqlExpr dataset = normalizeAnyDatasetAliases(expr->queryChild(0));
+    if (dataset->getOperator() == no_getgraphresult)
+    {
+        OwnedHqlExpr matched = matchLocalResult(ctx, dataset);
+        if (matched)
+        {
+            //MORE: Assert select[1]
+            if (matched->isDatarow())
+                return buildNewRow(ctx, matched);
+            OwnedHqlExpr newExpr = replaceChild(expr, 0, matched);
+            return buildDatasetIndex(ctx, newExpr);
+        }
+    }
 
     //Special cases:
     //i) selecting row [1] from something that only has a single row
@@ -4908,6 +5179,9 @@ IReferenceSelector * HqlCppTranslator::buildDatasetIndex(BuildCtx & ctx, IHqlExp
 //          if (canIterateInline(&ctx, dataset))
 //              row = buildOptimizeSelectFirstRow(ctx, dataset);
 #endif
+        if ((dataset->getOperator() == no_newaggregate) && canProcessInline(&ctx, dataset))
+            row = buildOptimizeSelectFirstRow(ctx, dataset);
+
         if (!row)
         {
             CHqlBoundExpr bound;
@@ -4998,6 +5272,30 @@ IReferenceSelector * HqlCppTranslator::buildDatasetSelectMap(BuildCtx & ctx, IHq
 
 //---------------------------------------------------------------------------
 
+IHqlExpression * HqlCppTranslator::matchLocalResult(BuildCtx & ctx, IHqlExpression * expr)
+{
+    IHqlExpression * graphId = expr->queryChild(1);
+    IHqlExpression * resultNum = expr->queryChild(2);
+
+    HqlExprArray resultArgs;
+    resultArgs.append(*LINK(expr->queryRecord()));
+    resultArgs.append(*LINK(graphId));
+    resultArgs.append(*LINK(resultNum));
+    OwnedHqlExpr result = createExprAttribute(resultAtom, resultArgs);
+
+    //Check if this particular expression has been calculated inline already, and if
+    //so use that value.
+    //NOTE, needs more work and testing - this may fail if accessed from a nested child query
+    CHqlBoundExpr bound;
+    if (ctx.getMatchExpr(result, bound))
+    {
+        if (bound.expr->isAttribute())
+            return LINK(bound.expr->queryChild(0));
+        return bound.getTranslatedExpr();
+    }
+    return NULL;
+}
+
 IHqlExpression * HqlCppTranslator::buildGetLocalResult(BuildCtx & ctx, IHqlExpression * expr)
 {
     IHqlExpression * graphId = expr->queryChild(1);
@@ -5006,8 +5304,16 @@ IHqlExpression * HqlCppTranslator::buildGetLocalResult(BuildCtx & ctx, IHqlExpre
     if (!hasLinkCountedModifier(exprType))
         exprType.setown(makeAttributeModifier(LINK(exprType), getLinkCountedAttr()));
 
+    //Check if this particular expression has been calculated inline already, and if
+    //so use that value.
+    //NOTE, needs more work and testing - this may fail if accessed from a nested child query
+    OwnedHqlExpr matched = matchLocalResult(ctx, expr);
+    if (matched)
+        return matched.getClear();
+
     if (expr->hasAttribute(externalAtom))
     {
+
         IHqlExpression * resultInstance = queryAttributeChild(expr, externalAtom, 0);
         HqlExprAssociation * matchedResults = ctx.queryMatchExpr(resultInstance);
         if (!matchedResults)
@@ -5054,7 +5360,7 @@ IHqlExpression * HqlCppTranslator::buildGetLocalResult(BuildCtx & ctx, IHqlExpre
     return bindFunctionCall(getLocalLinkedResultId, args, exprType);
 }
 
-void HqlCppTranslator::doBuildAssignGetGraphResult(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr)
+IHqlExpression * HqlCppTranslator::translateGetGraphResult(BuildCtx & ctx, IHqlExpression * expr)
 {
     if (expr->hasAttribute(_streaming_Atom))
     {
@@ -5065,11 +5371,7 @@ void HqlCppTranslator::doBuildAssignGetGraphResult(BuildCtx & ctx, const CHqlBou
     }
 
     if (expr->hasAttribute(externalAtom))
-    {
-        OwnedHqlExpr call = buildGetLocalResult(ctx, expr);
-        buildExprAssign(ctx, target, call);
-        return;
-    }
+        return buildGetLocalResult(ctx, expr);
 
     if (!isCurrentActiveGraph(ctx, expr->queryChild(1)))
     {
@@ -5077,12 +5379,17 @@ void HqlCppTranslator::doBuildAssignGetGraphResult(BuildCtx & ctx, const CHqlBou
         if (!buildExprInCorrectContext(ctx, expr, match, false))
             throwError(HQLERR_GraphContextNotFound);
 
-        assign(ctx, target, match);
-        return;
+        return match.getTranslatedExpr();
     }
 
-    OwnedHqlExpr call = buildGetLocalResult(ctx, expr);
-    buildExprAssign(ctx, target, call);
+    return buildGetLocalResult(ctx, expr);
+}
+
+
+void HqlCppTranslator::doBuildAssignGetGraphResult(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr)
+{
+    OwnedHqlExpr translated = translateGetGraphResult(ctx, expr);
+    buildExprAssign(ctx, target, translated);
 }
 
 
@@ -5090,6 +5397,12 @@ void HqlCppTranslator::doBuildExprGetGraphResult(BuildCtx & ctx, IHqlExpression 
 {
     if (!expr->hasAttribute(externalAtom) && (!isCurrentActiveGraph(ctx, expr->queryChild(1)) || !insideOnStart(ctx)))
     {
+        OwnedHqlExpr matched = matchLocalResult(ctx, expr);
+        if (matched)
+        {
+            buildAnyExpr(ctx, matched, tgt);
+            return;
+        }
         doBuildAliasValue(ctx, expr, tgt, NULL);
         return;
 
@@ -5109,6 +5422,12 @@ void HqlCppTranslator::doBuildExprGetGraphResult(BuildCtx & ctx, IHqlExpression 
     case type_groupedtable:
         buildTempExpr(ctx, call, tgt);
         break;
+    case type_row:
+        {
+            OwnedHqlExpr translated = translateGetGraphResult(ctx, expr);
+            buildExpr(ctx, translated, tgt);
+            break;
+        }
     default:
         buildExpr(ctx, call, tgt);
         break;

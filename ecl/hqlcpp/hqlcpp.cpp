@@ -1761,6 +1761,7 @@ void HqlCppTranslator::cacheOptions()
         DebugOption(options.optimizeSortAllFields,"optimizeSortAllFields",true),
         DebugOption(options.optimizeSortAllFieldsStrict,"optimizeSortAllFieldsStrict",false),
         DebugOption(options.alwaysReuseGlobalSpills,"alwaysReuseGlobalSpills",true),
+        DebugOption(options.optimizeInlineOperations, "optimizeInlineOperations", false),
     };
 
     //get options values from workunit
@@ -2521,8 +2522,16 @@ void HqlCppTranslator::buildExprAssign(BuildCtx & ctx, const CHqlBoundTarget & t
             doBuildExprAssign(ctx, target, expr);
         break;
     case no_getgraphresult:
-        doBuildAssignGetGraphResult(ctx, target, expr);
-        break;
+        {
+            OwnedHqlExpr matched = matchLocalResult(ctx, expr);
+            if (matched)
+            {
+                buildExprAssign(ctx, target, matched);
+                return;
+            }
+            doBuildAssignGetGraphResult(ctx, target, expr);
+            break;
+        }
     case no_existslist:
         doBuildAggregateList(ctx, &target, expr, NULL);
         break;
@@ -3719,6 +3728,9 @@ void HqlCppTranslator::buildStmt(BuildCtx & _ctx, IHqlExpression * expr)
         return;
     case no_persist_check:
         buildWorkflowPersistCheck(ctx, expr);
+        return;
+    case no_setgraphresult:
+        doBuildStmtSetGraphResult(ctx, expr);
         return;
     case no_childquery:
         buildChildGraph(ctx, expr);
@@ -11619,7 +11631,7 @@ void HqlCppTranslator::doBuildUserFunctionReturn(BuildCtx & ctx, ITypeInfo * typ
             //optimize the way that cses are spotted to minimise unnecessary calculations
             OwnedHqlExpr branches = createComma(LINK(value->queryChild(1)), LINK(value->queryChild(2)));
             OwnedHqlExpr cond = LINK(value->queryChild(0));
-            spotScalarCSE(cond, branches, NULL, NULL, queryOptions().spotCseInIfDatasetConditions);
+            spotScalarCSE(cond, branches, NULL, NULL, queryOptions().spotCseInIfDatasetConditions, queryOptions().optimizeInlineOperations);
             BuildCtx subctx(ctx);
             IHqlStmt * stmt = buildFilterViaExpr(subctx, cond);
             doBuildUserFunctionReturn(subctx, type, branches->queryChild(0));
@@ -11629,7 +11641,7 @@ void HqlCppTranslator::doBuildUserFunctionReturn(BuildCtx & ctx, ITypeInfo * typ
         }
     default:
         {
-            OwnedHqlExpr optimized = spotScalarCSE(value, NULL, queryOptions().spotCseInIfDatasetConditions);
+            OwnedHqlExpr optimized = spotScalarCSE(value, NULL, queryOptions().spotCseInIfDatasetConditions, queryOptions().optimizeInlineOperations);
             if (value->isAction())
                 buildStmt(ctx, value);
             else

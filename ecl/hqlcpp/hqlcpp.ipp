@@ -751,6 +751,7 @@ struct HqlCppOptions
     bool                optimizeSortAllFields;
     bool                optimizeSortAllFieldsStrict;
     bool                alwaysReuseGlobalSpills;
+    bool                optimizeInlineOperations;
 };
 
 //Any information gathered while processing the query should be moved into here, rather than cluttering up the translator class
@@ -913,6 +914,8 @@ public:
     bool canProcessInline(BuildCtx * ctx, IHqlExpression * expr);
     bool canIterateInline(BuildCtx * ctx, IHqlExpression * expr);
     bool canAssignInline(BuildCtx * ctx, IHqlExpression * expr);
+    // Should this (simple) expression always be evaluated inline - not combined in a child query
+    bool mustAssignInline(BuildCtx * ctx, IHqlExpression * expr);
     bool canEvaluateInline(BuildCtx * ctx, IHqlExpression * expr);
 
     void buildAssignChildDataset(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr);
@@ -1387,6 +1390,7 @@ public:
     void doBuildStmtIf(BuildCtx & ctx, IHqlExpression * expr);
     void doBuildStmtNotify(BuildCtx & ctx, IHqlExpression * expr);
     void doBuildStmtOutput(BuildCtx & ctx, IHqlExpression * expr);
+    void doBuildStmtSetGraphResult(BuildCtx & ctx, IHqlExpression * expr);
     void doBuildStmtSetResult(BuildCtx & ctx, IHqlExpression * expr);
     void doBuildStmtSkip(BuildCtx & ctx, IHqlExpression * expr, bool * canReachFollowing);
     void doBuildStmtUpdate(BuildCtx & ctx, IHqlExpression * expr);
@@ -1617,6 +1621,7 @@ public:
     
     IHqlExpression * doCreateGraphLookup(BuildCtx & declarectx, BuildCtx & resolvectx, unique_id_t id, const char * activity, bool isChild);
     IHqlExpression * buildGetLocalResult(BuildCtx & ctx, IHqlExpression * expr);
+    IHqlExpression * matchLocalResult(BuildCtx & ctx, IHqlExpression * expr);
 
     IHqlExpression * queryOptimizedExists(BuildCtx & ctx, IHqlExpression * expr, IHqlExpression * dataset);
     void doBuildAssignAggregateLoop(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr, IHqlExpression * dataset, IHqlExpression * doneFirstVar, bool multiPath);
@@ -1895,6 +1900,7 @@ protected:
     GraphLocalisation getGraphLocalisation(IHqlExpression * expr, bool isInsideChildQuery);
     bool isAlwaysCoLocal();
     bool isNeverDistributed(IHqlExpression * expr);
+    IHqlExpression * translateGetGraphResult(BuildCtx & ctx, IHqlExpression * expr);
 
     void ensureWorkUnitUpdated();
     bool getDebugFlag(const char * name, bool defValue);
@@ -2060,6 +2066,9 @@ extern bool isConstantSet(IHqlExpression * expr);
 extern bool canProcessInline(BuildCtx * ctx, IHqlExpression * expr);
 extern bool canIterateInline(BuildCtx * ctx, IHqlExpression * expr);
 extern bool canAssignInline(BuildCtx * ctx, IHqlExpression * expr);
+// for child query optimization
+extern bool mustAssignInline(BuildCtx * ctx, IHqlExpression * expr);
+
 extern bool canEvaluateInline(BuildCtx * ctx, IHqlExpression * expr);
 extern bool canAssignNotEvaluateInline(BuildCtx * ctx, IHqlExpression * expr);
 extern bool isNonLocal(IHqlExpression * expr, bool optimizeParentAccess);

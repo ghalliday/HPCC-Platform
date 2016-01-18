@@ -277,6 +277,8 @@ static unsigned calcInlineFlags(BuildCtx * ctx, IHqlExpression * expr)
     case no_serialize:
     case no_deserialize:
     case no_dataset_alias:
+    case no_setgraphresult:
+    case no_split:
         return getInlineFlags(ctx, expr->queryChild(0));
     case no_forcegraph:
         return 0;
@@ -374,6 +376,17 @@ static unsigned calcInlineFlags(BuildCtx * ctx, IHqlExpression * expr)
         }
     case no_compound:
         return getInlineFlags(ctx, expr->queryChild(1));
+    case no_subgraph:
+        {
+            unsigned flags = RETevaluate;
+            ForEachChild(i, expr)
+            {
+                IHqlExpression * cur = expr->queryChild(i);
+                if (!cur->isAttribute())
+                    flags &= getInlineFlags(ctx, cur);
+            }
+            return flags;
+        }
     default:
         return 0;
     }
@@ -406,6 +419,40 @@ bool canEvaluateInline(BuildCtx * ctx, IHqlExpression * expr)
 bool canAssignInline(BuildCtx * ctx, IHqlExpression * expr)
 {
     return canAssignNoSpill(getInlineFlags(ctx, expr));
+}
+
+//There are some activities that should always be generated inline - even if they are shared by other graphs.
+//If they are included in the graph then a splitter and spill may be generated.
+//
+//Any false positives will prevent the inline
+
+bool mustAssignInline(BuildCtx *ctx, IHqlExpression *expr)
+{
+    //This function is primarily an optimization, and shouldn't have any false positives.
+    //If there is any doubt then return false - the subsequence processing will execute it inline.
+    node_operator op = expr->getOperator();
+    switch(op)
+    {
+    case no_getgraphresult:
+    case no_left:
+    case no_right:
+    case no_getresult:
+    case no_rows:
+    case no_activerow:
+        //MORE: what else?
+        return true;
+    case no_select:
+        return !isNewSelector(expr);
+    case no_createrow:
+    case no_inlinetable:
+        return expr->queryChild(0)->isConstant();
+    case no_workunit_dataset:
+        return !(expr->hasAttribute(wuidAtom));
+    case no_alias:
+        return mustAssignInline(ctx, expr->queryChild(0));
+    default:
+        return false;
+    }
 }
 
 bool canAssignNotEvaluateInline(BuildCtx * ctx, IHqlExpression * expr)

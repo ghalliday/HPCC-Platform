@@ -1184,8 +1184,8 @@ void SourceBuilder::buildTransformBody(BuildCtx & transformCtx, IHqlExpression *
         }
         else
         {
-            OwnedHqlExpr boundSrc = createVariable("left", makeRowReferenceType(NULL));
-        //  OwnedHqlExpr boundSrc = createVariable("left", makeRowReferenceType(tableExpr));
+        //    OwnedHqlExpr boundSrc = createVariable("left", makeRowReferenceType(NULL));
+          OwnedHqlExpr boundSrc = createVariable("left", makeRowReferenceType(tableExpr));
             //slightly different because may have virtuals removed.
             transformCtx.associateOwn(*new BoundRow(tableExpr->queryNormalizedSelector(), boundSrc, translator.queryRecordOffsetMap(physicalRecord), no_none, NULL));
         }
@@ -1389,7 +1389,7 @@ void SourceBuilder::buildTransformElements(BuildCtx & ctx, IHqlExpression * expr
                         test.setown(foldScopedHqlExpression(translator.queryErrorProcessor(), ds->queryNormalizedSelector(), test));
 
                     if (translator.options.spotCSE)
-                        test.setown(spotScalarCSE(test, ds, translator.queryOptions().spotCseInIfDatasetConditions));
+                        test.setown(spotScalarCSE(test, ds, translator.queryOptions().spotCseInIfDatasetConditions, translator.queryOptions().optimizeInlineOperations));
 
                     if (!returnIfFilterFails)
                         translator.buildFilter(ctx, test);
@@ -4755,7 +4755,7 @@ void MonitorExtractor::spotSegmentCSE(BuildCtx & ctx)
     HqlExprArray associated;
     IHqlExpression * selector = tableExpr->queryNormalizedSelector();
     translator.traceExpressions("before seg spot", conditions);
-    spotScalarCSE(conditions, associated, NULL, selector, translator.queryOptions().spotCseInIfDatasetConditions);
+    spotScalarCSE(conditions, associated, NULL, selector, translator.queryOptions().spotCseInIfDatasetConditions, translator.queryOptions().optimizeInlineOperations);
     translator.traceExpressions("after seg spot", conditions);
 
     unsigned curCond = 0;

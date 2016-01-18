@@ -633,15 +633,20 @@ Flags provided to the constructor indicate which options for transforming are us
 
 class ConditionalTransformInfo : public NewTransformInfo
 {
-    enum { CTFunconditional = 1, CTFfirstunconditional = 2 };
+    enum { CTFunconditional = 1,
+           CTFfirstunconditional = 2,
+           CTFmultipleuse = 4,
+    };
 public:
     ConditionalTransformInfo(IHqlExpression * _original) : NewTransformInfo(_original) { spareByte1 = 0; }
     
     inline bool isUnconditional() const { return (spareByte1 & CTFunconditional) != 0; }
     inline bool isFirstUseUnconditional() const { return (spareByte1 & CTFfirstunconditional) != 0; }
+    inline bool isUsedMultipleTimes() const { return (spareByte1 & CTFmultipleuse) != 0; }
 
     inline void setUnconditional() { spareByte1 |= CTFunconditional; }
     inline void setFirstUnconditional() { spareByte1 |= (CTFfirstunconditional|CTFunconditional); }
+    inline void noteMultipleUse() { spareByte1 |= CTFmultipleuse; }
 
 private:
     using NewTransformInfo::spareByte1;             //prevent derived classes from also using this spare byte

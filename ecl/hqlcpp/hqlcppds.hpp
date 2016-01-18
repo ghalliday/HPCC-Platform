@@ -24,7 +24,7 @@ class ChildGraphExprBuilder : public CInterface
 public:
     ChildGraphExprBuilder(unsigned _numInputs);
 
-    IHqlExpression * addDataset(IHqlExpression * expr);
+    IHqlExpression * addDataset(IHqlExpression * expr, bool isSingleUse);
     void addAction(IHqlExpression * expr);
     unsigned addInput();
     IHqlExpression * getGraph(node_operator listOp = no_actionlist);
@@ -56,6 +56,8 @@ public:
 
 protected:
     void createBuilderAlias(BuildCtx & ctx, ParentExtract * extractBuilder);
+    void generateInlineActivities(BuildCtx & ctx, HqlExprArray & subgraphs);
+    IHqlExpression * spotInlineActivities(BuildCtx & ctx, HqlExprArray & inlineSubGraphs, IHqlExpression * resourcedGraph, IHqlExpression * graphId);
 
 protected:
     HqlCppTranslator & translator;
