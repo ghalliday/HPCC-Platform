@@ -3714,12 +3714,12 @@ public:
 
     inline void beforeAllocate(memsize_t _size, unsigned activityId)
     {
-        if (memTraceSizeLimit && _size >= memTraceSizeLimit)
+        if (unlikely(memTraceSizeLimit && _size >= memTraceSizeLimit))
         {
             logctx.CTXLOG("Activity %u requesting %" I64F "u bytes!", getActivityId(activityId), (unsigned __int64) _size);
             PrintStackReport();
         }
-        if (timeLimit)
+        if (unlikely(timeLimit))
         {
             unsigned __int64 cyclesNow = get_cycles_now();
             if (cyclesNow - cyclesChecked >= cyclesCheckInterval)
@@ -4734,12 +4734,12 @@ void * CChunkedHeap::inlineDoAllocate(unsigned allocatorId, unsigned maxSpillCos
     {
         {
             NonReentrantSpinBlock b(heapletLock);
-            if (activeHeaplet)
+            if (likely(activeHeaplet))
             {
                 //This cast is safe because we are within a member of CChunkedHeap
                 donorHeaplet = static_cast<ChunkedHeaplet *>(activeHeaplet);
                 chunk = donorHeaplet->allocateChunk();
-                if (chunk)
+                if (likely(chunk))
                 {
                     //The code at the end of this function needs to be executed outside of the spinblock.
                     //Just occasionally gotos are the best way of expressing something
