@@ -696,7 +696,7 @@ protected:
         case TAKsimpleaction:
             return createRoxieServerActionActivityFactory(id, subgraphId, *this, helperFactory, kind, usageCount(node), isRootAction(node));
         case TAKparse:
-            return createRoxieServerParseActivityFactory(id, subgraphId, *this, helperFactory, kind, this);
+            return createRoxieServerParseActivityFactory(id, subgraphId, *this, helperFactory, kind, node, this);
         case TAKworkunitwrite:
             return createRoxieServerWorkUnitWriteActivityFactory(id, subgraphId, *this, helperFactory, kind, usageCount(node), isRootAction(node));
         case TAKdictionaryworkunitwrite:

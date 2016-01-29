@@ -1020,6 +1020,11 @@ public:
             rowAllocator = ctx->queryCodeContext()->getRowAllocator(meta.queryOriginal(), activityId);
     }
 
+    inline ICodeContext *queryCodeContext()
+    {
+        return ctx->queryCodeContext();
+    }
+
     // MORE - most of this is copied from ccd.hpp - can't we refactor?
     virtual void CTXLOGa(TracingCategory category, const char *prefix, const char *text) const
     {
@@ -1617,6 +1622,8 @@ public:
     virtual void reset()
     {
         // assertex(active==0);  Disable for now as we know that stop() is nt being called on the strands.
+        ForEachItemIn(idx, strands)
+            strands.item(idx).reset();
         if (splitter)
             splitter->reset();
         CRoxieServerActivity::reset();
@@ -19877,6 +19884,126 @@ extern IRoxieServerActivityFactory *createRoxieServerWhenActionActivityFactory(u
 
 //=================================================================================
 
+
+class CRoxieServerStrandedParseActivity : public CRoxieServerStrandedActivity
+{
+    INlpParseAlgorithm * algorithm;
+
+    class ParseProcessor : public StrandProcessor, implements IMatchedAction
+    {
+    protected:
+        unsigned numProcessedLastGroup = 0;
+        IHThorParseArg &helper;
+        INlpParser * parser;
+        INlpResultIterator * rowIter;
+        const void * in;
+        char * curSearchText;
+        size32_t curSearchTextLen;
+        bool anyThisGroup;
+
+        bool processRecord(const void * inRec)
+        {
+            if (helper.searchTextNeedsFree())
+                rtlFree(curSearchText);
+
+            curSearchTextLen = 0;
+            curSearchText = NULL;
+            helper.getSearchText(curSearchTextLen, curSearchText, inRec);
+
+            return parser->performMatch(*this, in, curSearchTextLen, curSearchText);
+        }
+
+    public:
+        ParseProcessor(CRoxieServerActivity &_parent, IEngineRowStream *_inputStream, IHThorParseArg &_helper, INlpParseAlgorithm * _algorithm)
+        : StrandProcessor(_parent, _inputStream, true), helper(_helper)
+        {
+            parser = _algorithm->createParser(parent.queryCodeContext(), parent.queryId(), helper.queryHelper(), &helper);
+            rowIter = parser->queryResultIter();
+            in = NULL;
+            curSearchText = NULL;
+            anyThisGroup = false;
+            curSearchTextLen = 0;
+        }
+        ~ParseProcessor()
+        {
+            ::Release(parser);
+        }
+        virtual void start()
+        {
+            numProcessedLastGroup = 0;
+            anyThisGroup = false;
+            curSearchTextLen = 0;
+            curSearchText = NULL;
+            in = NULL;
+            parser->reset();
+            //StrandProcessor::start(); // GH->RKC should start be defined in the baseclass??
+        }
+        virtual void reset()
+        {
+            if (helper.searchTextNeedsFree())
+                rtlFree(curSearchText);
+            curSearchText = NULL;
+            ReleaseClearRoxieRow(in);
+            StrandProcessor::reset();
+        }
+        virtual const void * nextRow()
+        {
+            ActivityTimer t(totalCycles, timeActivities);
+            loop
+            {
+                if (rowIter->isValid())
+                {
+                    anyThisGroup = true;
+                    OwnedConstRoxieRow out = rowIter->getRow();
+                    rowIter->next();
+                    processed++;
+                    return out.getClear();
+                }
+
+                ReleaseClearRoxieRow(in);
+                in = inputStream->nextRow();
+                if (!in)
+                {
+                    if (anyThisGroup)
+                    {
+                        anyThisGroup = false;
+                        return NULL;
+                    }
+                    in = inputStream->nextRow();
+                    if (!in)
+                        return NULL;
+                }
+
+                processRecord(in);
+                rowIter->first();
+            }
+        }
+        virtual unsigned onMatch(ARowBuilder & self, const void * curRecord, IMatchedResults * results, IMatchWalker * walker)
+        {
+            try
+            {
+                return helper.transform(self, curRecord, results, walker);
+            }
+            catch (IException *E)
+            {
+                throw parent.makeWrappedException(E);
+            }
+        }
+    };
+
+public:
+    CRoxieServerStrandedParseActivity(IRoxieSlaveContext *_ctx, const IRoxieServerActivityFactory *_factory, IProbeManager *_probeManager, INlpParseAlgorithm * _algorithm, const StrandOptions &_strandOptions)
+        : CRoxieServerStrandedActivity(_ctx, _factory, _probeManager, _strandOptions), algorithm(_algorithm)
+    {
+    }
+
+    virtual StrandProcessor *createStrandProcessor(IEngineRowStream *instream)
+    {
+        return new ParseProcessor(*this, instream, (IHThorParseArg &) basehelper, algorithm);
+    }
+};
+
+
 class CRoxieServerParseActivity : public CRoxieServerActivity, implements IMatchedAction
 {
     IHThorParseArg &helper;
@@ -19996,10 +20123,11 @@ class CRoxieServerParseActivityFactory : public CRoxieServerActivityFactory
 {
     Owned<INlpParseAlgorithm> algorithm;
     Owned<IHThorParseArg> helper;
+    StrandOptions strandOptions;
 
 public:
-    CRoxieServerParseActivityFactory(unsigned _id, unsigned _subgraphId, IQueryFactory &_queryFactory, HelperFactory *_helperFactory, ThorActivityKind _kind, IResourceContext *rc)
-        : CRoxieServerActivityFactory(_id, _subgraphId, _queryFactory, _helperFactory, _kind)
+    CRoxieServerParseActivityFactory(unsigned _id, unsigned _subgraphId, IQueryFactory &_queryFactory, HelperFactory *_helperFactory, ThorActivityKind _kind, IPropertyTree &_graphNode, IResourceContext *rc)
+        : CRoxieServerActivityFactory(_id, _subgraphId, _queryFactory, _helperFactory, _kind), strandOptions(_graphNode)
     {
         helper.setown((IHThorParseArg *) helperFactory());
         algorithm.setown(createThorParser(rc, *helper));
@@ -20007,13 +20135,13 @@ public:
 
     virtual IRoxieServerActivity *createActivity(IRoxieSlaveContext *_ctx, IProbeManager *_probeManager) const
     {
-        return new CRoxieServerParseActivity(_ctx, this, _probeManager, algorithm);
+        return new CRoxieServerStrandedParseActivity(_ctx, this, _probeManager, algorithm, strandOptions);
     }
 };
 
-IRoxieServerActivityFactory *createRoxieServerParseActivityFactory(unsigned _id, unsigned _subgraphId, IQueryFactory &_queryFactory, HelperFactory *_helperFactory, ThorActivityKind _kind, IResourceContext *rc)
+IRoxieServerActivityFactory *createRoxieServerParseActivityFactory(unsigned _id, unsigned _subgraphId, IQueryFactory &_queryFactory, HelperFactory *_helperFactory, ThorActivityKind _kind, IPropertyTree &_graphNode, IResourceContext *rc)
 {
-    return new CRoxieServerParseActivityFactory(_id, _subgraphId, _queryFactory, _helperFactory, _kind, rc);
+    return new CRoxieServerParseActivityFactory(_id, _subgraphId, _queryFactory, _helperFactory, _kind, _graphNode, rc);
 }
 
 //=====================================================================================================
