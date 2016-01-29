@@ -1538,9 +1538,9 @@ class StrandOptions
 {
     // Typically set from hints, common to many stranded activities
 public:
-    StrandOptions(IPropertyTree &_graphNode)
+    explicit StrandOptions(IPropertyTree &_graphNode)
     {
-        numStrands = _graphNode.getPropInt("hint[@name='numstrands']/@value", 1);
+        numStrands = _graphNode.getPropInt("hint[@name='numstrands']/@value", 0);
         blockSize = _graphNode.getPropInt("hint[@name='strandblocksize']/@value", 0);
         forcePreserveOrder = _graphNode.getPropBool("hint[@name='strandordered']/@value", true);
     }
@@ -1552,10 +1552,12 @@ public:
 
         if (!blockSize)
             blockSize = ctx->queryOptions().strandBlockSize;
+        if (!numStrands)
+            numStrands = ctx->queryOptions().forceNumStrands;
         // Could consider some similar option for numStrands...
     }
 public:
-    unsigned numStrands = 1;
+    unsigned numStrands = 0;
     unsigned blockSize = 0;
     bool forcePreserveOrder = false;
 };
