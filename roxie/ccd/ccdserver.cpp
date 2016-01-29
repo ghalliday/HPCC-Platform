@@ -912,6 +912,7 @@ protected:
     IHThorArg *colocalParent;
     IEngineRowAllocator *rowAllocator;
     CriticalSection statecrit;
+    CriticalSection statscrit;
 
     mutable CRuntimeStatisticCollection stats;
     unsigned processed;
@@ -932,7 +933,7 @@ public:
           factory(_factory),
           basehelper(_factory->getHelper()),
           activityId(_factory->queryId()),
-          stats(_factory ? factory->queryStatsMapping() : actStatistics)
+          stats(_factory ? _factory->queryStatsMapping() : actStatistics)
     {
         input = NULL;
         sourceIdx = 0;
@@ -1008,12 +1009,21 @@ public:
     {
         return *this;
     }
-
+    inline const StatisticsMapping & queryStatsMapping() const
+    {
+        return factory ? factory->queryStatsMapping() : actStatistics;
+    }
     virtual void mergeStats(MemoryBuffer &buf)
     {
         stats.deserializeMerge(buf);
     }
-
+    void mergeStrandStats(unsigned strandProcessed, const ActivityTimeAccumulator & strandCycles, const CRuntimeStatisticCollection & strandStats)
+    {
+        CriticalBlock cb(statscrit);
+        processed += strandProcessed;
+        totalCycles.merge(strandCycles);
+        stats.merge(strandStats);
+    }
     inline void createRowAllocator()
     {
         if (!rowAllocator) 
@@ -1530,7 +1540,7 @@ public:
     {
         numStrands = _graphNode.getPropInt("hint[@name='numstrands']/@value", 1);
         blockSize = _graphNode.getPropInt("hint[@name='strandblocksize']/@value", 0);
-        forcePreserveOrder = _graphNode.getPropBool("hint[@name='strandordered']/@value");
+        forcePreserveOrder = _graphNode.getPropBool("hint[@name='strandordered']/@value", true);
     }
     StrandOptions(const StrandOptions &from, IRoxieSlaveContext *ctx)
     {
@@ -1553,31 +1563,41 @@ class StrandProcessor : public CInterfaceOf<IEngineRowStream>
 protected:
     CRoxieServerActivity &parent;
     IEngineRowAllocator *rowAllocator;
-
     IEngineRowStream *inputStream;
-    bool timeActivities;
     ActivityTimeAccumulator totalCycles;
+    mutable CRuntimeStatisticCollection stats;
     unsigned processed = 0;
+    unsigned numProcessedLastGroup = 0;
+    const bool timeActivities;
     bool stopped = false;
+
 public:
     explicit StrandProcessor(CRoxieServerActivity &_parent, IEngineRowStream *_inputStream, bool needsAllocator)
-      : parent(_parent), inputStream(_inputStream)
+      : parent(_parent), inputStream(_inputStream), stats(parent.queryStatsMapping()), timeActivities(_parent.timeActivities)
     {
-        timeActivities = parent.timeActivities;
         if (needsAllocator)
             rowAllocator = parent.queryContext()->getRowAllocatorEx(parent.queryOutputMeta(), parent.queryId(), roxiemem::RHFunique);
         else
             rowAllocator = NULL;
     }
-    virtual void start() = 0;
+    ~StrandProcessor()
+    {
+        ::Release(rowAllocator);
+    }
+    virtual void start()
+    {
+        processed = 0;
+        numProcessedLastGroup = 0;
+        totalCycles.reset();
+        stats.reset();
+    }
     virtual void stop()
     {
-        parent.processed += processed;  // MORE - Should be atomic
-        // Also merge the cycles up somehow (and any other relevant stats)
         if (!stopped)
         {
             inputStream->stop();
             parent.stop();
+            parent.mergeStrandStats(processed, totalCycles, stats);
         }
         stopped = true;
     }
@@ -13470,17 +13490,12 @@ class CRoxieServerStrandedProjectActivity : public CRoxieServerStrandedActivity
     class ProjectProcessor : public StrandProcessor
     {
     protected:
-        unsigned numProcessedLastGroup = 0;
         IHThorProjectArg &helper;
 
     public:
         ProjectProcessor(CRoxieServerActivity &_parent, IEngineRowStream *_inputStream, IHThorProjectArg &_helper)
         : StrandProcessor(_parent, _inputStream, true), helper(_helper)
         {
-        }
-        virtual void start()
-        {
-            numProcessedLastGroup = 0;
         }
         virtual const void * nextRow()
         {
@@ -19892,14 +19907,12 @@ class CRoxieServerStrandedParseActivity : public CRoxieServerStrandedActivity
     class ParseProcessor : public StrandProcessor, implements IMatchedAction
     {
     protected:
-        unsigned numProcessedLastGroup = 0;
         IHThorParseArg &helper;
         INlpParser * parser;
         INlpResultIterator * rowIter;
         const void * in;
         char * curSearchText;
         size32_t curSearchTextLen;
-        bool anyThisGroup;
 
         bool processRecord(const void * inRec)
         {
@@ -19921,7 +19934,6 @@ class CRoxieServerStrandedParseActivity : public CRoxieServerStrandedActivity
             rowIter = parser->queryResultIter();
             in = NULL;
             curSearchText = NULL;
-            anyThisGroup = false;
             curSearchTextLen = 0;
         }
         ~ParseProcessor()
@@ -19931,12 +19943,11 @@ class CRoxieServerStrandedParseActivity : public CRoxieServerStrandedActivity
         virtual void start()
         {
             numProcessedLastGroup = 0;
-            anyThisGroup = false;
             curSearchTextLen = 0;
             curSearchText = NULL;
             in = NULL;
             parser->reset();
-            //StrandProcessor::start(); // GH->RKC should start be defined in the baseclass??
+            StrandProcessor::start();
         }
         virtual void reset()
         {
@@ -19953,7 +19964,6 @@ class CRoxieServerStrandedParseActivity : public CRoxieServerStrandedActivity
             {
                 if (rowIter->isValid())
                 {
-                    anyThisGroup = true;
                     OwnedConstRoxieRow out = rowIter->getRow();
                     rowIter->next();
                     processed++;
@@ -19964,11 +19974,14 @@ class CRoxieServerStrandedParseActivity : public CRoxieServerStrandedActivity
                 in = inputStream->nextRow();
                 if (!in)
                 {
-                    if (anyThisGroup)
+                    if (processed == numProcessedLastGroup)
+                        in = inputStream->nextRow();
+                    if (!in)
                     {
-                        anyThisGroup = false;
+                        processed = numProcessedLastGroup;
                         return NULL;
                     }
+
                     in = inputStream->nextRow();
                     if (!in)
                         return NULL;
@@ -20003,121 +20016,6 @@ public:
     }
 };
 
-
-class CRoxieServerParseActivity : public CRoxieServerActivity, implements IMatchedAction
-{
-    IHThorParseArg &helper;
-    INlpParser * parser;
-    INlpResultIterator * rowIter;
-    const void * in;
-    char * curSearchText;
-    INlpParseAlgorithm * algorithm;
-    size32_t curSearchTextLen;
-    bool anyThisGroup;
-
-    bool processRecord(const void * inRec)
-    {
-        if (helper.searchTextNeedsFree())
-            rtlFree(curSearchText);
-
-        curSearchTextLen = 0;
-        curSearchText = NULL;
-        helper.getSearchText(curSearchTextLen, curSearchText, inRec);
-
-        return parser->performMatch(*this, in, curSearchTextLen, curSearchText);
-    }
-
-public:
-    CRoxieServerParseActivity(IRoxieSlaveContext *_ctx, const IRoxieServerActivityFactory *_factory, IProbeManager *_probeManager, INlpParseAlgorithm * _algorithm)
-        : CRoxieServerActivity(_ctx, _factory, _probeManager),
-        helper((IHThorParseArg &)basehelper), algorithm(_algorithm)
-    {
-        parser = NULL;
-        rowIter = NULL;
-        in = NULL;
-        curSearchText = NULL;
-        anyThisGroup = false;
-        curSearchTextLen = 0;
-    }
-
-    ~CRoxieServerParseActivity()
-    {
-        ::Release(parser);
-    }
-
-    virtual bool needsAllocator() const { return true; }
-
-    virtual void onCreate(IHThorArg *_colocalParent)
-    {
-        CRoxieServerActivity::onCreate(_colocalParent);
-        parser = algorithm->createParser(ctx->queryCodeContext(), activityId, helper.queryHelper(), &helper);
-        rowIter = parser->queryResultIter();
-    }
-
-    virtual void start(unsigned parentExtractSize, const byte *parentExtract, bool paused)
-    {
-        anyThisGroup = false;
-        curSearchTextLen = 0;
-        curSearchText = NULL;
-        in = NULL;
-        parser->reset();
-        CRoxieServerActivity::start(parentExtractSize, parentExtract, paused);
-    }
-
-    virtual void reset()
-    {
-        if (helper.searchTextNeedsFree())
-            rtlFree(curSearchText);
-        curSearchText = NULL;
-        ReleaseClearRoxieRow(in);
-        CRoxieServerActivity::reset();
-    }
-
-    virtual unsigned onMatch(ARowBuilder & self, const void * curRecord, IMatchedResults * results, IMatchWalker * walker)
-    {
-        try
-        {
-            return helper.transform(self, curRecord, results, walker);
-        }
-        catch (IException *E)
-        {
-            throw makeWrappedException(E);
-        }
-    }
-
-    virtual const void * nextRow()
-    {
-        ActivityTimer t(totalCycles, timeActivities);
-        loop
-        {
-            if (rowIter->isValid())
-            {
-                anyThisGroup = true;
-                OwnedConstRoxieRow out = rowIter->getRow();
-                rowIter->next();
-                processed++;
-                return out.getClear();
-            }
-
-            ReleaseClearRoxieRow(in);
-            in = inputStream->nextRow();
-            if (!in)
-            {
-                if (anyThisGroup)
-                {
-                    anyThisGroup = false;
-                    return NULL;
-                }
-                in = inputStream->nextRow();
-                if (!in)
-                    return NULL;
-            }
-
-            processRecord(in);
-            rowIter->first();
-        }
-    }
-};
 
 class CRoxieServerParseActivityFactory : public CRoxieServerActivityFactory
 {
