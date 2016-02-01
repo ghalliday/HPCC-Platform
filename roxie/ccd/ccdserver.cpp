@@ -1683,7 +1683,7 @@ public:
                 // Create a splitter to split the input into n... and a recombiner if need to preserve sorting
                 if (flags & SFpreserveOrder)
                 {
-                    branch.setown(createStrandBranch(ctx->queryRowManager(), strandOptions.numStrands, strandOptions.blockSize, true, false));
+                    branch.setown(createStrandBranch(ctx->queryRowManager(), strandOptions.numStrands, strandOptions.blockSize, true, input->queryOutputMeta()->isGrouped()));
                     splitter.set(branch->queryInputJunction());
                     recombiner.set(branch->queryOutputJunction());
                 }
