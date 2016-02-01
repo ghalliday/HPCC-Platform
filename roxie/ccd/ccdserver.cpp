@@ -924,6 +924,8 @@ protected:
     bool debugging;
     bool timeActivities;
     bool aborted;
+    bool connected = false;
+
 
 public:
     IMPLEMENT_IINTERFACE;
@@ -1352,20 +1354,21 @@ public:
     {
         throw MakeStringException(ROXIE_SINK, "Internal error: stopSink() requires a suitable sink");
     }
-
     virtual void connectOutputStreams(unsigned flags)
     {
         if (input && !inputStream)
             inputStream = connectSingleStream(ctx, input, sourceIdx, junction, flags);
-        connectDependencies(flags);
+        if (!connected)
+        {
+            connectDependencies(flags);
+            connected = true;
+        }
     }
 
     void connectDependencies(unsigned flags)
     {
         ForEachItemIn(i, dependencies)
-        {
             dependencies.item(i).connectOutputStreams(flags);
-        }
     }
 
     virtual __int64 evaluate() 
@@ -1388,6 +1391,7 @@ public:
         assertex(!idx);
         input = _in;
         sourceIdx = _sourceIdx;
+        inputStream = NULL;
     }
 
     virtual IStrandJunction *getOutputStreams(IRoxieSlaveContext *ctx, unsigned idx, PointerArrayOf<IEngineRowStream> &streams, bool multiOk, unsigned flags)
@@ -6183,6 +6187,7 @@ public:
     {
         if (id == sequence)
         {
+
             CRoxieServerActivity::setInput(0, _sourceIdx, _input);
             connectOutputStreams(0);
             return true;
