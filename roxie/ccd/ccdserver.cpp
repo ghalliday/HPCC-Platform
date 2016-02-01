@@ -1313,6 +1313,8 @@ public:
                     }
                 }
 #endif
+                if (junction)
+                    junction->reset();
                 ForEachItemIn(idx, dependencies)
                     dependencies.item(idx).reset();
                 localCycles = queryLocalCycles();  // We can't call queryLocalCycles() in the destructor, so save the information here when we can.
