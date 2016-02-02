@@ -1199,8 +1199,7 @@ public:
         basehelper.onStart(parentExtract, NULL);
         if (factory)
             factory->noteStarted();
-        if (junction)
-            junction->ready();
+        startJunction(junction);
     }
 
     void executeDependencies(unsigned parentExtractSize, const byte *parentExtract, unsigned controlId)
@@ -1315,8 +1314,7 @@ public:
                     }
                 }
 #endif
-                if (junction)
-                    junction->reset();
+                resetJunction(junction);
                 ForEachItemIn(idx, dependencies)
                     dependencies.item(idx).reset();
                 localCycles = queryLocalCycles();  // We can't call queryLocalCycles() in the destructor, so save the information here when we can.
@@ -1643,8 +1641,7 @@ public:
             active++;
         }
         CRoxieServerActivity::start(parentExtractSize, parentExtract, paused);
-        if (splitter)
-            splitter->ready();
+        startJunction(splitter);
     }
 
     virtual void reset()
@@ -1652,8 +1649,7 @@ public:
         // assertex(active==0);  Disable for now as we know that stop() is nt being called on the strands.
         ForEachItemIn(idx, strands)
             strands.item(idx).reset();
-        if (splitter)
-            splitter->reset();
+        resetJunction(splitter);
         CRoxieServerActivity::reset();
     }
 
@@ -1669,6 +1665,7 @@ public:
     virtual IStrandJunction *getOutputStreams(IRoxieSlaveContext *ctx, unsigned idx, PointerArrayOf<IEngineRowStream> &streams, bool multiOk, unsigned flags)
     {
         assertex(idx == 0);
+        assertex(strands.empty());
         CRoxieServerActivity::connectDependencies(flags);
         Owned <IStrandJunction> recombiner;
         if (strandOptions.numStrands == 1)
@@ -1736,8 +1733,7 @@ protected:
             ForEachItemIn(idx, strands)
                 strands.item(idx).start();
             input->start(parentExtractSize, parentExtract, false);
-            if (splitter)
-                splitter->ready();
+            startJunction(splitter);
         }
         else
         {
@@ -1880,6 +1876,7 @@ public:
         eof = false;
         eog = false;
         input->start(parentExtractSize, parentExtract, paused);
+        startJunction(junction);
         try
         {
             if (preload && !paused)
@@ -1933,6 +1930,7 @@ public:
     void reset()
     {
         input->reset();
+        resetJunction(junction);
     }
 
     virtual int run()
@@ -2251,6 +2249,7 @@ public:
     {
         CRoxieServerActivity::start(parentExtractSize, parentExtract, paused);
         input1->start(parentExtractSize, parentExtract, paused);
+        startJunction(junction1);
     }
 
     virtual void stop()
@@ -2291,6 +2290,7 @@ public:
         CRoxieServerActivity::reset(); 
         if (input1)
             input1->reset();
+        resetJunction(junction1);
     }
 
     virtual void setInput(unsigned idx, unsigned _sourceIdx, IFinalRoxieInput *_in)
@@ -2376,6 +2376,10 @@ public:
     {
         for (unsigned i = 0; i < numInputs; i++)
             inputArray[i]->reset();
+        for (unsigned iS = 0; iS < numStreams; iS++)
+        {
+            resetJunction(junctionArray[iS]);
+        }
         CRoxieServerActivity::reset(); 
     }
 
@@ -2411,6 +2415,10 @@ public:
         for (unsigned i = 0; i < numInputs; i++)
         {
             inputArray[i]->start(parentExtractSize, parentExtract, paused);
+        }
+        for (unsigned iS = 0; iS < numStreams; iS++)
+        {
+            startJunction(junctionArray[iS]);
         }
     }
 
@@ -5764,6 +5772,7 @@ public:
     {
         CriticalBlock procedure(cs);
         input->start(parentExtractSize, parentExtract, paused);
+        startJunction(junction);
     }
     virtual void stop()
     {
@@ -5774,6 +5783,7 @@ public:
     {
         CriticalBlock procedure(cs);
         input->reset();
+        resetJunction(junction);
     }
     virtual void resetEOF()
     {
@@ -5852,6 +5862,7 @@ public:
     virtual void start(unsigned parentExtractSize, const byte *parentExtract, bool paused) 
     {
         input->start(parentExtractSize, parentExtract, paused);
+        startJunction(junction);
     }
     virtual void stop()
     {
@@ -5860,6 +5871,7 @@ public:
     virtual void reset()
     { 
         input->reset();
+        resetJunction(junction);
     }
 
     virtual const void * nextRow()
@@ -5948,7 +5960,7 @@ public:
 
     virtual void start(unsigned parentExtractSize, const byte *parentExtract, bool paused)
     {
-        input->start(savedParentExtractSize, savedParentExtract, paused);
+        CIndirectRoxieInput::start(savedParentExtractSize, savedParentExtract, paused);
     }
 
     void setParentExtract(unsigned _savedParentExtractSize, const byte * _savedParentExtract)
@@ -6420,6 +6432,7 @@ public:
                 }
             }
         }
+        startJunction(iterJunction);
     }
 
     virtual void stop()
@@ -6435,8 +6448,10 @@ public:
             CriticalBlock b(iterCrit);
             if (iterInput)
                 iterInput->reset();
+            resetJunction(iterJunction);
             iterInput.clear();
             iterStream.clear();
+            iterJunction.clear();
         }
         CRoxieServerActivity::reset(); 
     };
@@ -12706,6 +12721,7 @@ public:
             {
                 selectedStream = streamArray[i];
                 inputArray[i]->start(savedParentExtractSize, savedParentExtract, false);  // Assumes 1:1 mapping streams to inputs
+                startJunction(junctionArray[i]);
                 const void * next = selectedStream->nextRow();
                 if (next)
                 {
@@ -14956,9 +14972,10 @@ public:
         inputExtractMapper->setInput(_sourceIdx, _in);
     }
 
+
     virtual void connectOutputStreams(unsigned flags)
     {
-        inputExtractMapper->connectOutputStreams(ctx, flags);
+        //NB: inputExtractMapper is not connected at this point - only if/when it isused from within the graph
         CRoxieServerActivity::connectOutputStreams(flags);
     }
 
@@ -14977,6 +14994,7 @@ public:
 
         createExpandedGraph(GraphExtractBuilder.size(), GraphExtractBuilder.getbytes(), probeManager);
         resultInput->start(GraphExtractBuilder.size(), GraphExtractBuilder.getbytes(), paused);
+        startJunction(resultJunction);
     }
 
     virtual void stop()
@@ -14990,8 +15008,10 @@ public:
     {
         if (resultInput)
             resultInput->reset();
+        resetJunction(resultJunction);
         resultInput = NULL;
         resultStream = NULL;
+        resultJunction.clear();
         outputs.kill();
         iterationGraphs.kill(); // must be done after all activities killed
         if (probeManager)
@@ -15655,12 +15675,16 @@ public:
             ForEachItemIn(i, selectedInputs)
                 selectedInputs.item(i)->start(parentExtractSize, parentExtract, paused);
         }
+        ForEachItemIn(i, selectedStreams)
+            startJunction(resultJunctions[i]);
     }
 
     virtual void reset()    
     {
         resultReaders.kill();
         CRoxieServerNWayInputBaseActivity::reset();
+        ForEachItemIn(i, selectedStreams)
+            resetJunction(resultJunctions[i]);
     }
 
     virtual void gatherIterationUsage(IRoxieServerLoopResultProcessor & processor, unsigned parentExtractSize, const byte * parentExtract)
@@ -15823,7 +15847,7 @@ class CRoxieServerNaryActivity : public CRoxieServerMultiInputActivity
 {
 public:
     CRoxieServerNaryActivity(IRoxieSlaveContext *_ctx, const IRoxieServerActivityFactory *_factory, IProbeManager *_probeManager, unsigned _numInputs)
-        : CRoxieServerMultiInputActivity(_ctx, _factory, _probeManager, _numInputs)
+        : CRoxieServerMultiInputActivity(_ctx, _factory, _probeManager, _numInputs), expandedJunctions(nullptr)
     {
     }
 
@@ -15844,14 +15868,18 @@ public:
         ForEachItemIn(idx, expandedInputs)
         {
             expandedStreams.append(connectSingleStream(ctx, expandedInputs.item(idx), 0, expandedJunctions[idx], 0));  // MORE - is the index 0 right?
+            startJunction(expandedJunctions[idx]);
         }
     }
 
     virtual void reset()    
     {
+        ForEachItemIn(idx, expandedInputs)
+            resetJunction(expandedJunctions[idx]);
         expandedInputs.kill();
         expandedStreams.kill();
         delete [] expandedJunctions;
+        expandedJunctions = nullptr;
         CRoxieServerMultiInputActivity::reset(); 
     }
 
@@ -16196,12 +16224,14 @@ public:
                 whichInput -= numRealInputs;
             }
         }
+        startJunction(selectedJunction);
     }
 
     virtual void reset()    
     {
         selectedInput = NULL;
         selectedStream = NULL;
+        resetJunction(selectedJunction);
         selectedJunction.clear();
         CRoxieServerMultiInputActivity::reset(); 
     }
@@ -19279,6 +19309,7 @@ public:
         if (cond >= numInputs)
             cond = numInputs - 1;
         inputArray[cond]->start(parentExtractSize, parentExtract, paused);
+        startJunction(junctionArray[cond]);
         assertex(numInputs==numStreams);
         for (unsigned idx = 0; idx < numStreams; idx++)
         {
@@ -19381,13 +19412,17 @@ public:
         if (cond)
         {
             inputTrue->start(parentExtractSize, parentExtract, paused);
+            startJunction(junctionTrue);
             if (streamFalse)
                 streamFalse->stop(); // Note: stopping unused branches early helps us avoid buffering splits too long.
         }
         else 
         {
             if (inputFalse)
+            {
                 inputFalse->start(parentExtractSize, parentExtract, paused);
+                startJunction(junctionFalse);
+            }
             streamTrue->stop();
         }
         unusedStopped = true;
@@ -19441,6 +19476,8 @@ public:
         inputTrue->reset();
         if (inputFalse)
             inputFalse->reset();
+        resetJunction(junctionTrue);
+        resetJunction(junctionFalse);
         unusedStopped = false;
     }
 
@@ -24272,7 +24309,6 @@ class CRoxieServerFullKeyedJoinHead: public CRoxieServerActivity, implements IRe
     Owned<const IResolvedFile> varFileInfo;
     IFinalRoxieInput *indexReadInput;
     unsigned indexReadIdx = 0;
-    Owned<IStrandJunction> indexReadJunction;
     IIndexReadActivityInfo *rootIndex;
 
 public:
@@ -24322,8 +24358,7 @@ public:
     virtual IStrandJunction *getOutputStreams(IRoxieSlaveContext *ctx, unsigned idx, PointerArrayOf<IEngineRowStream> &streams, bool multiOk, unsigned flags)
     {
         puller.connectOutputStreams(ctx, flags);
-        if (indexReadInput)
-            connectSingleStream(ctx, indexReadInput, indexReadIdx, indexReadJunction, flags);  // We never actually pull the stream
+        //No rows are read from indexReadInput, so no need to extract the streams
         return CRoxieServerActivity::getOutputStreams(ctx, idx, streams, multiOk, flags);
     }
 
