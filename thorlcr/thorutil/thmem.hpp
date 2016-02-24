@@ -493,10 +493,10 @@ public:
     void transferRowsCopy(const void **outRows, bool takeOwnership);
     void readBlock(const void **outRows, rowidx_t readRows);
 
-    virtual IThorArrayLock &queryLock() { return *this; }
+    virtual IThorArrayLock &queryLock() override { return *this; }
 // IThorArrayLock
-    virtual void lock() const { cs.enter(); }
-    virtual void unlock() const { cs.leave(); }
+    virtual void lock() const override { cs.enter(); }
+    virtual void unlock() const override { cs.leave(); }
 
 private:
     void clearRows();

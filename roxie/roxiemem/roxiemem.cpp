@@ -1688,7 +1688,7 @@ private:
 #endif
         if ((header->allocatorId & ~ACTIVITY_MASK) != ACTIVITY_MAGIC)
         {
-            DBGLOG("%s: Invalid pointer %p %x", reason, ptr, *(unsigned *) baseptr);
+            DBGLOG("%s: Invalid pointer %p id(%x) cnt(%x)", reason, ptr, header->allocatorId, atomic_read(&header->count));
             PrintStackReport();
             PrintMemoryReport();
             HEAPERROR("Invalid pointer");
@@ -4672,9 +4672,8 @@ void CHugeHeap::expandHeap(void * original, memsize_t copysize, memsize_t oldcap
                     removeHeaplet(oldhead);
                 }
 
-                //Copying data within the block => must lock for the duration
-                if (!release)
-                    callback.lock();
+                //Copying data must lock for the duration (otherwise another thread modifying the data may leave it out of sync)
+                callback.lock();
 
                 // MORE - If we were really clever, we could manipulate the page table to avoid moving ANY data here...
                 memmove(realloced, oldbase, copysize + HugeHeaplet::dataOffset());  // NOTE - assumes no trailing data (e.g. end markers)
@@ -4684,26 +4683,19 @@ void CHugeHeap::expandHeap(void * original, memsize_t copysize, memsize_t oldcap
             }
             void * ret = (char *) realloced + HugeHeaplet::dataOffset();
             memsize_t newCapacity = head->setCapacity(newsize);
-            if (release)
+            if (realloced != oldbase)
             {
-                //Update the pointer before the old one becomes invalid
-                callback.atomicUpdate(newCapacity, ret);
+                //previously locked => update the pointer and then unlock
+                callback.update(newCapacity, ret);
+                callback.unlock();
 
-                subfree_aligned(oldbase, oldPages);
+                if (release)
+                    subfree_aligned(oldbase, oldPages);
             }
             else
             {
-                if (realloced != oldbase)
-                {
-                    //previously locked => update the pointer and then unlock
-                    callback.update(newCapacity, ret);
-                    callback.unlock();
-                }
-                else
-                {
-                    //Extended at the end - update the max capacity
-                    callback.atomicUpdate(newCapacity, ret);
-                }
+                //Extended at the end - update the max capacity
+                callback.atomicUpdate(newCapacity, ret);
             }
 
             return;
