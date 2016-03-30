@@ -55,6 +55,8 @@
 #pragma warning(disable:4291)
 #endif
 
+using std::atomic_uint;
+
 namespace roxiemem {
 
 #define NOTIFY_UNUSED_PAGES_ON_FREE     // avoid linux swapping 'freed' pages to disk
@@ -131,8 +133,8 @@ static unsigned __int64 lastStatsCycles;
 static unsigned __int64 statsCyclesInterval;
 
 static unsigned heapAllocated;
-static atomic_t dataBufferPages;
-static atomic_t dataBuffersActive;
+static atomic_uint dataBufferPages;
+static atomic_uint dataBuffersActive;
 
 const unsigned UNSIGNED_BITS = sizeof(unsigned) * 8;
 const unsigned UNSIGNED_ALLBITS = (unsigned) -1;
@@ -571,7 +573,7 @@ static void *suballoc_aligned(size32_t pages, bool returnNullWhenExhausted)
             lastStatsCycles = cyclesNow;
             StringBuffer s;
             memstats(s);
-            s.appendf(", heapLWM %u, heapHWM %u, dataBuffersActive=%d, dataBufferPages=%d", heapLWM, heapHWM, atomic_read(&dataBuffersActive), atomic_read(&dataBufferPages));
+            s.appendf(", heapLWM %u, heapHWM %u, dataBuffersActive=%d, dataBufferPages=%d", heapLWM, heapHWM, dataBuffersActive.load(std::memory_order_relaxed), dataBufferPages.load(std::memory_order_relaxed));
             DBGLOG("RoxieMemMgr: %s", s.str());
         }
     }
@@ -4941,7 +4943,7 @@ void DataBuffer::released()
     assert((char *)bottom != (char *)this);
     if (memTraceLevel >= 4)
         DBGLOG("RoxieMemMgr: DataBuffer::released() releasing DataBuffer - addr=%p", this);
-    atomic_dec(&dataBuffersActive);
+    dataBuffersActive--;
     bottom->addToFreeChain(this);
     HeapletBase::release(bottom);
 }
@@ -5021,7 +5023,7 @@ class CDataBufferManager : public CInterface, implements IDataBufferManager
                     memset(goer, 0xcc, HEAP_ALIGNMENT_SIZE);
 #endif
                     subfree_aligned(goer, 1);
-                    atomic_dec(&dataBufferPages);
+                    dataBufferPages--;
                 }
                 else
                     finger = finger->nextBottom;
@@ -5061,7 +5063,7 @@ public:
                 CriticalBlock c(bottom->crit);
                 if (bottom->freeChain)
                 {
-                    atomic_inc(&dataBuffersActive);
+                    dataBuffersActive++;
                     HeapletBase::link(curBlock);
                     DataBufferBase *x = bottom->freeChain;
                     bottom->freeChain = x->next;
@@ -5072,7 +5074,7 @@ public:
                 }
                 else if ((memsize_t)(nextAddr - curBlock) <= HEAP_ALIGNMENT_SIZE-DATA_ALIGNMENT_SIZE)
                 {
-                    atomic_inc(&dataBuffersActive);
+                    dataBuffersActive++;
                     HeapletBase::link(curBlock);
                     DataBuffer *x = ::new(nextAddr) DataBuffer();
                     nextAddr += DATA_ALIGNMENT_SIZE;
@@ -5110,7 +5112,7 @@ public:
                         {
                             curBlock = (char *) finger;
                             nextAddr = curBlock + HEAP_ALIGNMENT_SIZE;
-                            atomic_inc(&dataBuffersActive);
+                            dataBuffersActive++;
                             HeapletBase::link(finger); // and once for the value we are about to return
                             DataBufferBase *x = finger->freeChain;
                             finger->freeChain = x->next;
@@ -5126,7 +5128,7 @@ public:
                 }
             }
             curBlock = nextAddr = (char *) suballoc_aligned(1, false);
-            atomic_inc(&dataBufferPages);
+            dataBufferPages++;
             assertex(curBlock);
             if (memTraceLevel >= 3)
                     DBGLOG("RoxieMemMgr: CDataBufferManager::allocate() allocated new DataBuffers Page - addr=%p", curBlock);
@@ -5144,7 +5146,7 @@ public:
     {
         if (memTraceLevel > 1) memmap(s); // MORE: may want to make a separate interface (poolMap) and control query for this
         else memstats(s);
-        s.appendf(", DataBuffsActive=%d, DataBuffPages=%d", atomic_read(&dataBuffersActive), atomic_read(&dataBufferPages));
+        s.appendf(", DataBuffsActive=%d, DataBuffPages=%d", dataBuffersActive.load(std::memory_order_relaxed), dataBufferPages.load(std::memory_order_relaxed));
         DBGLOG("%s", s.str());
     }
 };
@@ -5280,12 +5282,12 @@ extern unsigned getHeapPercentAllocated()
 
 extern unsigned getDataBufferPages()
 {
-   return atomic_read(&dataBufferPages);
+   return dataBufferPages.load(std::memory_order_relaxed);
 }
 
 extern unsigned getDataBuffersActive()
 {
-   return atomic_read(&dataBuffersActive);
+   return dataBuffersActive.load(std::memory_order_relaxed);
 }
 
 extern IDataBufferManager *createDataBufferManager(size32_t size)
@@ -5575,32 +5577,32 @@ protected:
         DataBuffer *pages[3000];
         for (i = 0; i < 3000; i++)
             pages[i] = 0;
-        //printf("\n----Begin DataBuffsActive=%d, DataBuffPages=%d ------ \n", atomic_read(&dataBuffersActive), atomic_read(&dataBufferPages));
+        //printf("\n----Begin DataBuffsActive=%d, DataBuffPages=%d ------ \n", dataBuffersActive.load(std::memory_order_relaxed), dataBufferPages.load(std::memory_order_relaxed));
         for (i = 0; i < 2046; i++)
             pages[i] = dm.allocate();
-        //printf("\n----Mid 1 DataBuffsActive=%d, DataBuffPages=%d ------ \n", atomic_read(&dataBuffersActive), atomic_read(&dataBufferPages));
+        //printf("\n----Mid 1 DataBuffsActive=%d, DataBuffPages=%d ------ \n", dataBuffersActive.load(), dataBufferPages.load());
 
-        ASSERT(atomic_read(&dataBufferPages)==PAGES(2046 * DATA_ALIGNMENT_SIZE, (HEAP_ALIGNMENT_SIZE- DATA_ALIGNMENT_SIZE)));
+        ASSERT(dataBufferPages.load(std::memory_order_relaxed)==PAGES(2046 * DATA_ALIGNMENT_SIZE, (HEAP_ALIGNMENT_SIZE- DATA_ALIGNMENT_SIZE)));
         pages[1022]->Release(); // release from first page
         pages[1022] = 0;  
         pages[2100] = dm.allocate(); // allocate from first page 
-        //printf("\n----Mid 2 DataBuffsActive=%d, DataBuffPages=%d ------ \n", atomic_read(&dataBuffersActive), atomic_read(&dataBufferPages));
-        ASSERT(atomic_read(&dataBufferPages)==PAGES(2046 * DATA_ALIGNMENT_SIZE, (HEAP_ALIGNMENT_SIZE- DATA_ALIGNMENT_SIZE)));
+        //printf("\n----Mid 2 DataBuffsActive=%d, DataBuffPages=%d ------ \n", dataBuffersActive.load(), dataBufferPages.load());
+        ASSERT(dataBufferPages.load(std::memory_order_relaxed)==PAGES(2046 * DATA_ALIGNMENT_SIZE, (HEAP_ALIGNMENT_SIZE- DATA_ALIGNMENT_SIZE)));
         pages[2101] = dm.allocate(); // allocate from a new page (third)
-        //printf("\n----Mid 3 DataBuffsActive=%d, DataBuffPages=%d ------ \n", atomic_read(&dataBuffersActive), atomic_read(&dataBufferPages));
+        //printf("\n----Mid 3 DataBuffsActive=%d, DataBuffPages=%d ------ \n", dataBuffersActive.load(), dataBufferPages.load());
         // Release all blocks, which releases all pages, except active one
         for (i = 0; i < 3000; i++)
             if (pages[i]) 
                 pages[i]->Release();
-        //printf("\n----End DataBuffsActive=%d, DataBuffPages=%d ------ \n", atomic_read(&dataBuffersActive), atomic_read(&dataBufferPages));
+        //printf("\n----End DataBuffsActive=%d, DataBuffPages=%d ------ \n", dataBuffersActive.load(), dataBufferPages.load());
         dm.allocate()->Release();
-        ASSERT(atomic_read(&dataBufferPages)==1);
+        ASSERT(dataBufferPages.load()==1);
 
         for (i = 0; i < 1022; i++)
             dm.allocate()->Release();
         dm.allocate()->Release();
         dm.allocate()->Release();
-        ASSERT(atomic_read(&dataBufferPages)==1);
+        ASSERT(dataBufferPages.load()==1);
 
         for (i = 0; i < 2000; i++)
             pages[i] = dm.allocate();
@@ -5608,12 +5610,12 @@ protected:
             pages[i]->Release();
         for (i = 0; i < 1000; i++)
             pages[i] = dm.allocate();
-        ASSERT(atomic_read(&dataBufferPages)==PAGES(2000 * DATA_ALIGNMENT_SIZE, (HEAP_ALIGNMENT_SIZE- DATA_ALIGNMENT_SIZE)));
+        ASSERT(dataBufferPages.load()==PAGES(2000 * DATA_ALIGNMENT_SIZE, (HEAP_ALIGNMENT_SIZE- DATA_ALIGNMENT_SIZE)));
         for (i = 0; i < 1999; i++)
             pages[i]->Release();
         pages[1999]->Release();
         dm.allocate()->Release();
-        ASSERT(atomic_read(&dataBufferPages)==1);
+        ASSERT(dataBufferPages.load()==1);
 
         dm.cleanUp();
     }
