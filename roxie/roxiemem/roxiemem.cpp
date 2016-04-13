@@ -1454,7 +1454,9 @@ protected:
             * (unsigned *) ptr = (old_blocks & RBLOCKS_OFFSET_MASK);
             unsigned new_tag = ((old_blocks & RBLOCKS_CAS_TAG_MASK) + RBLOCKS_CAS_TAG);
             unsigned new_blocks = new_tag | r_ptr;
-            if (r_blocks.compare_exchange_weak(old_blocks, new_blocks, std::memory_order_relaxed))
+
+            //memory_order_release ensures update to next and count etc are available once the cas completes.
+            if (r_blocks.compare_exchange_weak(old_blocks, new_blocks, std::memory_order_release))
             {
                 //If this is the first block being added to the free chain then add it to the space list
                 //It is impossible to make it more restrictive -e.g., only when freeing and full because of
@@ -1468,8 +1470,9 @@ protected:
         CHeap * savedHeap = heap;
         // after the following dec it is possible that the page could be freed, so cannot access any members of this
         std::atomic_thread_fence(std::memory_order_relaxed); // ensure savedHeap is evaluated before the decrement
-        if (count.fetch_sub(1) == 2)
+        if (count.fetch_sub(1, std::memory_order_relaxed) == 2)
         {
+            std::atomic_thread_fence(std::memory_order_release); // ensure any subsequent reads use up to date values
             noteEmptyPage(savedHeap);
         }
     }
@@ -2608,7 +2611,7 @@ public:
             //No need to update the aba mask on removal since removal cannot create a false positives.
             if (headMaybeSpace.compare_exchange_weak(head, next, std::memory_order_relaxed))
             {
-                headHeaplet->nextSpace.store(0, std::memory_order_relaxed);
+                headHeaplet->nextSpace.store(0, std::memory_order_release);
                 total += releasePage(headHeaplet);
             }
         }
