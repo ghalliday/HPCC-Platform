@@ -1240,7 +1240,7 @@ protected:
     const IRowAllocatorCache *allocatorCache;
     CHeap * const heap;
     memsize_t chunkCapacity;
-    std::atomic_uint nextSpace;
+    atomic_uint nextSpace;
     
     inline unsigned getActivityId(unsigned allocatorId) const
     {
@@ -1296,8 +1296,8 @@ class CChunkedHeap;
 class ChunkedHeaplet : public Heaplet
 {
 protected:
-    atomic_t r_blocks;  // the free chain as a relative pointer
-    atomic_t freeBase;
+    atomic_uint r_blocks;  // the free chain as a relative pointer
+    atomic_uint freeBase;
     const size32_t chunkSize;
     unsigned sharedAllocatorId;
 
@@ -1311,11 +1311,9 @@ protected:
 
 public:
     ChunkedHeaplet(CHeap * _heap, const IRowAllocatorCache *_allocatorCache, size32_t _chunkSize, size32_t _chunkCapacity)
-        : Heaplet(_heap, _allocatorCache, _chunkCapacity), chunkSize(_chunkSize)
+        : Heaplet(_heap, _allocatorCache, _chunkCapacity), r_blocks(0), freeBase(0), chunkSize(_chunkSize)
     {
         sharedAllocatorId = 0;
-        atomic_set(&freeBase, 0);
-        atomic_set(&r_blocks, 0);
     }
 
     virtual size32_t sizeInPages() { return 1; }
@@ -1327,7 +1325,7 @@ public:
     {
         //This could use a special value of freeBase to indicate it was full, but that would add complication to
         //the allocation code which is more time critical.
-        unsigned curFreeBase = atomic_read(&freeBase);
+        unsigned curFreeBase = freeBase.load(std::memory_order_relaxed);
         size32_t bytesFree = dataAreaSize() - curFreeBase;
         return (bytesFree >= chunkSize);
     }
@@ -1335,7 +1333,7 @@ public:
     virtual bool isFull() const
     {
         //Has all the space been allocated at least once, and is the free chain empty.
-        return !hasAnyUnallocatedSpace() && (atomic_read(&r_blocks) & RBLOCKS_OFFSET_MASK) == 0;
+        return !hasAnyUnallocatedSpace() && (r_blocks.load(std::memory_order_relaxed) & RBLOCKS_OFFSET_MASK) == 0;
     }
 
     inline static unsigned dataOffset() { return HEAPLET_DATA_AREA_OFFSET(ChunkedHeaplet); }
@@ -1393,8 +1391,8 @@ public:
         //The function is to aid testing - it allows the cas code to be tested without a surrounding lock
         //Allocate all possible rows and add them to the free space map.
         //This is not worth doing in general because it effectively replaces atomic_sets with atomic_cas
-        unsigned nextFree = atomic_read(&freeBase);
-        unsigned nextBlock = atomic_read(&r_blocks);
+        unsigned nextFree = freeBase.load(std::memory_order_relaxed);
+        unsigned nextBlock = r_blocks.load(std::memory_order_relaxed);
         loop
         {
             size32_t bytesFree = dataAreaSize() - nextFree;
@@ -1408,8 +1406,8 @@ public:
             * (unsigned *)ret = nextBlock;
             nextBlock = makeRelative(ret);
         }
-        atomic_set(&freeBase, nextFree);
-        atomic_set(&r_blocks, nextBlock);
+        freeBase.store(nextFree, std::memory_order_relaxed);
+        r_blocks.store(nextBlock, std::memory_order_relaxed);
     }
 
     char * allocateChunk();
@@ -1449,15 +1447,15 @@ protected:
     inline void inlineReleasePointer(char * ptr)
     {
         unsigned r_ptr = makeRelative(ptr);
+        unsigned old_blocks = r_blocks.load(std::memory_order_relaxed);
         loop
         {
             //To prevent the ABA problem the top part of r_blocks stores an incrementing tag
             //which is incremented whenever something is added to the free list
-            unsigned old_blocks = atomic_read(&r_blocks);
             * (unsigned *) ptr = (old_blocks & RBLOCKS_OFFSET_MASK);
             unsigned new_tag = ((old_blocks & RBLOCKS_CAS_TAG_MASK) + RBLOCKS_CAS_TAG);
             unsigned new_blocks = new_tag | r_ptr;
-            if (atomic_cas(&r_blocks, new_blocks, old_blocks))
+            if (r_blocks.compare_exchange_weak(old_blocks, new_blocks, std::memory_order_relaxed))
             {
                 //If this is the first block being added to the free chain then add it to the space list
                 //It is impossible to make it more restrictive -e.g., only when freeing and full because of
@@ -1470,9 +1468,11 @@ protected:
 
         CHeap * savedHeap = heap;
         // after the following dec it is possible that the page could be freed, so cannot access any members of this
-        compiler_memory_barrier();
+        std::atomic_thread_fence(std::memory_order_relaxed); // ensure savedHeap is evaluated before the decrement
         if (atomic_dec_and_read(&count) == 1)
+        {
             noteEmptyPage(savedHeap);
+        }
     }
 };
 
@@ -1611,7 +1611,7 @@ public:
     {
         //This function may not give correct results if called if there are concurrent allocations/releases
         unsigned base = 0;
-        unsigned limit = atomic_read(&freeBase);
+        unsigned limit = freeBase.load(std::memory_order_relaxed);
         while (leaked > 0 && base < limit)
         {
             const char *block = data() + base;
@@ -1630,7 +1630,7 @@ public:
     {
         //This function may not give 100% accurate results if called if there are concurrent allocations/releases
         unsigned base = 0;
-        unsigned limit = atomic_read(&freeBase);
+        unsigned limit = freeBase.load(std::memory_order_relaxed);
         while (base < limit)
         {
             const char *block = data() + base;
@@ -1652,7 +1652,7 @@ public:
     {
         //This function may not give 100% accurate results if called if there are concurrent allocations/releases
         unsigned base = 0;
-        unsigned limit = atomic_read(&freeBase);
+        unsigned limit = freeBase.load(std::memory_order_relaxed);
         memsize_t running = 0;
         unsigned runningCount = 0;
         unsigned lastId = 0;
@@ -1846,7 +1846,7 @@ public:
     {
         //This function may not give 100% accurate results if called if there are concurrent allocations/releases
         unsigned base = 0;
-        unsigned limit = atomic_read(&freeBase);
+        unsigned limit = freeBase.load(std::memory_order_relaxed);
         while (base < limit)
         {
             const char *block = data() + base;
@@ -2915,7 +2915,7 @@ void ChunkedHeaplet::verifySpaceList()
 {
     if (nextSpace.load(std::memory_order_relaxed) == 0)
     {
-        ERRLOG("%p@%" I64F "u: Verify failed: %p %u %x %x", heap, (unsigned __int64)GetCurrentThreadId(), this, isFull(), atomic_read(&freeBase), atomic_read(&r_blocks));
+        ERRLOG("%p@%" I64F "u: Verify failed: %p %u %x %x", heap, (unsigned __int64)GetCurrentThreadId(), this, isFull(), freeBase.load(), r_blocks.load());
     }
 }
 
@@ -2925,9 +2925,9 @@ char * ChunkedHeaplet::allocateChunk()
     //The spin lock for the heap this chunk belongs to must be held when this function is called
     char *ret;
     const size32_t size = chunkSize;
+    unsigned old_blocks = r_blocks.load(std::memory_order_relaxed); // oldblocks is updated by the cas operation 
     loop
     {
-        unsigned old_blocks = atomic_read(&r_blocks);
         unsigned r_ret = (old_blocks & RBLOCKS_OFFSET_MASK);
         if (r_ret)
         {
@@ -2941,19 +2941,21 @@ char * ChunkedHeaplet::allocateChunk()
             //To avoid that a tag is stored in the top bits of r_blocks which is modified whenever an item is added
             //onto the free list.  The offsets in the freelist do not need tags.
             unsigned new_blocks = (old_blocks & RBLOCKS_CAS_TAG_MASK) | next;
-            if (atomic_cas(&r_blocks, new_blocks, old_blocks))
+            if (r_blocks.compare_exchange_weak(old_blocks, new_blocks, std::memory_order_relaxed))
                 break;
+
+            //NOTE: Currently I think a lock is always held before allocating from a chunk, so I'm not sure there is an ABA problem!
         }
         else
         {
-            unsigned curFreeBase = atomic_read(&freeBase);
+            unsigned curFreeBase = freeBase.load(std::memory_order_relaxed);
             //There is no ABA issue on freeBase because it is never decremented (and no next chain with it)
             size32_t bytesFree = dataAreaSize() - curFreeBase;
             if (bytesFree < size)
                 return NULL;
 
             //This is the only place that modifies freeBase, so it can be unconditional since caller must have a lock.
-            atomic_set(&freeBase, curFreeBase + size);
+            freeBase.store(curFreeBase + size, std::memory_order_relaxed);
             ret = data() + curFreeBase;
             break;
         }
