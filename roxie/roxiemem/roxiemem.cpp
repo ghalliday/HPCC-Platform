@@ -1344,14 +1344,14 @@ public:
     {
         dbgassertex(_ptr != this);
         char *ptr = (char *) _ptr;
-        ptr -= sizeof(atomic_t);
-        atomic_set((atomic_t *)ptr, 1|ROWCOUNT_DESTRUCTOR_FLAG);
+        ptr -= sizeof(atomic_uint);
+        ((atomic_uint *)ptr)->store(1|ROWCOUNT_DESTRUCTOR_FLAG, std::memory_order_relaxed);
     }
 
     virtual bool _hasDestructor(const void *ptr) const
     {
-        const atomic_t * curCount = reinterpret_cast<const atomic_t *>((const char *) ptr - sizeof(atomic_t));
-        unsigned rowCount = atomic_read(curCount);
+        const atomic_uint * curCount = reinterpret_cast<const atomic_uint *>((const char *) ptr - sizeof(atomic_uint));
+        unsigned rowCount = curCount->load(std::memory_order_relaxed);
         return (rowCount & ROWCOUNT_DESTRUCTOR_FLAG) != 0;
     }
 
@@ -1432,16 +1432,16 @@ protected:
     {
         dbgassertex(_ptr != this);
         char *ptr = (char *) _ptr;
-        ptr -= sizeof(atomic_t);
-        return ROWCOUNT(atomic_read((atomic_t *) ptr)) !=1;
+        atomic_uint * count = (atomic_uint *)(ptr - sizeof(atomic_uint));
+        return ROWCOUNT(count->load(std::memory_order_relaxed)) !=1;
     }
 
     inline void inlineNoteLinked(const void *_ptr)
     {
         dbgassertex(_ptr != this);
         char *ptr = (char *) _ptr;
-        ptr -= sizeof(atomic_t);
-        atomic_inc((atomic_t *) ptr);
+        atomic_uint * count = (atomic_uint *)(ptr - sizeof(atomic_uint));
+        count->fetch_add(1, std::memory_order_relaxed);
     }
 
     inline void inlineReleasePointer(char * ptr)
@@ -1484,7 +1484,7 @@ class FixedSizeHeaplet : public ChunkedHeaplet
     struct ChunkHeader
     {
         unsigned allocatorId;
-        atomic_t count;  //count must be the last item in the header
+        atomic_uint count;  //count must be the last item in the header
     };
 public:
     enum { chunkHeaderSize = sizeof(ChunkHeader) };
@@ -1509,18 +1509,19 @@ public:
         ChunkHeader * header = (ChunkHeader *)ptr;
         //If count == 1 then no other thread can be releasing at the same time - so avoid locked operation
         //Subtract 1 here to try and minimize the conditional branches/simplify the fast path
-        unsigned rowCount = atomic_read(&header->count)-1;
+        unsigned rowCount = header->count.load(std::memory_order_relaxed)-1;
 
         //Check if this is the last release of this row.
         //It is coded this way to avoid re-evaluating ROWCOUNT() == 0. You could code it using a goto, but it generates worse code.
         if ((ROWCOUNT(rowCount) == 0) ?
                 //If the count is zero then use comma expression to set the count for the record to zero as a
                 //side-effect of this condition.  Could be avoided if leak checking and checkHeap worked differently.
-                (atomic_set(&header->count, rowCount), true) :
+                (header->count.store(rowCount, std::memory_order_relaxed), true) :
                 //otherwise atomically decrement the count, and check if this thread was the last one to release
                 //Note: the assignment to rowCount allows the compiler to reuse a register, improving the code slightly
-                ROWCOUNT(rowCount = atomic_dec_and_read(&header->count)) == 0)
+                ROWCOUNT(rowCount = header->count.fetch_sub(1, std::memory_order_relaxed)) == 1)
         {
+            //No need for a memory barrier since rows are never modified once shared, therefore any reads moved up will be fine.
             if (rowCount & ROWCOUNT_DESTRUCTOR_FLAG)
             {
                 unsigned id = header->allocatorId;
@@ -1539,12 +1540,12 @@ public:
         char *ptr = (char *) _ptr - chunkHeaderSize;
         ChunkHeader * header = (ChunkHeader *)ptr;
 #ifdef _DEBUG
-        unsigned rowCount = atomic_read(&header->count);
+        unsigned rowCount = header->count.load(std::memory_order_relaxed);
         assertex(ROWCOUNT(rowCount) == 1);
 #endif
         //Set to zero so that leak checking doesn't get false positives.  If the leak checking
         //worked differently - e.g, deducing from the free list this could be removed.
-        atomic_set(&header->count, 0);
+        header->count.store(0, std::memory_order_relaxed);
 
         inlineReleasePointer(ptr);
     }
@@ -1561,7 +1562,7 @@ public:
         char * ret = chunk;
         ChunkHeader * header = (ChunkHeader *)ret;
         header->allocatorId = (allocatorId & ACTIVITY_MASK) | ACTIVITY_MAGIC;
-        atomic_set(&header->count, 1);
+        header->count.store(1, std::memory_order_relaxed);
         ret += chunkHeaderSize;
 #ifdef _CLEAR_ALLOCATED_ROW
         memset(ret, 0xcc, chunkCapacity);
@@ -1576,11 +1577,11 @@ public:
         char * oldPtr = (char *)row - chunkHeaderSize;
         ChunkHeader * oldHeader = (ChunkHeader *)oldPtr;
         ChunkHeader * newHeader = (ChunkHeader *)ret;
-        unsigned rowCountValue = atomic_read(&oldHeader->count);
+        unsigned rowCountValue = oldHeader->count.load(std::memory_order_relaxed);
         unsigned destructFlag = (rowCountValue & ROWCOUNT_DESTRUCTOR_FLAG);
         unsigned allocatorId = oldHeader->allocatorId;
         newHeader->allocatorId = allocatorId;
-        atomic_set(&newHeader->count, 1|destructFlag);
+        newHeader->count.store(1|destructFlag, std::memory_order_relaxed);
         ret += chunkHeaderSize;
         memcpy(ret, row, chunkCapacity);
 
@@ -1616,7 +1617,8 @@ public:
         {
             const char *block = data() + base;
             const char *ptr = block + (chunkSize-chunkCapacity);  // assumes the overhead is all at the start
-            unsigned rowCount = atomic_read((atomic_t *) (ptr - sizeof(atomic_t)));
+            atomic_uint * ptrCount = (atomic_uint *)(ptr - sizeof(atomic_uint));
+            unsigned rowCount = ptrCount->load(std::memory_order_relaxed);
             if (ROWCOUNT(rowCount) != 0)
             {
                 reportLeak(block, logctx);
@@ -1635,7 +1637,7 @@ public:
         {
             const char *block = data() + base;
             ChunkHeader * header = (ChunkHeader *)block;
-            unsigned rowCount = atomic_read(&header->count);
+            unsigned rowCount = header->count.load(std::memory_order_relaxed);
             if (ROWCOUNT(rowCount) != 0)
             {
                 //MORE: Potential race: could be freed while the pointer is being checked
@@ -1663,7 +1665,7 @@ public:
             unsigned allocatorId = header->allocatorId;
             //Potential race condition - a block could become allocated between these two lines.
             //That may introduce invalid activityIds (from freed memory) in the memory tracing.
-            unsigned rowCount = atomic_read(&header->count);
+            unsigned rowCount = header->count.load(std::memory_order_relaxed);
             if (ROWCOUNT(rowCount) != 0)
             {
                 if (allocatorId != lastId)
@@ -1702,7 +1704,7 @@ private:
 #endif
         if ((header->allocatorId & ~ACTIVITY_MASK) != ACTIVITY_MAGIC)
         {
-            DBGLOG("%s: Invalid pointer %p id(%x) cnt(%x)", reason, ptr, header->allocatorId, atomic_read(&header->count));
+            DBGLOG("%s: Invalid pointer %p id(%x) cnt(%x)", reason, ptr, header->allocatorId, header->count.load());
             PrintStackReport();
             PrintMemoryReport();
             HEAPERROR("Invalid pointer");
@@ -1713,7 +1715,7 @@ private:
     {
         ChunkHeader * header = (ChunkHeader *)block;
         unsigned allocatorId = header->allocatorId;
-        unsigned rowCount = atomic_read(&header->count);
+        unsigned rowCount = header->count.load();
         bool hasChildren = (rowCount & ROWCOUNT_DESTRUCTOR_FLAG) != 0;
 
         const char * ptr = (const char *)block + chunkHeaderSize;
@@ -1730,7 +1732,7 @@ class PackedFixedSizeHeaplet : public ChunkedHeaplet
     //NOTE: This class should not contain any more data - otherwise the dataOffset() may be calculated incorrectly
     struct ChunkHeader
     {
-        atomic_t count;
+        atomic_uint count;
     };
 public:
     enum { chunkHeaderSize = sizeof(ChunkHeader) };
@@ -1754,11 +1756,12 @@ public:
 
         //If count == 1 then no other thread can be releasing at the same time - so avoid locked operation
         //Subtract 1 here to try and minimize the conditional branches
-        unsigned rowCount = atomic_read(&header->count)-1;
+        unsigned rowCount = header->count.load(std::memory_order_relaxed)-1;
         //No need to reassign to rowCount if dec and read is required - since only top bit is used, and that must be the same
         //No need to ensure header->count is 0 because the free list overlaps the count so it is never checked.
-        if (ROWCOUNT(rowCount) == 0 || ROWCOUNT(atomic_dec_and_read(&header->count)) == 0)
+        if (ROWCOUNT(rowCount) == 0 || ROWCOUNT(header->count.fetch_sub(1, std::memory_order_relaxed)) == 1)
         {
+            //No need for a fence - there is no problem if reads from below are processed before the condition since read only.
             if (rowCount & ROWCOUNT_DESTRUCTOR_FLAG)
                 allocatorCache->onDestroy(sharedAllocatorId & MAX_ACTIVITY_ID, ptr + chunkHeaderSize);
 
@@ -1774,7 +1777,7 @@ public:
         char *ptr = (char *) _ptr - chunkHeaderSize;
 #ifdef _DEBUG
         ChunkHeader * header = (ChunkHeader *)ptr;
-        unsigned rowCount = atomic_read(&header->count);
+        unsigned rowCount = header->count.load(std::memory_order_relaxed);
         assertex(ROWCOUNT(rowCount) == 1);
 #endif
         //NOTE: The free list overlaps the count, so there is no point in updating the count.
@@ -1791,7 +1794,7 @@ public:
     {
         char * ret = chunk;
         ChunkHeader * header = (ChunkHeader *)ret;
-        atomic_set(&header->count, 1);
+        header->count.store(1, std::memory_order_relaxed);
         ret += chunkHeaderSize;
 #ifdef _CLEAR_ALLOCATED_ROW
         memset(ret, 0xcc, chunkCapacity);
@@ -1807,9 +1810,9 @@ public:
         char * oldPtr = (char *)row - chunkHeaderSize;
         ChunkHeader * oldHeader = (ChunkHeader *)oldPtr;
         ChunkHeader * newHeader = (ChunkHeader *)ret;
-        unsigned rowCountValue = atomic_read(&oldHeader->count);
+        unsigned rowCountValue = oldHeader->count.load(std::memory_order_relaxed);
         unsigned destructFlag = (rowCountValue & ROWCOUNT_DESTRUCTOR_FLAG);
-        atomic_set(&newHeader->count, 1|destructFlag);
+        newHeader->count.store(1|destructFlag, std::memory_order_relaxed);
         ret += chunkHeaderSize;
         memcpy(ret, row, chunkCapacity);
 
@@ -1851,7 +1854,7 @@ public:
         {
             const char *block = data() + base;
             ChunkHeader * header = (ChunkHeader *)block;
-            unsigned rowCount = atomic_read(&header->count);
+            unsigned rowCount = header->count.load(std::memory_order_relaxed);
             if (ROWCOUNT(rowCount) != 0)
             {
                 //MORE: Potential race: could be freed while the pointer is being checked
@@ -6280,16 +6283,16 @@ protected:
     public:
         IMPLEMENT_IINTERFACE_USING(CSimpleInterface);
 
-        CountingRowAllocatorCache() { atomic_set(&counter, 0); }
+        CountingRowAllocatorCache(), counter(0) { }
         virtual unsigned getActivityId(unsigned cacheId) const { return 0; }
         virtual StringBuffer &getActivityDescriptor(unsigned cacheId, StringBuffer &out) const { return out.append(cacheId); }
-        virtual void onDestroy(unsigned cacheId, void *row) const { atomic_inc(&counter); }
-        virtual void onClone(unsigned cacheId, void *row) const { atomic_dec(&counter); }
+        virtual void onDestroy(unsigned cacheId, void *row) const { counter++; }
+        virtual void onClone(unsigned cacheId, void *row) const { counter--; }
         virtual void checkValid(unsigned cacheId, const void *row) const { }
 
-        void clear() { atomic_set(&counter, 0); }
+        void clear() { counter = 0; }
 
-        mutable atomic_t counter;
+        mutable atomic_uint counter;
     };
     enum { numCasThreads = 20, numCasIter = 100, numCasAlloc = 500 };
     class CasAllocatorThread : public Thread
