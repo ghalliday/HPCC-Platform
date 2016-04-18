@@ -9265,6 +9265,8 @@ void HqlCppTranslator::beginGraph(const char * _graphName)
         activeGraph->xgmml->setPropBool("@library", true);
     if (curWfid)
         activeGraph->xgmml->setPropInt("@wfid", curWfid);
+    if (options.useResultsForChildSpills)
+        addGraphAttributeInt(activeGraph->xgmml, "_numResults", 1);
 }
 
 
