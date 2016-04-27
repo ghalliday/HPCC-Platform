@@ -40,6 +40,8 @@ include_directories (
          ./../../testing/unittests
     )
 
+set_source_files_properties (roxiemem.cpp PROPERTIES COMPILE_FLAGS -Wa,-ahl=roxiemem.lst)
+
 ADD_DEFINITIONS( -D_USRDLL -DROXIEMEM_EXPORTS)
 
 HPCC_ADD_LIBRARY( roxiemem SHARED ${SRCS} ${INCLUDES})
