@@ -572,7 +572,7 @@ static void *suballoc_aligned(size32_t pages, bool returnNullWhenExhausted)
             lastStatsCycles = cyclesNow;
             StringBuffer s;
             memstats(s);
-            s.appendf(", heapLWM %u, heapHWM %u, dataBuffersActive=%d, dataBufferPages=%d", heapLWM, heapHWM, dataBuffersActive.load(std::memory_order_relaxed), dataBufferPages.load(std::memory_order_relaxed));
+            s.appendf(", heapLWM %u, heapHWM %u, dataBuffersActive=%d, dataBufferPages=%d", heapLWM, heapHWM, dataBuffersActive.load(), dataBufferPages.load());
             DBGLOG("RoxieMemMgr: %s", s.str());
         }
     }
@@ -1324,7 +1324,7 @@ public:
     {
         //This could use a special value of freeBase to indicate it was full, but that would add complication to
         //the allocation code which is more time critical.
-        unsigned curFreeBase = freeBase.load(std::memory_order_relaxed);
+        unsigned curFreeBase = freeBase.load();
         size32_t bytesFree = dataAreaSize() - curFreeBase;
         return (bytesFree >= chunkSize);
     }
@@ -1332,7 +1332,7 @@ public:
     virtual bool isFull() const
     {
         //Has all the space been allocated at least once, and is the free chain empty.
-        return !hasAnyUnallocatedSpace() && (r_blocks.load(std::memory_order_relaxed) & RBLOCKS_OFFSET_MASK) == 0;
+        return !hasAnyUnallocatedSpace() && (r_blocks.load() & RBLOCKS_OFFSET_MASK) == 0;
     }
 
     inline static unsigned dataOffset() { return HEAPLET_DATA_AREA_OFFSET(ChunkedHeaplet); }
@@ -1345,14 +1345,14 @@ public:
         char *ptr = (char *) _ptr;
         atomic_uint * curCount = (atomic_uint *)(ptr - sizeof(atomic_uint));
         //Use memory_order_release since this is called as the end of the constructor() on the creator thread
-        curCount->store(1|ROWCOUNT_DESTRUCTOR_FLAG, std::memory_order_relaxed);
+        curCount->store(1|ROWCOUNT_DESTRUCTOR_FLAG);
     }
 
     virtual bool _hasDestructor(const void *ptr) const
     {
         const atomic_uint * curCount = reinterpret_cast<const atomic_uint *>((const char *) ptr - sizeof(atomic_uint));
         // can access relaxed since the flag being tested is only set when constructing the row
-        unsigned rowCount = curCount->load(std::memory_order_relaxed);
+        unsigned rowCount = curCount->load();
         return (rowCount & ROWCOUNT_DESTRUCTOR_FLAG) != 0;
     }
 
@@ -1393,8 +1393,8 @@ public:
         //Allocate all possible rows and add them to the free space map.
         //This is not worth doing in general because it effectively replaces atomic_sets with atomic_cas
         //relaxed memory order since there will be no multi-threaded access
-        unsigned nextFree = freeBase.load(std::memory_order_relaxed);
-        unsigned nextBlock = r_blocks.load(std::memory_order_relaxed);
+        unsigned nextFree = freeBase.load();
+        unsigned nextBlock = r_blocks.load();
         loop
         {
             size32_t bytesFree = dataAreaSize() - nextFree;
@@ -1408,8 +1408,8 @@ public:
             * (unsigned *)ret = nextBlock;
             nextBlock = makeRelative(ret);
         }
-        freeBase.store(nextFree, std::memory_order_relaxed);
-        r_blocks.store(nextBlock, std::memory_order_relaxed);
+        freeBase.store(nextFree);
+        r_blocks.store(nextBlock);
     }
 
     char * allocateChunk();
@@ -1435,7 +1435,7 @@ protected:
         dbgassertex(_ptr != this);
         char *ptr = (char *) _ptr;
         atomic_uint * count = (atomic_uint *)(ptr - sizeof(atomic_uint));
-        return ROWCOUNT(count->load(std::memory_order_relaxed)) !=1;
+        return ROWCOUNT(count->load()) !=1;
     }
 
     inline void inlineNoteLinked(const void *_ptr)
@@ -1443,13 +1443,13 @@ protected:
         dbgassertex(_ptr != this);
         char *ptr = (char *) _ptr;
         atomic_uint * count = (atomic_uint *)(ptr - sizeof(atomic_uint));
-        count->fetch_add(1, std::memory_order_relaxed);
+        count->fetch_add(1);
     }
 
     inline void inlineReleasePointer(char * ptr)
     {
         unsigned r_ptr = makeRelative(ptr);
-        unsigned old_blocks = r_blocks.load(std::memory_order_relaxed);
+        unsigned old_blocks = r_blocks.load();
         loop
         {
             //To prevent the ABA problem the top part of r_blocks stores an incrementing tag
@@ -1459,13 +1459,13 @@ protected:
             unsigned new_blocks = new_tag | r_ptr;
 
             //memory_order_release ensures updates to next and count etc are available once the cas completes.
-            if (r_blocks.compare_exchange_weak(old_blocks, new_blocks, std::memory_order_release))
+            if (r_blocks.compare_exchange_weak(old_blocks, new_blocks))
             {
                 //If this is the first block being added to the free chain then add it to the space list
                 //It is impossible to make it more restrictive -e.g., only when freeing and full because of
                 //various race conditions.
                 //Use acquire to ensure that the value is read *after* adding it to the free chain
-                if (nextSpace.load(std::memory_order_acquire) == 0)
+                if (nextSpace.load() == 0)
                     addToSpaceList();
                 break;
             }
@@ -1473,8 +1473,8 @@ protected:
 
         CHeap * savedHeap = heap;
         // after the following dec it is possible that the page could be freed, so cannot access any members of this
-        // std::memory_order_release ensures that savedHeap will not be evaluated after the fetch_sub.
-        if (count.fetch_sub(1, std::memory_order_release) == 2)
+        //  ensures that savedHeap will not be evaluated after the fetch_sub.
+        if (count.fetch_sub(1) == 2)
         {
             //This thread does not access anything else from the object, so no need for an acquire fence!
             noteEmptyPage(savedHeap);
@@ -1515,7 +1515,7 @@ public:
         ChunkHeader * header = (ChunkHeader *)ptr;
         //If count == 1 then no other thread can be releasing at the same time - so avoid locked operation
         //Subtract 1 here to try and minimize the conditional branches/simplify the fast path
-        unsigned rowCount = header->count.load(std::memory_order_relaxed)-1;
+        unsigned rowCount = header->count.load()-1;
 
         //NOTE: There would normally be a memory_order_release when decrementing a link count to ensure that modifications
         //      are seen in another thread as soon as that thread sees the decrement of the count.
@@ -1525,10 +1525,10 @@ public:
         if ((ROWCOUNT(rowCount) == 0) ?
                 //If the count is zero then use comma expression to set the count for the record to zero as a
                 //side-effect of this condition.  Could be avoided if leak checking and checkHeap worked differently.
-                (header->count.store(rowCount, std::memory_order_relaxed), true) :
+                (header->count.store(rowCount), true) :
                 //otherwise atomically decrement the count, and check if this thread was the last one to release
                 //Note: the assignment to rowCount allows the compiler to reuse a register, improving the code slightly
-                ROWCOUNT(rowCount = header->count.fetch_sub(1, std::memory_order_relaxed)) == 1)
+                ROWCOUNT(rowCount = header->count.fetch_sub(1)) == 1)
         {
             //NOTE: Any data in a roxiemem allocated block must that is used in the destructor must be initialised on the creating thread.
             //      E.g., Rows are never modified once shared.
@@ -1552,14 +1552,14 @@ public:
         char *ptr = (char *) _ptr - chunkHeaderSize;
         ChunkHeader * header = (ChunkHeader *)ptr;
 #ifdef _DEBUG
-        unsigned rowCount = header->count.load(std::memory_order_relaxed);
+        unsigned rowCount = header->count.load();
         assertex(ROWCOUNT(rowCount) == 1);
 #endif
         //Set to zero so that leak checking doesn't get false positives.  If the leak checking
         //worked differently - e.g, deducing from the free list this could be removed.
 
         //memory order can be relaxed - inlineReleasePointer() will ensure writes are updated before adding to the free list
-        header->count.store(0, std::memory_order_relaxed);
+        header->count.store(0);
 
         inlineReleasePointer(ptr);
     }
@@ -1576,7 +1576,7 @@ public:
         char * ret = chunk;
         ChunkHeader * header = (ChunkHeader *)ret;
         header->allocatorId = (allocatorId & ACTIVITY_MASK) | ACTIVITY_MAGIC;
-        header->count.store(1, std::memory_order_relaxed);
+        header->count.store(1);
         ret += chunkHeaderSize;
 #ifdef _CLEAR_ALLOCATED_ROW
         memset(ret, 0xcc, chunkCapacity);
@@ -1591,11 +1591,11 @@ public:
         char * oldPtr = (char *)row - chunkHeaderSize;
         ChunkHeader * oldHeader = (ChunkHeader *)oldPtr;
         ChunkHeader * newHeader = (ChunkHeader *)ret;
-        unsigned rowCountValue = oldHeader->count.load(std::memory_order_relaxed);
+        unsigned rowCountValue = oldHeader->count.load();
         unsigned destructFlag = (rowCountValue & ROWCOUNT_DESTRUCTOR_FLAG);
         unsigned allocatorId = oldHeader->allocatorId;
         newHeader->allocatorId = allocatorId;
-        newHeader->count.store(1|destructFlag, std::memory_order_relaxed); // relaxed since no multi threaded access
+        newHeader->count.store(1|destructFlag); // relaxed since no multi threaded access
         ret += chunkHeaderSize;
         memcpy(ret, row, chunkCapacity);
 
@@ -1626,13 +1626,13 @@ public:
     {
         //This function may not give correct results if called if there are concurrent allocations/releases
         unsigned base = 0;
-        unsigned limit = freeBase.load(std::memory_order_relaxed);
+        unsigned limit = freeBase.load();
         while (leaked > 0 && base < limit)
         {
             const char *block = data() + base;
             const char *ptr = block + (chunkSize-chunkCapacity);  // assumes the overhead is all at the start
             atomic_uint * ptrCount = (atomic_uint *)(ptr - sizeof(atomic_uint));
-            unsigned rowCount = ptrCount->load(std::memory_order_relaxed);
+            unsigned rowCount = ptrCount->load();
             if (ROWCOUNT(rowCount) != 0)
             {
                 reportLeak(block, logctx);
@@ -1646,12 +1646,12 @@ public:
     {
         //This function may not give 100% accurate results if called if there are concurrent allocations/releases
         unsigned base = 0;
-        unsigned limit = freeBase.load(std::memory_order_relaxed);
+        unsigned limit = freeBase.load();
         while (base < limit)
         {
             const char *block = data() + base;
             ChunkHeader * header = (ChunkHeader *)block;
-            unsigned rowCount = header->count.load(std::memory_order_relaxed);
+            unsigned rowCount = header->count.load();
             if (ROWCOUNT(rowCount) != 0)
             {
                 //MORE: Potential race: could be freed while the pointer is being checked
@@ -1668,7 +1668,7 @@ public:
     {
         //This function may not give 100% accurate results if called if there are concurrent allocations/releases
         unsigned base = 0;
-        unsigned limit = freeBase.load(std::memory_order_relaxed);
+        unsigned limit = freeBase.load();
         memsize_t running = 0;
         unsigned runningCount = 0;
         unsigned lastId = 0;
@@ -1679,7 +1679,7 @@ public:
             unsigned allocatorId = header->allocatorId;
             //Potential race condition - a block could become allocated between these two lines.
             //That may introduce invalid activityIds (from freed memory) in the memory tracing.
-            unsigned rowCount = header->count.load(std::memory_order_relaxed);
+            unsigned rowCount = header->count.load();
             if (ROWCOUNT(rowCount) != 0)
             {
                 if (allocatorId != lastId)
@@ -1770,10 +1770,10 @@ public:
 
         //If count == 1 then no other thread can be releasing at the same time - so avoid locked operation
         //Subtract 1 here to try and minimize the conditional branches
-        unsigned rowCount = header->count.load(std::memory_order_relaxed)-1;
+        unsigned rowCount = header->count.load()-1;
         //No need to reassign to rowCount if dec and read is required - since only top bit is used, and that must be the same
         //No need to ensure header->count is 0 because the free list overlaps the count so it is never checked.
-        if (ROWCOUNT(rowCount) == 0 || ROWCOUNT(header->count.fetch_sub(1, std::memory_order_relaxed)) == 1)
+        if (ROWCOUNT(rowCount) == 0 || ROWCOUNT(header->count.fetch_sub(1)) == 1)
         {
             //No need for a fence - there is no problem if reads from below are processed before the condition since read only.
             if (rowCount & ROWCOUNT_DESTRUCTOR_FLAG)
@@ -1791,7 +1791,7 @@ public:
         char *ptr = (char *) _ptr - chunkHeaderSize;
 #ifdef _DEBUG
         ChunkHeader * header = (ChunkHeader *)ptr;
-        unsigned rowCount = header->count.load(std::memory_order_relaxed);
+        unsigned rowCount = header->count.load();
         assertex(ROWCOUNT(rowCount) == 1);
 #endif
         //NOTE: The free list overlaps the count, so there is no point in updating the count.
@@ -1808,7 +1808,7 @@ public:
     {
         char * ret = chunk;
         ChunkHeader * header = (ChunkHeader *)ret;
-        header->count.store(1, std::memory_order_relaxed);
+        header->count.store(1);
         ret += chunkHeaderSize;
 #ifdef _CLEAR_ALLOCATED_ROW
         memset(ret, 0xcc, chunkCapacity);
@@ -1824,9 +1824,9 @@ public:
         char * oldPtr = (char *)row - chunkHeaderSize;
         ChunkHeader * oldHeader = (ChunkHeader *)oldPtr;
         ChunkHeader * newHeader = (ChunkHeader *)ret;
-        unsigned rowCountValue = oldHeader->count.load(std::memory_order_relaxed);
+        unsigned rowCountValue = oldHeader->count.load();
         unsigned destructFlag = (rowCountValue & ROWCOUNT_DESTRUCTOR_FLAG);
-        newHeader->count.store(1|destructFlag, std::memory_order_relaxed);
+        newHeader->count.store(1|destructFlag);
         ret += chunkHeaderSize;
         memcpy(ret, row, chunkCapacity);
 
@@ -1863,12 +1863,12 @@ public:
     {
         //This function may not give 100% accurate results if called if there are concurrent allocations/releases
         unsigned base = 0;
-        unsigned limit = freeBase.load(std::memory_order_relaxed);
+        unsigned limit = freeBase.load();
         while (base < limit)
         {
             const char *block = data() + base;
             ChunkHeader * header = (ChunkHeader *)block;
-            unsigned rowCount = header->count.load(std::memory_order_relaxed);
+            unsigned rowCount = header->count.load();
             if (ROWCOUNT(rowCount) != 0)
             {
                 //MORE: Potential race: could be freed while the pointer is being checked
@@ -1929,7 +1929,7 @@ public:
 
     bool _isShared(const void *ptr) const
     {
-        return rowCount.load(std::memory_order_relaxed) > 1;
+        return rowCount.load() > 1;
     }
 
     virtual unsigned sizeInPages() 
@@ -1961,7 +1961,7 @@ public:
     {
         //If rowCount == 1 then this must be the last reference - avoid a locked operation.
         //rowCount is not used once the heaplet is known to be freed, so no need to ensure rowCount=0
-        if (rowCount.load(std::memory_order_relaxed) == 1 || rowCount.fetch_sub(1, std::memory_order_relaxed) == 1)
+        if (rowCount.load() == 1 || rowCount.fetch_sub(1) == 1)
         {
             //No need for a memory barrier - any reads moved earlier will be valid
             if (allocatorId & ACTIVITY_FLAG_NEEDSDESTRUCTOR)
@@ -1971,7 +1971,7 @@ public:
             addToSpaceList();
             // after the following dec(count) it is possible that the page could be freed, so cannot access any members of this
             // the memory order release ensures savedHeap is evaluated before the decrement
-            unsigned cnt = count.fetch_sub(1, std::memory_order_release);
+            unsigned cnt = count.fetch_sub(1);
             assertex(cnt == 2);
             noteEmptyPage(savedHeap);
         }
@@ -1995,13 +1995,13 @@ public:
 
     virtual void noteLinked(const void *ptr)
     {
-        rowCount.fetch_add(1, std::memory_order_relaxed);
+        rowCount.fetch_add(1);
     }
 
     void *allocateHuge(memsize_t size)
     {
-        count.fetch_add(1, std::memory_order_relaxed); // setting to 2 would be more efficient!
-        rowCount.store(1, std::memory_order_relaxed);
+        count.fetch_add(1); // setting to 2 would be more efficient!
+        rowCount.store(1);
         dbgassertex(size <= chunkCapacity);
 #ifdef _CLEAR_ALLOCATED_HUGE_ROW
         memset(data(), 0xcc, chunkCapacity);
@@ -2038,7 +2038,7 @@ public:
 
     virtual bool isFull() const
     {
-        return (count.load(std::memory_order_relaxed) > 1);
+        return (count.load() > 1);
     }
 };
 
@@ -2350,8 +2350,8 @@ public:
         if (memTraceLevel >= 3)
         {
             //ensure verifySpaceListConsistency isn't triggered by leaked allocations that are never freed.
-            if (activeHeaplet && activeHeaplet->nextSpace.load(std::memory_order_relaxed) == 0)
-                activeHeaplet->nextSpace.store(BLOCKLIST_NULL, std::memory_order_relaxed);
+            if (activeHeaplet && activeHeaplet->nextSpace.load() == 0)
+                activeHeaplet->nextSpace.store(BLOCKLIST_NULL);
 
             verifySpaceListConsistency();
         }
@@ -2379,20 +2379,20 @@ public:
     {
         //Careful: Two threads might be calling this at exactly the same time: ensure only one goes any further
         unsigned expected = 0;
-        if (!heaplet->nextSpace.compare_exchange_strong(expected, BLOCKLIST_NULL, std::memory_order_relaxed))
+        if (!heaplet->nextSpace.compare_exchange_strong(expected, BLOCKLIST_NULL))
             return;
 
         unsigned block = heapletToBlock(heaplet);
-        unsigned head = headMaybeSpace.load(std::memory_order_relaxed);
+        unsigned head = headMaybeSpace.load();
         loop
         {
             //Update the next pointer.  BLOCKLIST_ABA_INC is ORed with the value to ensure it is non-zero.
             //Relaxed - no one else can 
-            heaplet->nextSpace.store(head | BLOCKLIST_ABA_INC, std::memory_order_relaxed);
+            heaplet->nextSpace.store(head | BLOCKLIST_ABA_INC);
 
             //Ensure any items added onto the list have a new aba tag
             unsigned newHead = block + (head & BLOCKLIST_ABA_MASK) + BLOCKLIST_ABA_INC;
-            if (headMaybeSpace.compare_exchange_weak(head, newHead, std::memory_order_release)) // release to ensure next is initialised when on the list
+            if (headMaybeSpace.compare_exchange_weak(head, newHead)) // release to ensure next is initialised when on the list
                 break;
         }
     }
@@ -2401,7 +2401,7 @@ public:
     {
         //This must only be called within a critical section since some functions assume only one active thread is
         //allowed to remove elements from the list
-        unsigned head = headMaybeSpace.load(std::memory_order_acquire); // acquire so that heaplet->nextSpace is available
+        unsigned head = headMaybeSpace.load(); // acquire so that heaplet->nextSpace is available
         loop
         {
             if (isNullBlock(head))
@@ -2410,13 +2410,13 @@ public:
             Heaplet * heaplet = blockToHeaplet(head);
 
             //Always valid to access a heaplet on a list, because we must remove from all lists before disposing.
-            unsigned next = heaplet->nextSpace.load(std::memory_order_consume); // Ensure the value used for the cas is up to date. ?? Needed?
+            unsigned next = heaplet->nextSpace.load(); // Ensure the value used for the cas is up to date. ?? Needed?
 
             //No need to update the aba mask on removal since removal cannot create a false positives.
-            if (headMaybeSpace.compare_exchange_weak(head, next, std::memory_order_acquire))
+            if (headMaybeSpace.compare_exchange_weak(head, next))
             {
                 //Indicate that this item is no longer on the list.
-                heaplet->nextSpace.store(0, std::memory_order_release);   // Ensure nextSpace=0 is not seen before the cas on another thread
+                heaplet->nextSpace.store(0);   // Ensure nextSpace=0 is not seen before the cas on another thread
 
                 //NOTE: If another thread tries to add it before this set succeeds that doesn't cause a problem since on return this heaplet will be processed
                 return heaplet;
@@ -2432,14 +2432,14 @@ public:
         //And nothing else can be being removed - since we are protected by the critical section
 
         //NextSpace can't change while this function is executing
-        unsigned nextSpace = toRemove->nextSpace.load(std::memory_order_relaxed);
+        unsigned nextSpace = toRemove->nextSpace.load();
         //If not on the list then return immediately
         if (nextSpace == 0)
             return;
 
         //Special case head because that can change while this is being executed...
         unsigned searchBlock = heapletToBlock(toRemove);
-        unsigned head = headMaybeSpace.load(std::memory_order_acquire);
+        unsigned head = headMaybeSpace.load();
         if (isNullBlock(head))
         {
             //The block wasn't found on the space list even though it should have been
@@ -2450,9 +2450,9 @@ public:
         if ((head & BLOCKLIST_MASK) == searchBlock)
         {
             //Currently head of the list, try and remove it
-            if (headMaybeSpace.compare_exchange_weak(head, nextSpace, std::memory_order_relaxed))
+            if (headMaybeSpace.compare_exchange_weak(head, nextSpace))
             {
-                toRemove->nextSpace.store(0, std::memory_order_release); // ensure the cas is seen by other threads before this write.
+                toRemove->nextSpace.store(0); // ensure the cas is seen by other threads before this write.
                 return;
             }
 
@@ -2463,7 +2463,7 @@ public:
         Heaplet * prevHeaplet = blockToHeaplet(head);
         loop
         {
-            unsigned next = prevHeaplet->nextSpace.load(std::memory_order_relaxed);
+            unsigned next = prevHeaplet->nextSpace.load();
             if (isNullBlock(next))
             {
                 //The block wasn't found on the space list even though it should have been
@@ -2476,8 +2476,8 @@ public:
             {
                 //Remove the item from the list, and indicate it is no longer on the list
                 //Can use relaxed store because no other thread can be removing (and therefore modifying nextSpace)
-                prevHeaplet->nextSpace.store(nextSpace, std::memory_order_relaxed);
-                toRemove->nextSpace.store(0, std::memory_order_relaxed);
+                prevHeaplet->nextSpace.store(nextSpace);
+                toRemove->nextSpace.store(0);
                 return;
             }
             prevHeaplet = heaplet;
@@ -2486,7 +2486,7 @@ public:
 
     bool mayHaveEmptySpace() const
     {
-        unsigned head = headMaybeSpace.load(std::memory_order_relaxed);
+        unsigned head = headMaybeSpace.load();
         return !isNullBlock(head);
     }
 
@@ -2579,18 +2579,18 @@ public:
         //If releaseEmptyPages() is called between the last release on a page (setting count to 1), and this flag
         //getting set, it won't release the page *this time*.  But that is the same as the release happening
         //slightly later.
-        if (!possibleEmptyPages.load(std::memory_order_relaxed))
+        if (!possibleEmptyPages.load())
             return 0;
 
         unsigned total = 0;
         NonReentrantSpinBlock c1(heapletLock);
         //Check again in case other thread has also called this function and no other pages have been released.
-        if (!possibleEmptyPages.load(std::memory_order_relaxed))
+        if (!possibleEmptyPages.load())
             return 0;
 
         //You will get a false positive if possibleEmptyPages is set while walking the active page list, but that
         //only mean the list is walked more than it needs to be.
-        possibleEmptyPages.store(false, std::memory_order_relaxed);
+        possibleEmptyPages.store(false);
 
         //Any blocks that could be freed must either be the active block and/or on the maybe space list.
         Heaplet * headHeaplet;
@@ -2598,7 +2598,7 @@ public:
         //First free any empty blocks at the head of the maybe space list
         loop
         {
-            unsigned head = headMaybeSpace.load(std::memory_order_relaxed);
+            unsigned head = headMaybeSpace.load();
             if (isNullBlock(head))
             {
                 headHeaplet = NULL;
@@ -2618,12 +2618,12 @@ public:
             }
 
             //Always valid to access a heaplet on a list, because we must remove from all lists before disposing.
-            unsigned next = headHeaplet->nextSpace.load(std::memory_order_relaxed);
+            unsigned next = headHeaplet->nextSpace.load();
 
             //No need to update the aba mask on removal since removal cannot create a false positives.
-            if (headMaybeSpace.compare_exchange_weak(head, next, std::memory_order_relaxed))
+            if (headMaybeSpace.compare_exchange_weak(head, next))
             {
-                headHeaplet->nextSpace.store(0, std::memory_order_release);
+                headHeaplet->nextSpace.store(0);
                 total += releasePage(headHeaplet);
             }
         }
@@ -2634,7 +2634,7 @@ public:
             Heaplet * prevHeaplet = headHeaplet;
             loop
             {
-                unsigned curSpace = prevHeaplet->nextSpace.load(std::memory_order_relaxed);
+                unsigned curSpace = prevHeaplet->nextSpace.load();
                 if (isNullBlock(curSpace))
                     break;
 
@@ -2642,9 +2642,9 @@ public:
                 if (heaplet->queryCount() == 1)
                 {
                     //Remove it directly rather than walking the list to remove it.  All relaxed since inside a critsec
-                    unsigned nextSpace = heaplet->nextSpace.load(std::memory_order_relaxed);
-                    prevHeaplet->nextSpace.store(nextSpace, std::memory_order_relaxed);
-                    heaplet->nextSpace.store(0, std::memory_order_relaxed);
+                    unsigned nextSpace = heaplet->nextSpace.load();
+                    prevHeaplet->nextSpace.store(nextSpace);
+                    heaplet->nextSpace.store(0);
                     total += releasePage(heaplet);
                 }
                 else
@@ -2663,7 +2663,7 @@ public:
         else if (preserved)
         {
             //Add this page back onto the potential-space list
-            possibleEmptyPages.store(true, std::memory_order_relaxed);
+            possibleEmptyPages.store(true);
             //No barrier - another thread will only read from the space list if possibleEmptyPages is true
             addToSpaceList(preserved);
         }
@@ -2703,7 +2703,7 @@ public:
         return false;
     }
 
-    void noteEmptyPage() { possibleEmptyPages.store(true, std::memory_order_relaxed); }
+    void noteEmptyPage() { possibleEmptyPages.store(true); }
 
 protected:
     virtual void reportHeapUsage(IActivityMemoryUsageMap * usageMap, unsigned numPages, memsize_t numAllocs) const = 0;
@@ -2913,14 +2913,14 @@ void noteEmptyPage(CHeap * const heap)
 
 void Heaplet::addToSpaceList()
 {
-    if (nextSpace.load(std::memory_order_relaxed) != 0)
+    if (nextSpace.load() != 0)
         return;
     heap->addToSpaceList(this);
 }
 
 void Heaplet::verifySpaceList()
 {
-    if (nextSpace.load(std::memory_order_relaxed) == 0)
+    if (nextSpace.load() == 0)
     {
         ERRLOG("%p@%" I64F "u: Verify failed: %p %u", heap, (unsigned __int64)GetCurrentThreadId(), this, isFull());
     }
@@ -2928,7 +2928,7 @@ void Heaplet::verifySpaceList()
 
 void ChunkedHeaplet::verifySpaceList()
 {
-    if (nextSpace.load(std::memory_order_relaxed) == 0)
+    if (nextSpace.load() == 0)
     {
         ERRLOG("%p@%" I64F "u: Verify failed: %p %u %x %x", heap, (unsigned __int64)GetCurrentThreadId(), this, isFull(), freeBase.load(), r_blocks.load());
     }
@@ -2940,7 +2940,7 @@ char * ChunkedHeaplet::allocateChunk()
     //The spin lock for the heap this chunk belongs to must be held when this function is called
     char *ret;
     const size32_t size = chunkSize;
-    unsigned old_blocks = r_blocks.load(std::memory_order_relaxed); // oldblocks is updated by the cas operation 
+    unsigned old_blocks = r_blocks.load(); // oldblocks is updated by the cas operation
     loop
     {
         unsigned r_ret = (old_blocks & RBLOCKS_OFFSET_MASK);
@@ -2956,27 +2956,27 @@ char * ChunkedHeaplet::allocateChunk()
             //To avoid that a tag is stored in the top bits of r_blocks which is modified whenever an item is added
             //onto the free list.  The offsets in the freelist do not need tags.
             unsigned new_blocks = (old_blocks & RBLOCKS_CAS_TAG_MASK) | next;
-            if (r_blocks.compare_exchange_weak(old_blocks, new_blocks, std::memory_order_relaxed))
+            if (r_blocks.compare_exchange_weak(old_blocks, new_blocks))
                 break;
 
             //NOTE: Currently I think a lock is always held before allocating from a chunk, so I'm not sure there is an ABA problem!
         }
         else
         {
-            unsigned curFreeBase = freeBase.load(std::memory_order_relaxed);
+            unsigned curFreeBase = freeBase.load();
             //There is no ABA issue on freeBase because it is never decremented (and no next chain with it)
             size32_t bytesFree = dataAreaSize() - curFreeBase;
             if (bytesFree < size)
                 return NULL;
 
             //This is the only place that modifies freeBase, so it can be unconditional since caller must have a lock.
-            freeBase.store(curFreeBase + size, std::memory_order_relaxed);
+            freeBase.store(curFreeBase + size);
             ret = data() + curFreeBase;
             break;
         }
     }
 
-    count.fetch_add(1, std::memory_order_relaxed);
+    count.fetch_add(1);
     return ret;
 }
 
@@ -3185,7 +3185,7 @@ public:
 
     //If this sequence number has changed then it is likely that some rows have been freed up, so worth
     //trying to allocate again.
-    inline unsigned getReleaseSeq() const { return releaseSeq.load(std::memory_order_relaxed); }
+    inline unsigned getReleaseSeq() const { return releaseSeq.load(); }
 
     void addRowBuffer(unsigned slaveId, IBufferedRowCallback * callback)
     {
@@ -3390,16 +3390,16 @@ protected:
         if (doReleaseBuffers(slaveId, maxSpillCost, false, minSuccess) || (critical && doReleaseBuffers(slaveId, maxSpillCost, true, minSuccess)))
         {
             //Increment first so that any called knows some rows may have been freed
-            releaseSeq.fetch_add(1, std::memory_order_relaxed);
+            releaseSeq.fetch_add(1);
             owner->releaseEmptyPages(slaveId, critical);
             //incremented again because some rows may now have been freed.  A difference may give a
             //false positive, but better than a false negative.
-            releaseSeq.fetch_add(1, std::memory_order_relaxed);
+            releaseSeq.fetch_add(1);
             return true;
         }
         else if (owner->releaseEmptyPages(slaveId, critical))
         {
-            releaseSeq.fetch_add(1, std::memory_order_relaxed);
+            releaseSeq.fetch_add(1);
             return true;
         }
         return false;
@@ -3599,7 +3599,7 @@ public:
                         dfinger->queryCount()-1, dfinger, this);
             dfinger->next = NULL;
             dfinger->mgr = NULL; // Avoid calling back to noteDataBufferReleased, which would be unhelpful
-            dfinger->count.store(0, std::memory_order_relaxed);
+            dfinger->count.store(0);
             dfinger->released();
             dfinger = next;
         }
@@ -3658,7 +3658,7 @@ public:
     virtual unsigned numPagesAfterCleanup(bool forceFreeAll)
     {
         releaseEmptyPages(0, forceFreeAll);
-        return dataBuffPages + totalHeapPages.load(std::memory_order_relaxed);
+        return dataBuffPages + totalHeapPages.load();
     }
 
     void removeUnusedHeaps()
@@ -3702,7 +3702,7 @@ public:
             removeUnusedHeaps();
 
         if (total)
-            totalHeapPages.fetch_sub(total, std::memory_order_relaxed);
+            totalHeapPages.fetch_sub(total);
         return (total != 0);
     }
 
@@ -3959,7 +3959,7 @@ public:
         {
             CriticalBlock b(activeBufferCS);
             DataBufferBase *finger = activeBuffs;
-            while (finger && possibleGoers.load(std::memory_order_relaxed))
+            while (finger && possibleGoers.load())
             {
                 // MORE - if we get a load of data in and none out this can start to bog down...
                 DataBufferBase *next = finger->next;
@@ -3971,7 +3971,7 @@ public:
                     finger->next = NULL;
                     finger->Release();
                     dataBuffs--;
-                    possibleGoers.fetch_sub(1, std::memory_order_relaxed);
+                    possibleGoers.fetch_sub(1);
                     if (last)
                         last->next = next;
                     else
@@ -4000,7 +4000,7 @@ public:
     
     virtual void noteDataBuffReleased(DataBuffer *dataBuff)
     {
-        possibleGoers.fetch_add(1, std::memory_order_relaxed);
+        possibleGoers.fetch_add(1);
         if (memTraceLevel >= 4)
             logctx.CTXLOG("RoxieMemMgr: CChunkingRowManager::noteDataBuffReleased dataBuffs=%u dataBuffPages=%u possibleGoers=%u dataBuff=%p rowMgr=%p", 
                     dataBuffs, dataBuffPages, possibleGoers.load(), dataBuff, this);
@@ -4040,7 +4040,7 @@ public:
             unsigned lastReleaseSeq = getReleaseSeq();
             //We need to ensure that the number of allocated pages is updated atomically so multiple threads can't all
             //succeed and have the total take them over the limit.
-            unsigned numHeapPages = totalHeapPages.load(std::memory_order_relaxed);
+            unsigned numHeapPages = totalHeapPages.load();
             unsigned pageCount = dataBuffPages + numHeapPages;
             totalPages = pageCount + numRequested;
             unsigned pageLimit = getPageLimit();
@@ -4050,13 +4050,13 @@ public:
                 {
                     //Use compare_exchange so that only one thread can increase the number of pages at a time.
                     //(Don't use atomic_add because we need to check the limit hasn't been exceeded.)
-                    if (!totalHeapPages.compare_exchange_weak(numHeapPages, numHeapPages + numRequested, std::memory_order_relaxed))
+                    if (!totalHeapPages.compare_exchange_weak(numHeapPages, numHeapPages + numRequested))
                         continue;
                 }
                 else
                 {
                     //Unlimited pages => just increment the total
-                    totalHeapPages.fetch_add(numRequested, std::memory_order_relaxed);
+                    totalHeapPages.fetch_add(numRequested);
                 }
                 break;
             }
@@ -4078,7 +4078,7 @@ public:
                     //very unusual: another thread may have just released a lot of memory (e.g., it has finished), but
                     //the empty pages haven't been cleaned up
                     releaseEmptyPages(querySlaveId(), true);
-                    if (numHeapPages == totalHeapPages.load(std::memory_order_relaxed))
+                    if (numHeapPages == totalHeapPages.load())
                     {
                         VStringBuffer msg("Memory limit exceeded: current %u, requested %u, limit %u", pageCount, numRequested, pageLimit);
                         logctx.CTXLOG("%s", msg.str());
@@ -4115,7 +4115,7 @@ public:
 
     void restoreLimit(unsigned numRequested)
     {
-        totalHeapPages.fetch_sub(numRequested, std::memory_order_relaxed);
+        totalHeapPages.fetch_sub(numRequested);
     }
 
     inline bool releaseCallbackMemory(unsigned maxSpillCost, bool critical)
@@ -4127,7 +4127,7 @@ public:
     virtual unsigned getReleaseSeq() const = 0;
     virtual unsigned getPageLimit() const = 0;
 
-    inline unsigned getActiveHeapPages() const { return totalHeapPages.load(std::memory_order_relaxed); }
+    inline unsigned getActiveHeapPages() const { return totalHeapPages.load(); }
 
 
 protected:
@@ -4930,7 +4930,7 @@ void * CPackedChunkingHeap::allocate()
 void DataBufferBase::noteReleased(const void *ptr)
 {
     //The link counter is shared by all the rows that are contained in this DataBuffer
-    if (count.fetch_sub(1, std::memory_order_release) == 1)
+    if (count.fetch_sub(1) == 1)
     {
         //No acquire fence - released() is assumed not to access the data in this buffer
         //If it does it should contain an acquire fence
@@ -4940,7 +4940,7 @@ void DataBufferBase::noteReleased(const void *ptr)
 
 void DataBufferBase::noteLinked(const void *ptr)
 {
-    count.fetch_add(1, std::memory_order_relaxed);
+    count.fetch_add(1);
 }
 
 bool DataBufferBase::_isShared(const void *ptr) const
@@ -4952,9 +4952,9 @@ bool DataBufferBase::_isShared(const void *ptr) const
 
 void DataBufferBase::Release()
 {
-    if (count.load(std::memory_order_relaxed)==2 && mgr)
+    if (count.load()==2 && mgr)
         mgr->noteDataBuffReleased((DataBuffer*) this);
-    if (count.fetch_sub(1, std::memory_order_release) == 1)
+    if (count.fetch_sub(1) == 1)
     {
         //No acquire fence - released() is assumed not to access the data in this buffer
         //If it does it should contain an acquire fence
@@ -5036,7 +5036,7 @@ class CDataBufferManager : public CInterface, implements IDataBufferManager
                 // NOTE - do NOT put a CriticalBlock c(finger->crit) here since:
                 // 1. It's not needed - no-one modifies finger->nextBottom chain but me and I hold CDataBufferManager::crit
                 // 2. finger->crit is about to get released back to the pool and it's important that it is not locked at the time!
-                if (finger->okToFree.load(std::memory_order_relaxed))
+                if (finger->okToFree.load())
                 {
                     assert(!finger->isAlive());
                     DataBufferBottom *goer = finger;
@@ -5077,7 +5077,7 @@ public:
         if (memTraceLevel >= 5)
             DBGLOG("RoxieMemMgr: CDataBufferManager::allocate() curBlock=%p nextAddr=%p", curBlock, nextAddr);
 
-        if (freePending.exchange(false, std::memory_order_relaxed))
+        if (freePending.exchange(false))
             freeUnused();
 
         loop
@@ -5171,14 +5171,14 @@ public:
     {
         if (memTraceLevel > 1) memmap(s); // MORE: may want to make a separate interface (poolMap) and control query for this
         else memstats(s);
-        s.appendf(", DataBuffsActive=%d, DataBuffPages=%d", dataBuffersActive.load(std::memory_order_relaxed), dataBufferPages.load(std::memory_order_relaxed));
+        s.appendf(", DataBuffsActive=%d, DataBuffPages=%d", dataBuffersActive.load(), dataBufferPages.load());
         DBGLOG("%s", s.str());
     }
 };
 
 DataBufferBottom::DataBufferBottom(CDataBufferManager *_owner, DataBufferBottom *ownerFreeChain)
 {
-    okToFree.store(false, std::memory_order_relaxed);
+    okToFree.store(false);
     owner = _owner;
     if (ownerFreeChain)
     {
@@ -5207,11 +5207,11 @@ void DataBufferBottom::released()
     // Not safe to free here as owner may be in the middle of allocating from it
     // instead, give owner a hint that it's worth thinking about freeing this page next time it is safe
     unsigned expected = 0;
-    if (count.compare_exchange_strong(expected, DEAD_PSEUDO_COUNT, std::memory_order_relaxed))
+    if (count.compare_exchange_strong(expected, DEAD_PSEUDO_COUNT))
     {
         //No acquire fence required since the following code doesn't read anything from the object
-        okToFree.store(true, std::memory_order_relaxed);
-        owner->freePending.store(true, std::memory_order_release);
+        okToFree.store(true);
+        owner->freePending.store(true);
     }
 }
 
@@ -5309,12 +5309,12 @@ extern unsigned getHeapPercentAllocated()
 
 extern unsigned getDataBufferPages()
 {
-   return dataBufferPages.load(std::memory_order_relaxed);
+   return dataBufferPages.load();
 }
 
 extern unsigned getDataBuffersActive()
 {
-   return dataBuffersActive.load(std::memory_order_relaxed);
+   return dataBuffersActive.load();
 }
 
 extern IDataBufferManager *createDataBufferManager(size32_t size)
@@ -5604,17 +5604,17 @@ protected:
         DataBuffer *pages[3000];
         for (i = 0; i < 3000; i++)
             pages[i] = 0;
-        //printf("\n----Begin DataBuffsActive=%d, DataBuffPages=%d ------ \n", dataBuffersActive.load(std::memory_order_relaxed), dataBufferPages.load(std::memory_order_relaxed));
+        //printf("\n----Begin DataBuffsActive=%d, DataBuffPages=%d ------ \n", dataBuffersActive.load(), dataBufferPages.load());
         for (i = 0; i < 2046; i++)
             pages[i] = dm.allocate();
         //printf("\n----Mid 1 DataBuffsActive=%d, DataBuffPages=%d ------ \n", dataBuffersActive.load(), dataBufferPages.load());
 
-        ASSERT(dataBufferPages.load(std::memory_order_relaxed)==PAGES(2046 * DATA_ALIGNMENT_SIZE, (HEAP_ALIGNMENT_SIZE- DATA_ALIGNMENT_SIZE)));
+        ASSERT(dataBufferPages.load()==PAGES(2046 * DATA_ALIGNMENT_SIZE, (HEAP_ALIGNMENT_SIZE- DATA_ALIGNMENT_SIZE)));
         pages[1022]->Release(); // release from first page
         pages[1022] = 0;  
         pages[2100] = dm.allocate(); // allocate from first page 
         //printf("\n----Mid 2 DataBuffsActive=%d, DataBuffPages=%d ------ \n", dataBuffersActive.load(), dataBufferPages.load());
-        ASSERT(dataBufferPages.load(std::memory_order_relaxed)==PAGES(2046 * DATA_ALIGNMENT_SIZE, (HEAP_ALIGNMENT_SIZE- DATA_ALIGNMENT_SIZE)));
+        ASSERT(dataBufferPages.load()==PAGES(2046 * DATA_ALIGNMENT_SIZE, (HEAP_ALIGNMENT_SIZE- DATA_ALIGNMENT_SIZE)));
         pages[2101] = dm.allocate(); // allocate from a new page (third)
         //printf("\n----Mid 3 DataBuffsActive=%d, DataBuffPages=%d ------ \n", dataBuffersActive.load(), dataBufferPages.load());
         // Release all blocks, which releases all pages, except active one

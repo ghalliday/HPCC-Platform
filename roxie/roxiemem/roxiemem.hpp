@@ -148,7 +148,7 @@ public:
 
     inline bool isAlive() const
     {
-        return count.load(std::memory_order_relaxed) < DEAD_PSEUDO_COUNT;        //only safe if Link() is called first
+        return count.load() < DEAD_PSEUDO_COUNT;        //only safe if Link() is called first
     }
 
     static void release(const void *ptr);
@@ -178,7 +178,7 @@ public:
 
     inline unsigned queryCount() const
     {
-        return count.load(std::memory_order_relaxed);
+        return count.load();
     }
 
     inline bool isEmpty() const
@@ -218,7 +218,7 @@ public:
     // Link and release are used to keep count of the references to the buffers.
     void Link() 
     { 
-        count.fetch_add(1, std::memory_order_relaxed);
+        count.fetch_add(1);
     }
     void Release();
 
