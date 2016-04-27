@@ -169,6 +169,8 @@ set (    INCLUDES
         jvmem.hpp
         )
 
+set_source_files_properties (jutil.cpp PROPERTIES COMPILE_FLAGS -Wa,-ahl=jutil.lst)
+
 if (CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_CLANG)
     set_property (SOURCE jmalloc.cpp APPEND_STRING PROPERTY COMPILE_FLAGS " -fno-strict-aliasing")
     set_property (SOURCE jencrypt.cpp APPEND_STRING PROPERTY COMPILE_FLAGS " -fno-strict-aliasing")
