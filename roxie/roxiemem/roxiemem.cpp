@@ -114,6 +114,8 @@ const unsigned maxLeakReport = 20;
 const unsigned maxLeakReport = 4;
 #endif
 
+static char *memoryBase;
+static char *headerBase;
 static char *heapBase;
 static char *heapEnd;   // Equal to heapBase + (heapTotalPages * page size)
 static bool heapUseHugePages;
@@ -134,6 +136,7 @@ static unsigned heapAllocated;
 static atomic_t dataBufferPages;
 static atomic_t dataBuffersActive;
 
+const unsigned MaxHeaderSize = 128;
 const unsigned UNSIGNED_BITS = sizeof(unsigned) * 8;
 const unsigned UNSIGNED_ALLBITS = (unsigned) -1;
 const unsigned TOPBITMASK = 1<<(UNSIGNED_BITS-1);
@@ -181,22 +184,28 @@ static CriticalSection heapBitCrit;
 
 static void initializeHeap(bool allowHugePages, bool allowTransparentHugePages, bool retainMemory, memsize_t pages, memsize_t largeBlockGranularity, ILargeMemCallback * largeBlockCallback)
 {
-    if (heapBase) return;
+    if (memoryBase) return;
 
     // CriticalBlock b(heapBitCrit); // unnecessary - must call this exactly once before any allocations anyway!
     memsize_t bitmapSize = (pages + UNSIGNED_BITS - 1) / UNSIGNED_BITS;
     memsize_t totalPages = bitmapSize * UNSIGNED_BITS;
-    memsize_t memsize = totalPages * HEAP_ALIGNMENT_SIZE;
+    memsize_t pagesSize = totalPages * HEAP_ALIGNMENT_SIZE;
+#ifdef SEPARATE_HEADERS
+    memsize_t headerSize = totalPages * MaxHeaderSize;
+#else
+    memsize_t headerSize = 0;
+#endif
+    memsize_t totalSize = pagesSize + headerSize;
 
     if (totalPages > (unsigned)-1)
         throw makeStringExceptionV(ROXIEMM_TOO_MUCH_MEMORY,
                     "Heap cannot support memory of size %" I64F "u - decrease memory or increase HEAP_ALIGNMENT_SIZE",
-                    (__uint64)memsize);
+                    (__uint64)totalSize);
 
     if (totalPages >= BLOCKLIST_LIMIT)
         throw makeStringExceptionV(ROXIEMM_TOO_MUCH_MEMORY,
                     "Heap cannot support memory of size %" I64F "u - decrease memory or increase HEAP_ALIGNMENT_SIZE or BLOCKLIST_MASK",
-                    (__uint64)memsize);
+                    (__uint64)totalSize);
 
     heapBitmapSize = (unsigned)bitmapSize;
     heapTotalPages = (unsigned)totalPages;
@@ -211,13 +220,13 @@ static void initializeHeap(bool allowHugePages, bool allowTransparentHugePages, 
     char *next = (char *) HEAP_ALIGNMENT_SIZE;
     loop
     {
-        heapBase = (char *) VirtualAlloc(next, memsize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-        if (heapBase)
+        memoryBase = (char *) VirtualAlloc(next, totalSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+        if (memoryBase)
             break;
         next += HEAP_ALIGNMENT_SIZE;
         if (!next) 
         {
-            DBGLOG("RoxieMemMgr: VirtualAlloc(size=%u) failed - alignment=%u", HEAP_ALIGNMENT_SIZE, memsize);
+            DBGLOG("RoxieMemMgr: VirtualAlloc(size=%u) failed - alignment=%u", HEAP_ALIGNMENT_SIZE, totalSize);
             HEAPERROR("RoxieMemMgr: Unable to create heap");
         }
     }
@@ -227,8 +236,8 @@ static void initializeHeap(bool allowHugePages, bool allowTransparentHugePages, 
 #ifdef MAP_HUGETLB
     if (allowHugePages)
     {
-        heapBase = (char *)mmap(NULL, memsize, (PROT_READ | PROT_WRITE), (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB), 0, 0);
-        if (heapBase != MAP_FAILED)
+        memoryBase = (char *)mmap(NULL, totalSize, (PROT_READ | PROT_WRITE), (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB), 0, 0);
+        if (memoryBase != MAP_FAILED)
         {
             heapUseHugePages = true;
             heapNotifyUnusedEachFree = false;
@@ -237,7 +246,7 @@ static void initializeHeap(bool allowHugePages, bool allowTransparentHugePages, 
         }
         else
         {
-            heapBase = NULL;
+            memoryBase = NULL;
             DBGLOG("Huge Pages requested but unavailable");
         }
     }
@@ -246,7 +255,7 @@ static void initializeHeap(bool allowHugePages, bool allowTransparentHugePages, 
         DBGLOG("Huge Pages requested but not supported by the system");
 #endif
 
-    if (!heapBase)
+    if (!memoryBase)
     {
         const memsize_t hugePageSize = getHugePageSize();
         bool useTransparentHugePages = allowTransparentHugePages && areTransparentHugePagesEnabled();
@@ -255,25 +264,25 @@ static void initializeHeap(bool allowHugePages, bool allowTransparentHugePages, 
             heapAlignment = HEAP_ALIGNMENT_SIZE;
 
         int ret;
-        if ((ret = posix_memalign((void **) &heapBase, heapAlignment, memsize)) != 0) {
+        if ((ret = posix_memalign((void **) &memoryBase, heapAlignment, totalSize)) != 0) {
 
         	switch (ret)
         	{
         	case EINVAL:
         		DBGLOG("RoxieMemMgr: posix_memalign (alignment=%" I64F "u, size=%" I64F "u) failed - ret=%d "
         				"(EINVAL The alignment argument was not a power of two, or was not a multiple of sizeof(void *)!)",
-        		                    (unsigned __int64) HEAP_ALIGNMENT_SIZE, (unsigned __int64) memsize, ret);
+                                    (unsigned __int64) HEAP_ALIGNMENT_SIZE, (unsigned __int64) totalSize, ret);
         		break;
 
         	case ENOMEM:
         		DBGLOG("RoxieMemMgr: posix_memalign (alignment=%" I64F "u, size=%" I64F "u) failed - ret=%d "
         				"(ENOMEM There was insufficient memory to fulfill the allocation request.)",
-        		        		                    (unsigned __int64) HEAP_ALIGNMENT_SIZE, (unsigned __int64) memsize, ret);
+                                    (unsigned __int64) HEAP_ALIGNMENT_SIZE, (unsigned __int64) totalSize, ret);
         		break;
 
         	default:
         		DBGLOG("RoxieMemMgr: posix_memalign (alignment=%" I64F "u, size=%" I64F "u) failed - ret=%d",
-        		                    (unsigned __int64) HEAP_ALIGNMENT_SIZE, (unsigned __int64) memsize, ret);
+                                    (unsigned __int64) HEAP_ALIGNMENT_SIZE, (unsigned __int64) totalSize, ret);
         		break;
 
         	}
@@ -284,7 +293,7 @@ static void initializeHeap(bool allowHugePages, bool allowTransparentHugePages, 
 #ifdef MADV_HUGEPAGE
         if (useTransparentHugePages)
         {
-            if (madvise(heapBase,memsize,MADV_HUGEPAGE) == 0)
+            if (madvise(memoryBase,totalSize,MADV_HUGEPAGE) == 0)
             {
                 //Prevent the transparent huge page code from working hard trying to defragment memory when single heaplets are released
                 heapNotifyUnusedEachFree = false;
@@ -304,7 +313,7 @@ static void initializeHeap(bool allowHugePages, bool allowTransparentHugePages, 
         {
             if (!allowTransparentHugePages)
             {
-                madvise(heapBase,memsize,MADV_NOHUGEPAGE);
+                madvise(memoryBase,totalSize,MADV_NOHUGEPAGE);
                 DBGLOG("Transparent huge pages disabled in configuration by user.");
             }
             else
@@ -328,9 +337,15 @@ static void initializeHeap(bool allowHugePages, bool allowTransparentHugePages, 
                     (unsigned __int64)HEAP_ALIGNMENT_SIZE * 32, (unsigned __int64) getHugePageSize());
     }
 
-    assertex(((memsize_t)heapBase & (HEAP_ALIGNMENT_SIZE-1)) == 0);
+    assertex(((memsize_t)memoryBase & (HEAP_ALIGNMENT_SIZE-1)) == 0);
 
-    heapEnd = heapBase + memsize;
+    heapBase = memoryBase;
+    heapEnd = heapBase + pagesSize;
+#ifdef SEPARATE_HEADERS
+    headerBase = heapEnd;
+#else
+    headerBase = nullptr;
+#endif
     heapBitmap = new unsigned [heapBitmapSize];
     memset(heapBitmap, 0xff, heapBitmapSize*sizeof(unsigned));
     heapLargeBlocks = 1;
@@ -339,7 +354,7 @@ static void initializeHeap(bool allowHugePages, bool allowTransparentHugePages, 
 
     if (memTraceLevel)
         DBGLOG("RoxieMemMgr: %u Pages successfully allocated for the pool - memsize=%" I64F "u base=%p alignment=%" I64F "u bitmapSize=%u", 
-                heapTotalPages, (unsigned __int64) memsize, heapBase, (unsigned __int64) HEAP_ALIGNMENT_SIZE, heapBitmapSize);
+                heapTotalPages, (unsigned __int64) totalSize, heapBase, (unsigned __int64) HEAP_ALIGNMENT_SIZE, heapBitmapSize);
 }
 
 static void adjustHeapSize(unsigned numPages)
@@ -354,26 +369,28 @@ static void adjustHeapSize(unsigned numPages)
 
 extern void releaseRoxieHeap()
 {
-    if (heapBase)
+    if (memoryBase)
     {
         if (memTraceLevel)
             DBGLOG("RoxieMemMgr: releasing heap");
         delete [] heapBitmap;
         heapBitmap = NULL;
 #ifdef _WIN32
-        VirtualFree(heapBase, 0, MEM_RELEASE);
+        VirtualFree(memoryBase, 0, MEM_RELEASE);
 #else
         if (heapUseHugePages)
         {
             memsize_t memsize = memsize_t(heapTotalPages) * HEAP_ALIGNMENT_SIZE;
-            munmap(heapBase, memsize);
+            munmap(memoryBase, memsize);
             heapUseHugePages = false;
         }
         else
-            free(heapBase);
+            free(memoryBase);
 #endif
-        heapBase = NULL;
-        heapEnd = NULL;
+        memoryBase = nullptr;
+        headerBase = nullptr;
+        heapBase = nullptr;
+        heapEnd = nullptr;
         heapBitmapSize = 0;
         heapTotalPages = 0;
     }
@@ -1019,6 +1036,7 @@ void * HeapPointerCompressor::decompress(const void * source) const
 }
 
 //---------------------------------------------------------------------------------------------------------------------
+
 static inline unsigned getRealActivityId(unsigned allocatorId, const IRowAllocatorCache *allocatorCache)
 {
     if ((allocatorId & ACTIVITY_FLAG_ISREGISTERED) && allocatorCache)
@@ -1035,7 +1053,22 @@ static inline bool isValidRoxiePtr(const void *_ptr)
 
 inline static HeapletBase *findBase(const void *ptr)
 {
+#ifdef SEPARATE_HEADERS
+    memsize_t address = (memsize_t)ptr;
+    memsize_t page = (address - (memsize_t)heapBase) / HEAP_ALIGNMENT_SIZE;
+    memsize_t header = page * MaxHeaderSize;
+    return (HeapletBase *)(headerBase + header);
+#else
     return (HeapletBase *) ((memsize_t) ptr & HEAP_ALIGNMENT_MASK);
+#endif
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+
+HeapletBase::HeapletBase(void * _page) : page((byte *)_page)
+{
+    atomic_set(&count,1);  // Starts off active
+    assertex(findBase(page) == this);
 }
 
 
@@ -1252,7 +1285,7 @@ protected:
     }
 
 public:
-    Heaplet(CHeap * _heap, const IRowAllocatorCache *_allocatorCache, memsize_t _chunkCapacity) : heap(_heap), chunkCapacity(_chunkCapacity)
+    Heaplet(void * _page, CHeap * _heap, const IRowAllocatorCache *_allocatorCache, memsize_t _chunkCapacity) : HeapletBase(_page), heap(_heap), chunkCapacity(_chunkCapacity)
     {
         atomic_set(&nextSpace, 0);
         assertex(heap);
@@ -1278,7 +1311,8 @@ public:
 
     void operator delete(void * p)
     {
-        subfree_aligned(p, 1);
+        Heaplet * heaplet = (Heaplet *)p;
+        subfree_aligned(heaplet->pageBase(), 1);
     }
 
     inline void addToSpaceList();
@@ -1308,15 +1342,15 @@ protected:
 
     inline char *data() const
     {
-        return ((char *) this) + dataOffset();
+        return pageBase() + dataOffset();
     }
 
     //NB: Derived classes should not contain any derived data.  The choice would be to put data() into the derived
     //classes, but that means it is hard to common up some of the code efficiently
 
 public:
-    ChunkedHeaplet(CHeap * _heap, const IRowAllocatorCache *_allocatorCache, size32_t _chunkSize, size32_t _chunkCapacity)
-        : Heaplet(_heap, _allocatorCache, _chunkCapacity), chunkSize(_chunkSize)
+    ChunkedHeaplet(void * _page, CHeap * _heap, const IRowAllocatorCache *_allocatorCache, size32_t _chunkSize, size32_t _chunkCapacity)
+        : Heaplet(_page, _heap, _allocatorCache, _chunkCapacity), chunkSize(_chunkSize)
     {
         sharedAllocatorId = 0;
         atomic_set(&freeBase, 0);
@@ -1424,7 +1458,7 @@ protected:
     inline unsigned makeRelative(const char *ptr)
     {
         dbgassertex(ptr);
-        ptrdiff_t diff = ptr - (char *) this;
+        ptrdiff_t diff = ptr - pageBase();
         assert(diff < HEAP_ALIGNMENT_SIZE);
         return (unsigned) diff;
     }
@@ -1432,12 +1466,12 @@ protected:
     inline char * makeAbsolute(unsigned v)
     {
         dbgassertex(v && v < HEAP_ALIGNMENT_SIZE);
-        return ((char *) this) + v;
+        return pageBase() + v;
     }
 
     inline bool inlineIsShared(const void *_ptr) const
     {
-        dbgassertex(_ptr != this);
+        dbgassertex(_ptr != pageBase());
         char *ptr = (char *) _ptr;
         ptr -= sizeof(atomic_t);
         return ROWCOUNT(atomic_read((atomic_t *) ptr)) !=1;
@@ -1445,7 +1479,7 @@ protected:
 
     inline void inlineNoteLinked(const void *_ptr)
     {
-        dbgassertex(_ptr != this);
+        dbgassertex(_ptr != pageBase());
         char *ptr = (char *) _ptr;
         ptr -= sizeof(atomic_t);
         atomic_inc((atomic_t *) ptr);
@@ -1494,8 +1528,8 @@ class FixedSizeHeaplet : public ChunkedHeaplet
 public:
     enum { chunkHeaderSize = sizeof(ChunkHeader) };
 
-    FixedSizeHeaplet(CHeap * _heap, const IRowAllocatorCache *_allocatorCache, size32_t size)
-    : ChunkedHeaplet(_heap, _allocatorCache, size, size - chunkHeaderSize)
+    FixedSizeHeaplet(void * _page, CHeap * _heap, const IRowAllocatorCache *_allocatorCache, size32_t size)
+    : ChunkedHeaplet(_page, _heap, _allocatorCache, size, size - chunkHeaderSize)
     {
     }
 
@@ -1740,8 +1774,8 @@ class PackedFixedSizeHeaplet : public ChunkedHeaplet
 public:
     enum { chunkHeaderSize = sizeof(ChunkHeader) };
 
-    PackedFixedSizeHeaplet(CHeap * _heap, const IRowAllocatorCache *_allocatorCache, size32_t size, unsigned _allocatorId)
-        : ChunkedHeaplet(_heap, _allocatorCache, size, size - chunkHeaderSize)
+    PackedFixedSizeHeaplet(void * _page, CHeap * _heap, const IRowAllocatorCache *_allocatorCache, size32_t size, unsigned _allocatorId)
+        : ChunkedHeaplet(_page, _heap, _allocatorCache, size, size - chunkHeaderSize)
     {
         sharedAllocatorId = _allocatorId;
     }
@@ -1900,11 +1934,11 @@ protected:
 
     inline char *data() const
     {
-        return ((char *) this) + dataOffset();
+        return pageBase() + dataOffset();
     }
 
 public:
-    HugeHeaplet(CHeap * _heap, const IRowAllocatorCache *_allocatorCache, memsize_t _hugeSize, unsigned _allocatorId) : Heaplet(_heap, _allocatorCache, calcCapacity(_hugeSize))
+    HugeHeaplet(void * _page, CHeap * _heap, const IRowAllocatorCache *_allocatorCache, memsize_t _hugeSize, unsigned _allocatorId) : Heaplet(_page, _heap, _allocatorCache, calcCapacity(_hugeSize))
     {
         allocatorId = _allocatorId;
     }
@@ -1942,7 +1976,8 @@ public:
         //      returned from new is a ptr passed the 4 bytes, but that may not work fine
         //      with HeapletBase::findbase() called from release. Might want to put at end
         //      of alloc space !!!! Future work/design...
-        subfree_aligned(p, ((HugeHeaplet*)p)->_sizeInPages());
+        HugeHeaplet * heaplet = (HugeHeaplet *)p;
+        subfree_aligned(heaplet->pageBase(), heaplet->_sizeInPages());
     }
 
     virtual void noteReleased(const void *ptr)
@@ -2034,14 +2069,22 @@ public:
 inline unsigned heapletToBlock(Heaplet * heaplet)
 {
     dbgassertex(heaplet);
+#ifdef SEPARATE_HEADERS
+    return ((char *)heaplet - headerBase) / MaxHeaderSize;
+#else
     return ((char *)heaplet - heapBase) / HEAP_ALIGNMENT_SIZE;
+#endif
 }
 
 inline Heaplet * blockToHeaplet(unsigned block)
 {
     unsigned maskedBlock = block & BLOCKLIST_MASK;
     dbgassertex(maskedBlock != BLOCKLIST_NULL);
+#ifdef SEPARATE_HEADERS
+    return (Heaplet *)(headerBase + maskedBlock * MaxHeaderSize);
+#else
     return (Heaplet *)(heapBase + maskedBlock * HEAP_ALIGNMENT_SIZE);
+#endif
 }
 
 
@@ -4639,7 +4682,7 @@ HugeHeaplet * CHugeHeap::allocateHeaplet(memsize_t _size, unsigned allocatorId, 
         //If the allocation fails, then try and free some memory by calling the callbacks
         void * memory = suballoc_aligned(numPages, true);
         if (memory)
-            return new (memory) HugeHeaplet(this, allocatorCache, _size, allocatorId);
+            return new (findBase(memory)) HugeHeaplet(memory, this, allocatorCache, _size, allocatorId);
 
         rowManager->restoreLimit(numPages);
         if (!rowManager->releaseCallbackMemory(maxSpillCost, true))
@@ -4680,7 +4723,7 @@ void CHugeHeap::expandHeap(void * original, memsize_t copysize, memsize_t oldcap
         void *realloced = subrealloc_aligned(oldbase, oldPages, newPages);
         assertex(realloced == oldbase);
         void * ret = (char *) realloced + HugeHeaplet::dataOffset();
-        HugeHeaplet *head = (HugeHeaplet *) realloced;
+        HugeHeaplet *head = (HugeHeaplet *)findBase(realloced);
         memsize_t newCapacity = head->setCapacity(newsize);
 
         //Update the max capacity
@@ -4706,8 +4749,8 @@ void CHugeHeap::expandHeap(void * original, memsize_t copysize, memsize_t oldcap
         }
         if (realloced)
         {
-            HugeHeaplet *oldhead = (HugeHeaplet *) oldbase;
-            HugeHeaplet *head = (HugeHeaplet *) realloced;
+            HugeHeaplet *oldhead = (HugeHeaplet *) findBase(oldbase);
+            HugeHeaplet *head = (HugeHeaplet *) findBase(realloced);
             //NOTE: Huge pages are only added to the space list when they are freed => no need to check
             //if it needs removing and re-adding to that list.
             if (realloced != oldbase)
@@ -4723,6 +4766,10 @@ void CHugeHeap::expandHeap(void * original, memsize_t copysize, memsize_t oldcap
 
                 // MORE - If we were really clever, we could manipulate the page table to avoid moving ANY data here...
                 memmove(realloced, oldbase, copysize + HugeHeaplet::dataOffset());  // NOTE - assumes no trailing data (e.g. end markers)
+
+#ifdef SEPARATE_HEADERS
+                memcpy(head, oldhead, sizeof(HugeHeaplet)); // Clone the header information which is kept separate
+#endif
 
                 void * ret = (char *) realloced + HugeHeaplet::dataOffset();
                 memsize_t newCapacity = head->setCapacity(newsize);
@@ -4910,7 +4957,7 @@ ChunkedHeaplet * CFixedChunkedHeap::allocateHeaplet()
     void * memory = suballoc_aligned(1, true);
     if (!memory)
         return NULL;
-    return new (memory) FixedSizeHeaplet(this, allocatorCache, chunkSize);
+    return new (findBase(memory)) FixedSizeHeaplet(memory, this, allocatorCache, chunkSize);
 }
 
 void * CFixedChunkedHeap::allocate(unsigned activityId)
@@ -4925,7 +4972,7 @@ ChunkedHeaplet * CPackedChunkingHeap::allocateHeaplet()
     void * memory = suballoc_aligned(1, true);
     if (!memory)
         return NULL;
-    return new (memory) PackedFixedSizeHeaplet(this, allocatorCache, chunkSize, allocatorId);
+    return new (findBase(memory)) PackedFixedSizeHeaplet(memory, this, allocatorCache, chunkSize, allocatorId);
 }
 
 void * CPackedChunkingHeap::allocate()
@@ -5037,11 +5084,15 @@ class CDataBufferManager : public CInterface, implements IDataBufferManager
                     unlink(goer);
                     if (memTraceLevel >= 3)
                         DBGLOG("RoxieMemMgr: DataBufferBottom::allocate() freeing DataBuffers Page - addr=%p", goer);
+                    char * page = goer->pageBase();
                     goer->~DataBufferBottom(); 
 #ifdef _DEBUG
-                    memset(goer, 0xcc, HEAP_ALIGNMENT_SIZE);
+                    memset(page, 0xcc, HEAP_ALIGNMENT_SIZE);
+#ifdef SEPARATE_HEADERS
+                    memset(goer, 0xcc, MaxHeaderSize);
 #endif
-                    subfree_aligned(goer, 1);
+#endif
+                    subfree_aligned(page, 1);
                     atomic_dec(&dataBufferPages);
                 }
                 else
@@ -5148,12 +5199,12 @@ public:
             }
             nextBase = (char *)suballoc_aligned(1, false);
             nextOffset = DATA_ALIGNMENT_SIZE;
-            curBlock = (DataBufferBottom *)nextBase;
+            curBlock = static_cast<DataBufferBottom *>(findBase(nextBase));
             atomic_inc(&dataBufferPages);
             assertex(curBlock);
             if (memTraceLevel >= 3)
                     DBGLOG("RoxieMemMgr: CDataBufferManager::allocate() allocated new DataBuffers Page - addr=%p", curBlock);
-            freeChain = ::new(curBlock) DataBufferBottom(this, freeChain);   // we never allocate the lowest one in the heap - used just for refcounting the rest
+            freeChain = ::new(curBlock) DataBufferBottom(nextBase, this, freeChain);   // we never allocate the lowest one in the heap - used just for refcounting the rest
         }
     }
 
@@ -5171,7 +5222,7 @@ public:
     }
 };
 
-DataBufferBottom::DataBufferBottom(CDataBufferManager *_owner, DataBufferBottom *ownerFreeChain)
+DataBufferBottom::DataBufferBottom(void * _page, CDataBufferManager *_owner, DataBufferBottom *ownerFreeChain) : HeapletBase(_page)
 {
     atomic_set(&okToFree, 0);
     owner = _owner;
@@ -5212,6 +5263,15 @@ void DataBufferBottom::released()
         atomic_set(&owner->freePending, 1);
         atomic_set(&okToFree, 1);
     }
+}
+
+inline DataBuffer * queryDataBuffer(const void *ptr)
+{
+#ifndef SEPARATE_HEADERS
+    if ((((memsize_t)ptr) & HEAP_PAGE_OFFSET_MASK) == 0)
+        return NULL;
+#endif
+    return (DataBuffer *) ((memsize_t) ptr & DATA_ALIGNMENT_MASK);
 }
 
 void DataBufferBottom::noteReleased(const void *ptr)
@@ -5329,6 +5389,12 @@ extern void setDataAlignmentSize(unsigned size)
     else
         throw MakeStringException(ROXIEMM_INVALID_MEMORY_ALIGNMENT, "Invalid parameter to setDataAlignmentSize %u", size);
 }
+
+static_assert(MaxHeaderSize >= sizeof(HugeHeaplet), "MaxHeapletClassSize is too small for HugeHeaplet");
+static_assert(MaxHeaderSize >= sizeof(FixedSizeHeaplet), "MaxHeapletClassSize is too small for FixedSizeHeaplet");
+static_assert(MaxHeaderSize >= sizeof(PackedFixedSizeHeaplet), "MaxHeapletClassSize is too small for PackedFixedSizeHeaplet");
+static_assert((MaxHeaderSize % CACHE_LINE_SIZE) == 0, "MaxHeapletClassSize must be a multiple of the cache line size");
+static_assert(MaxHeaderSize >= sizeof(DataBufferBottom), "MaxHeapletClassSize is too small for DataBufferBottom");
 
 } // namespace roxiemem
 
@@ -5566,8 +5632,8 @@ public:
 protected:
     void testSetup()
     {
-        printf("Heaplet: cacheline(%u) base(%u) fixedbase(%u) fixed(%u) packed(%u) huge(%u)\n",
-                CACHE_LINE_SIZE, (size32_t)sizeof(Heaplet), (size32_t)sizeof(ChunkedHeaplet), (size32_t)sizeof(FixedSizeHeaplet), (size32_t)sizeof(PackedFixedSizeHeaplet), (size32_t)sizeof(HugeHeaplet));
+        printf("Heaplet: header(%u) cacheline(%u) base(%u) fixedbase(%u) fixed(%u) packed(%u) huge(%u) databuffer(%u)\n",
+                MaxHeaderSize, CACHE_LINE_SIZE, (size32_t)sizeof(Heaplet), (size32_t)sizeof(ChunkedHeaplet), (size32_t)sizeof(FixedSizeHeaplet), (size32_t)sizeof(PackedFixedSizeHeaplet), (size32_t)sizeof(HugeHeaplet), (size32_t)sizeof(DataBufferBottom));
         printf("Heap: fixed(%u) packed(%u) huge(%u)\n",
                 (size32_t)sizeof(CFixedChunkedHeap), (size32_t)sizeof(CPackedChunkingHeap), (size32_t)sizeof(CHugeHeap));
         printf("IHeap: fixed(%u) directfixed(%u) packed(%u) variable(%u)\n",
@@ -5682,6 +5748,8 @@ protected:
     public:
         HeapPreserver()
         {
+            _memoryBase = memoryBase;
+            _headerBase = headerBase;
             _heapBase = heapBase;
             _heapEnd = heapEnd;
             _heapBitmap = heapBitmap;
@@ -5696,6 +5764,8 @@ protected:
         }
         ~HeapPreserver()
         {
+            memoryBase = _memoryBase;
+            headerBase = _headerBase;
             heapBase = _heapBase;
             heapEnd = _heapEnd;
             heapBitmap = _heapBitmap;
@@ -5708,6 +5778,8 @@ protected:
             heapNotifyUnusedEachFree = _heapNotifyUnusedEachFree;
             heapNotifyUnusedEachBlock = _heapNotifyUnusedEachBlock;
         }
+        char *_memoryBase;
+        char *_headerBase;
         char *_heapBase;
         char *_heapEnd;
         unsigned *_heapBitmap;
@@ -6422,7 +6494,7 @@ protected:
         CountingRowAllocatorCache rowCache;
         void * memory = suballoc_aligned(1, true);
         CFixedChunkedHeap dummyHeap((CChunkingRowManager*)rowManager.get(), logctx, &rowCache, 32, 0, SpillAllCost);
-        FixedSizeHeaplet * heaplet = new (memory) FixedSizeHeaplet(&dummyHeap, &rowCache, 32);
+        FixedSizeHeaplet * heaplet = new (findBase(memory)) FixedSizeHeaplet(memory, &dummyHeap, &rowCache, 32);
         heaplet->precreateFreeChain();
         Semaphore sem;
         CasAllocatorThread * threads[numCasThreads];

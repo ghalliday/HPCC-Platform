@@ -67,6 +67,8 @@
 
 #define MAX_FRAC_ALLOCATOR              20
 
+#define SEPARATE_HEADERS
+
 //================================================================================
 // Roxie heap
 
@@ -120,12 +122,10 @@ struct roxiemem_decl HeapletBase
 {
     friend class DataBufferBottom;
 protected:
+    byte * page;
     atomic_t count;
 
-    HeapletBase()
-    {
-        atomic_set(&count,1);  // Starts off active
-    }
+    HeapletBase(void * _page);
 
     virtual ~HeapletBase()
     {
@@ -181,6 +181,17 @@ public:
     {
         return atomic_read(&count) == 1;
     }
+
+    inline char * pageBase() const
+    {
+#ifdef SEPARATE_HEADERS
+        return (char *)page;
+#else
+        return (char *)this;
+#endif
+    }
+
+
 };
 
 extern roxiemem_decl unsigned DATA_ALIGNMENT_SIZE;  // Permissible values are 0x400 and 0x2000
@@ -247,15 +258,8 @@ private:
     virtual const void * _compactRow(const void * ptr, HeapCompactState & state) { return ptr; }
     virtual void _internalFreeNoDestructor(const void *ptr) { throwUnexpected(); }
 
-    inline DataBuffer * queryDataBuffer(const void *ptr) const
-    {
-        if ((((memsize_t)ptr) & HEAP_PAGE_OFFSET_MASK) == 0)
-            return NULL;
-        return (DataBuffer *) ((memsize_t) ptr & DATA_ALIGNMENT_MASK);
-    }
-
 public:
-    DataBufferBottom(CDataBufferManager *_owner, DataBufferBottom *ownerFreeChain);
+    DataBufferBottom(void * _page, CDataBufferManager *_owner, DataBufferBottom *ownerFreeChain);
 
     void addToFreeChain(DataBuffer * buffer);
     void Link() { atomic_inc(&count); }
@@ -298,7 +302,7 @@ private:
 
     /* this causes -ve memory leak */
     void setown(const OwnedConstRoxieRow &other) {  }
-    inline OwnedConstRoxieRow(const OwnedRoxieRow & other)  { }
+    inline OwnedConstRoxieRow(const OwnedRoxieRow & other) = delete;
 
 public:
     inline const void * operator -> () const        { return ptr; } 
