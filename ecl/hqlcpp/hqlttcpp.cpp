@@ -2731,7 +2731,7 @@ IHqlExpression * ThorHqlTransformer::normalizeGroup(IHqlExpression * expr)
             }
         }
 #ifdef _DEBUG
-        assertex(!sortlist->isPure() || isPartitionedForGroup(sorted, sortlist, true)); // sanity check
+        assertex(isVolatile(sortlist) || isPartitionedForGroup(sorted, sortlist, true)); // sanity check
 #endif
     }
 
@@ -4098,6 +4098,7 @@ void CompoundSourceInfo::reset()
     isPostFiltered = false;
     isCreateRowLimited = false;
     hasOnFail = false;
+    containsSkip = false;
 }
 
 
@@ -4177,6 +4178,7 @@ bool CompoundSourceInfo::inherit(const CompoundSourceInfo & other, node_operator
     isPreloaded = other.isPreloaded;
     isCreateRowLimited = other.isCreateRowLimited;
     hasOnFail = other.hasOnFail;
+    containsSkip = other.containsSkip;
     mode = other.mode;
     uid.set(other.uid);
 
@@ -4349,15 +4351,16 @@ void CompoundSourceTransformer::analyseGatherInfo(IHqlExpression * expr)
                     IHqlExpression * dataset = expr->queryChild(0);
                     CompoundSourceInfo * parentExtra = queryBodyExtra(dataset);
                     //Skips in datasets don't work very well at the moment - pure() is a bit strict really.
-                    if ((dataset->isPure() || expr->hasAttribute(keyedAtom)) && !parentExtra->isAggregate())
+                    if ((!parentExtra->containsSkip || expr->hasAttribute(keyedAtom)) && !parentExtra->isAggregate())
                     {
                         extra->inherit(*parentExtra);
                         if (expr->hasAttribute(keyedAtom))
                             extra->ensureCompound();
-                        if (!isPureActivity(expr))
+                        if (hasTransformWithSkip(expr))
                         {
                             extra->isFiltered = true;
                             extra->isPostFiltered = true;
+                            extra->containsSkip = true;
                         }
                     }
                 }
@@ -4472,7 +4475,7 @@ void CompoundSourceTransformer::analyseGatherInfo(IHqlExpression * expr)
     case no_choosen:
         {
             IHqlExpression * arg2 = expr->queryChild(2);
-            if (arg2 && !arg2->isPure())
+            if (arg2 && !canDuplicateExpr(arg2))
                 break;
             //fall through
         }
@@ -4482,7 +4485,7 @@ void CompoundSourceTransformer::analyseGatherInfo(IHqlExpression * expr)
             CompoundSourceInfo * parentExtra = queryBodyExtra(dataset);
 
             bool cloneRequired = needToCloneLimit(expr, parentExtra->sourceOp);
-            if (cloneRequired && !expr->queryChild(1)->isPure())
+            if (cloneRequired && !canDuplicateExpr(expr->queryChild(1)))
                 break;
 
             if (parentExtra->canMergeLimit(expr, targetClusterType) && !isGrouped(expr) && parentExtra->isBinary())
@@ -4528,7 +4531,7 @@ void CompoundSourceTransformer::analyseGatherInfo(IHqlExpression * expr)
                     break;
 
                 bool isSimpleCountExists = isSimpleCountExistsAggregate(expr, true, false);
-                if (parentExtra->isCreateRowLimited)
+                if (parentExtra->isCreateRowLimited || parentExtra->containsSkip)
                     break;
                 if (parentExtra->hasAnyLimit() && !isSimpleCountExists)
                     break;
@@ -7749,7 +7752,7 @@ bool ScalarGlobalTransformer::isCandidate(IHqlExpression * expr)
 {
     //  Commented line has problems with SELF used in HOLE definition, and explosion in thumphrey7 etc.
     //return !expr->isConstant() && !isContextDependent(expr) && expr->isPure() && expr->isIndependentOfScope();
-    if (!containsAnyDataset(expr) && !expr->isConstant() && !isContextDependent(expr) && expr->isPure() && expr->isIndependentOfScope())
+    if (!containsAnyDataset(expr) && !expr->isConstant() && !isContextDependent(expr) && canChangeContext(expr) && expr->isIndependentOfScope())
     {
         node_operator op = expr->getOperator();
         switch (op)
@@ -13092,6 +13095,13 @@ IHqlExpression * HqlTreeNormalizer::createTransformedBody(IHqlExpression * expr)
         }
     case no_evaluate:
         return transformEvaluate(expr);
+    case no_evaluate_stmt:
+        {
+            IHqlExpression * ds = expr->queryChild(0);
+            if (ds->getOperator() == no_externalcall)
+                return appendOwnedOperand(ds, createAttribute(_pseudoAction_Atom));
+            break;
+        }
     case no_selectnth:
         {
             IHqlExpression * ds = expr->queryChild(0);

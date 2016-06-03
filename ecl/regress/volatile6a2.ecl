@@ -40,3 +40,5 @@ p := PROJECT(NOFOLD(ds2), t(LEFT));
 
 result2 := TABLE(p, { minId := MIN(child, id) });
 output(count(result2(minId = 1)) = 1);
+//result1 := TABLE(p, { minId := MIN(child, id); maxId := MAX(child, id); });
+//output(count(result1(minId = 1, maxId=10)) = 100);

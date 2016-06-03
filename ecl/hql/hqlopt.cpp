@@ -226,9 +226,13 @@ void ExpandComplexityMonitor::onExpand(IHqlExpression * select, IHqlExpression *
             return;
         }
     }
-    if (!newValue->isPure())
+
+    //Play safe for the moment, and don't expand volatile expressions - they might get expanded into different contexts
+    //causing multiple expandsions
+    if (!canDuplicateExpr(newValue))
         complex = true;
-    else if (isComplexExpansion(newValue))
+
+    if (isComplexExpansion(newValue))
         complex = true;
 }
 
@@ -519,7 +523,7 @@ IHqlExpression * CTreeOptimizer::optimizeAggregateUnsharedDataset(IHqlExpression
             //on fields that contain values derived from the COUNTER
             return LINK(expr);
         }
-        if (childIsSimpleCount && !isPureActivity(expr))
+        if (childIsSimpleCount && hasTransformWithSkip(expr))
             childIsSimpleCount = false;
         break;
     case no_compound_indexread:
@@ -565,7 +569,8 @@ IHqlExpression * CTreeOptimizer::optimizeAggregateUnsharedDataset(IHqlExpression
         {
             if (expr->hasAttribute(_countProject_Atom) || expr->hasAttribute(prefetchAtom))
                 break;
-            if (isPureActivity(expr) && !isAggregateDataset(expr))
+
+            if (!hasTransformWithSkip(expr) && !isAggregateDataset(expr))
             {
                 noteUnused(expr);
                 return optimizedDs.getClear();
@@ -603,17 +608,31 @@ IHqlExpression * CTreeOptimizer::optimizeAggregateDataset(IHqlExpression * trans
         {
         case no_hqlproject:
         case no_newusertable:
-            if (ds->hasAttribute(prefetchAtom))
-                break;
-
-            //MORE: If the record is empty then either remove the project if no SKIP, or convert the SKIP to a filter
-
-            //Don't remove projects for the moment because they can make counts of disk reads much less
-            //efficient.  Delete the following lines once we have a count-diskread activity
-            if (!isScalarAggregate && !(options & (HOOcompoundproject|HOOinsidecompound)) && !ds->hasAttribute(_countProject_Atom) )
-                break;
-            if (isPureActivity(ds) && !isAggregateDataset(ds))
             {
+                if (ds->hasAttribute(prefetchAtom))
+                    break;
+                if (hasTransformWithSkip(ds))
+                    break;
+                if (isAggregateDataset(ds))
+                    break;
+
+                if (isSimpleCount)
+                {
+                    next = ds->queryChild(0);
+                    break;
+                }
+
+                //A sum etc. on a volatile transform might cause the value to be re-evaluated.
+                if (!canDuplicateActivity(ds))
+                    break;
+
+                //MORE: If the record is empty then either remove the project if no SKIP, or convert the SKIP to a filter
+
+                //Don't remove projects for the moment because they can make counts of disk reads much less
+                //efficient.  Delete the following lines once we have a count-diskread activity
+                if (!isScalarAggregate && !(options & (HOOcompoundproject|HOOinsidecompound)) && !ds->hasAttribute(_countProject_Atom) )
+                    break;
+
                 OwnedMapper mapper = getMapper(ds);
                 ExpandSelectorMonitor expandMonitor(*this);
                 HqlExprArray newChildren;
@@ -638,8 +657,8 @@ IHqlExpression * CTreeOptimizer::optimizeAggregateDataset(IHqlExpression * trans
                         children.replace(OLINK(newChildren.item(idx-1)), idx);
                     next = ds->queryChild(0);
                 }
+                break;
             }
-            break;
         case no_fetch:
             if (isSimpleCount && !containsSkip(ds->queryChild(3)))
                 next = ds->queryChild(1);
@@ -1582,7 +1601,7 @@ IHqlExpression * CTreeOptimizer::optimizeProjectInlineTable(IHqlExpression * tra
     IHqlExpression * child = transformed->queryChild(0);
     IHqlExpression * values = child->queryChild(0);
     //MORE If trivial projection then might be worth merging with multiple items, but unlikely to occur in practice
-    if (!isPureInlineDataset(child) || transformed->hasAttribute(prefetchAtom))
+    if (transformed->hasAttribute(prefetchAtom))
         return NULL;
 
     bool onlyFoldConstant = false;
@@ -1905,6 +1924,31 @@ bool CTreeOptimizer::childrenAreShared(IHqlExpression * expr)
     return false;
 }
 
+bool CTreeOptimizer::canMergeProjectIntoChild(IHqlExpression * parent, IHqlExpression * child)
+{
+    if (isAggregateDataset(child))
+        return false;
+
+//    if (!isPureActivityIgnoringSkip(child))
+//        return false;
+
+    if (hasUnknownTransform(child))
+        return false;
+
+    IHqlExpression * parentCountProject = parent->queryAttribute(_countProject_Atom);
+    IHqlExpression * childCountProject = child->queryAttribute(_countProject_Atom);
+    //Don't merge two count projects - unless we go through and replace counter instances.
+    if (parentCountProject && childCountProject)
+        return false;
+
+    IHqlExpression * parentKeyed = parent->queryAttribute(keyedAtom);
+    IHqlExpression * childKeyed = child->queryAttribute(keyedAtom);
+    if (childKeyed && !parentKeyed)
+        return false;
+
+    return true;
+}
+
 bool CTreeOptimizer::isWorthMovingProjectOverLimit(IHqlExpression * project)
 {
     if (queryBodyExtra(project)->getStopHoist())
@@ -1913,6 +1957,9 @@ bool CTreeOptimizer::isWorthMovingProjectOverLimit(IHqlExpression * project)
     IHqlExpression * expr = project->queryChild(0);
     for (;;)
     {
+        if (isShared(expr))
+            return false;
+
         switch (expr->getOperator())
         {
         case no_limit:
@@ -1933,6 +1980,7 @@ bool CTreeOptimizer::isWorthMovingProjectOverLimit(IHqlExpression * project)
         case no_join:
             if (isKeyedJoin(expr))
                 return false;
+            return true;
         case no_selfjoin:
         case no_fetch:
         case no_normalize:
@@ -1942,18 +1990,15 @@ bool CTreeOptimizer::isWorthMovingProjectOverLimit(IHqlExpression * project)
         case no_null:
             return true;
         case no_newusertable:
-            if (isAggregateDataset(expr))
-                return false;
-            //fallthrough.
         case no_hqlproject:
-            if (!isPureActivity(expr) || expr->hasAttribute(_countProject_Atom) || expr->hasAttribute(prefetchAtom))
+            if (!canMergeProjectIntoChild(project, expr))
+                return false;
+            if (expr->hasAttribute(prefetchAtom))
                 return false;
             return true;
         default:
             return false;
         }
-        if (isShared(expr))
-            return false;
     }
 }
 
@@ -2467,7 +2512,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
             case no_thisnode:
                 return swapNodeWithChild(transformed);
             case no_inlinetable:
-                if ((options & HOOfoldconstantdatasets) && isPureInlineDataset(child))
+                if ((options & HOOfoldconstantdatasets) && isNoSkipInlineDataset(child))
                     folded = queryOptimizeAggregateInline(transformed, child->queryChild(0)->numChildren());
                 break;
             default:
@@ -2506,7 +2551,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                         break;
 
                     IHqlExpression * values = child->queryChild(0);
-                    if (!values->isPure())
+                    if (isShared(child) && !canDuplicateActivity(child))
                         break;
 
                     if (index < 1 || index > values->numChildren())
@@ -2564,7 +2609,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                             IHqlExpression * cur = match;
                             while (isCast(cur))
                                 cur = cur->queryChild(0);
-                            if (cur->isPure())
+                            //if (cur->isPure())
                             {
                                 //This test should not be required, but it avoids problems with elements from rows
                                 //being used conditionally within transforms.  See HPCC-11018 for details.
@@ -2896,7 +2941,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
             case no_transformascii:
             case no_transformebcdic:
                 {
-                    if (isPureActivity(child) && !isAggregateDataset(child))
+                    if (!hasTransformWithSkip(child) && !isAggregateDataset(child))
                     {
                         //Don't move a choosen with a start value over a count project - we could if we also adjust the counter
                         if (child->queryAttribute(_countProject_Atom))
@@ -2945,13 +2990,13 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
             case no_hqlproject:
             case no_newusertable:
                 {
-                    if (isPureActivity(child) && !isAggregateDataset(child) && !transformed->hasAttribute(onFailAtom))
+                    if (!hasTransformWithSkip(child) && !isAggregateDataset(child) && !transformed->hasAttribute(onFailAtom))
                         return forceSwapNodeWithChild(transformed);
                     break;
                 }
             case no_fetch:
                 {
-                    if (isPureActivity(child))
+                    if (!hasTransformWithSkip(child))
                         return swapNodeWithChild(transformed, 1);
                     break;
                 }
@@ -3140,7 +3185,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                 break;
             }
             case no_fetch:
-                if (isPureActivity(child) && !hasUnknownTransform(child))
+                if (!hasTransformWithSkip(child) && !hasUnknownTransform(child))
                 {
                     IHqlExpression * ret = getHoistedFilter(transformed, false, false, true, true, NotFound);
                     if (ret)
@@ -3150,7 +3195,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
             case no_iterate:
                 //Should be possible to move a filter over a iterate, but only really same if the filter fields match the grouping criteria
 #if 0
-                if (isPureActivity(child))
+                if (!hasTransformWithSkip(child))
                 {
                     OwnedHqlExpr ret = queryPromotedFilter(transformed, no_right, 0);
                     if (ret)
@@ -3162,7 +3207,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                 //I don't think you can't move a filter over a rollup because it might affect the records rolled up.
                 //unless the filter fields match the grouping criteria
 #if 0
-                if (isPureActivity(child))
+                if (!hasTransformWithSkip(child))
                 {
                     OwnedHqlExpr ret = queryPromotedFilter(transformed, no_left, 0);
                     if (ret)
@@ -3171,7 +3216,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
 #endif
                 break;
             case no_selfjoin:
-                if (isPureActivity(child) && !hasUnknownTransform(child) && !isLimitedJoin(child) && !child->hasAttribute(fullouterAtom) && !child->hasAttribute(fullonlyAtom) && !child->hasAttribute(_countProject_Atom))
+                if (!hasTransformWithSkip(child) && !hasUnknownTransform(child) && !isLimitedJoin(child) && !child->hasAttribute(fullouterAtom) && !child->hasAttribute(fullonlyAtom))
                 {
                     //Strictly speaking, we could hoist conditions that can be hoisted for left only (or even full) joins etc. if the fields that are filtered
                     //are based on equalities in the join condition.  However, that can wait....  (same for join below...)
@@ -3187,7 +3232,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                 }
                 break;
             case no_join:
-                if (isPureActivity(child) && !hasUnknownTransform(child) && !isLimitedJoin(child) && !child->hasAttribute(fullouterAtom) && !child->hasAttribute(fullonlyAtom) && !child->hasAttribute(_countProject_Atom))
+                if (!hasTransformWithSkip(child) && !hasUnknownTransform(child) && !isLimitedJoin(child) && !child->hasAttribute(fullouterAtom) && !child->hasAttribute(fullonlyAtom))
                 {
                     bool canHoistLeft = !child->hasAttribute(rightouterAtom) && !child->hasAttribute(rightonlyAtom);
                     bool canMergeLeft = isInnerJoin(child);
@@ -3331,7 +3376,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                     break;
             case no_hqlproject:
                 {
-                    if (!isPureActivityIgnoringSkip(child) || hasUnknownTransform(child))
+                    if (!canMergeProjectIntoChild(transformed, child))
                         break;
 
                     IHqlExpression * childTransform = queryNewColumnProvider(child);
@@ -3339,12 +3384,6 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                         break;
 
                     IHqlExpression * childCountProject = child->queryAttribute(_countProject_Atom);
-                    //Don't merge two count projects - unless we go through and replace counter instances.
-                    if (transformedCountProject && childCountProject)
-                        break;
-                    IHqlExpression * childKeyed = child->queryAttribute(keyedAtom);
-                    if (childKeyed && !transformKeyed)
-                        break;
 
                     OwnedMapper mapper = getMapper(child);
                     IHqlExpression * transformedSeq = querySelSeq(transformed);
@@ -3388,7 +3427,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
             case no_newxmlparse:
             case no_rollupgroup:
                 {
-                    if (!isPureActivity(child) || !isPureActivity(transformed) || transformedCountProject)
+                    if (hasTransformWithSkip(child) || hasTransformWithSkip(transformed) || transformedCountProject)
                         break;
 
                     IHqlExpression * transformedSeq = querySelSeq(transformed);
@@ -3435,10 +3474,12 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                 break;
             case no_limit:
             case no_choosen:
+                if (hasTransformWithSkip(transformed))
+                    break;
                 if (isWorthMovingProjectOverLimit(transformed))
                 {
                     //MORE: Later this is going to be worth moving aggregates.... when we have a compound aggregates.
-                    if (isPureActivity(transformed) && !isAggregateDataset(transformed) && !transformedCountProject)
+                    if (!isAggregateDataset(transformed) && !transformedCountProject)
                     {
                         if (child->hasAttribute(onFailAtom))
                             return moveProjectionOverLimit(transformed);
@@ -3483,7 +3524,11 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
             case no_createrow:
             case no_projectrow:
                 {
-                    if (!isPureActivity(child) || !isPureActivity(transformed) || hasUnknownTransform(child))
+                    //Usage counts for rows aren't currently maintained, so can't guarantee that it won't duplicate the child.
+                    if (!canDuplicateActivity(child))
+                        break;
+
+                    if (hasUnknownTransform(transformed) || hasUnknownTransform(child))
                         break;
 
                     IHqlExpression * transform = transformed->queryChild(1);
@@ -3530,22 +3575,14 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                     break;
                 return swapIntoAddFiles(transformed);
             case no_newusertable:
-                if (isAggregateDataset(child))
-                    break;
-                //fallthrough.
             case no_hqlproject:
                 {
-                    if (!isPureActivity(child) || hasUnknownTransform(child))
+                    if (!canMergeProjectIntoChild(transformed, child))
                         break;
 
                     if (child->hasAttribute(_countProject_Atom) || child->hasAttribute(prefetchAtom))
                         break;
     
-                    IHqlExpression * transformKeyed = transformed->queryAttribute(keyedAtom);
-                    IHqlExpression * childKeyed = child->queryAttribute(keyedAtom);
-                    if (childKeyed && !transformKeyed)
-                        break;
-
                     IHqlExpression * grandchild = child->queryChild(0);
                     OwnedMapper mapper = getMapper(child);
 
@@ -3597,7 +3634,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
             case no_newxmlparse:
             case no_rollupgroup:
                 {
-                    if (!isPureActivity(child) || !isPureActivity(transformed))
+                    if (hasTransformWithSkip(child) || hasTransformWithSkip(transformed))
                         break;
 
                     IHqlExpression * transform = transformed->queryChild(2);
@@ -3625,9 +3662,11 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
             case no_keyedlimit:
             case no_limit:
             case no_choosen:
+                if (hasTransformWithSkip(transformed))
+                    break;
                 if (isWorthMovingProjectOverLimit(transformed))
                 {
-                    if (isPureActivity(transformed) && !isAggregateDataset(transformed))
+                    if (!isAggregateDataset(transformed))
                     {
                         if (child->hasAttribute(onFailAtom))
                             return moveProjectionOverLimit(transformed);
@@ -3716,7 +3755,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                 {
                 case no_hqlproject:
                 case no_newusertable:
-                    if (isPureActivity(child) && !child->hasAttribute(_countProject_Atom) && !child->hasAttribute(prefetchAtom) && !isAggregateDataset(child))
+                    if (!hasTransformWithSkip(child) && !child->hasAttribute(_countProject_Atom) && !child->hasAttribute(prefetchAtom) && !isAggregateDataset(child))
                         return swapNodeWithChild(transformed);
                     break;
                 }
@@ -4007,11 +4046,14 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                 case no_newusertable:
                 case no_hqlproject:
                     {
-                        if (!isPureActivity(child) || child->queryAttribute(_countProject_Atom) || child->hasAttribute(prefetchAtom))
+                        if (child->queryAttribute(_countProject_Atom) || child->hasAttribute(prefetchAtom))
                             break;
 
                         IHqlExpression * transform = queryNewColumnProvider(child);
                         if (transformContainsSkip(transform) || !isSimpleTransformToMergeWith(transform))
+                            break;
+                        //May start evaluating more than once if in compare condition and/or transform
+                        if (!canDuplicateExpr(transform))
                             break;
 
                         OwnedMapper mapper = getMapper(child);
