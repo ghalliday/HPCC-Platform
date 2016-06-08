@@ -752,8 +752,8 @@ void HqlCppTranslator::doBuildExprAggregate(BuildCtx & ctx, IHqlExpression * exp
     tgt.setFromTarget(result);
     if (!isSameBasicType(type, tempType))
         tgt.expr.setown(createValue(no_implicitcast, LINK(type), tgt.expr.getClear()));
-    if (expr->isPure())
-        aggctx.associateExpr(expr, tgt);
+
+    aggctx.associateExpr(expr, tgt);
 }
 
 
@@ -1773,7 +1773,7 @@ IHqlExpression * HqlCppTranslator::getResourcedChildGraph(BuildCtx & ctx, IHqlEx
 
 void HqlCppTranslator::buildChildDataset(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt)
 {
-    if (expr->isPure() && ctx.getMatchExpr(expr, tgt))
+    if (ctx.getMatchExpr(expr, tgt))
         return;
 
     LoopInvariantHelper helper;
@@ -1787,8 +1787,7 @@ void HqlCppTranslator::buildChildDataset(BuildCtx & ctx, IHqlExpression * expr, 
     buildAssignChildDataset(bestctx, temp, expr);
     tgt.setFromTarget(temp);
 
-    if (expr->isPure())
-        bestctx.associateExpr(expr, tgt);
+    bestctx.associateExpr(expr, tgt);
 }
 
 
@@ -1884,7 +1883,7 @@ IHqlExpression * HqlCppTranslator::forceInlineAssignDataset(BuildCtx & ctx, IHql
     loop
     {
         CHqlBoundExpr bound;
-        if (expr->isPure() && ctx.getMatchExpr(expr, bound))
+        if (ctx.getMatchExpr(expr, bound))
             return bound.getTranslatedExpr();
 
         if (canProcessInline(&ctx, expr) || (expr->getOperator() == no_translated))
@@ -2080,7 +2079,7 @@ void HqlCppTranslator::buildDataset(BuildCtx & ctx, IHqlExpression * expr, CHqlB
 
 void HqlCppTranslator::doBuildDataset(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt, ExpressionFormat format)
 {
-    if (expr->isPure() && ctx.getMatchExpr(expr, tgt))
+    if (ctx.getMatchExpr(expr, tgt))
         return;
 
 /*

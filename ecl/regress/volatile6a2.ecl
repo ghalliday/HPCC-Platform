@@ -26,8 +26,9 @@ r := {unsigned id};
 ds := dataset(10, transform(r, SELF.id := nextSequence()));
 
 //instance 1
-// used within a child query, and not globally, therefore, each transform call should
-// re-evaluate the child datset, since the default is not to move the dataset outside.
+// used within a child query, and not globally.
+// The context sensitivity does not extend outside of the dataset, therefore the
+// child dataset should only be evaluated once
 
 ds2 := DATASET(100, transform({ unsigned id }, SELF.id := COUNTER));
 outRec := { unsigned id, dataset(r) child };
@@ -38,5 +39,5 @@ END;
 
 p := PROJECT(NOFOLD(ds2), t(LEFT));
 
-result2 := TABLE(p, { minId := MIN(child, id) });
-output(count(result2(minId = 1)) = 1);
+result1 := TABLE(p, { minId := MIN(child, id); maxId := MAX(child, id); });
+output(count(result1(minId = 1, maxId=10)) = 100);

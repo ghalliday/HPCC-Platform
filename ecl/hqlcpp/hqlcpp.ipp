@@ -1229,6 +1229,7 @@ public:
     void doBuildAssignRegexFindReplace(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr);
     void doBuildAssignSubString(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr);
     void doBuildAssignToXmlorJson(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr);
+    void doBuildAssignSysFunc(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr, IIdAtom * funcName);
     void doBuildAssignTrim(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr);
     void doBuildAssignWhich(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr);
     void doBuildAssignWuid(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr);
@@ -1393,6 +1394,7 @@ public:
     void buildWorkflowPersistCheck(BuildCtx & ctx, IHqlExpression * expr);
 
     IHqlExpression * cvtGetEnvToCall(IHqlExpression * expr);
+    IHqlExpression * bindExprSysFunc(IHqlExpression * expr, IIdAtom * funcName);
 
 //Statements
     void doBuildStmtApply(BuildCtx & ctx, IHqlExpression * expr);

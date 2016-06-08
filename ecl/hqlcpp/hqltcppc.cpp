@@ -568,6 +568,7 @@ IHqlExpression * CMemberInfo::createSelfPeekDeserializer(HqlCppTranslator & tran
     HqlExprArray peekArgs;
     peekArgs.append(*LINK(helper));
     peekArgs.append(*LINK(maxSize));
+    peekArgs.append(*createUniqueId());
     return translator.bindTranslatedFunctionCall(deserializerPeekId, peekArgs);
 }
 
