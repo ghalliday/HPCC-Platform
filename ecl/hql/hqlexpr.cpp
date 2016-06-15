@@ -10300,6 +10300,18 @@ extern bool isVolatileFuncdef(IHqlExpression * funcdef)
         {
             if (body->hasAttribute(volatileAtom))
                 return true;
+            if (body->hasAttribute(ctxmethodAtom))
+            {
+                StringBuffer entrypoint;
+                getStringValue(entrypoint, queryAttributeChild(body, entrypointAtom, 0));
+                if (streq(entrypoint.str(), "getNodeNum") || streq(entrypoint.str(), "getNodes") ||
+                    streq(entrypoint.str(), "getFilePart"))
+                {
+                    return false;
+                }
+            }
+            if (!body->hasAttribute(pureAtom) && !body->hasAttribute(onceAtom))
+                return !body->isDataset();
             return false;
         }
     case no_outofline:
@@ -10334,7 +10346,10 @@ CHqlExternalCall::CHqlExternalCall(IHqlExpression * _funcdef, ITypeInfo * _type,
     //Once aren't really pure, but are as far as the code generator is concerned.  Split into more flags if it becomes an issue.
     if (!body->hasAttribute(pureAtom) && !body->hasAttribute(onceAtom))
     {
-        infoFlags |= (HEFnoduplicate);
+        if (!body->isDataset())
+            impureFlags |= (HEFnoduplicate|HEFcontextDependentException);
+        else
+            impureFlags |= (HEFnoduplicate);
     }
 
     //Special case built in context functions for backward compatibility
@@ -10343,13 +10358,11 @@ CHqlExternalCall::CHqlExternalCall(IHqlExpression * _funcdef, ITypeInfo * _type,
         StringBuffer entrypoint;
         getStringValue(entrypoint, queryAttributeChild(body, entrypointAtom, 0));
         if (streq(entrypoint.str(), "getNodeNum") ||
-            streq(entrypoint.str(), "getFilePart"))
+            streq(entrypoint.str(), "getFilePart") ||
+            streq(entrypoint.str(), "getNodes"))
         {
             impureFlags |= HEFcontextDependentException;
-        }
-        if (streq(entrypoint.str(), "getPlatform"))
-        {
-            //impureFlags |= (HEFvolatilevalue|HEFcontextDependentException);
+            impureFlags &= ~HEFnoduplicate;
         }
     }
 

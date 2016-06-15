@@ -42,7 +42,7 @@ output(IF(volatile4(100) != volatile4(99), 'Pass', 'Fail'));
 
 //Create a unique instance for each value of n
 volatile5(integer n) := volatile4(n);
-output(IF(volatile5(1) != volatile5(2), 'Pass', 'Fail'));
+output(IF(volatile5(1) = volatile5(2), 'Pass', 'Fail'));
 output(IF(volatile5(5) = volatile5(5), 'Pass', 'Fail'));
 
 //Create a unique volatile instance each time the function is called.
