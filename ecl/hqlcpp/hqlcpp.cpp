@@ -2038,8 +2038,11 @@ IHqlExpression * HqlCppTranslator::bindFunctionCall(IIdAtom * name, HqlExprArray
 IHqlExpression * HqlCppTranslator::bindTranslatedFunctionCall(IHqlExpression * function, HqlExprArray & args)
 {
     useFunction(function);
+
+    //A volatile function needs to generate unique instances so it doesn't get commoned up.
     if (!function->isAction() && isVolatileFuncdef(function))
         args.append(*createVolatileId());
+
     IHqlExpression * ret = createTranslatedExternalCall(NULL, function, args);
     assertex(ret->queryExternalDefinition());
     args.kill();
@@ -6226,6 +6229,9 @@ void HqlCppTranslator::doBuildCall(BuildCtx & ctx, const CHqlBoundTarget * tgt, 
 void HqlCppTranslator::doBuildExprCall(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt)
 {
     bool ensureCommonedUp = false;
+
+    //Volatile functions should always resolve to the same value - otherwise you can get inconsistencies
+    //But it doesn't matter if their arguments are volatile. Hence the check for the volatile atom.
     if (isVolatile(expr) && expr->hasAttribute(_volatileId_Atom))
     {
         if (!containsTranslated(expr) && !expr->isAction() && !hasStreamedModifier(expr->queryType()))

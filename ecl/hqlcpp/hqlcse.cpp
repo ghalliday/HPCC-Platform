@@ -465,7 +465,8 @@ bool CseSpotter::checkPotentialCSE(IHqlExpression * expr, CseSpotterInfo * extra
     if (extra->alreadyAliased)
         return false;
 
-    if (!expr->isPure())
+    //For the moment, play safe.  I'm not sure this is strictly correct
+    if (!canRemoveGuard(expr))
         return false;
 
     if (!canCreateTemporary(expr))
@@ -530,7 +531,6 @@ bool CseSpotter::checkPotentialCSE(IHqlExpression * expr, CseSpotterInfo * extra
     case no_getgraphresult:
     case no_getgraphloopresult:
     case no_translated: // Causes recursion otherwise....
-    case no_random:
         return false;
     case no_call:
     case no_externalcall:
@@ -1227,7 +1227,7 @@ static bool canHoistInvariant(IHqlExpression * expr)
             return false;
     }
 
-    if (!expr->isPure())
+    if (!canChangeContext(expr))
         return false;
     if (expr->isFunction())
         return false;
