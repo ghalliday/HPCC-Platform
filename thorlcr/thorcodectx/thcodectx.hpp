@@ -119,6 +119,7 @@ public:
     virtual IEngineContext *queryEngineContext() { return NULL; }
     virtual char *getDaliServers();
     virtual IWorkUnit *updateWorkUnit() const { throwUnexpected(); }
+    virtual ISectionTimer * registerTimer(unsigned subgraphId, unsigned activityId, const char * name);
 };
 
 #endif

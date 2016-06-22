@@ -569,6 +569,14 @@ public:
     {
         return ctx->updateWorkUnit();
     }
+    virtual ISectionTimer * registerTimer(unsigned subgraphId, unsigned activityId, const char * name)
+    {
+        return ctx->registerTimer(subgraphId, activityId, name);
+    }
+    virtual unsigned __int64 getStartTimer()
+    {
+        return get_cycles_now();
+    }
 protected:
     ICodeContext * ctx;
 };
