@@ -23,3 +23,17 @@
 #include "eclhelper.hpp"
 #include "eclrtl_imp.hpp"
 #include "rtldynfield.hpp"
+
+
+RtlDynFieldInfo * DynamicFieldTypeInstance::addField(const char * name, const char * xpath, const RtlTypeInfo * type)
+{
+    RtlDynFieldInfo * field = new RtlDynFieldInfo(name, xpath, type);
+    fields.emplace_back(field);
+    return field;
+}
+
+DynamicFieldTypeInstance * createDynamicTypeInfo()
+{
+    return new DynamicFieldTypeInstance;
+}
+

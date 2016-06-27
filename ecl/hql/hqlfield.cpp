@@ -23,3 +23,7 @@
 #include "hqlexpr.hpp"
 #include "hqlfield.hpp"
 
+RtlFieldInfo * createRtlFieldInfo(DynamicFieldTypeInstance & info, IHqlExpression * record, bool expandRows)
+{
+    return nullptr;
+}

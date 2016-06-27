@@ -20,4 +20,7 @@
 #include "hqlexpr.hpp"
 #include "rtldynfield.hpp"
 
+//Should expandRows be an option or a separate transform, a member of DynamicFieldTypeInstance?
+RtlFieldInfo * createRtlFieldInfo(DynamicFieldTypeInstance & info, IHqlExpression * record, bool expandRows);
+
 #endif
