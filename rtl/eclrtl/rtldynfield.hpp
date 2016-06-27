@@ -19,6 +19,8 @@
 #define rtldynfield_hpp
 
 #include "rtlfield.hpp"
+#include <vector>
+#include <memory>
 
 //These classes support the dynamic creation of type and field information
 
@@ -37,5 +39,21 @@ protected:
     StringAttr xpathAttr;
 };
 
+
+//-------------------------------------------------------------------------------------------------------------------
+
+class ECLRTL_API DynamicFieldTypeInstance : public CInterface
+{
+public:
+    DynamicFieldTypeInstance() {}
+    DynamicFieldTypeInstance(const DynamicFieldTypeInstance &) = delete; // must be deleted because of the vectors of unique_ptrs
+    DynamicFieldTypeInstance & operator = (const DynamicFieldTypeInstance &) = delete;
+
+    RtlDynFieldInfo * addField(const char * name, const char * xpath, const RtlTypeInfo * type);
+
+protected:
+    std::vector<std::unique_ptr<RtlITypeInfo>> types;
+    std::vector<std::unique_ptr<RtlDynFieldInfo>> fields;
+};
 
 #endif
