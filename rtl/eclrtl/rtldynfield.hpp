@@ -15,12 +15,15 @@
     limitations under the License.
 ############################################################################## */
 
+// This header must not be included by the generated code
+
 #ifndef rtldynfield_hpp
 #define rtldynfield_hpp
 
 #include "rtlfield.hpp"
 #include <vector>
 #include <memory>
+#include "jlib.hpp"
 
 //These classes support the dynamic creation of type and field information
 
@@ -28,19 +31,28 @@ struct ECLRTL_API RtlDynFieldInfo : public RtlFieldInfo
 {
 public:
     RtlDynFieldInfo(const char * _name, const char * _xpath, const RtlTypeInfo * _type)
-    : RtlFieldInfo(nullptr, nullptr, _type, nullptr), nameAttr(_name), xpathAttr(_xpath)
+    : RtlFieldInfo(_name, _xpath, _type, nullptr)
     {
-        name = nameAttr.get();
-        xpath = xpathAttr.get();
     }
-
-protected:
-    StringAttr nameAttr;
-    StringAttr xpathAttr;
+    ~RtlDynFieldInfo()
+    {
+        free(const_cast<char *>(name));
+        free(const_cast<char *>(xpath));
+    }
 };
 
 
 //-------------------------------------------------------------------------------------------------------------------
+
+struct ECLRTL_API RtlDynRecordTypeInfo : public RtlRecordTypeInfo
+{
+    inline RtlDynRecordTypeInfo(unsigned _fieldType, unsigned _length, const RtlFieldInfo * const * _fields) : RtlRecordTypeInfo(_fieldType, _length, _fields) {}
+    ~RtlDynRecordTypeInfo() { delete[] fields; }
+};
+
+//-------------------------------------------------------------------------------------------------------------------
+
+typedef ConstPointerArrayOf<const RtlFieldInfo> RtlFieldArray;
 
 class ECLRTL_API DynamicFieldTypeInstance : public CInterface
 {
@@ -50,6 +62,13 @@ public:
     DynamicFieldTypeInstance & operator = (const DynamicFieldTypeInstance &) = delete;
 
     RtlDynFieldInfo * addField(const char * name, const char * xpath, const RtlTypeInfo * type);
+    void addType(RtlTypeInfo * type);
+
+    void expandFields(RtlFieldArray &, const RtlFieldInfo * type);
+
+protected:
+    void expandFields(RtlFieldArray &, const RtlFieldInfo * type, StringBuffer & prefix);
+    void expandFields(RtlFieldArray &, const RtlTypeInfo * type, StringBuffer & prefix);
 
 protected:
     std::vector<std::unique_ptr<RtlITypeInfo>> types;

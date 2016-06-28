@@ -323,6 +323,16 @@ private:
     StringBuffer & buffer;
 };
 
+class jlib_decl StringLengthPreserver
+{
+public:
+    inline StringLengthPreserver(StringBuffer & _buffer) : buffer(_buffer) { length = buffer.length(); }
+    inline ~StringLengthPreserver() { buffer.setLength(length); }
+protected:
+    StringBuffer & buffer;
+    size32_t length;
+};
+
 #ifdef __GNUC__
 class jlib_decl GccStringAttrAdaptor
 {
