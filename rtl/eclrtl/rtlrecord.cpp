@@ -67,8 +67,9 @@ RtlFieldOffsetCalculator::RtlFieldOffsetCalculator(RtlFieldArray & fields)
 
 }
 
-void RtlFieldOffsetCalculator::setRow(const byte * row)
+void RtlFieldOffsetCalculator::setRow(const void * _row)
 {
+    const byte * row = static_cast<const byte *>(_row);
     size_t totalVarSize = 0;
     for (unsigned i = 0; i < numVarFields; i++)
     {
