@@ -22,21 +22,32 @@
 #include "rtldynfield.hpp"
 
 //These classe provides a relatively efficient way to access fields within a variable length record structure.
+// Probably convert to an interface with various concrete implementations for varing degrees of complexity
 struct ECLRTL_API RtlFieldOffsetCalculator
 {
 public:
     RtlFieldOffsetCalculator(RtlFieldArray & fields);
 
-    void setRow(const byte * row);
+    void setRow(const void * row);
 
-    size_t getOffset(unsigned field)
+    size_t getOffset(unsigned field) const
     {
         return fixedOffsets[field] + variableTotals[variableIndex[field]];
     }
 
-    size_t getRecordSize()
+    size_t getRecordSize() const
     {
         return fixedOffsets[numFields] + variableTotals[numVarFields];
+    }
+
+    virtual size32_t getFixedSize() const
+    {
+        return  numVarFields ? 0 : fixedOffsets[numFields];
+    }
+
+    virtual size32_t getMinRecordSize() const
+    {
+        return fixedOffsets[numFields] + numVarFields * sizeof(size32_t);
     }
 
 protected:
@@ -49,6 +60,29 @@ protected:
     const RtlTypeInfo * * types;
 };
 
+class ECLRTL_API RtlRecordSize : CInterfaceOf<IRecordSize>
+{
+    RtlRecordSize(RtlFieldArray & fields) : offsetCalculator(fields) {}
 
+    virtual size32_t getRecordSize(const void *rec)
+    {
+        assertex(rec);
+        offsetCalculator.setRow(rec);
+        return offsetCalculator.getRecordSize();
+    }
+
+    virtual size32_t getFixedSize()
+    {
+        return offsetCalculator.getFixedSize();
+    }
+    // returns 0 for variable row size
+    virtual size32_t getMinRecordSize() const
+    {
+        return offsetCalculator.getMinRecordSize();
+    }
+
+protected:
+    RtlFieldOffsetCalculator offsetCalculator;
+};
 
 #endif
