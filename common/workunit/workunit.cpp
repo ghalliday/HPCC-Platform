@@ -6767,7 +6767,15 @@ void CLocalWorkUnit::createGraph(const char * name, const char *label, WUGraphTy
 
 IConstWUGraphProgress *CLocalWorkUnit::getGraphProgress(const char *name) const
 {
-    throwUnexpected();   // Should only be used for persisted workunits
+/*    Owned<IRemoteConnection> conn = getProgressConnection();
+    if (conn)
+    {
+        IPTree *progress = conn->queryRoot()->queryPropTree(graphName);
+        if (progress)
+            return new CConstGraphProgress(p->queryName(), graphName, progress);
+    }
+    */
+    return NULL;
 }
 WUGraphState CLocalWorkUnit::queryGraphState(const char *graphName) const
 {
