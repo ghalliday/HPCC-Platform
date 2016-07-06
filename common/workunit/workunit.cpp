@@ -6787,7 +6787,7 @@ void CLocalWorkUnit::setNodeState(const char *graphName, WUGraphIDType nodeId, W
 }
 IWUGraphStats *CLocalWorkUnit::updateStats(const char *graphName, StatisticCreatorType creatorType, const char * creator, unsigned subgraph) const
 {
-    throwUnexpected();   // Should only be used for persisted workunits
+    return new CWuGraphStats(LINK(p), creatorType, creator, graphName, subgraph);
 }
 
 void CLocalWUGraph::setName(const char *str)

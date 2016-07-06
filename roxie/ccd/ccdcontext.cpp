@@ -23,6 +23,7 @@
 #include "rtlread_imp.hpp"
 #include "thorplugin.hpp"
 #include "thorxmlread.hpp"
+#include "thorstats.hpp"
 #include "roxiemem.hpp"
 #include "eventqueue.hpp"
 
@@ -1125,65 +1126,7 @@ public:
 
 //---------------------------------------------------------------------------------------
 
-class RoxieSectionTimer : public CSimpleInterfaceOf<ISectionTimer>
-{
-public:
-    RoxieSectionTimer(const char * _name, unsigned _subgraphId, unsigned _activityId)
-    : name(_name), subgraphId(_subgraphId), activityId(_activityId)
-    {}
-
-    bool matches(const char * _name, unsigned _subgraphId, unsigned _activityId) const
-    {
-        return (subgraphId == _subgraphId) && (activityId == _activityId) && strsame(name, _name);
-    }
-
-    virtual unsigned __int64 getStartCycles()
-    {
-        return get_cycles_now();
-    }
-
-    virtual void noteSectionTime(unsigned __int64 startCycles)
-    {
-        cycle_t delay = get_cycles_now() - startCycles;
-        elapsed.add_fetch(delay);
-        occurences++;
-    }
-
-    void recordStatistics(IStatisticGatherer & builder)
-    {
-        if (occurences)
-        {
-            if (activityId)
-            {
-                StatsSubgraphScope graphScope(builder, subgraphId);
-                StatsActivityScope activityScope(builder, activityId);
-                addStatistics(builder);
-            }
-            else
-                addStatistics(builder);
-        }
-    }
-
-protected:
-    void addStatistics(IStatisticGatherer & builder)
-    {
-        StatsScope funcScope(builder, StatsScopeId(SSTfunction, name));
-        builder.addStatistic(StTimeLocalExecute, elapsed);
-        builder.addStatistic(StNumExecutions, occurences);
-    }
-
-private:
-    RelaxedAtomic<cycle_t> elapsed = {0};
-    RelaxedAtomic<unsigned __int64> occurences = {0};
-    StringAttr name;
-    unsigned subgraphId = 0;
-    unsigned activityId = 0;
-};
-
-
-
-//---------------------------------------------------------------------------------------
-
+static const StatisticsMapping graphStatistics(StKindNone);
 class CRoxieContextBase : public CInterface, implements IRoxieSlaveContext, implements ICodeContext, implements roxiemem::ITimeLimiter, implements IRowAllocatorMetaActIdCacheCallback
 {
 protected:
@@ -1266,7 +1209,7 @@ protected:
 public:
     IMPLEMENT_IINTERFACE;
     CRoxieContextBase(const IQueryFactory *_factory, const IRoxieContextLogger &_logctx)
-        : factory(_factory), logctx(_logctx), options(factory->queryOptions())
+        : factory(_factory), logctx(_logctx), options(factory->queryOptions()), globalStats(graphStatistics)
     {
         startTime = lastWuAbortCheck = msTick();
         persists = NULL;
@@ -1528,14 +1471,7 @@ public:
             }
             graph.clear();
             childGraphs.kill();
-            if (graphStats)
-            {
-                IStatisticGatherer & builder = graphStats->queryStatsBuilder();
-                ForEachItemIn(i, functionStats)
-                    functionStats.item(i).recordStatistics(builder);
-                functionStats.kill();
-                graphStats.clear();
-            }
+            graphStats.clear();
             if (error)
                 throw error;
         }
@@ -2050,7 +1986,8 @@ protected:
     IPropertyTree *rereadResults;
     PTreeReaderOptions xmlStoredDatasetReadFlags;
     CDeserializedResultStore *deserializedResultStore;
-    IArrayOf<RoxieSectionTimer> functionStats;
+    MapStringToMyClass<ThorSectionTimer> functionTimers;
+    CRuntimeStatisticCollection globalStats;
 
     IPropertyTree &useContext(unsigned sequence)
     {
@@ -2670,6 +2607,14 @@ protected:
 
     void doPostProcess()
     {
+        if (workUnit)
+        {
+            WorkunitUpdate w(&workUnit->lock());
+            Owned<IStatisticGatherer> builder = createGlobalStatisticGatherer(w);
+            globalStats.recordStatistics(*builder);
+        }
+        logctx.mergeStats(globalStats);
+        globalStats.reset();
         if (!protocol)
             return;
 
@@ -3607,15 +3552,19 @@ public:
 
     virtual ISectionTimer * registerTimer(unsigned subgraphId, unsigned activityId, const char * name)
     {
-        ForEachItemIn(i, functionStats)
+        if (subgraphId)
         {
-            RoxieSectionTimer & cur = functionStats.item(i);
-            if (cur.matches(name, subgraphId, activityId))
-                return &cur;
+            IRoxieServerActivity *act = graph->queryActivity(activityId);
+            if (act)
+                return act->registerTimer(subgraphId, activityId, name);
         }
-        RoxieSectionTimer * stat = new RoxieSectionTimer(name, subgraphId, activityId);
-        functionStats.append(*stat);
-        return stat;
+        ISectionTimer *timer = functionTimers.getValue(name);
+        if (!timer)
+        {
+            timer = ThorSectionTimer::createTimer(globalStats, name);
+            functionTimers.setValue(name, timer);
+        }
+        return timer;
     }
 
     virtual bool isResult(const char * name, unsigned sequence)
