@@ -29,11 +29,7 @@
 #include "roxiemem.hpp"
 #include <vector>
 
-#ifdef _WIN32
-#define EXPORT __declspec(dllexport)
-#else
-#define EXPORT
-#endif
+#define EXPORT DECL_EXPORT
 
 static const char * compatibleVersions[] = {
     "V8 JavaScript Embed Helper 1.0.0",

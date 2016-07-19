@@ -18,11 +18,7 @@
 #pragma warning (disable : 4786)
 
 #ifndef WsFileIO_API
-#ifdef _WIN32
-#define WsFileIO_API __declspec(dllexport)
-#else
-#define WsFileIO_API
-#endif //_WIN32
+#define WsFileIO_API DECL_EXPORT
 #endif //WsFileIO_API
 
 #include "ws_fileio_esp.ipp"

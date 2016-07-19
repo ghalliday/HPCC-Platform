@@ -197,6 +197,10 @@ if ( ${HAVE_LIBDL} )
 target_link_libraries ( jlib dl)
 endif ( ${HAVE_LIBDL} )
 
+if (CMAKE_COMPILER_IS_GNUCC)
+  ADD_DEFINITIONS( -fvisibility=hidden)
+endif()
+
 if ( ${HAVE_LIBCRYPT} )
 target_link_libraries ( jlib crypt)
 endif ( ${HAVE_LIBCRYPT} )

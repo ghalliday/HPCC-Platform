@@ -17,14 +17,10 @@
 #ifndef HTHOR_INCL
 #define HTHOR_INCL
 
-#ifdef _WIN32
 #ifdef HTHOR_EXPORTS
-#define HTHOR_API __declspec(dllexport)
+#define HTHOR_API DECL_EXPORT
 #else
-#define HTHOR_API __declspec(dllimport)
-#endif
-#else
-#define HTHOR_API
+#define HTHOR_API DECL_IMPORT
 #endif
 
 #include "eclhelper.hpp"

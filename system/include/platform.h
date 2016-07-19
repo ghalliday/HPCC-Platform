@@ -506,4 +506,18 @@ typedef __int64 cycle_t;
 #endif
 #endif
 
+#ifdef _MSC_VER
+ #define DECL_EXPORT __declspec(dllexport)
+ #define DECL_IMPORT __declspec(dllimport)
+ #define DECL_LOCAL
+#elif __GNUC__ >= 4
+ #define DECL_EXPORT __attribute__ ((visibility ("default")))
+ #define DECL_IMPORT __attribute__ ((visibility ("default")))
+ #define DECL_LOCAL  __attribute__ ((visibility ("hidden")))
+#else
+ #define DECL_EXPORT
+ #define DECL_IMPORT
+ #define DECL_LOCAL
+#endif
+
 #endif

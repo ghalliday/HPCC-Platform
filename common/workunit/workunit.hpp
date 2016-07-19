@@ -18,14 +18,10 @@
 #ifndef WORKUNIT_INCL
 #define WORKUNIT_INCL
 
-#ifdef _WIN32
-    #ifdef WORKUNIT_EXPORTS
-        #define WORKUNIT_API __declspec(dllexport)
-    #else
-        #define WORKUNIT_API __declspec(dllimport)
-    #endif
+#ifdef WORKUNIT_EXPORTS
+    #define WORKUNIT_API DECL_EXPORT
 #else
-    #define WORKUNIT_API
+    #define WORKUNIT_API DECL_IMPORT
 #endif
 
 #define MINIMUM_SCHEDULE_PRIORITY 0

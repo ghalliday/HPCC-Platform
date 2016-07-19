@@ -30,11 +30,7 @@
 #include "roxiemem.hpp"
 #include "nbcd.hpp"
 
-#ifdef _WIN32
-#define EXPORT __declspec(dllexport)
-#else
-#define EXPORT
-#endif
+#define EXPORT DECL_EXPORT
 
 
 __declspec(noreturn) static void UNSUPPORTED(const char *feature) __attribute__((noreturn));

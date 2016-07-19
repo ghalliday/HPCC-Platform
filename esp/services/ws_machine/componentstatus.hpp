@@ -21,14 +21,10 @@
 #include "componentstatus.ipp"
 #include "ws_machine_esp.ipp"
 
-#ifdef WIN32
-    #ifdef SMCLIB_EXPORTS
-        #define COMPONENTSTATUS_API __declspec(dllexport)
-    #else
-        #define COMPONENTSTATUS_API __declspec(dllimport)
-    #endif
+#ifdef SMCLIB_EXPORTS
+    #define COMPONENTSTATUS_API DECL_EXPORT
 #else
-    #define COMPONENTSTATUS_API
+    #define COMPONENTSTATUS_API DECL_IMPORT
 #endif
 
 class CESPComponentStatusInfo : public CInterface, implements IESPComponentStatusInfo

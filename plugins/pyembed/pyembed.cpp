@@ -30,11 +30,7 @@
 #include "nbcd.hpp"
 #include "roxiemem.hpp"
 
-#ifdef _WIN32
-#define EXPORT __declspec(dllexport)
-#else
-#define EXPORT
-#endif
+#define EXPORT DECL_EXPORT
 
 static const char * compatibleVersions[] = {
     "Python2.7 Embed Helper 1.0.0",

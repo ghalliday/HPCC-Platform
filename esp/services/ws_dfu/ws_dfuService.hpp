@@ -19,7 +19,7 @@
 #define _ESPWIZ_WsDfu_HPP__
 
 #ifdef _WIN32
-    #define FILEVIEW_API __declspec(dllimport)
+    #define FILEVIEW_API DECL_IMPORT
 #else
     #define FILEVIEW_API
 #endif

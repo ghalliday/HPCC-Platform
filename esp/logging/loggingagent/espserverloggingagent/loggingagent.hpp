@@ -20,14 +20,10 @@
 
 #include "loggingcommon.hpp"
 
-#ifdef WIN32
-    #ifdef ESPSERVERLOGGINGAGENT_EXPORTS
-        #define ESPSERVERLOGGINGAGENT_API __declspec(dllexport)
-    #else
-        #define ESPSERVERLOGGINGAGENT_API __declspec(dllimport)
-    #endif
+#ifdef ESPSERVERLOGGINGAGENT_EXPORTS
+    #define ESPSERVERLOGGINGAGENT_API DECL_EXPORT
 #else
-    #define ESPSERVERLOGGINGAGENT_API
+    #define ESPSERVERLOGGINGAGENT_API DECL_IMPORT
 #endif
 
 enum ESPLogContentGroup

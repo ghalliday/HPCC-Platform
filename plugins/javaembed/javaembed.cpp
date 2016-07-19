@@ -33,11 +33,7 @@
 #include "thorxmlwrite.hpp"
 #include "esdl_def.hpp"
 
-#ifdef _WIN32
-#define EXPORT __declspec(dllexport)
-#else
-#define EXPORT
-#endif
+#define EXPORT DECL_EXPORT
 
 static const char * compatibleVersions[] = {
     "Java Embed Helper 1.0.0",
