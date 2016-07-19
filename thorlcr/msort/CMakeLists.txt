@@ -55,6 +55,7 @@ include_directories (
 
 
 ADD_DEFINITIONS( -D_LIB )
+ADD_DEFINITIONS( -DTHORSORT_EXPORTS )
 
 if (WIN32)
     HPCC_ADD_LIBRARY( thorsort_lcr STATIC ${SRCS} )
