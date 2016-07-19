@@ -17,11 +17,8 @@
 
 #pragma warning( disable : 4786)
 
-#ifdef _WIN32
-#define BINDUTIL_EXPORT _declspec(dllexport)
-#else
-#define BINDUTIL_EXPORT
-#endif
+#include "platform.h"
+#define BINDUTIL_EXPORT DECL_EXPORT
 
 #include <map>
 #include <string>

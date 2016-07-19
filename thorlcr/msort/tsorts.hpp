@@ -18,6 +18,12 @@
 #ifndef TSortS_HPP
 #define TSortS_HPP
 
+#ifdef THORSORT_EXPORTS
+#define THORSORT_API DECL_EXPORT
+#else
+#define THORSORT_API DECL_IMPORT
+#endif
+
 //#define TRACE_PARTITION
 
 #include "thor.hpp"
@@ -65,7 +71,7 @@ interface ISocketRowWriter: extends IRowWriter
 };
 
 class CActivityBase;
-IThorSorter *CreateThorSorter(CActivityBase *activity, SocketEndpoint &ep,IDiskUsage *iDiskUsage,ICommunicator *clusterComm, mptag_t _mpTagRPC);
+THORSORT_API IThorSorter *CreateThorSorter(CActivityBase *activity, SocketEndpoint &ep,IDiskUsage *iDiskUsage,ICommunicator *clusterComm, mptag_t _mpTagRPC);
 IRowStream *ConnectMergeRead(unsigned id,IThorRowInterfaces *rowif,SocketEndpoint &nodeaddr,rowcount_t startrec,rowcount_t numrecs);
 ISocketRowWriter *ConnectMergeWrite(IThorRowInterfaces *rowif,ISocket *socket,size32_t bufsize,rowcount_t &startrec,rowcount_t &numrecs);
 #define SOCKETSERVERINC                    1
