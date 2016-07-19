@@ -64,11 +64,7 @@
 #include "rtlfield_imp.hpp"
 #include "nbcd.hpp"
 
-#ifdef _WIN32
-#define EXPORT __declspec(dllexport)
-#else
-#define EXPORT
-#endif
+#define EXPORT DECL_EXPORT
 
 static const char * compatibleVersions[] =
 { "R Embed Helper 1.0.0", NULL };

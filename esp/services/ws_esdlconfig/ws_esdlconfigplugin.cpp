@@ -18,11 +18,7 @@
 #pragma warning (disable : 4786)
 
 #ifndef WsESDLConfig_API
-#ifdef _WIN32
-#define WsESDLConfig_API __declspec(dllexport)
-#else
-#define WsESDLConfig_API
-#endif //_WIN32
+#define WsESDLConfig_API DECL_EXPORT
 #endif //WsESDLConfig_API
 
 #include "ws_esdlconfig_esp.ipp"

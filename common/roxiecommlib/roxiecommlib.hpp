@@ -18,14 +18,10 @@
 #ifndef ROXIECOMMLIB_INCL
 #define ROXIECOMMLIB_INCL
 
-#ifdef _WIN32
-    #ifdef ROXIECOMMLIB_EXPORTS
-        #define ROXIECOMMLIB_API __declspec(dllexport)
-    #else
-        #define ROXIECOMMLIB_API __declspec(dllimport)
-    #endif
+#ifdef ROXIECOMMLIB_EXPORTS
+    #define ROXIECOMMLIB_API DECL_EXPORT
 #else
-    #define ROXIECOMMLIB_API
+    #define ROXIECOMMLIB_API DECL_IMPORT
 #endif
 
 

@@ -1252,7 +1252,7 @@ void ReleaseRoxieRows(ConstPointerArray &rows)
 
 class CHeap;
 static void noteEmptyPage(CHeap * heap);
-class Heaplet : public HeapletBase
+class __attribute__ ((visibility ("hidden"))) Heaplet : public HeapletBase
 {
     friend class CHeap;
 protected:
@@ -1318,7 +1318,7 @@ public:
 const static unsigned FREE_ROW_COUNT = (unsigned)-1;
 
 class CChunkedHeap;
-class ChunkedHeaplet : public Heaplet
+class __attribute__ ((visibility ("hidden"))) ChunkedHeaplet : public Heaplet
 {
 protected:
     std::atomic_uint r_blocks;  // the free chain as a relative pointer
@@ -1525,7 +1525,7 @@ protected:
 
 //================================================================================
 
-class FixedSizeHeaplet : public ChunkedHeaplet
+class __attribute__ ((visibility ("hidden"))) FixedSizeHeaplet : public ChunkedHeaplet
 {
     //NOTE: This class should not contain any more data - otherwise the dataOffset() may be calculated incorrectly
     struct ChunkHeader
@@ -1801,7 +1801,7 @@ private:
 
 // NOTE - this delivers rows that are NOT 8 byte aligned, so can't safely be used to allocate ptr arrays
 
-class PackedFixedSizeHeaplet : public ChunkedHeaplet
+class __attribute__ ((visibility ("hidden"))) PackedFixedSizeHeaplet : public ChunkedHeaplet
 {
     //NOTE: This class should not contain any more data - otherwise the dataOffset() may be calculated incorrectly
     struct ChunkHeader
@@ -1957,7 +1957,7 @@ public:
 // Row manager - chunking
 
 class CHugeHeap;
-class HugeHeaplet : public Heaplet
+class __attribute__ ((visibility ("hidden"))) HugeHeaplet : public Heaplet
 {
 protected:
     unsigned allocatorId;
@@ -2297,7 +2297,7 @@ class CChunkingRowManager;
 class CFixedChunkedHeap;
 class CPackedChunkingHeap;
 
-class CRoxieFixedRowHeapBase : implements IFixedRowHeap, public CInterface
+class __attribute__ ((visibility ("hidden"))) CRoxieFixedRowHeapBase : implements IFixedRowHeap, public CInterface
 {
 public:
     CRoxieFixedRowHeapBase(CChunkingRowManager * _rowManager, unsigned _allocatorId, RoxieHeapFlags _flags)
@@ -2327,7 +2327,7 @@ protected:
 };
 
 
-class CRoxieFixedRowHeap : public CRoxieFixedRowHeapBase
+class __attribute__ ((visibility ("hidden"))) CRoxieFixedRowHeap : public CRoxieFixedRowHeapBase
 {
 public:
     CRoxieFixedRowHeap(CChunkingRowManager * _rowManager, unsigned _allocatorId, RoxieHeapFlags _flags, size32_t _chunkCapacity)
@@ -2343,7 +2343,7 @@ protected:
 
 
 template <class T>
-class CRoxieDirectFixedRowHeap : public CRoxieFixedRowHeapBase
+class __attribute__ ((visibility ("hidden"))) CRoxieDirectFixedRowHeap : public CRoxieFixedRowHeapBase
 {
 public:
     CRoxieDirectFixedRowHeap(CChunkingRowManager * _rowManager, unsigned _allocatorId, RoxieHeapFlags _flags, T * _heap)
@@ -2372,7 +2372,7 @@ protected:
 };
 
 template <class T>
-class CRoxieDirectFixedBlockedRowHeap : public CRoxieDirectFixedRowHeap<T>
+class __attribute__ ((visibility ("hidden"))) CRoxieDirectFixedBlockedRowHeap : public CRoxieDirectFixedRowHeap<T>
 {
 public:
     CRoxieDirectFixedBlockedRowHeap(CChunkingRowManager * _rowManager, unsigned _allocatorId, RoxieHeapFlags _flags, T * _heap)
@@ -2411,7 +2411,7 @@ protected:
 
 //================================================================================
 //
-class CRoxieVariableRowHeap : implements IVariableRowHeap, public CInterface
+class __attribute__ ((visibility ("hidden"))) CRoxieVariableRowHeap : implements IVariableRowHeap, public CInterface
 {
 public:
     CRoxieVariableRowHeap(CChunkingRowManager * _rowManager, unsigned _allocatorId, RoxieHeapFlags _flags)
@@ -2434,7 +2434,7 @@ protected:
 //================================================================================
 //
 //Responsible for allocating memory for a chain of chunked blocks
-class CHeap : public CInterface
+class __attribute__ ((visibility ("hidden"))) CHeap : public CInterface
 {
     friend class HeapCompactState;
 public:
@@ -2907,7 +2907,7 @@ public:
 
 //---------------------------------------------------------------------------------------------------------------------
 
-class CHugeHeap : public CHeap
+class __attribute__ ((visibility ("hidden"))) CHugeHeap : public CHeap
 {
 public:
     CHugeHeap(CChunkingRowManager * _rowManager, const IContextLogger &_logctx, const IRowAllocatorCache *_allocatorCache)
@@ -2927,7 +2927,7 @@ protected:
     }
 };
 
-class CChunkedHeap : public CHeap
+class __attribute__ ((visibility ("hidden"))) CChunkedHeap : public CHeap
 {
 public:
     CChunkedHeap(CChunkingRowManager * _rowManager, const IContextLogger &_logctx, const IRowAllocatorCache *_allocatorCache, unsigned _chunkSize, unsigned _flags)
@@ -2966,7 +2966,7 @@ protected:
     unsigned chunksPerPage;
 };
 
-class CFixedChunkedHeap : public CChunkedHeap
+class __attribute__ ((visibility ("hidden"))) CFixedChunkedHeap : public CChunkedHeap
 {
 public:
     CFixedChunkedHeap(CChunkingRowManager * _rowManager, const IContextLogger &_logctx, const IRowAllocatorCache *_allocatorCache, size32_t _chunkSize, unsigned _flags, unsigned _defaultSpillCost)
@@ -2991,7 +2991,7 @@ protected:
     unsigned defaultSpillCost;
 };
 
-class CPackedChunkingHeap : public CChunkedHeap
+class __attribute__ ((visibility ("hidden"))) CPackedChunkingHeap : public CChunkedHeap
 {
 public:
     CPackedChunkingHeap(CChunkingRowManager * _rowManager, const IContextLogger &_logctx, const IRowAllocatorCache *_allocatorCache, size32_t _chunkSize, unsigned _flags, unsigned _allocatorId, unsigned _defaultSpillCost)

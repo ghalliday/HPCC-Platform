@@ -16,7 +16,7 @@
 ############################################################################## */
 
 
-#define da_decl __declspec(dllexport)
+#define da_decl DECL_EXPORT
 #include "platform.h"
 #include "jlib.hpp"
 #include "jfile.hpp"

@@ -20,15 +20,11 @@
 
 #ifndef ROXIECLIENT_API
 
-#ifdef _WIN32
-    #ifndef ROXIECLIENT_EXPORTS
-        #define ROXIECLIENT_API __declspec(dllimport)
-    #else
-        #define ROXIECLIENT_API __declspec(dllexport)
-    #endif //ROXIECLIENT_EXPORTS
+#ifndef ROXIECLIENT_EXPORTS
+    #define ROXIECLIENT_API DECL_IMPORT
 #else
-    #define ROXIECLIENT_API
-#endif //_WIN32
+    #define ROXIECLIENT_API DECL_EXPORT
+#endif //ROXIECLIENT_EXPORTS
 
 #endif 
 
