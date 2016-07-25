@@ -1426,6 +1426,7 @@ public:
     }
 
     char * allocateChunk();
+    unsigned allocateMultiChunk(unsigned max, char * * rows);   // allocates at least 1 row
     virtual void verifySpaceList();
 
 protected:
@@ -2892,6 +2893,8 @@ public:
 
 protected:
     inline void * inlineDoAllocate(unsigned allocatorId, unsigned maxSpillCost);
+    unsigned doAllocateMulti(unsigned allocatorId, unsigned maxSpillCost, unsigned max, char * * rows);
+
     virtual ChunkedHeaplet * allocateHeaplet() = 0;
 
 protected:
@@ -3029,6 +3032,76 @@ char * ChunkedHeaplet::allocateChunk()
 
     count.fetch_add(1, std::memory_order_relaxed);
     return ret;
+}
+
+unsigned ChunkedHeaplet::allocateMultiChunk(unsigned max, char * * rows)
+{
+    //The spin lock for the heap this chunk belongs to must be held when this function is called
+    char *ret;
+    const size32_t size = chunkSize;
+#ifdef HAS_EFFICIENT_CAS
+    unsigned old_blocks = r_blocks.load(std::memory_order_acquire); // acquire ensures that *(unsigned *)ret is up to date
+#endif
+
+    unsigned allocated = 0;
+    loop
+    {
+#ifndef HAS_EFFICIENT_CAS
+        unsigned old_blocks = r_blocks.load(std::memory_order_acquire); // acquire ensures that *(unsigned *)ret is up to date
+#endif
+
+        unsigned r_ret = (old_blocks & RBLOCKS_OFFSET_MASK);
+        if (r_ret)
+        {
+            ret = makeAbsolute(r_ret);
+            //may have been allocated by another thread, but still legal to dereference
+            //the cas will fail if the contents are invalid.  May be flagged as a benign race.
+            unsigned next = *(unsigned *)ret;
+
+            //There is a potential ABA problem if other thread(s) allocate two or more items, and free the first
+            //item in the window before the following cas.  r_block would match, but next would be invalid.
+            //To avoid that a tag is stored in the top bits of r_blocks which is modified whenever an item is added
+            //onto the free list.  The offsets in the freelist do not need tags.
+            unsigned new_blocks = (old_blocks & RBLOCKS_CAS_TAG_MASK) | next;
+            if (compare_exchange_efficient(r_blocks, old_blocks, new_blocks, std::memory_order_acquire, std::memory_order_acquire))
+            {
+#ifdef HAS_EFFICIENT_CAS
+                old_blocks = new_blocks;
+#endif
+                rows[allocated++] = ret;
+                if (allocated == max)
+                    break;
+            }
+            //NOTE: Currently I think a lock is always held before allocating from a chunk, so I'm not sure there is an ABA problem!
+        }
+        else
+        {
+            unsigned curFreeBase = freeBase.load(std::memory_order_relaxed);
+            //There is no ABA issue on freeBase because it is never decremented (and no next chain with it)
+            size32_t bytesFree = dataAreaSize() - curFreeBase;
+            if (bytesFree >= size)
+            {
+                unsigned toAlloc = size*(max - allocated);
+                if (toAlloc > bytesFree)
+                {
+                    unsigned num = bytesFree / size;
+                    toAlloc = size*num;
+                }
+
+                //This is the only place that modifies freeBase, so it can be unconditional since caller must have a lock.
+                freeBase.store(curFreeBase + toAlloc, std::memory_order_relaxed);
+                ret = data() + curFreeBase;
+                for (unsigned offset = 0; offset < toAlloc; offset += size)
+                {
+                    rows[allocated++] = ret + offset;
+                }
+            }
+            break;
+        }
+    }
+
+    count.fetch_add(allocated, std::memory_order_relaxed);
+    return allocated;
 }
 
 const void * ChunkedHeaplet::_compactRow(const void * ptr, HeapCompactState & state)
@@ -4941,6 +5014,26 @@ void * CChunkedHeap::inlineDoAllocate(unsigned allocatorId, unsigned maxSpillCos
 gotChunk:
     //since a chunk has been allocated from donorHeaplet it cannot be released at this point.
     return donorHeaplet->initChunk(chunk, allocatorId);
+}
+
+unsigned CChunkedHeap::doAllocateMulti(unsigned allocatorId, unsigned maxSpillCost, unsigned max, char * * rows)
+{
+    {
+        NonReentrantSpinBlock b(heapletLock);
+        if (activeHeaplet)
+        {
+            ChunkedHeaplet * donorHeaplet = static_cast<ChunkedHeaplet *>(activeHeaplet);
+            unsigned num = donorHeaplet->allocateMultiChunk(max, rows);
+            if (num)
+            {
+                for (unsigned i=0; i < num; i++)
+                    rows[i] = (char *)donorHeaplet->initChunk(rows[i], allocatorId);
+                return num;
+            }
+        }
+    }
+    rows[0] = (char *)inlineDoAllocate(allocatorId, maxSpillCost);
+    return 1;
 }
 
 const void * CChunkedHeap::compactRow(const void * ptr, HeapCompactState & state)
