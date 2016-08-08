@@ -558,7 +558,7 @@ void CChildLimitedDatasetColumnInfo::buildDeserialize(HqlCppTranslator & transla
     IHqlExpression * record = column->queryRecord();
     if (recordRequiresSerialization(record, serializeForm) || !translator.isFixedRecordSize(record))
     {
-        Owned<IHqlCppDatasetBuilder> builder = translator.createBlockedDatasetBuilder(column->queryRecord());
+        Owned<IHqlCppDatasetBuilder> builder = translator.createBlockedDatasetBuilder(column->queryRecord(), nullptr);
         builder->buildDeclare(ctx);
 
         buildDeserializeToBuilder(translator, ctx, builder, selector, helper, serializeForm);

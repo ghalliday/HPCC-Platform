@@ -264,7 +264,7 @@ protected:
 class BlockedDatasetBuilder : public DatasetBuilderBase
 {
 public:
-    BlockedDatasetBuilder(HqlCppTranslator & _translator, IHqlExpression * _record);
+    BlockedDatasetBuilder(HqlCppTranslator & _translator, IHqlExpression * _record, IHqlExpression * _knownCount);
 
     void setLimit(IHqlExpression * _count, bool _forceLength) { count.set(_count); forceLength = _forceLength; }
 
@@ -275,6 +275,7 @@ public:
     virtual bool isRestricted() { return count != NULL; }
 
 protected:
+    LinkedHqlExpr knownCount;
     OwnedHqlExpr count;
     bool forceLength;
 };
@@ -313,12 +314,13 @@ public:
 class LinkedDatasetBuilder : public LinkedDatasetBuilderBase
 {
 public:
-    LinkedDatasetBuilder(HqlCppTranslator & _translator, IHqlExpression * _record, IHqlExpression * _choosenLimit);
+    LinkedDatasetBuilder(HqlCppTranslator & _translator, IHqlExpression * _record, IHqlExpression * _choosenLimit, IHqlExpression * _knownCount);
 
     virtual void buildDeclare(BuildCtx & ctx);
     virtual bool isRestricted() { return choosenLimit != NULL; }
 
 protected:
+    LinkedHqlExpr knownCount;
     LinkedHqlExpr choosenLimit;
 };
 

@@ -2428,6 +2428,10 @@ void HqlCppTranslator::doBuildDataset(BuildCtx & ctx, IHqlExpression * expr, CHq
             else if (record != serializedRecord)
                 format = FormatLinkedDataset;   // Have to serialize it later - otherwise it won't be compatible
 
+            CHqlBoundExpr targetCount;
+            if (!canBuildOptimizedCount(ctx, expr, targetCount, no_count))
+                targetCount.expr.clear();
+
             if (format == FormatLinkedDataset || format == FormatArrayDataset)
             {
                 IHqlExpression * choosenLimit = NULL;
@@ -2438,7 +2442,7 @@ void HqlCppTranslator::doBuildDataset(BuildCtx & ctx, IHqlExpression * expr, CHq
                 }
 
                 //MORE: Extract limit and choosen and pass as parameters
-                builder.setown(createLinkedDatasetBuilder(record, choosenLimit));
+                builder.setown(createLinkedDatasetBuilder(record, choosenLimit, targetCount.expr));
             }
             else if ((op == no_choosen) && !isChooseNAllLimit(expr->queryChild(1)) && !queryRealChild(expr, 2))
             {
@@ -2447,7 +2451,7 @@ void HqlCppTranslator::doBuildDataset(BuildCtx & ctx, IHqlExpression * expr, CHq
                 expr = expr->queryChild(0);
             }
             else
-                builder.setown(createBlockedDatasetBuilder(serializedRecord));
+                builder.setown(createBlockedDatasetBuilder(serializedRecord, targetCount.expr));
 
             builder->buildDeclare(ctx);
 
@@ -2797,6 +2801,10 @@ void HqlCppTranslator::buildDatasetAssign(BuildCtx & ctx, const CHqlBoundTarget 
         }
     }
 
+    CHqlBoundExpr targetCount;
+    if (!canBuildOptimizedCount(ctx, expr, targetCount, no_count))
+        targetCount.expr.clear();
+
     IHqlExpression * record = ::queryRecord(to);
     Owned<IHqlCppDatasetBuilder> builder;
     if (targetOutOfLine)
@@ -2813,11 +2821,11 @@ void HqlCppTranslator::buildDatasetAssign(BuildCtx & ctx, const CHqlBoundTarget 
                 choosenLimit = expr->queryChild(1);
                 expr = expr->queryChild(0);
             }
-            builder.setown(createLinkedDatasetBuilder(record, choosenLimit));
+            builder.setown(createLinkedDatasetBuilder(record, choosenLimit, targetCount.expr));
         }
     }
     else
-        builder.setown(createBlockedDatasetBuilder(record));
+        builder.setown(createBlockedDatasetBuilder(record, targetCount.expr));
     builder->buildDeclare(ctx);
 
     buildDatasetAssign(ctx, builder, expr);

@@ -1153,12 +1153,12 @@ public:
     IHqlCppSetBuilder * createInlineSetBuilder(ITypeInfo * type, IHqlExpression * allVar, IHqlExpression * size, IHqlExpression * address);
 
     IHqlCppDatasetCursor * createDatasetSelector(BuildCtx & ctx, IHqlExpression * expr, ExpressionFormat format = FormatNatural);
-    IHqlCppDatasetBuilder * createBlockedDatasetBuilder(IHqlExpression * record);
+    IHqlCppDatasetBuilder * createBlockedDatasetBuilder(IHqlExpression * record, IHqlExpression * knownCount);
     IHqlCppDatasetBuilder * createSingleRowTempDatasetBuilder(IHqlExpression * record, BoundRow * row);
     IHqlCppDatasetBuilder * createInlineDatasetBuilder(IHqlExpression * record, IHqlExpression * size, IHqlExpression * address);
     IHqlCppDatasetBuilder * createChoosenDatasetBuilder(IHqlExpression * record, IHqlExpression * maxCount);
     IHqlCppDatasetBuilder * createLimitedDatasetBuilder(IHqlExpression * record, IHqlExpression * maxCount);
-    IHqlCppDatasetBuilder * createLinkedDatasetBuilder(IHqlExpression * record, IHqlExpression * choosenLimit = NULL);
+    IHqlCppDatasetBuilder * createLinkedDatasetBuilder(IHqlExpression * record, IHqlExpression * choosenLimit, IHqlExpression * knownCount);
     IHqlCppDatasetBuilder * createLinkedDictionaryBuilder(IHqlExpression * record);
     IReferenceSelector * createSelfSelect(BuildCtx & ctx, IReferenceSelector * target, IHqlExpression * expr, IHqlExpression * rootSelector);
     IReferenceSelector * createReferenceSelector(BoundRow * cursor, IHqlExpression * path);

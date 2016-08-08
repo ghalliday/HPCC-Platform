@@ -1668,7 +1668,8 @@ void DatasetBuilderBase::doFinishRow(BuildCtx & ctx, BoundRow * selfCursor, IHql
 //---------------------------------------------------------------------------
 
 
-BlockedDatasetBuilder::BlockedDatasetBuilder(HqlCppTranslator & _translator, IHqlExpression * _record) : DatasetBuilderBase(_translator, _record, false)
+BlockedDatasetBuilder::BlockedDatasetBuilder(HqlCppTranslator & _translator, IHqlExpression * _record, IHqlExpression * _knownCount)
+: DatasetBuilderBase(_translator, _record, false), knownCount(_knownCount)
 {
     forceLength = false;
 }
@@ -1711,7 +1712,12 @@ void BlockedDatasetBuilder::buildDeclare(BuildCtx & ctx)
         {
             //RtlFixedDatasetCreator cursor(len, data, size)
             decl.append("RtlFixedDatasetBuilder");
-            extra.append(translator.getFixedRecordSize(record)).append(", 0");
+            extra.append(translator.getFixedRecordSize(record));
+            extra.append(", ");
+            if (knownCount)
+                translator.generateExprCpp(extra, knownCount);
+            else
+                extra.append("0");
         }
         else
         {
@@ -1980,7 +1986,8 @@ bool LinkedDatasetBuilderBase::buildAppendRows(BuildCtx & ctx, IHqlExpression * 
     return false;
 }
 
-LinkedDatasetBuilder::LinkedDatasetBuilder(HqlCppTranslator & _translator, IHqlExpression * _record, IHqlExpression * _choosenLimit) : LinkedDatasetBuilderBase(_translator, _record)
+LinkedDatasetBuilder::LinkedDatasetBuilder(HqlCppTranslator & _translator, IHqlExpression * _record, IHqlExpression * _choosenLimit, IHqlExpression * _knownCount)
+: LinkedDatasetBuilderBase(_translator, _record), knownCount(_knownCount)
 {
     choosenLimit.set(_choosenLimit);
 }
@@ -1999,6 +2006,12 @@ void LinkedDatasetBuilder::buildDeclare(BuildCtx & ctx)
         CHqlBoundExpr boundLimit;
         translator.buildExpr(ctx, choosenLimit, boundLimit);
         translator.generateExprCpp(decl.append(", "), boundLimit.expr);
+    }
+    if (knownCount)
+    {
+        if (!choosenLimit)
+            decl.append(", 0");
+        translator.generateExprCpp(decl.append(", "), knownCount);
     }
     decl.append(");");
 
@@ -2088,7 +2101,7 @@ void SetBuilder::setAll(BuildCtx & ctx, IHqlExpression * isAll)
 
 TempSetBuilder::TempSetBuilder(HqlCppTranslator & _translator, ITypeInfo * fieldType, IHqlExpression * _allVar) : SetBuilder(_translator, fieldType, _allVar)
 {
-    datasetBuilder.setown(new BlockedDatasetBuilder(translator, record));
+    datasetBuilder.setown(new BlockedDatasetBuilder(translator, record, NULL));
 }
 
 InlineSetBuilder::InlineSetBuilder(HqlCppTranslator & _translator, ITypeInfo * fieldType, IHqlExpression * _allVar, IHqlExpression * _size, IHqlExpression * _address) : SetBuilder(_translator, fieldType, _allVar)
@@ -2107,14 +2120,14 @@ IHqlCppSetBuilder * HqlCppTranslator::createInlineSetBuilder(ITypeInfo * type, I
     return new InlineSetBuilder(*this, type, allVar, size, address);
 }
 
-IHqlCppDatasetBuilder * HqlCppTranslator::createBlockedDatasetBuilder(IHqlExpression * record)
+IHqlCppDatasetBuilder * HqlCppTranslator::createBlockedDatasetBuilder(IHqlExpression * record, IHqlExpression * knownCount)
 {
-    return new BlockedDatasetBuilder(*this, record);
+    return new BlockedDatasetBuilder(*this, record, knownCount);
 }
 
-IHqlCppDatasetBuilder * HqlCppTranslator::createLinkedDatasetBuilder(IHqlExpression * record, IHqlExpression * choosenLimit)
+IHqlCppDatasetBuilder * HqlCppTranslator::createLinkedDatasetBuilder(IHqlExpression * record, IHqlExpression * choosenLimit, IHqlExpression * knownCount)
 {
-    return new LinkedDatasetBuilder(*this, record, choosenLimit);
+    return new LinkedDatasetBuilder(*this, record, choosenLimit, knownCount);
 }
 
 IHqlCppDatasetBuilder * HqlCppTranslator::createLinkedDictionaryBuilder(IHqlExpression * record)
@@ -2135,14 +2148,14 @@ IHqlCppDatasetBuilder * HqlCppTranslator::createInlineDatasetBuilder(IHqlExpress
 
 IHqlCppDatasetBuilder * HqlCppTranslator::createChoosenDatasetBuilder(IHqlExpression * record, IHqlExpression * maxCount)
 {
-    BlockedDatasetBuilder * builder = new BlockedDatasetBuilder(*this, record);
+    BlockedDatasetBuilder * builder = new BlockedDatasetBuilder(*this, record, nullptr);
     builder->setLimit(maxCount, false);
     return builder;
 }
 
 IHqlCppDatasetBuilder * HqlCppTranslator::createLimitedDatasetBuilder(IHqlExpression * record, IHqlExpression * maxCount)
 {
-    BlockedDatasetBuilder * builder = new BlockedDatasetBuilder(*this, record);
+    BlockedDatasetBuilder * builder = new BlockedDatasetBuilder(*this, record, nullptr);
     builder->setLimit(maxCount, true);
     return builder;
 }

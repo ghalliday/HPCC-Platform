@@ -2762,7 +2762,7 @@ IHqlExpression * CXmlColumnInfo::getXmlDatasetExpr(HqlCppTranslator & translator
     //Create the builder for generating a temporary set.
     IHqlExpression * record = expr->queryRecord();
     Owned<IHqlCppDatasetBuilder> builder;
-    builder.setown(translator.createLinkedDatasetBuilder(record));
+    builder.setown(translator.createLinkedDatasetBuilder(record, nullptr, nullptr));
     builder->buildDeclare(ctx);
 
     //Generate the code to process a child iterator
