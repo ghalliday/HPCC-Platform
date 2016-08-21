@@ -17,10 +17,6 @@
 
 #pragma warning( disable : 4786 )
 
-#ifdef ESPHTTP_EXPORTS
-    #define esp_http_decl DECL_EXPORT
-#endif
-
 //Jlib
 #include "jliball.hpp"
 

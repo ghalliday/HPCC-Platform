@@ -21,7 +21,7 @@
 #ifdef ESPHTTP_EXPORTS
     #define ESPHTTP_API DECL_EXPORT
 #else
-    #define ESPHTTP_API /* DECL_IMPORT */
+    #define ESPHTTP_API DECL_IMPORT
 #endif
 
 #define ENABLE_NEW_SECURITY 
