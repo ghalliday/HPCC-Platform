@@ -18,10 +18,6 @@
 #ifndef __HTTPPROT_HPP_
 #define __HTTPPROT_HPP_
 
-#ifndef esp_http_decl
-    #define esp_http_decl
-#endif
-
 //Jlib
 #include "jliball.hpp"
 
