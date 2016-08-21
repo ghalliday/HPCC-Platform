@@ -19,8 +19,9 @@
 
 #ifdef ESPHTTP_EXPORTS
     #define esp_http_decl DECL_EXPORT
+#else
+    #define esp_http_decl DECL_IMPORT
 #endif
-
 //Jlib
 #include "jliball.hpp"
 

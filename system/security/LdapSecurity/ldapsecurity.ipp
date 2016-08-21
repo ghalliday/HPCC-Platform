@@ -37,7 +37,7 @@
     #define LDAPSECURITY_API DECL_EXPORT
 #endif
 
-class CLdapSecUser : implements ISecUser, implements ISecCredentials, public CInterface
+class LDAPSECURITY_API CLdapSecUser : implements ISecUser, implements ISecCredentials, public CInterface
 {
 private:
     StringAttr   m_realm;
