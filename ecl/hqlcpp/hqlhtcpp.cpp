@@ -1744,9 +1744,17 @@ ActivityInstance::ActivityInstance(HqlCppTranslator & _translator, BuildCtx & ct
             isNoAccess = true;
         else if (activityLocalisation == GraphNeverAccess)
             activityLocalisation = GraphNoAccess;
+        else if (translator.targetThor())
+        {
+            if (translator.insideChildQuery(ctx))
+                activityLocalisation = GraphCoLocal;
+            else
+                activityLocalisation = GraphNonLocal;
+        }
 
-        if (translator.targetThor() && !translator.insideChildQuery(ctx))
-            executedRemotely = true;
+
+        if (translator.targetThor())
+            executedRemotely = !translator.insideChildQuery(ctx);
         else
             executedRemotely = ((activityLocalisation == GraphNonLocal) || (localisation == GraphRemote));
 

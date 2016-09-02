@@ -895,8 +895,10 @@ GraphLocalisation HqlCppTranslator::getGraphLocalisation(IHqlExpression * expr, 
     if (isAlwaysCoLocal()) return GraphCoLocal;
     if (targetThor() && !isInsideChildQuery)
         return GraphNonLocal;
-
-    return ::getGraphLocalisation(expr, options.optimizeParentAccess);
+    GraphLocalisation localisation = ::getGraphLocalisation(expr, options.optimizeParentAccess);
+    if (targetThor() && localisation != GraphNoAccess)
+        return GraphCoLocal;
+    return localisation;
 }
 
 bool HqlCppTranslator::isNeverDistributed(IHqlExpression * expr)
