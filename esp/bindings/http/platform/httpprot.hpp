@@ -147,5 +147,11 @@ public:
     virtual const char * getProtocolName();
 };
 
+extern "C" {
+
+esp_http_decl IEspProtocol * http_protocol_factory(const char *name, const char* type, IPropertyTree *cfg, const char *process);
+
+};
+
 #endif //__HTTPPROT_HPP_
 
