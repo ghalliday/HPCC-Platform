@@ -9263,9 +9263,10 @@ c) ensure input and out from a pipe is serialized (so that sizeof(inputrow) retu
 */
 
 static HqlTransformerInfo hqlLinkedChildRowTransformerInfo("HqlLinkedChildRowTransformer");
-HqlLinkedChildRowTransformer::HqlLinkedChildRowTransformer(bool _implicitLinkedChildRows) : QuickHqlTransformer(hqlLinkedChildRowTransformerInfo, NULL)
+HqlLinkedChildRowTransformer::HqlLinkedChildRowTransformer(bool _implicitLinkedChildRows, size32_t _linkedDatasetThreshold) : QuickHqlTransformer(hqlLinkedChildRowTransformerInfo, NULL)
 {
     implicitLinkedChildRows = _implicitLinkedChildRows;
+    linkedDatasetThreshold = _linkedDatasetThreshold;
 }
 
 
@@ -9331,8 +9332,10 @@ IHqlExpression * HqlLinkedChildRowTransformer::createTransformedBody(IHqlExpress
             case type_dictionary:
             case type_table:
             case type_groupedtable:
+            {
                 OwnedHqlExpr transformedRecord = transform(expr->queryRecord());
-                if (recordRequiresLinkCount(transformedRecord))
+                bool requireLCR = recordRequiresLinkCount(transformedRecord);
+                if (requireLCR)
                 {
                     if (expr->hasAttribute(embeddedAtom) || queryAttribute(type, embeddedAtom) || expr->hasAttribute(countAtom) || expr->hasAttribute(sizeofAtom))
                         throwError1(HQLERR_InconsistentEmbedded, str(expr->queryId()));
@@ -9351,11 +9354,18 @@ IHqlExpression * HqlLinkedChildRowTransformer::createTransformedBody(IHqlExpress
                     //Don't use link counted rows for weird HOLe style dataset attributes
                     if (expr->hasAttribute(countAtom) || expr->hasAttribute(sizeofAtom))
                         break;
+
+                    if (!requireLCR)
+                    {
+                        if (isFixedSizeRecord(transformedRecord) && (getExpectedRecordSize(transformedRecord) <= linkedDatasetThreshold))
+                            break;
+                    }
                     //add the attribute first so a no linked field doesn't contain a record that requires it
                     OwnedHqlExpr modified = appendOwnedOperand(expr, getLinkCountedAttr());
                     return transform(modified);
                 }
                 break;
+            }
             }
             break;
         }
@@ -12984,7 +12994,7 @@ void normalizeHqlTree(HqlCppTranslator & translator, HqlExprArray & exprs)
 
     {
         cycle_t startCycles = get_cycles_now();
-        HqlLinkedChildRowTransformer transformer(translator.queryOptions().implicitLinkedChildRows);
+        HqlLinkedChildRowTransformer transformer(translator.queryOptions().implicitLinkedChildRows, translator.queryOptions().linkedDatasetThreshold);
         HqlExprArray transformed;
         transformer.transformArray(exprs, transformed);
         replaceArray(exprs, transformed);

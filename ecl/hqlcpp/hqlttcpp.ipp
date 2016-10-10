@@ -1027,7 +1027,7 @@ protected:
 class HqlLinkedChildRowTransformer : public QuickHqlTransformer
 {
 public:
-    HqlLinkedChildRowTransformer(bool _implicitLinkedChildRows);
+    HqlLinkedChildRowTransformer(bool _implicitLinkedChildRows, size32_t _linkedDatasetThreshold);
 
     virtual IHqlExpression * createTransformedBody(IHqlExpression * expr);
 
@@ -1038,6 +1038,7 @@ protected:
 
 protected:
     bool implicitLinkedChildRows;
+    size32_t linkedDatasetThreshold;
 };
 
 //---------------------------------------------------------------------------

@@ -8545,18 +8545,41 @@ bool ConstantRowCreator::processFieldValue(IHqlExpression * optLhs, ITypeInfo * 
             IHqlExpression * field = optLhs->queryChild(1);
             if (!field->hasAttribute(countAtom) && !field->hasAttribute(sizeofAtom))
             {
-                if (rhsOp == no_null)
+                if (field->hasAttribute(_linkCounted_Atom))
                 {
-                    if (field->hasAttribute(_linkCounted_Atom))
+                    if (rhsOp == no_null)
                     {
                         rtlWriteSize32t(out.reserve(sizeof(size32_t)), 0);
                         memset(out.reserve(sizeof(byte * *)), 0, sizeof(byte * *));
+                        return true;
                     }
-                    else
-                        rtlWriteSize32t(out.reserve(sizeof(size32_t)), 0);
-                    return true;
                 }
-                //MORE: Could expand if doesn't have linkcounted, but less likely these days.
+                else
+                {
+                    switch (rhs->getOperator())
+                    {
+                    case no_null:
+                    {
+                        rtlWriteSize32t(out.reserve(sizeof(size32_t)), 0);
+                        break;
+                    }
+                    case no_inlinetable:
+                    {
+                        unsigned patchOffset = out.length();
+                        out.reserve(sizeof(size32_t));
+                        unsigned startOffset = out.length();
+                        IHqlExpression * transforms = rhs->queryChild(0);
+                        ForEachChild(i, transforms)
+                        {
+                            if (!buildTransformRow(transforms->queryChild(i)))
+                                return false;
+                        }
+                        byte * patchPos = (byte *)out.bufferBase() + patchOffset;
+                        rtlWriteSize32t(patchPos, out.length() - startOffset);
+                        return true;
+                    }
+                    }
+                }
             }
             return false;
         }

@@ -1793,6 +1793,7 @@ void HqlCppTranslator::cacheOptions()
         DebugOption(options.embeddedWarningsAsErrors,"embeddedWarningsFatal",true),
         DebugOption(options.optimizeCriticalFunctions,"optimizeCriticalFunctions",true),
         DebugOption(options.addLikelihoodToGraph,"addLikelihoodToGraph", true),
+        DebugOption(options.linkedDatasetThreshold, "linkedDatasetThreshold", 0),//(unsigned)(sizeof(void*) + 4)),       // Default to the minimal overhead of a child row
     };
 
     //get options values from workunit
@@ -4527,12 +4528,23 @@ void HqlCppTranslator::buildTempExpr(BuildCtx & ctx, IHqlExpression * expr, CHql
             break;
         //fall through
     case no_externalcall:
-        if (format == FormatNatural && expr->isDataset())
+        if ((format == FormatNatural) && expr->isDataset())
         {
             ITypeInfo * exprType = expr->queryType();
             if (hasStreamedModifier(exprType))
                 format = FormatStreamedDataset;
             else if (hasLinkCountedModifier(exprType) || hasOutOfLineModifier(exprType))
+                format = FormatLinkedDataset;
+            else
+                format = FormatBlockedDataset;
+        }
+        break;
+    case no_select:
+        break;
+        if ((format == FormatNatural) && expr->isDataset())
+        {
+            ITypeInfo * exprType = expr->queryType();
+            if (hasLinkCountedModifier(exprType) || hasOutOfLineModifier(exprType))
                 format = FormatLinkedDataset;
             else
                 format = FormatBlockedDataset;

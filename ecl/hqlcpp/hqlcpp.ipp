@@ -581,6 +581,7 @@ struct HqlCppOptions
     unsigned            subgraphToRegeneate;
     unsigned            defaultPersistExpiry;
     unsigned            defaultExpiry;
+    unsigned            linkedDatasetThreshold;
     int                 defaultNumPersistInstances;
     CompilerType        targetCompiler;
     DBZaction           divideByZeroAction;
