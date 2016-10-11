@@ -516,6 +516,8 @@ void CThorStrandProcessor::stop()
         if (inputStream)
             inputStream->stop();
         parent.strandedStop();
+        if (allocator)
+            allocator->emptyCache();
     }
     stopped = true;
 }

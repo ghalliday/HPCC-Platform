@@ -1,4 +1,4 @@
-/*##############################################################################
+#/*##############################################################################
 
     HPCC SYSTEMS software Copyright (C) 2012 HPCC Systems®.
 
@@ -1329,6 +1329,8 @@ public:
                 }
                 if (inputStream)
                     inputStream->stop();
+                if (rowAllocator)
+                    rowAllocator->emptyCache();
             }
         }
     }
@@ -1676,6 +1678,8 @@ public:
                 inputStream->stop();
             parent.stop();
             parent.mergeStrandStats(processed, totalCycles, stats);
+            if (rowAllocator)
+                rowAllocator->emptyCache();
         }
         stopped = true;
     }

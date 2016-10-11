@@ -280,6 +280,7 @@ protected:
     bool stopped = false;
     unsigned outputId; // if activity had >1 , this identifies (for tracing purposes) which output this strand belongs to.
     Linked<IHThorArg> baseHelper;
+    Owned<IEngineRowAllocator> allocator;
     rowcount_t rowsProcessed;
 
 protected:

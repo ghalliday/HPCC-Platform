@@ -23,7 +23,6 @@
 class CProjecStrandProcessor : public CThorStrandProcessor
 {
     IHThorProjectArg *helper;
-    Owned<IEngineRowAllocator> allocator;
 
 public:
     explicit CProjecStrandProcessor(CThorStrandedActivity &parent, IEngineRowStream *inputStream, unsigned outputId)
@@ -31,7 +30,7 @@ public:
     {
         helper = static_cast <IHThorProjectArg *> (queryHelper());
         Owned<IRowInterfaces> rowIf = parent.getRowInterfaces();
-        allocator.setown(parent.getRowAllocator(rowIf->queryRowMetaData(), (roxiemem::RoxieHeapFlags)(parent.queryHeapFlags()|roxiemem::RHFpacked|roxiemem::RHFunique)));
+        allocator.setown(parent.getRowAllocator(rowIf->queryRowMetaData(), (roxiemem::RoxieHeapFlags)(parent.queryHeapFlags()|roxiemem::RHFpacked|roxiemem::RHFunique|roxiemem::RHFblocked)));
     }
     STRAND_CATCH_NEXTROW()
     {

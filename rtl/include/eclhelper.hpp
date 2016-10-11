@@ -261,6 +261,9 @@ interface IEngineRowAllocator : extends IInterface
     virtual IOutputRowSerializer *createInternalSerializer(ICodeContext *ctx = NULL) = 0;
     virtual IOutputRowDeserializer *createInternalDeserializer(ICodeContext *ctx) = 0;
     virtual IEngineRowAllocator *createChildRowAllocator(const RtlTypeInfo *childtype) = 0;
+
+ //MORE: These should possibly be in a derived interface only accessed by the engines.
+    virtual void emptyCache() = 0;
 };
 
 interface IRowSerializerTarget

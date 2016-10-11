@@ -22,7 +22,6 @@
 #include "roxiemem.hpp"
 #include "eclhelper.hpp"
 
-
 interface IRowAllocatorMetaActIdCache : extends roxiemem::IRowAllocatorCache
 {
     virtual IEngineRowAllocator *ensure(IOutputMetaData * meta, unsigned activityId, roxiemem::RoxieHeapFlags flags) = 0;

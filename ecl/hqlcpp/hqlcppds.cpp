@@ -3025,6 +3025,8 @@ public:
     virtual IOutputRowSerializer *createInternalSerializer(ICodeContext *ctx = NULL) { throwUnexpected(); }
     virtual IOutputRowDeserializer *createInternalDeserializer(ICodeContext *ctx) { throwUnexpected(); }
     virtual IEngineRowAllocator *createChildRowAllocator(const RtlTypeInfo *type) { throwUnexpected(); }
+
+    virtual void emptyCache() override {}
 };
 
 //Use a (constant) transform to map selectors of the form queryActiveTableSelector().field

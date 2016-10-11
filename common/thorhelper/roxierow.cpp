@@ -297,6 +297,11 @@ public:
         return NULL;
     }
 
+    virtual void emptyCache() override
+    {
+        heap->emptyCache();
+    }
+
     virtual void * finalizeRow(size32_t finalSize, void * row, size32_t oldSize)
     {
         if (!meta.needsDestruct() && !CHECKER::allocatorCheckFlag)
@@ -359,6 +364,10 @@ public:
         void * newrow = heap->finalizeRow(row, oldSize, finalSize+CHECKER::extraSize);
         CHECKER::setCheck(finalSize, newrow);
         return newrow;
+    }
+
+    virtual void emptyCache() override
+    {
     }
 
 protected:
