@@ -1038,6 +1038,8 @@ void HqlThorBoundaryTransformer::transformRoot(const HqlExprArray & in, HqlExprA
 
 void HqlCppTranslator::markThorBoundaries(WorkflowItem & curWorkflow)
 {
+    if (curWorkflow.isFunction())
+        return;
     HqlExprArray & exprs = curWorkflow.queryExprs();
     HqlExprArray bounded;
 
