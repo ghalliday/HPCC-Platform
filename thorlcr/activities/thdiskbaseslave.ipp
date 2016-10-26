@@ -40,7 +40,7 @@ protected:
     const char *kindStr;
     CRuntimeStatisticCollection fileStats;
     CDiskReadSlaveActivityBase &activity;
-    CriticalSection statsCs;
+    CriticalSection inputCs; // Protect against input changing while gathering stats on another thread
 
     bool eoi;
 public:

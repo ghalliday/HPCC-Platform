@@ -66,10 +66,11 @@ class CXmlReadSlaveActivity : public CDiskReadSlaveActivityBase
 
         virtual void open() 
         {
+            mergeStats(fileStats, iFileIO);
             CDiskPartHandlerBase::open();
 
             {
-                CriticalBlock block(statsCs);
+                CriticalBlock block(inputCs);
                 if (compressed)
                 {
                     iFileIO.setown(createCompressedFileReader(iFile, activity.eexp));
@@ -96,7 +97,7 @@ class CXmlReadSlaveActivity : public CDiskReadSlaveActivityBase
         }
         virtual void close(CRC32 &fileCRC)
         {
-            CriticalBlock block(statsCs);
+            CriticalBlock block(inputCs);
             xmlParser.clear();
             inputIOstream.clear();
             if (checkFileCrc)
@@ -189,7 +190,7 @@ class CXmlReadSlaveActivity : public CDiskReadSlaveActivityBase
     
         virtual void gatherStats(CRuntimeStatisticCollection & merged)
         {
-            CriticalBlock block(statsCs);
+            CriticalBlock block(inputCs);
             CDiskPartHandlerBase::gatherStats(merged);
             mergeStats(merged, iFileIO);
         }

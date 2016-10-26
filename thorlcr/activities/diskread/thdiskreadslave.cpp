@@ -163,7 +163,7 @@ public:
     }
     virtual void gatherStats(CRuntimeStatisticCollection & merged)
     {
-        CriticalBlock block(statsCs);
+        CriticalBlock block(inputCs);
         CDiskPartHandlerBase::gatherStats(merged);
         mergeStats(merged, in);
     }
@@ -217,6 +217,7 @@ void CDiskRecordPartHandler::getMetaInfo(ThorDataLinkMetaInfo &info, IPartDescri
 
 void CDiskRecordPartHandler::open()
 {
+    mergeStats(fileStats, in);
     CDiskPartHandlerBase::open();
     in.clear();
     unsigned rwFlags = DEFAULT_RWFLAGS;
@@ -226,7 +227,7 @@ void CDiskRecordPartHandler::open()
         rwFlags |= rw_grouped;
 
     {
-        CriticalBlock block(statsCs);
+        CriticalBlock block(inputCs);
         if (compressed)
         {
             rwFlags |= rw_compress;
@@ -263,7 +264,7 @@ void CDiskRecordPartHandler::open()
 
 void CDiskRecordPartHandler::close(CRC32 &fileCRC)
 {
-    CriticalBlock block(statsCs);
+    CriticalBlock block(inputCs);
     if (in) 
         in->stop(&fileCRC);
     mergeStats(fileStats, in);

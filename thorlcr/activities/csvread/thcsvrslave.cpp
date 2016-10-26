@@ -101,11 +101,12 @@ class CCsvReadSlaveActivity : public CDiskReadSlaveActivityBase
         {
             allocator.set(activity.queryRowAllocator());
             localOffset = 0;
+            mergeStats(fileStats, iFileIO);
             CDiskPartHandlerBase::open();
             readFinished = false;
 
             {
-                CriticalBlock block(statsCs);
+                CriticalBlock block(inputCs);
                 if (compressed)
                 {
                     iFileIO.setown(createCompressedFileReader(iFile, activity.eexp));
@@ -146,7 +147,7 @@ class CCsvReadSlaveActivity : public CDiskReadSlaveActivityBase
         }
         virtual void close(CRC32 &fileCRC)
         {
-            CriticalBlock block(statsCs);
+            CriticalBlock block(inputCs);
             mergeStats(fileStats, iFileIO);
             iFileIO.clear();
             inputStream.clear();
@@ -175,7 +176,7 @@ class CCsvReadSlaveActivity : public CDiskReadSlaveActivityBase
         offset_t getLocalOffset() { return localOffset; }
         virtual void gatherStats(CRuntimeStatisticCollection & merged)
         {
-            CriticalBlock block(statsCs);
+            CriticalBlock block(inputCs);
             CDiskPartHandlerBase::gatherStats(merged);
             mergeStats(merged, iFileIO);
         }
