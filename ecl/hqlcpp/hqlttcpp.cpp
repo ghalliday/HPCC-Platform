@@ -1987,6 +1987,37 @@ static IHqlExpression * normalizeIndexBuild(IHqlExpression * expr, bool sortInde
         return expr->clone(args);
     }
 
+    switch (dataset->getOperator())
+    {
+    case no_sort:
+    case no_assertsorted:
+        break;
+    case no_sorted:
+    {
+        //convert no_srted to no_assertsorted
+        HqlExprArray args;
+        unwindChildren(args, dataset);
+        OwnedHqlExpr newDataset = createDataset(no_assertsorted, args);
+        OwnedHqlExpr annotated = dataset->cloneAllAnnotations(newDataset);
+        return replaceChildDataset(expr, annotated, 0);
+    }
+    default:
+    {
+        HqlExprArray args;
+        args.append(OLINK(*dataset));
+        args.append(OLINK(*newsort));
+        if (expr->hasAttribute(localAtom) && !alwaysLocal)
+            args.append(*createLocalAttribute());
+        else if (isGrouped(dataset))
+            args.append(*createAttribute(globalAtom));
+        OwnedHqlExpr newDataset = createDataset(no_assertsorted, args);
+        OwnedHqlExpr annotated = dataset->cloneAllAnnotations(newDataset);
+        return replaceChildDataset(expr, annotated, 0);
+    }
+    }
+
+
+
     if (expr->hasAttribute(dedupAtom))
     {
         IHqlExpression * ds = expr->queryChild(0);
