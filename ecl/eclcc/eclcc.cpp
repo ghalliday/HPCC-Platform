@@ -254,6 +254,7 @@ public:
 
     virtual void noteCluster(const char *clusterName);
     virtual bool allowAccess(const char * category, bool isSigned);
+    virtual void noteProgress(WUState state, unsigned minor, unsigned maxMinor) override;
 
 protected:
     void addFilenameDependency(StringBuffer & target, EclCompileInstance & instance, const char * filename);
@@ -363,6 +364,7 @@ protected:
     bool optGenerateHeader = false;
     bool optShowPaths = false;
     bool optNoSourcePath = false;
+    bool optTraceProgress = false;
     int argc;
     const char **argv;
 };
@@ -1078,6 +1080,7 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
 
     applyDebugOptions(instance.wu);
     applyApplicationOptions(instance.wu);
+    optTraceProgress = instance.wu->getDebugValueBool("traceProgress", false);
 
     if (optTargetCompiler != DEFAULT_COMPILER)
         instance.wu->setDebugValue("targetCompiler", compilerTypeText[optTargetCompiler], true);
@@ -1130,6 +1133,7 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
         if (exportDependencies)
             parseCtx.nestedDependTree.setown(createPTree("Dependencies"));
 
+        noteProgress(WUStateParsing, 0, 0);
         try
         {
             HqlLookupContext ctx(parseCtx, &errorProcessor);
@@ -1869,6 +1873,7 @@ bool EclCompileInstance::reportErrorSummary()
 void EclCC::noteCluster(const char *clusterName)
 {
 }
+
 bool EclCC::allowAccess(const char * category, bool isSigned)
 {
     ForEachItemIn(idx1, deniedPermissions)
@@ -1889,6 +1894,17 @@ bool EclCC::allowAccess(const char * category, bool isSigned)
     return defaultAllowed[isSigned];
 }
 
+void EclCC::noteProgress(WUState state, unsigned minor, unsigned maxMinor)
+{
+    if (optTraceProgress)
+    {
+        const char * stateText = getStateText(state);
+        if (maxMinor)
+            fprintf(stderr, "state:%s(%u/%u)\n", stateText, minor, maxMinor);
+        else
+            fprintf(stderr, "state:%s\n", stateText);
+    }
+}
 //=========================================================================================
 int EclCC::parseCommandLineOptions(int argc, const char* argv[])
 {

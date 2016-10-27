@@ -188,10 +188,12 @@ interface IEclRepositoryCallback : public IEclRepository
     virtual IHqlExpression * loadSymbol(IHqlRemoteScope *scope, IIdAtom * searchName) = 0;
 };
 
+enum WUState : unsigned;
 interface ICodegenContextCallback : public IInterface
 {
     virtual void noteCluster(const char *clusterName) = 0;
     virtual bool allowAccess(const char * category, bool isSigned) = 0;
+    virtual void noteProgress(WUState state, unsigned minor, unsigned maxMinor) = 0;
 };
 
 

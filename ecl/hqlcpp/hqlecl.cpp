@@ -54,6 +54,7 @@ class NullContextCallback : implements ICodegenContextCallback, public CInterfac
 
     virtual void noteCluster(const char *clusterName) {}
     virtual bool allowAccess(const char * category, bool isSigned) { return true; }
+    virtual void noteProgress(WUState state, unsigned minor, unsigned maxMinor) override {}
 };
 
 class HqlDllGenerator : implements IHqlExprDllGenerator, implements IAbortRequestCallback, public CInterface
@@ -227,6 +228,8 @@ bool HqlDllGenerator::processQuery(OwnedHqlExpr & parsedQuery, EclGenerateTarget
     generateTarget = _generateTarget;
     assertex(wu->getHash());
     unsigned prevCount = errs->errCount();
+
+    ctxCallback->noteProgress(WUStateParsing, 0, 0);
 
     HqlQueryContext query;
     query.expr.setown(parsedQuery.getClear());
@@ -540,6 +543,8 @@ bool HqlDllGenerator::doCompile(ICppCompiler * compiler)
     ForEachItemIn(i, sourceFiles)
         compiler->addSourceFile(sourceFiles.item(i));
 
+    ctxCallback->noteProgress(WUStateCompiling, 0, sourceFiles.ordinality()+1);
+
     unsigned maxThreads = wu->getDebugValueInt("maxCompileThreads", defaultMaxCompileThreads);
     compiler->setMaxCompileThreads(maxThreads);
 
@@ -595,6 +600,8 @@ bool HqlDllGenerator::doCompile(ICppCompiler * compiler)
         if (isError(&cur) || reportCppWarnings)
             errs->report(&cur);
     }
+
+    ctxCallback->noteProgress(WUStateCompiling, sourceFiles.ordinality()+1, sourceFiles.ordinality()+1);
 
     cycle_t elapsedCycles = get_cycles_now() - startCycles;
     //For eclcc the workunit has been written to the resource - so any further timings will not be preserved -> need to report differently

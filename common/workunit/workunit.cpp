@@ -735,6 +735,8 @@ mapEnums states[] = {
    { WUStateDebugPaused, "debugging" },
    { WUStateDebugRunning, "debug_running" },
    { WUStatePaused, "paused" },
+   { WUStateParsing, "parsing" },
+   { WUStateGenerating, "generating" },
    { WUStateSize, NULL }
 };
 
@@ -2674,6 +2676,8 @@ void CWorkUnitFactory::reportAbnormalTermination(const char *wuid, WUState &stat
         case WUStateAborting:
             state = WUStateAborted;
             break;
+        case WUStateParsing:
+        case WUStateGenerating:
         case WUStateCompiling:
             isEcl = true;
             // drop into
@@ -10560,6 +10564,15 @@ IConstWUStatistic * getStatistic(IConstWorkUnit * wu, const IStatisticsFilter & 
     return NULL;
 }
 
+const char * getStateText(WUState state)
+{
+    return getEnumText(state, states);
+}
+
+WUState getState(const char * state)
+{
+    return (WUState)getEnum(state, states);
+}
 
 class GlobalStatisticGatherer : public CInterfaceOf<IStatisticGatherer>
 {

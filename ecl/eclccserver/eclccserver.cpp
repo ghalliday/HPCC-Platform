@@ -48,8 +48,8 @@ interface IErrorReporter
 class ErrorReader : public Thread
 {
 public:
-    ErrorReader(IPipeProcess *_pipe, IErrorReporter *_errorReporter)
-        : Thread("EclccCompileThread::ErrorReader"), pipe(_pipe), errorReporter(_errorReporter), errors(0)
+    ErrorReader(IPipeProcess *_pipe, IErrorReporter *_errorReporter, IWorkUnit * _workunit)
+        : Thread("EclccCompileThread::ErrorReader"), pipe(_pipe), errorReporter(_errorReporter), errors(0), workunit(_workunit)
     {
     }
 
@@ -84,7 +84,28 @@ public:
                     *eolpos = '\0';
                     if (eolpos > finger && eolpos[-1]=='\r')
                         eolpos[-1] = '\0';
-                    if (errorReporter)
+                    if (strieq(finger, "state:") == 0)
+                    {
+                        //state:abc[(m/n)]
+                        const char * stateText = finger + 6;
+                        const char * bra = strchr(stateText, '(');
+                        unsigned sub = 0;
+                        unsigned max = 0;
+                        if (bra)
+                        {
+                            const char * slash = strchr(bra, '/');
+                            sub = atoi(bra + 1);
+                            unsigned max = sub;
+                            if (slash)
+                                max = atoi(slash + 1);
+                            else
+                                max = sub;
+                        }
+
+                        workunit->setState(getState(stateText), sub, max);
+                        workunit->commit();
+                    }
+                    else if (errorReporter)
                         errorReporter->reportError(finger, 0);
                     else
                         DBGLOG("%s", finger);
@@ -118,6 +139,7 @@ public:
 private:
     IPipeProcess *pipe;
     IErrorReporter *errorReporter;
+    IWorkUnit * workunit;
     unsigned errors;
 };
 
@@ -363,7 +385,7 @@ class EclccCompileThread : implements IPooledThread, implements IErrorReporter, 
         try
         {
             cycle_t startCycles = get_cycles_now();
-            Owned<ErrorReader> errorReader = new ErrorReader(pipe, this);
+            Owned<ErrorReader> errorReader = new ErrorReader(pipe, this, workunit);
             Owned<AbortWaiter> abortWaiter = new AbortWaiter(pipe, workunit);
             eclccCmd.insert(0, eclccProgName);
             pipe->run(eclccProgName, eclccCmd, ".", true, false, true, 0, true);

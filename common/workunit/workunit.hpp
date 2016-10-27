@@ -113,7 +113,7 @@ enum WUQueryType
 
 
 
-enum WUState
+enum WUState : unsigned
 {
     WUStateUnknown = 0,
     WUStateCompiled = 1,
@@ -132,6 +132,8 @@ enum WUState
     WUStateDebugPaused = 14,
     WUStateDebugRunning = 15,
     WUStatePaused = 16,
+    WUStateParsing = 17,
+    WUStateGenerating = 18,
     WUStateSize = 17
 };
 
@@ -1499,6 +1501,9 @@ extern WORKUNIT_API void updateWorkunitTimeStat(IWorkUnit * wu, StatisticScopeTy
 extern WORKUNIT_API void updateWorkunitTimings(IWorkUnit * wu, ITimeReporter *timer);
 extern WORKUNIT_API void getWorkunitTotalTime(IConstWorkUnit* workunit, const char* creator, unsigned __int64 & totalTimeNs, unsigned __int64 & totalThisTimeNs);
 extern WORKUNIT_API IConstWUStatistic * getStatistic(IConstWorkUnit * wu, const IStatisticsFilter & filter);
+
+extern WORKUNIT_API const char * getStateText(WUState state);
+extern WORKUNIT_API WUState getState(const char * state);
 
 extern WORKUNIT_API const char *getTargetClusterComponentName(const char *clustname, const char *processType, StringBuffer &name);
 extern WORKUNIT_API void descheduleWorkunit(char const * wuid);
