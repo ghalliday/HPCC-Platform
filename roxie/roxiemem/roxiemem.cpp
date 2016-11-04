@@ -61,8 +61,8 @@
 namespace roxiemem {
 
 #define NOTIFY_UNUSED_PAGES_ON_FREE     // avoid linux swapping 'freed' pages to disk
-#define ALWAYS_USE_SCAN_HEAP            // option to test out using the scanning heaplets
-#define ALWAYS_DELAY_RELEASE            // option to test out using delayed releasing with the scanning heaplets
+//#define ALWAYS_USE_SCAN_HEAP          // option to test out using the scanning heaplets
+//#define ALWAYS_DELAY_RELEASE          // option to test out using delayed releasing with the scanning heaplets
 //#define OLD_ROW_COMPACT
 
 //The following constants should probably be tuned depending on the architecture - see Tuning Test at the end of the file.
@@ -1367,6 +1367,7 @@ public:
     bool compacting = false;
     bool moveRows = false; // only valid if compacting
     bool hasSharedRow = false;
+    std::atomic_bool hadDelayedRelease = {false};
     unsigned compactingRowCount = 0;  // only valid if compacting
 
     inline char *data() const
@@ -1562,9 +1563,12 @@ protected:
         {
             if (heapFlags & RHFdelayrelease)
             {
+                bool anyFreed = hadDelayedRelease.load(std::memory_order_relaxed);
                 ((std::atomic_uint *)ptr)->store(DELAYFREE_ROW_COUNT, std::memory_order_release);
                 if (nextSpace.load(std::memory_order_relaxed) == 0)
                     addToSpaceList();
+                if (!anyFreed)
+                    hadDelayedRelease.store(true, std::memory_order_relaxed);
                 return; // Link count is not decremented at this point.
             }
             else
@@ -3267,9 +3271,14 @@ char * ChunkedHeaplet::allocateSingle(unsigned allocated, bool incCounter, unsig
                 ret = data() + curFreeBase;
                 goto done;
             }
-            if (!(heapFlags & RHFdelayrelease))
-                if (numAllocs == maxAllocs)
+            if (numAllocs == maxAllocs)
+            {
+                if (!(heapFlags & RHFdelayrelease))
                     return nullptr;
+                //If no row has ever been freed then it must really be full - optimize the situation filling a buffer
+                if (!hadDelayedRelease.load(std::memory_order_relaxed))
+                    return nullptr;
+            }
         }
 
         {
@@ -3401,6 +3410,9 @@ bool ChunkedHeaplet::isFull() const
         return false;
     if (heapFlags & RHFdelayrelease)
     {
+        if (!hadDelayedRelease.load(std::memory_order_relaxed))
+            return true;
+
         //Scan through all the memory, checking for a block marked as free - should terminate very quickly unless highly fragmented
         size32_t offset = nextMatchOffset;
         const size32_t size = chunkSize;
@@ -8068,9 +8080,9 @@ class RoxieMemTimingTests : public RoxieMemTests
 {
     CPPUNIT_TEST_SUITE( RoxieMemTimingTests );
         CPPUNIT_TEST(testSetup);
-        //CPPUNIT_TEST(testBitmapThreading);
-        //CPPUNIT_TEST(testCas);
-        //CPPUNIT_TEST(testCallbacks);
+        CPPUNIT_TEST(testBitmapThreading);
+        CPPUNIT_TEST(testCas);
+        CPPUNIT_TEST(testCallbacks);
         CPPUNIT_TEST(testCompacting);
         CPPUNIT_TEST(testCleanup);
     CPPUNIT_TEST_SUITE_END();
