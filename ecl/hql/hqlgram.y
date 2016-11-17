@@ -873,8 +873,8 @@ transformType
     ;
     
 propType
-    : simpleType           /* only simple type is supported for service */
-    | scopeFlag simpleType
+    : scalarType           /* only simple type is supported for service */
+    | scopeFlag scalarType
                         {
                             parser->reportError(ERR_SVC_NOSCOPEMODIFIER,$1,"Function in service can not specify EXPORT or SHARED");
                             $$.setType($2.getType());
@@ -4093,7 +4093,6 @@ funcRetType
                             $$.setType(makeRowType(expr->getType()));
                             $$.setPosition($1);
                         }
-    | typeDef
     ;
 
 payloadPart
