@@ -149,8 +149,7 @@ void TransformSequenceBuilder::buildSequence(BuildCtx & ctx, BuildCtx * declarec
             OwnedHqlExpr test = getInverse(cond);
             if (translator.queryOptions().foldFilter)
                 test.setown(foldScopedHqlExpression(translator.queryErrorProcessor(), expr->queryChild(0)->queryNormalizedSelector(), test));
-            if (translator.queryOptions().spotCSE)
-                test.setown(spotScalarCSE(test, NULL, translator.queryOptions().spotCseInIfDatasetConditions));
+            test.setown(translator.spotScalarCSE(test, NULL));
             translator.buildFilteredReturn(ctx, test, failedFilterValue);
         }
         break;

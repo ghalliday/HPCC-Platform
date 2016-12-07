@@ -1356,10 +1356,7 @@ void HqlCppTranslator::doFilterAssignments(BuildCtx & ctx, TransformBuilder * bu
 
 void HqlCppTranslator::filterExpandAssignments(BuildCtx & ctx, TransformBuilder * builder, HqlExprArray & assigns, IHqlExpression * rawExpr)
 {
-    LinkedHqlExpr expr = rawExpr;
-
-    if (options.spotCSE)
-        expr.setown(spotScalarCSE(expr, NULL, queryOptions().spotCseInIfDatasetConditions));
+    OwnedHqlExpr expr = spotScalarCSE(rawExpr, NULL);
     traceExpression("transform cse", expr);
 
 //  expandAliases(ctx, expr);
@@ -3151,9 +3148,7 @@ void HqlCppTranslator::doBuildFunction(BuildCtx & ctx, ITypeInfo * type, const c
 {
     if (value)
     {
-        LinkedHqlExpr cseValue = value;
-        if (options.spotCSE)
-            cseValue.setown(spotScalarCSE(cseValue, NULL, queryOptions().spotCseInIfDatasetConditions));
+        OwnedHqlExpr cseValue = spotScalarCSE(value, NULL);
 
         if (false)
         {
@@ -5278,9 +5273,7 @@ void HqlCppTranslator::buildSetResultInfo(BuildCtx & ctx, IHqlExpression * origi
 
     if (!valueToSave.expr)
     {
-        LinkedHqlExpr cseValue = castValue;
-        if (options.spotCSE)
-            cseValue.setown(spotScalarCSE(cseValue, NULL, queryOptions().spotCseInIfDatasetConditions));
+        OwnedHqlExpr cseValue = spotScalarCSE(castValue, NULL);
 
         if ((retType == type_set) && isComplexSet(resultType, castValue->isConstant()) && castValue->getOperator() == no_list && !isNullList(castValue))
         {
@@ -12712,7 +12705,7 @@ void HqlCppTranslator::buildProcessTransformFunction(BuildCtx & ctx, IHqlExpress
 
     //Perform cse on both transforms
     OwnedHqlExpr comma = createComma(LINK(transformRow), LINK(transformRight));
-    comma.setown(spotScalarCSE(comma, NULL, queryOptions().spotCseInIfDatasetConditions));
+    comma.setown(spotScalarCSE(comma, NULL));
     if (comma->getOperator() == no_alias_scope)
         comma.set(comma->queryChild(0));
 
@@ -14418,8 +14411,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityFirstN(BuildCtx & ctx, IHqlExp
     {
         MemberFunction func(*this, instance->startctx, "virtual __int64 getLimit()");
         OwnedHqlExpr newLimit = ensurePositiveOrZeroInt64(limit);
-        if (options.spotCSE)
-            newLimit.setown(spotScalarCSE(newLimit, NULL, queryOptions().spotCseInIfDatasetConditions));
+        newLimit.setown(spotScalarCSE(newLimit, NULL));
         buildReturn(func.ctx, newLimit);
     }
 
@@ -15099,7 +15091,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityProject(BuildCtx & ctx, IHqlEx
             case no_filter:
                 {
                     LinkedHqlExpr invariant;
-                    OwnedHqlExpr cond = extractFilterConditions(invariant, dataset, normalized, false, false);
+                    OwnedHqlExpr cond = extractFilterConditions(invariant, dataset, normalized, false, false, false);
                     //A dataset invariant filter is only worth combining if the engine supports a filtered project operation.
                     if (!options.supportFilterProject && invariant)
                     {
@@ -15331,7 +15323,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityExecuteWhen(BuildCtx & ctx, IH
 
 //---------------------------------------------------------------------------
 
-IHqlExpression * extractFilterConditions(HqlExprAttr & invariant, IHqlExpression * expr, IHqlExpression * dataset, bool spotCSE, bool spotCseInIfDatasetConditions)
+IHqlExpression * extractFilterConditions(HqlExprAttr & invariant, IHqlExpression * expr, IHqlExpression * dataset, bool spotCSE, bool spotCseInIfDatasetConditions, bool newAliasProcessing)
 {
     unsigned num = expr->numChildren();
     assertex(num > 1);
@@ -15348,7 +15340,7 @@ IHqlExpression * extractFilterConditions(HqlExprAttr & invariant, IHqlExpression
         return NULL;
 
     if (spotCSE)
-        cond.setown(spotScalarCSE(cond, NULL, spotCseInIfDatasetConditions));
+        cond.setown(spotScalarCSE(cond, NULL, spotCseInIfDatasetConditions, newAliasProcessing));
 
     HqlExprArray tests;
     cond->unwindList(tests, no_and);
@@ -15382,7 +15374,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityFilter(BuildCtx & ctx, IHqlExp
     buildInstancePrefix(instance);
 
     HqlExprAttr invariant;
-    OwnedHqlExpr cond = extractFilterConditions(invariant, expr, dataset, options.spotCSE, queryOptions().spotCseInIfDatasetConditions);
+    OwnedHqlExpr cond = extractFilterConditions(invariant, expr, dataset, options.spotCSE, queryOptions().spotCseInIfDatasetConditions, options.newAliasProcessing);
 
     //Base class returns true, so only generate if no non-invariant conditions
     if (cond)
@@ -15432,7 +15424,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityFilterGroup(BuildCtx & ctx, IH
 
     HqlExprAttr invariant;
     OwnedHqlExpr left = createSelector(no_left, dataset, selSeq);
-    OwnedHqlExpr cond = extractFilterConditions(invariant, expr, left, options.spotCSE, options.spotCseInIfDatasetConditions);
+    OwnedHqlExpr cond = extractFilterConditions(invariant, expr, left, options.spotCSE, options.spotCseInIfDatasetConditions, options.newAliasProcessing);
 
     //Base class returns true, so only generate if no non-invariant conditions
     if (cond)
@@ -15769,7 +15761,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityCatch(BuildCtx & ctx, IHqlExpr
     {
         MemberFunction func(*this, instance->startctx, "virtual bool isMatch(IException * except)");
         associateLocalFailure(func.ctx, "except");
-        OwnedHqlExpr cseFilter = spotScalarCSE(filter, NULL, queryOptions().spotCseInIfDatasetConditions);
+        OwnedHqlExpr cseFilter = spotScalarCSE(filter, NULL);
         buildReturn(func.ctx, cseFilter, queryBoolType());
     }
 
@@ -15914,7 +15906,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityTraceActivity(BuildCtx & ctx, 
         doBuildVarStringFunction(instance->startctx, "getName", named);
 
     HqlExprAttr invariant;
-    OwnedHqlExpr cond = extractFilterConditions(invariant, expr, dataset, options.spotCSE, queryOptions().spotCseInIfDatasetConditions);
+    OwnedHqlExpr cond = extractFilterConditions(invariant, expr, dataset, options.spotCSE, queryOptions().spotCseInIfDatasetConditions, options.newAliasProcessing);
 
     //Base class returns true, so only generate if no non-invariant conditions
     if (cond)
@@ -16255,7 +16247,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityIf(BuildCtx & ctx, IHqlExpress
     }
 
 
-    OwnedHqlExpr cseCond = options.spotCSE ? spotScalarCSE(cond, NULL, queryOptions().spotCseInIfDatasetConditions) : LINK(cond);
+    OwnedHqlExpr cseCond = spotScalarCSE(cond, NULL);
     bool isChild = (insideChildOrLoopGraph(ctx) || insideRemoteGraph(ctx) || insideLibrary());
     IHqlExpression * activeGraph = queryActiveSubGraph(ctx)->graphTag;
 
@@ -16373,8 +16365,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityChoose(BuildCtx & ctx, IHqlExp
     buildInstancePrefix(instance);
 
     OwnedHqlExpr fullCond(foldHqlExpression(cond));
-    if (options.spotCSE)
-        fullCond.setown(spotScalarCSE(fullCond, NULL, queryOptions().spotCseInIfDatasetConditions));
+    fullCond.setown(spotScalarCSE(fullCond, NULL));
 
     {
         MemberFunction func(*this, instance->startctx, "virtual unsigned getBranch()");
@@ -16474,8 +16465,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityCase(BuildCtx & ctx, IHqlExpre
     {
         MemberFunction func(*this, instance->startctx, "virtual unsigned getBranch()");
         fullCond.setown(foldHqlExpression(fullCond));
-        if (options.spotCSE)
-            fullCond.setown(spotScalarCSE(fullCond, NULL, queryOptions().spotCseInIfDatasetConditions));
+        fullCond.setown(spotScalarCSE(fullCond, NULL));
         buildReturn(func.ctx, fullCond);
     }
 
@@ -17239,9 +17229,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityCreateRow(BuildCtx & ctx, IHql
         if (isDataset)
             associateSkipReturnMarker(func.ctx, queryZero(), selfCursor);
 
-        LinkedHqlExpr cseExpr = expr;
-        if (options.spotCSE)
-            cseExpr.setown(spotScalarCSE(cseExpr, NULL, options.spotCseInIfDatasetConditions));
+        OwnedHqlExpr cseExpr = spotScalarCSE(expr, NULL);
 
         buildAssign(func.ctx, self, cseExpr);
         buildReturnRecordSize(func.ctx, selfCursor);

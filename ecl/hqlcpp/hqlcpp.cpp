@@ -1793,6 +1793,7 @@ void HqlCppTranslator::cacheOptions()
         DebugOption(options.embeddedWarningsAsErrors,"embeddedWarningsFatal",true),
         DebugOption(options.optimizeCriticalFunctions,"optimizeCriticalFunctions",true),
         DebugOption(options.addLikelihoodToGraph,"addLikelihoodToGraph", true),
+        DebugOption(options.newAliasProcessing,"newAliasProcessing", false),
     };
 
     //get options values from workunit
@@ -11680,7 +11681,7 @@ void HqlCppTranslator::doBuildUserFunctionReturn(BuildCtx & ctx, ITypeInfo * typ
             //optimize the way that cses are spotted to minimise unnecessary calculations
             OwnedHqlExpr branches = createComma(LINK(value->queryChild(1)), LINK(value->queryChild(2)));
             OwnedHqlExpr cond = LINK(value->queryChild(0));
-            spotScalarCSE(cond, branches, NULL, NULL, queryOptions().spotCseInIfDatasetConditions);
+            ::spotScalarCSE(cond, branches, NULL, NULL, queryOptions().spotCseInIfDatasetConditions);
             BuildCtx subctx(ctx);
             IHqlStmt * stmt = buildFilterViaExpr(subctx, cond);
             doBuildUserFunctionReturn(subctx, type, branches->queryChild(0));
@@ -11690,7 +11691,7 @@ void HqlCppTranslator::doBuildUserFunctionReturn(BuildCtx & ctx, ITypeInfo * typ
         }
     default:
         {
-            OwnedHqlExpr optimized = spotScalarCSE(value, NULL, queryOptions().spotCseInIfDatasetConditions);
+            OwnedHqlExpr optimized = spotScalarCSE(value, NULL);
             if (value->isAction())
                 buildStmt(ctx, value);
             else
@@ -12097,6 +12098,14 @@ void HqlCppTranslator::buildFunctionDefinition(IHqlExpression * funcdef)
 }
 
 //---------------------------------------------------------------------------
+
+IHqlExpression * HqlCppTranslator::spotScalarCSE(IHqlExpression * expr, IHqlExpression * limit)
+{
+    if (queryOptions().spotCSE)
+        return ::spotScalarCSE(expr, limit, queryOptions().spotCseInIfDatasetConditions, queryOptions().newAliasProcessing);
+    return LINK(expr);
+}
+
 
 void HqlCppTranslator::doBuildPureSubExpr(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt)
 {

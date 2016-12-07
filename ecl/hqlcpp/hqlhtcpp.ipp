@@ -296,7 +296,7 @@ protected:
     bool            matchedDataset;
 };
 
-IHqlExpression * extractFilterConditions(HqlExprAttr & invariant, IHqlExpression * expr, IHqlExpression * dataset, bool spotCSE, bool spotCseInIfDatasetConditions);
+IHqlExpression * extractFilterConditions(HqlExprAttr & invariant, IHqlExpression * expr, IHqlExpression * dataset, bool spotCSE, bool spotCseInIfDatasetConditions, bool newAliasProcessing);
 bool isLibraryScope(IHqlExpression * expr);
 extern IHqlExpression * constantMemberMarkerExpr;
 #endif

@@ -778,6 +778,7 @@ struct HqlCppOptions
     bool                embeddedWarningsAsErrors;
     bool                optimizeCriticalFunctions;
     bool                addLikelihoodToGraph;
+    bool                newAliasProcessing;
 };
 
 //Any information gathered while processing the query should be moved into here, rather than cluttering up the translator class
@@ -1768,6 +1769,7 @@ public:
     void endExtract(BuildCtx & ctx, ParentExtract * extractBuilder);
 
     IDefRecordElement * createMetaRecord(IHqlExpression * record);
+    IHqlExpression * spotScalarCSE(IHqlExpression * expr, IHqlExpression * limit);
 
 public:
     void doBuildBoolFunction(BuildCtx & ctx, const char * name, bool value);

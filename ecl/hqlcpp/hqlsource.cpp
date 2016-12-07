@@ -1388,8 +1388,7 @@ void SourceBuilder::buildTransformElements(BuildCtx & ctx, IHqlExpression * expr
                     if (translator.queryOptions().foldFilter)
                         test.setown(foldScopedHqlExpression(translator.queryErrorProcessor(), ds->queryNormalizedSelector(), test));
 
-                    if (translator.options.spotCSE)
-                        test.setown(spotScalarCSE(test, ds, translator.queryOptions().spotCseInIfDatasetConditions));
+                    test.setown(translator.spotScalarCSE(test, ds));
 
                     if (!returnIfFilterFails)
                         translator.buildFilter(ctx, test);

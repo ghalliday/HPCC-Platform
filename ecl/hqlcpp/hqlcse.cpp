@@ -1113,7 +1113,7 @@ ANewTransformInfo * CseScopeTransformer::createTransformInfo(IHqlExpression * ex
 #endif
 
 
-IHqlExpression * spotScalarCSE(IHqlExpression * expr, IHqlExpression * limit, bool spotCseInIfDatasetConditions)
+IHqlExpression * spotScalarCSE(IHqlExpression * expr, IHqlExpression * limit, bool spotCseInIfDatasetConditions, bool newAliasProcessing)
 {
     if (expr->isConstant())
         return LINK(expr);
@@ -1142,7 +1142,7 @@ IHqlExpression * spotScalarCSE(IHqlExpression * expr, IHqlExpression * limit, bo
         }
     }
 
-    if (!containsAlias(transformed))
+    if (newAliasProcessing || !containsAlias(transformed))
         return transformed.getClear();
 
     //Transform conjunctions so they are (a AND (b AND (c AND d))) not (((a AND b) AND c) AND d)

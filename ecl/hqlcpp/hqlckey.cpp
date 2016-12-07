@@ -206,7 +206,7 @@ void HqlCppTranslator::buildJoinMatchFunction(BuildCtx & ctx, const char * name,
         bindTableCursor(matchFunc.ctx, left, "left", no_left, selSeq);
         bindTableCursor(matchFunc.ctx, right, "right", no_right, selSeq);
 
-        OwnedHqlExpr cseMatch = options.spotCSE ? spotScalarCSE(match, NULL, queryOptions().spotCseInIfDatasetConditions) : LINK(match);
+        OwnedHqlExpr cseMatch = spotScalarCSE(match, NULL);
         buildReturn(matchFunc.ctx, cseMatch);
     }
 }
@@ -532,8 +532,7 @@ void KeyedJoinInfo::buildIndexReadMatch(BuildCtx & ctx)
         OwnedHqlExpr fileposExpr = getFilepos(rawKey, false);
         OwnedHqlExpr fileposVar = createVariable("_filepos", fileposExpr->getType());
 
-        if (translator.queryOptions().spotCSE)
-            matchExpr.setown(spotScalarCSE(matchExpr, NULL, translator.queryOptions().spotCseInIfDatasetConditions));
+        matchExpr.setown(translator.spotScalarCSE(matchExpr, NULL));
 
         translator.associateBlobHelper(func.ctx, rawKey, "blobs");
 

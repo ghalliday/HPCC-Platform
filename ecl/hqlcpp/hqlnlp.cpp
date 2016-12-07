@@ -232,7 +232,7 @@ void NlpParseContext::buildValidators(HqlCppTranslator & translator, BuildCtx & 
             StringBuffer member;
             translator.getUniqueId(member.append("val"));
 
-            LinkedHqlExpr validateExpr = queryValidateExpr(&validators.item(idx));
+            IHqlExpression * validateExpr = queryValidateExpr(&validators.item(idx));
 
             ValidateKind kind = getValidateKind(validateExpr);
 
@@ -260,10 +260,10 @@ void NlpParseContext::buildValidators(HqlCppTranslator & translator, BuildCtx & 
                 func.ctx.associateExpr(activeValidateMarkerExpr, activeValidateMarkerExpr);
                 translator.bindTableCursor(func.ctx, queryNlpParsePseudoTable(), queryNlpParsePseudoTable());
 
-                if (translator.queryOptions().spotCSE)
-                    validateExpr.setown(spotScalarCSE(validateExpr, NULL, translator.queryOptions().spotCseInIfDatasetConditions));
-                translator.buildReturn(func.ctx, validateExpr);
+                OwnedHqlExpr cseValidateExpr = translator.spotScalarCSE(validateExpr, NULL);
+                translator.buildReturn(func.ctx, cseValidateExpr);
             }
+
             translator.endNestedClass();
 
             StringBuffer s;
