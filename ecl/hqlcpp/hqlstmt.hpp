@@ -32,6 +32,7 @@ class HqlStmts;
 class HqlCppInstance;
 class CHqlBoundExpr;
 class all_result_types;
+class AliasBuilder;
 
 interface IFunctionInfo;
 
@@ -144,6 +145,7 @@ public:
     bool                        isOuterContext() const;
     void                        needFunction(IFunctionInfo & helper);
     void                        needFunction(IAtom * name);
+    AliasBuilder *              queryAliasBuilder() const;
     void                        removeAssociation(HqlExprAssociation * search);
     IHqlStmt *                  replaceExpr(IHqlStmt * stmt, IHqlExpression * expr);            // use with extreme care!
     IHqlStmt *                  selectBestContext(IHqlExpression * expr);
@@ -219,12 +221,14 @@ public:
     virtual unsigned        numChildren() const = 0;
     virtual IHqlStmt *      queryChild(unsigned index) const = 0;
     virtual IHqlExpression *queryExpr(unsigned index) const = 0;
+    virtual AliasBuilder *  queryAliasBuilder() const = 0;
 
 //used when creating the statement graph
     virtual void            mergeScopeWithContainer() = 0;
     virtual void            setIncomplete(bool incomplete) = 0;
     virtual void            setIncluded(bool _included) = 0;
     virtual void            finishedFramework() = 0;
+    virtual void            setAliasBuilder(AliasBuilder * builder) = 0;
 };
 
 class HqlCppTranslator;

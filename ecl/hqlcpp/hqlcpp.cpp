@@ -4497,6 +4497,7 @@ void HqlCppTranslator::buildTempExpr(BuildCtx & ctx, IHqlExpression * expr, CHql
         }
     }
 
+
     BuildCtx bestctx(ctx);
     if (expr->isPure() && ctx.getMatchExpr(expr, tgt))
         return;
@@ -4618,20 +4619,20 @@ void HqlCppTranslator::doBuildExprAlias(BuildCtx & ctx, IHqlExpression * expr, C
     //so far on my examples it does the latter, but doesn't seem to cause the former
     if (expr->hasAttribute(localAtom) || (insideOnCreate(ctx) && !expr->hasAttribute(globalAtom)))
     {
-        expandAliases(ctx, value, parentInfo);
-
-        switch (value->getOperator())
+#if 0
+        if (options.newAliasProcessing, true)
         {
-        // these operations generate temporaries anyway, and the row versions are inefficient via a buildTempExpr
-        case no_getresult:
-        case no_getgraphresult:
-        case no_getgraphloopresult:
-            buildAnyExpr(ctx, value, *tgt);
-            break;
-        default:
-            buildTempExpr(ctx, value, *tgt);
-            break;
+            AliasBuilder * builder = ctx.queryAliasBuilder();
+            if (builder)
+            {
+                builder->processAlias(ctx, value, tgt);
+                return;
+            }
         }
+#endif
+
+        expandAliases(ctx, value, parentInfo);
+        buildTempExpr(ctx, value, *tgt);
     }
     else
     {

@@ -37,6 +37,8 @@ public:
     virtual IHqlStmt *              queryChild(unsigned index) const;
     virtual IHqlExpression *        queryExpr(unsigned index) const;
     virtual HqlStmts *              queryContainer();
+    virtual AliasBuilder * queryAliasBuilder() const;
+    virtual void setAliasBuilder(AliasBuilder * builder);
 
             void                    addExpr(IHqlExpression * expr);
             void                    killExprs() { exprs.kill(); }
@@ -194,10 +196,13 @@ class HqlQuoteCompoundStmt : public HqlCompoundStmt
 public:
     HqlQuoteCompoundStmt(StmtKind _kind, HqlStmts * _container, const char * _text) : HqlCompoundStmt(_kind, _container), text(_text) {}
 
-    virtual StringBuffer &          getTextExtra(StringBuffer & out) const;
+    virtual StringBuffer & getTextExtra(StringBuffer & out) const;
+    virtual AliasBuilder * queryAliasBuilder() const;
+    virtual void setAliasBuilder(AliasBuilder * builder);
 
 protected:
-  StringAttr text;
+    StringAttr text;
+    AliasBuilder * aliasBuilder;
 };
 
 
@@ -206,10 +211,13 @@ class HqlQuoteLiteralCompoundStmt : public HqlCompoundStmt
 public:
     HqlQuoteLiteralCompoundStmt(StmtKind _kind, HqlStmts * _container, const char * _text) : HqlCompoundStmt(_kind, _container), text(_text) {}
 
-    virtual StringBuffer &          getTextExtra(StringBuffer & out) const;
+    virtual StringBuffer & getTextExtra(StringBuffer & out) const;
+    virtual AliasBuilder * queryAliasBuilder() const;
+    virtual void setAliasBuilder(AliasBuilder * builder);
 
 protected:
     const char * text;
+    AliasBuilder * aliasBuilder;
 };
 
 

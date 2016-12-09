@@ -260,7 +260,7 @@ MemberFunction::MemberFunction(HqlCppTranslator & _translator, BuildCtx & classc
 
 MemberFunction::MemberFunction(HqlCppTranslator & _translator, BuildCtx & classctx, const char * text, unsigned _flags) : translator(_translator), ctx(classctx), flags(_flags)
 {
-    stmt = ctx.addQuotedFunction(text, (flags & MFdynamicproto) != 0);
+    addPrototype(text);
 }
 
 MemberFunction::~MemberFunction() noexcept(false)
@@ -268,6 +268,13 @@ MemberFunction::~MemberFunction() noexcept(false)
     //Do not process the aliases if we are aborting from an error
     if (!std::uncaught_exception())
         finish();
+}
+
+void MemberFunction::addPrototype(const char * text)
+{
+    assertex(!stmt);
+    stmt = ctx.addQuotedFunction(text, (flags & MFdynamicproto) != 0);
+    stmt->setAliasBuilder(&aliases);
 }
 
 void MemberFunction::finish()
@@ -278,6 +285,7 @@ void MemberFunction::finish()
     if ((flags & MFopt) && (stmt->numChildren() == 0), false)
         stmt->setIncluded(false);
 
+    stmt->setAliasBuilder(nullptr);
     stmt = nullptr;
 }
 
@@ -301,7 +309,7 @@ void MemberFunction::setIncomplete(bool value)
 void MemberFunction::start(const char * text, unsigned _flags)
 {
     flags = _flags;
-    stmt = ctx.addQuotedFunction(text, (flags & MFdynamicproto) != 0);
+    addPrototype(text);
 }
 
 //---------------------------------------------------------------------------

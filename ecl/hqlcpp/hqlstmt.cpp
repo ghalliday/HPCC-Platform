@@ -782,6 +782,22 @@ HqlExprAssociation * BuildCtx::queryAssociation(IHqlExpression * search, AssocKi
 }
 
 
+AliasBuilder * BuildCtx::queryAliasBuilder() const
+{
+    HqlStmts * searchStmts = curStmts;
+    loop
+    {
+        HqlStmt * limitStmt = searchStmts->queryStmt();
+        if (!limitStmt)
+            return nullptr;
+        AliasBuilder * builder = limitStmt->queryAliasBuilder();
+        if (builder)
+            return builder;
+        searchStmts = limitStmt->queryContainer();
+    }
+}
+
+
 void BuildCtx::removeAssociation(HqlExprAssociation * search)
 {
     if (!search)
@@ -1251,6 +1267,16 @@ HqlStmts * HqlStmt::queryContainer()
     return container;
 }
 
+AliasBuilder * HqlStmt::queryAliasBuilder() const
+{
+    return nullptr;
+}
+
+void HqlStmt::setAliasBuilder(AliasBuilder * builder)
+{
+    throwUnexpected();
+}
+
 IHqlExpression * HqlStmt::queryExpr(unsigned index) const
 {
     if (exprs.isItem(index))
@@ -1320,6 +1346,17 @@ StringBuffer & HqlQuoteStmt::getTextExtra(StringBuffer & out) const
 }
 
 
+AliasBuilder * HqlQuoteCompoundStmt::queryAliasBuilder() const
+{
+    return aliasBuilder;
+}
+
+void HqlQuoteCompoundStmt::setAliasBuilder(AliasBuilder * builder)
+{
+    aliasBuilder = builder;
+}
+
+
 StringBuffer & HqlQuoteLiteralStmt::getTextExtra(StringBuffer & out) const
 {
     return out.append(text);
@@ -1335,6 +1372,16 @@ StringBuffer & HqlQuoteCompoundStmt::getTextExtra(StringBuffer & out) const
 StringBuffer & HqlQuoteLiteralCompoundStmt::getTextExtra(StringBuffer & out) const
 {
     return out.append(text);
+}
+
+AliasBuilder * HqlQuoteLiteralCompoundStmt::queryAliasBuilder() const
+{
+    return aliasBuilder;
+}
+
+void HqlQuoteLiteralCompoundStmt::setAliasBuilder(AliasBuilder * builder)
+{
+    aliasBuilder = builder;
 }
 
 

@@ -415,6 +415,10 @@ protected:
 
 //===========================================================================
 
+class AliasBuilder
+{
+};
+
 enum
 {
     MFdynamicproto = 1,               // Prototype for the function is not a literal string
@@ -437,11 +441,16 @@ public:
 
     inline bool isExecutedOnce() const { return (flags & MFsingle) != 0; }
 
+private:
+    void addPrototype(const char * text);
+
 public:
+    BuildCtx ctx;
+private:
     HqlCppTranslator & translator;
     IHqlStmt * stmt = nullptr;
-    BuildCtx ctx;
     unsigned flags = 0;
+    AliasBuilder aliases;
 };
 
 //===========================================================================
