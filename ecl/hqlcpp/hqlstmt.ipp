@@ -202,7 +202,7 @@ public:
 
 protected:
     StringAttr text;
-    AliasBuilder * aliasBuilder;
+    AliasBuilder * aliasBuilder = nullptr;
 };
 
 
@@ -217,7 +217,7 @@ public:
 
 protected:
     const char * text;
-    AliasBuilder * aliasBuilder;
+    AliasBuilder * aliasBuilder = nullptr;
 };
 
 

@@ -415,8 +415,40 @@ protected:
 
 //===========================================================================
 
+class AliasEntry : public CInterface
+{
+public:
+    AliasEntry(IHqlExpression * _expr) : expr(_expr) {}
+
+    void beginAlias(HqlCppTranslator & translator, BuildCtx & ctx, CHqlBoundExpr & tgt);
+    void generateAlias(HqlCppTranslator & translator, BuildCtx & ctx);
+
+private:
+    LinkedHqlExpr expr;
+    IHqlStmt * stmt = nullptr;
+    CHqlBoundTarget target;
+};
+
+class AliasDepth : public CInterface
+{
+public:
+    void buildAlias(HqlCppTranslator & translator, BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt);
+    bool generateAlias(HqlCppTranslator & translator, BuildCtx & ctx);
+
+protected:
+    CIArrayOf<AliasEntry> aliases;
+};
+
 class AliasBuilder
 {
+public:
+    AliasBuilder(BuildCtx & _ctx) : ctx(_ctx) {}
+    void buildAlias(HqlCppTranslator & translator, BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt);
+    void generateAliases(HqlCppTranslator & translator);
+
+protected:
+    BuildCtx ctx;
+    CIArrayOf<AliasDepth> aliases;
 };
 
 enum
@@ -1609,6 +1641,7 @@ public:
     void expandAliases(BuildCtx & ctx, IHqlExpression * expr, AliasExpansionInfo * parentInfo);
     void expandAliasScope(BuildCtx & ctx, IHqlExpression * expr);
     IHqlExpression * queryExpandAliasScope(BuildCtx & ctx, IHqlExpression * expr);
+    void buildAlias(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt, AliasExpansionInfo * parentInfo);
 
     void addDependency(BuildCtx & ctx, ABoundActivity * element, ABoundActivity * dependent, IAtom * kind, const char * label=NULL);
     void addDependency(BuildCtx & ctx, ABoundActivity * element, ActivityInstance * instance, IAtom * kind, const char * label=NULL);

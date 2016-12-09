@@ -254,11 +254,85 @@ ColumnToOffsetMap * RecordOffsetMap::queryMapping(IHqlExpression * record, unsig
 
 //---------------------------------------------------------------------------
 
-MemberFunction::MemberFunction(HqlCppTranslator & _translator, BuildCtx & classctx) : translator(_translator), ctx(classctx)
+//It doesn't matter how accurate this is as long as it is consistent so that depth(a) > depth(b) if a is dependent on b
+unsigned queryAliasDepth(IHqlExpression * expr)
+{
+    return 0;
+}
+
+void AliasEntry::beginAlias(HqlCppTranslator & translator, BuildCtx & ctx, CHqlBoundExpr & tgt)
+{
+    BuildCtx tempctx(ctx);
+    stmt = tempctx.addGroup();
+    translator.createTempFor(tempctx, expr, target);
+    tgt.setFromTarget(target);
+    ctx.associateExpr(expr, tgt);
+}
+
+void AliasEntry::generateAlias(HqlCppTranslator & translator, BuildCtx & ctx)
+{
+    BuildCtx tempctx(ctx, stmt);
+    CHqlBoundExpr bound;
+    tempctx.getMatchExpr(expr, bound);
+    CHqlBoundTarget target;
+    target.extractFrom(bound);
+    stmt->setIncomplete(true);
+    if (expr->isDatarow())
+    {
+        Owned<BoundRow> tempRow = translator.createBoundRow(expr, bound.expr);
+        translator.buildRowAssign(tempctx, tempRow, expr);
+    }
+    else
+        translator.buildExprAssign(tempctx, target, expr);
+    stmt->setIncomplete(false);
+}
+
+void AliasDepth::buildAlias(HqlCppTranslator & translator, BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt)
+{
+    aliases.append(*new AliasEntry(expr));
+    aliases.tos().beginAlias(translator, ctx, tgt);
+}
+
+bool AliasDepth::generateAlias(HqlCppTranslator & translator, BuildCtx & ctx)
+{
+    if (aliases.ordinality() == 0)
+        return false;
+
+    Owned<AliasEntry> next = &aliases.popGet();
+    next->generateAlias(translator, ctx);
+    return true;
+}
+
+
+void AliasBuilder::buildAlias(HqlCppTranslator & translator, BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt)
+{
+    if (ctx.getMatchExpr(expr, tgt))
+        return;
+
+    //Add a declaration in the current scope, inside a group which could be moved.
+    //Add an alias entry to the list
+    unsigned depth = queryAliasDepth(expr);
+    while (aliases.ordinality() <= depth)
+        aliases.append(*new AliasDepth);
+    aliases.item(depth).buildAlias(translator, ctx, expr, tgt);
+}
+
+void AliasBuilder::generateAliases(HqlCppTranslator & translator)
+{
+    while (aliases.ordinality())
+    {
+        if (!aliases.tos().generateAlias(translator, ctx))
+            aliases.pop();
+    }
+}
+
+//---------------------------------------------------------------------------
+
+MemberFunction::MemberFunction(HqlCppTranslator & _translator, BuildCtx & classctx) : translator(_translator), ctx(classctx), aliases(classctx)
 {
 }
 
-MemberFunction::MemberFunction(HqlCppTranslator & _translator, BuildCtx & classctx, const char * text, unsigned _flags) : translator(_translator), ctx(classctx), flags(_flags)
+MemberFunction::MemberFunction(HqlCppTranslator & _translator, BuildCtx & classctx, const char * text, unsigned _flags) : translator(_translator), ctx(classctx), flags(_flags), aliases(classctx)
 {
     addPrototype(text);
 }
@@ -282,6 +356,7 @@ void MemberFunction::finish()
     if (!stmt)
         return;
 
+    aliases.generateAliases(translator);
     if ((flags & MFopt) && (stmt->numChildren() == 0), false)
         stmt->setIncluded(false);
 

@@ -1793,7 +1793,7 @@ void HqlCppTranslator::cacheOptions()
         DebugOption(options.embeddedWarningsAsErrors,"embeddedWarningsFatal",true),
         DebugOption(options.optimizeCriticalFunctions,"optimizeCriticalFunctions",true),
         DebugOption(options.addLikelihoodToGraph,"addLikelihoodToGraph", true),
-        DebugOption(options.newAliasProcessing,"newAliasProcessing", false),
+        DebugOption(options.newAliasProcessing,"newAliasProcessing", true),
     };
 
     //get options values from workunit
@@ -3988,6 +3988,22 @@ void HqlCppTranslator::expandAliasScope(BuildCtx & ctx, IHqlExpression * expr)
     }
 }
 
+void HqlCppTranslator::buildAlias(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt, AliasExpansionInfo * parentInfo)
+{
+    if (options.newAliasProcessing)
+    {
+        AliasBuilder * builder = ctx.queryAliasBuilder();
+        if (builder)
+        {
+            builder->buildAlias(*this, ctx, expr, tgt);
+            return;
+        }
+    }
+
+    expandAliases(ctx, expr, parentInfo);
+    buildTempExpr(ctx, expr, tgt);
+}
+
 //------------------------------------------------------------------------------
 
 void HqlCppTranslator::gatherActiveCursors(BuildCtx & ctx, HqlExprCopyArray & activeRows)
@@ -4598,8 +4614,8 @@ AliasKind HqlCppTranslator::doBuildAliasValue(BuildCtx & ctx, IHqlExpression * v
     EvalContext * instance = queryEvalContext(ctx);
     if (instance)
         return instance->evaluateExpression(ctx, value, tgt, true);
-    expandAliases(ctx, value, parentInfo);
-    buildTempExpr(ctx, value, tgt);
+
+    buildAlias(ctx, value, tgt, parentInfo);
     return RuntimeAlias;
 }
 
@@ -4619,20 +4635,7 @@ void HqlCppTranslator::doBuildExprAlias(BuildCtx & ctx, IHqlExpression * expr, C
     //so far on my examples it does the latter, but doesn't seem to cause the former
     if (expr->hasAttribute(localAtom) || (insideOnCreate(ctx) && !expr->hasAttribute(globalAtom)))
     {
-#if 0
-        if (options.newAliasProcessing, true)
-        {
-            AliasBuilder * builder = ctx.queryAliasBuilder();
-            if (builder)
-            {
-                builder->processAlias(ctx, value, tgt);
-                return;
-            }
-        }
-#endif
-
-        expandAliases(ctx, value, parentInfo);
-        buildTempExpr(ctx, value, *tgt);
+        buildAlias(ctx, value, *tgt, parentInfo);
     }
     else
     {
