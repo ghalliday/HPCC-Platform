@@ -12477,6 +12477,20 @@ extern IHqlExpression *createConstant(bool constant)
     return LINK(constantFalse);
 }
 
+extern IHqlExpression *createNullBooleanOpConstant(node_operator op)
+{
+    switch (op)
+    {
+    case no_and:
+        return createConstant(true);
+    case no_or:
+    case no_xor:
+        return createConstant(false);
+    default:
+        throwUnexpected();
+    }
+}
+
 extern IHqlExpression *createBlankString()
 {
     return LINK(constantBlankString);

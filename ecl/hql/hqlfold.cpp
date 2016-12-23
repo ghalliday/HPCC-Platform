@@ -6172,16 +6172,59 @@ IHqlExpression * CExprFolderTransformer::createTransformed(IHqlExpression * expr
     case no_and:
         {
             //Transform all children that do not match the operator - otherwise we get an n^2 (or n^3) algorithm
-            HqlExprArray args, transformedArgs;
+            HqlExprArray args;
             expr->unwindList(args, op);
+            ForEachItemIn(i2, args)
+            {
+                IHqlExpression & cur = args.item(i2);
+                node_operator curOp = cur.getOperator();
+                switch (curOp)
+                {
+                case no_and:
+                case no_or:
+                    assertex(curOp != op);
+                    //a && (a || b) -> a;   a || (a && b) -> a
+                    if (args.contains(*cur.queryChild(0)) || args.contains(*cur.queryChild(1)))
+                    {
+                        //Add a null value which will be stripped later.
+                        args.replace(*createNullBooleanOpConstant(op), i2);
+                    }
+                    break;
+                }
+            }
+
+
             bool same = true;
+            HqlExprArray transformedArgs;
             ForEachItemIn(i, args)
             {
                 IHqlExpression * cur = &args.item(i);
-                IHqlExpression * t = transform(cur);
-                transformedArgs.append(*t);
-                if (t != cur)
-                    same = false;
+                OwnedHqlExpr t = transform(cur);
+                node_operator childOp = t->getOperator();
+                switch (childOp)
+                {
+                case no_and:
+                case no_or:
+                {
+                    unsigned matchLeft = transformedArgs.find(*t->queryChild(0));
+                    if (matchLeft != NotFound)
+                    {
+                        if (op == childOp)
+                        {
+                            // a && (a && b) -> a && b;   a || (a || b) -> (a || b)
+                            // Replace the simpler expression with a null value which is replaced later
+                            transformedArgs.replace(*createNullBooleanOpConstant(op), matchLeft);
+                        }
+                        else
+                        {
+                            //a && (a || b) -> a;   a || (a && b) -> a
+                            //Add a null value which will be stripped later.
+                            t.setown(createNullBooleanOpConstant(op));
+                        }
+                    }
+                    break;
+                }
+                }
 
                 //Sort circuit always-true or always-false early to avoid subsequent transforms..
                 IValue * value = t->queryValue();
@@ -6199,7 +6242,11 @@ IHqlExpression * CExprFolderTransformer::createTransformed(IHqlExpression * expr
                     }
                 }
 
+                if (t != cur)
+                    same = false;
+                transformedArgs.append(*t.getClear());
             }
+
             if (same)
                 dft.set(expr);
             else
