@@ -40,7 +40,7 @@ RtlFieldOffsetCalculator::RtlFieldOffsetCalculator(RtlFieldArray & fields)
     }
     fixedOffsets = new size_t[numFields + 1];
     variableIndex = new unsigned[numFields + 1];
-    variableFields = new unsigned[numVarFields];
+    variableFields = new size_t[numVarFields];
     variableTotals = new size_t[numVarFields+1];
 
     unsigned curVariable = 0;
