@@ -355,6 +355,7 @@ interface RtlITypeInfo
 
     virtual size32_t build(ARowBuilder &builder, size32_t offset, const RtlFieldInfo *field, IFieldSource &source) const = 0;
 
+    virtual size32_t getMinSize() const = 0;
     virtual void getUtf8(size32_t & resultLen, char * & result, const void * ptr) const = 0;
     virtual __int64 getInt(const void * ptr) const = 0;
 };
