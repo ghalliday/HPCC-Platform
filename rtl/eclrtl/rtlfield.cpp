@@ -985,6 +985,63 @@ size32_t RtlRecordTypeInfo::build(ARowBuilder &builder, size32_t offset, const R
 
 //-------------------------------------------------------------------------------------------------------------------
 
+size32_t RtlBeginRowTypeInfo::size(const byte * self, const byte * selfrow) const
+{
+    return 0;
+}
+
+size32_t RtlBeginRowTypeInfo::process(const byte * self, const byte * selfrow, const RtlFieldInfo * field, IFieldProcessor & target) const
+{
+    if (target.processBeginRow(field))
+    {
+        //Cannot process in quite the same way
+    }
+    return 0;
+}
+
+size32_t RtlBeginRowTypeInfo::toXML(const byte * self, const byte * selfrow, const RtlFieldInfo * field, IXmlWriter & target) const
+{
+    const char * xpath = queryXPath(field);
+    if (*xpath)
+        target.outputBeginNested(xpath, false);
+    return 0;
+}
+
+size32_t RtlBeginRowTypeInfo::build(ARowBuilder &builder, size32_t offset, const RtlFieldInfo *field, IFieldSource &source) const
+{
+    source.processBeginRow(field);
+    return offset;
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
+size32_t RtlEndRowTypeInfo::size(const byte * self, const byte * selfrow) const
+{
+    return 0;
+}
+
+size32_t RtlEndRowTypeInfo::process(const byte * self, const byte * selfrow, const RtlFieldInfo * field, IFieldProcessor & target) const
+{
+    target.processEndRow(field);
+    return 0;
+}
+
+size32_t RtlEndRowTypeInfo::toXML(const byte * self, const byte * selfrow, const RtlFieldInfo * field, IXmlWriter & target) const
+{
+    const char * xpath = queryXPath(field);
+    if (*xpath)
+        target.outputEndNested(xpath);
+    return 0;
+}
+
+size32_t RtlEndRowTypeInfo::build(ARowBuilder &builder, size32_t offset, const RtlFieldInfo *field, IFieldSource &source) const
+{
+    source.processEndRow(field);
+    return offset;
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+
 size32_t RtlSetTypeInfo::size(const byte * self, const byte * selfrow) const 
 {
     return sizeof(bool) + sizeof(size32_t) + rtlReadUInt4(self + sizeof(bool));
