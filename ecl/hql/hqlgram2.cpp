@@ -2059,7 +2059,7 @@ void HqlGram::checkAssignedNormalizeTransform(IHqlExpression * record, const att
 {
     OwnedHqlExpr self = getSelf(record);
     bool modified = false;
-    if (recordContainsNestedRecord(record))
+    if (recordContainsNestedRow(record))
     {
         HqlExprArray assigns;
         doCheckAssignedNormalizeTransform(&assigns, self, self, record, errpos, modified);
