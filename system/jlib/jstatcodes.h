@@ -251,4 +251,15 @@ enum StatisticKind
 };
 constexpr StatisticKind operator |(StatisticKind l, StatisticKind r) { return (StatisticKind)((unsigned)l | (unsigned)r); }
 
+enum
+{
+    StSumChannels   = 0x00001,      // Publish the sum of the channels as the raw value (e.g., StSizeDiskRead)
+    StSumNested     = 0x00002,      // Sum the local values to get a
+    StMaxNested     = 0x00004,      // Nested value is max of child values
+    StInheritNested = 0x00008,      // Nested values include all children
+};
+
+
+typedef __uint64 stat_t;
+
 #endif

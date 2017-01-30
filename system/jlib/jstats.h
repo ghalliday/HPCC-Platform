@@ -30,6 +30,12 @@ typedef unsigned __int64 stat_type;
 const unsigned __int64 MaxStatisticValue = (unsigned __int64)0-1U;
 const unsigned __int64 AnyStatisticValue = MaxStatisticValue; // Use the maximum value to also represent unknown, since it is unlikely to ever occur.
 
+inline constexpr stat_t statSec(unsigned __int64 value) { return value * 1000000000; }
+inline constexpr stat_t statMs(unsigned __int64 value) { return value * 1000000; }
+inline constexpr stat_t statSkewPercent(int value) { return (stat_t)value * 100; }            // Since 1 = 0.01% skew
+inline constexpr stat_t statSkewPercent(long double value) { return (stat_t)(value * 100); }
+inline constexpr stat_t statSkewPercent(unsigned __int64  value) { return (stat_t)(value * 100); }
+
 inline StatisticKind queryStatsVariant(StatisticKind kind) { return (StatisticKind)(kind & ~StKindMask); }
 
 //---------------------------------------------------------------------------------------------------------------------
