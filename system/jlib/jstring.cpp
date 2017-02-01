@@ -185,7 +185,7 @@ char * StringBuffer::detach()
     return result;
 }
 
-StringBuffer & StringBuffer::append(char value)
+StringBuffer & StringBuffer::doAppend(char value)
 {
     ensureCapacity(1);
     buffer[curLen] = value;

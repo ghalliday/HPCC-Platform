@@ -51,7 +51,16 @@ public:
     inline void     ensureCapacity(unsigned max)        { if (maxLen <= curLen + max) _realloc(curLen + max); }
     size32_t        lengthUtf8() const;
 
-    StringBuffer &  append(char value);
+    StringBuffer &  append(char value) __attribute__((always_inline))
+    {
+        size32_t len = curLen;
+        if (unlikely(maxLen <= len + 1))
+            return doAppend(value);
+        buffer[len] = value;
+        curLen = len+1;
+        return *this;
+    }
+
     StringBuffer &  append(unsigned char value);
     StringBuffer &  append(const char * value);
     StringBuffer &  append(const unsigned char * value);
@@ -141,6 +150,7 @@ private: // long depreciated
     StringBuffer &  append(long value);
     StringBuffer &  append(unsigned long value);
     StringBuffer &  insert(int offset, long value);
+    StringBuffer &  doAppend(char value);
 
 protected:
     inline bool useInternal() const { return buffer == internalBuffer; }
