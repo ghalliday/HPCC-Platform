@@ -31,7 +31,7 @@ interface IHqlDelayedCodeGenerator;
 struct ReadAheadState;
 
 //external public interface into the members of a record...
-class HQLCPP_API AColumnInfo : public MappingBase 
+class HQLCPP_API AColumnInfo : public CInterfaceOf<IInterface>
 {
 public:
     virtual void buildAddress(HqlCppTranslator & translator, BuildCtx & ctx, IReferenceSelector * selector, CHqlBoundExpr & bound) = 0;
@@ -55,6 +55,8 @@ public:
     virtual void buildSerialize(HqlCppTranslator & translator, BuildCtx & ctx, IReferenceSelector * selector, IHqlExpression * helper, IAtom * serializeForm) = 0;
     virtual bool prepareReadAhead(HqlCppTranslator & translator, ReadAheadState & state) = 0;
     virtual bool buildReadAhead(HqlCppTranslator & translator, BuildCtx & ctx, ReadAheadState & state) = 0;
+
+    virtual const void * getKey() const = 0;
 };
 
 class HQLCPP_API ABoundActivity : public IInterface, public CInterface

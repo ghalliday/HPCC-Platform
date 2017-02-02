@@ -62,7 +62,68 @@ protected:
 
 //---------------------------------------------------------------------------
 
-typedef MapOf<IHqlExpression *, AColumnInfo> ColumnToInfoMap;
+typedef MapOf<IInterface *, AColumnInfo> ColumnToInfoMap2;
+
+inline IInterface * queryColumnKey(IHqlExpression * column)
+{
+    IAtom * name = column->queryName();
+    if (name)
+        return name;
+    return column;
+}
+inline unsigned getColumnHash(const void * key) { return rtlHash32Data((size32_t)sizeof(key), key, 0); }
+class ColumnToInfoMap: public SuperHashTableOf<AColumnInfo, void>
+{
+public:
+    ~ColumnToInfoMap()
+    {
+        _releaseAll();
+    }
+
+    void onAdd(void * et)
+    {
+        static_cast<AColumnInfo *>(et)->Link();
+    }
+
+    void onRemove(void *et)
+    {
+        static_cast<AColumnInfo *>(et)->Release();
+    }
+
+    unsigned getHashFromElement(const void *e) const
+    {
+        const AColumnInfo &elem=*(const AColumnInfo *)e;
+        return getColumnHash(elem.getKey());
+    }
+
+    unsigned getHashFromFindParam(const void *fp) const
+    {
+        return getColumnHash(fp);
+    }
+
+    const void * getFindParam(const void *p) const
+    {
+        const AColumnInfo &elem=*(const AColumnInfo *)p;
+        return elem.getKey();
+    }
+
+    bool matchesFindParam(const void * et, const void *fp, unsigned fphash) const
+    {
+        const AColumnInfo &elem=*(const AColumnInfo *)et;
+        return elem.getKey() == fp;
+    }
+
+    bool replaceOwn(AColumnInfo & donor)
+    {
+        if(replace(donor))
+        {
+            donor.Release();
+            return true;
+        }
+        return false;
+    }
+};
+
 
 class CContainerInfo;
 class HQLCPP_API CMemberInfo : public AColumnInfo
@@ -71,7 +132,10 @@ public:
     CMemberInfo(CContainerInfo * _container, CMemberInfo * _prior, IHqlExpression * _column);
 
 //IMappingBase
-    virtual const void * getKey() const { return &column; }
+    virtual const void * getKey() const
+    {
+        return queryColumnKey(column);
+    }
 
 //AColumnInfo
     virtual void buildAddress(HqlCppTranslator & translator, BuildCtx & ctx, IReferenceSelector * selector, CHqlBoundExpr & bound);

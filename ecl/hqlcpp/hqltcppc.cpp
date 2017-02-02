@@ -1160,7 +1160,7 @@ IHqlExpression * CRecordInfo::queryRootSelf()
 
 AColumnInfo * CRecordInfo::lookupColumn(IHqlExpression * search)
 {
-    return map.find(search);
+    return map.find(queryColumnKey(search));
 }
 
 void CRecordInfo::registerChild(CMemberInfo * child)    
