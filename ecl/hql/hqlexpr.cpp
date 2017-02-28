@@ -77,8 +77,8 @@
 //#define DEBUG_SCOPE
 //#define CHECK_RECORD_CONSISTENCY
 //#define PARANOID
-//#define SEARCH_NAME1   "v1"
-//#define SEARCH_NAME2   "v2"
+#define SEARCH_NAME1   "rFF6"
+#define SEARCH_NAME2   "v7I6" // "r6I6"
 //#define CHECK_SELSEQ_CONSISTENCY
 //#define GATHER_COMMON_STATS
 #define VERIFY_EXPR_INTEGRITY

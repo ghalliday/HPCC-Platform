@@ -410,7 +410,7 @@ bool CseSpotter::containsPotentialCSE(IHqlExpression * expr)
 //  case no_evalonce:
         return false;
     case no_select:
-        return false; //isNewSelector(expr);
+        return isNewSelector(expr);
     case NO_AGGREGATE:
         //There may possibly be cses, but we would need to do lots of scoping analysis to work out whether they were
         //really common.
@@ -522,8 +522,10 @@ bool CseSpotter::checkPotentialCSE(IHqlExpression * expr, CseSpotterInfo * extra
     case no_field:
         throwUnexpected();
     case no_select:
+    {
         //MORE: ds[n].x would probably be worth cseing.
-        return false;
+        return isNewSelector(expr);
+    }
     case no_list:
     case no_datasetlist:
     case no_getresult:      // these are commoned up in the code generator, so don't do it twice.

@@ -792,6 +792,21 @@ static IHqlExpression * querySimplifyCompareArgCast(IHqlExpression * expr)
 {
     if (expr->isConstant())
         return expr;
+
+    //since comparisons generally ignore trailing spaces there is no benefit in trimming
+    if ((expr->getOperator() == no_trim) && !expr->hasAttribute(allAtom) && !expr->hasAttribute(leftAtom), false)
+    {
+        IHqlExpression * child = expr->queryChild(0);
+        switch  (child->queryType()->getTypeCode())
+        {
+        case type_data: // data is not implicitly trimmed
+            break;
+        default:
+            expr = child;
+            break;
+        }
+    }
+
     while ((expr->getOperator() == no_implicitcast) || (expr->getOperator() == no_cast))
     {
         ITypeInfo * type = expr->queryType()->queryPromotedType();
@@ -2313,6 +2328,13 @@ void HqlCppTranslator::buildExprAssign(BuildCtx & ctx, const CHqlBoundTarget & t
         break;
     }
     */
+
+    CHqlBoundExpr existing;
+    if (false)//expr->isPure() && ctx.getMatchExpr(expr, existing))
+    {
+        assign(ctx, target, existing);
+        return;
+    }
 
     node_operator op = expr->getOperator();
     switch (op)
@@ -6500,6 +6522,17 @@ void HqlCppTranslator::doBuildExprCast(BuildCtx & ctx, IHqlExpression * expr, CH
             }
             break;
         }
+    case no_if:
+        if (isStringType(exprType), false)
+        {
+            if (!canRemoveStringCast(exprType, arg->queryType()))
+            {
+                buildTempExpr(ctx, expr, tgt);
+                return;
+            }
+        }
+        break;
+
 #if 0
     case no_if:
         {

@@ -3350,6 +3350,21 @@ IHqlExpression * foldConstantOperator(IHqlExpression * expr, unsigned foldOption
                     }
                     break;
                 }
+
+                //convert (string)string200value -> string200value
+                if (isStringType(exprType) && isUnknownSize(exprType))
+                {
+                    ITypeInfo * childType = child->queryType();
+                    if (exprType->getTypeCode() == childType->getTypeCode())
+                    {
+                        OwnedITypeInfo stretched = getStretchedType(UNKNOWN_LENGTH, childType);
+                        if (exprType == stretched)
+                        {
+                            EclIR::dbglogIR(expr);
+                            return LINK(child);
+                        }
+                    }
+                }
             }
             break;
         }
