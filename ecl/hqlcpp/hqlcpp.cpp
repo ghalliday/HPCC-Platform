@@ -9466,6 +9466,12 @@ void checkRankRange(IHqlExpression * index, IHqlExpression * list)
         getStoredDescription(s, sequence, name, true);
         throwError1(HQLERR_RankOnStored, s.str());
     }
+    if (list->getOperator() != no_list)
+    {
+        StringBuffer s;
+        getExprECL(list, s);
+        throwError1(HQLERR_RankOnStored, s.str());
+    }
 }
 
 void HqlCppTranslator::createOrderList(BuildCtx & ctx, IHqlExpression * expr, IHqlExpression * ascdesc, CHqlBoundExpr & tgt)
@@ -9479,6 +9485,9 @@ void HqlCppTranslator::doBuildExprRank(BuildCtx & ctx, IHqlExpression * expr, CH
 {
     IHqlExpression * index = expr->queryChild(0);
     IHqlExpression * list = expr->queryChild(1);
+    if (list->getOperator() == no_alias_scope)
+        list = list->queryChild(0);
+
     checkRankRange(index, list);
 
     CHqlBoundExpr bound, boundIndex;
@@ -9499,6 +9508,9 @@ void HqlCppTranslator::doBuildExprRanked(BuildCtx & ctx, IHqlExpression * expr, 
 {
     IHqlExpression * index = expr->queryChild(0);
     IHqlExpression * list = expr->queryChild(1);
+    if (list->getOperator() == no_alias_scope)
+        list = list->queryChild(0);
+
     checkRankRange(index, list);
 
     CHqlBoundExpr bound, boundIndex;

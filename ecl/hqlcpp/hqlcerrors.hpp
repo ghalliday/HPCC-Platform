@@ -224,6 +224,7 @@
 #define HQLERR_BodyNotAllowedWithInline         4204
 #define HQLERR_DatasetPassedToRowArg            4205
 #define HQLERR_HashStoredDuplication            4207
+#define HQLERR_RankOnNonList                    4208
 
 //Warnings....
 #define HQLWRN_PersistDataNotLikely             4500
