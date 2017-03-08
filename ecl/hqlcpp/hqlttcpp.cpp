@@ -1430,7 +1430,7 @@ IHqlExpression * SequenceNumberAllocator::createTransformed(IHqlExpression * exp
             args.append(*transform(expr->queryChild(1)));
             applyDepth--;
             OwnedHqlExpr ret = completeTransform(expr, args);
-            return attachSequenceNumber(ret);
+            return attachSequenceNumber(expr, ret);
         }
     case no_outputscalar:
         if (applyDepth)
@@ -1461,7 +1461,7 @@ IHqlExpression * SequenceNumberAllocator::createTransformed(IHqlExpression * exp
         }
     }
     Owned<IHqlExpression> transformed = NewHqlTransformer::createTransformed(expr);
-    return attachSequenceNumber(transformed.get());
+    return attachSequenceNumber(expr, transformed.get());
 }
 
 static IAtom * queryOverwriteAction(IHqlExpression * expr)
@@ -1475,9 +1475,9 @@ static IAtom * queryOverwriteAction(IHqlExpression * expr)
     return NULL;
 }
 
-IHqlExpression * SequenceNumberAllocator::attachSequenceNumber(IHqlExpression * expr)
+IHqlExpression * SequenceNumberAllocator::attachSequenceNumber(IHqlExpression * expr, IHqlExpression * transformed)
 {
-    switch (expr->getOperator())
+    switch (transformed->getOperator())
     {
     case no_buildindex:
     case no_output:
@@ -1488,33 +1488,33 @@ IHqlExpression * SequenceNumberAllocator::attachSequenceNumber(IHqlExpression * 
         {
             queryExtra(expr)->setGetsSequence();
             HqlExprArray args;
-            unwindChildren(args, expr);
+            unwindChildren(args, transformed);
             bool duplicate = false;
-            nextSequence(args, queryResultName(expr), queryOverwriteAction(expr), expr->queryChild(0), true, &duplicate);
+            nextSequence(args, queryResultName(transformed), queryOverwriteAction(transformed), transformed->queryChild(0), true, &duplicate);
             args.append(*createUniqueId());
-            return expr->clone(args);
+            return transformed->clone(args);
         }
         break;
     case no_outputscalar:
         {
-            IHqlExpression * name = queryResultName(expr);
-            queryExtra(expr)->setGetsSequence();
+            IHqlExpression * name = queryResultName(transformed);
+            queryExtra(transformed)->setGetsSequence();
             HqlExprArray args;
-            args.append(*LINK(expr->queryChild(0)));
+            args.append(*LINK(transformed->queryChild(0)));
             bool duplicate = false;
-            nextSequence(args, name, queryOverwriteAction(expr), expr->queryChild(0), true, &duplicate);
+            nextSequence(args, name, queryOverwriteAction(transformed), transformed->queryChild(0), true, &duplicate);
             if (name)
                 args.append(*createAttribute(namedAtom, LINK(name)));
             args.append(*createAttribute(outputAtom));
             args.append(*createUniqueId());
-            IHqlExpression *noXpath = expr->queryAttribute(noXpathAtom);
+            IHqlExpression *noXpath = transformed->queryAttribute(noXpathAtom);
             if (noXpath)
                 args.append(*LINK(noXpath));
-            gatherAttributes(args, xmlnsAtom, expr);
+            gatherAttributes(args, xmlnsAtom, transformed);
             return createSetResult(args);
         }
     default:
-        return LINK(expr);
+        return LINK(transformed);
     }
 }
 

@@ -169,7 +169,7 @@ public:
 protected:
     void nextSequence(HqlExprArray & args, IHqlExpression * name, IAtom * overwriteAction, IHqlExpression * value, bool needAttr, bool * duplicate);
     virtual IHqlExpression * doTransformRootExpr(IHqlExpression * expr);
-    IHqlExpression * attachSequenceNumber(IHqlExpression * expr);
+    IHqlExpression * attachSequenceNumber(IHqlExpression * expr, IHqlExpression * transformed);
 
 protected:
     HqlCppTranslator & translator; // should really be an error handler - could do with refactoring.
