@@ -876,6 +876,7 @@ public:
 class HQL_API MergingTransformInfo : public AMergingTransformInfo
 {
     typedef FastScopeMapping MAPPINGCLASS;
+    friend class ScopedDependentTransformer;
 public:
     MergingTransformInfo(IHqlExpression * _expr);
     ~MergingTransformInfo() { delete mappedSelector; delete mapped; }
@@ -1021,6 +1022,7 @@ public:
     IHqlDataset * queryActiveDataset();
 
 public:
+    unsigned __int64 usageCount = 0;
     HqlExprAttr     dataset;
     HqlExprAttr     transformedDataset;
     HqlExprAttr     left;
@@ -1055,9 +1057,9 @@ protected:
     bool isDatasetARow(IHqlExpression * expr);                  // can it be used as a row?
     bool isDatasetRelatedToScope(IHqlExpression * dataset);
     bool isNewDataset()                                             { return innerScope && innerScope->isEmpty(); }
-    bool isTopDataset(IHqlExpression * selector);
     bool insideActivity();
     unsigned tableNesting();
+    unsigned __int64 getNestedUsageCount();
 
     IHqlExpression * getScopeState();
 
@@ -1070,6 +1072,7 @@ protected:
     virtual void suspendScope();
     virtual void restoreScope();
 
+    virtual void noteTransformedOnce(IHqlExpression * expr) {}
 
     virtual void clearDataset(bool nested);
     virtual bool setDataset(IHqlExpression * _dataset, IHqlExpression * _transformed)               
@@ -1127,6 +1130,8 @@ protected:
 
     virtual void suspendAllScopes(ScopeSuspendInfo & info);
     virtual void restoreScopes(ScopeSuspendInfo & info);
+
+    virtual void noteTransformedOnce(IHqlExpression * expr) override;
 
 #ifdef _DEBUG
     virtual IHqlExpression * transform(IHqlExpression * expr)

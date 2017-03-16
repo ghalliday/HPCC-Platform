@@ -3857,6 +3857,7 @@ IHqlExpression * ScopedTransformer::createTransformed(IHqlExpression * expr)
     case no_extractresult:
     case no_createdictionary:
         {
+            unsigned __int64 savedCount = getNestedUsageCount();
             IHqlExpression * dataset = expr->queryChild(0);
             pushScope();
             IHqlExpression * transformedDs = transform(dataset);
@@ -3866,6 +3867,11 @@ IHqlExpression * ScopedTransformer::createTransformed(IHqlExpression * expr)
                 children.append(*transform(expr->queryChild(idx)));
             clearDataset(nested);
             popScope();
+
+            //There were no references to outer datasets in the contained expressions => it will always be transformed
+            //the same way as long as there are no instances of globalDataset.childDataset
+            if (!containsImplicitNormalize(expr) && (savedCount == getNestedUsageCount()))
+                noteTransformedOnce(expr);
             break;
         }
     case no_projectrow:
@@ -4355,10 +4361,16 @@ bool ScopedTransformer::checkInScope(IHqlExpression * selector, bool allowCreate
     {
         ScopeInfo & cur = scopeStack.item(idx);
         if (cur.dataset && cur.dataset->queryNormalizedSelector(false) == normalized)
+        {
+            cur.usageCount++;
             return true;
+        }
 
         if (isInImplictScope(cur.dataset, normalized))
+        {
+            cur.usageCount++;
             return true;
+        }
     }
     return false;
 }
@@ -4372,29 +4384,6 @@ bool ScopedTransformer::isDatasetARow(IHqlExpression * selector)
 {
     return checkInScope(selector, true);
 }
-
-bool ScopedTransformer::isTopDataset(IHqlExpression * selector)
-{
-    if (scopeStack.ordinality())
-    {
-        ScopeInfo & top = scopeStack.tos();
-        if (top.dataset && top.dataset->queryNormalizedSelector(false) == selector->queryNormalizedSelector(false))
-            return true;
-        switch (selector->getOperator())
-        {
-        case no_left:
-            return (top.left != NULL);
-        case no_right:
-            return (top.right != NULL);
-        case no_select:
-            if (selector->isDataset())
-                return false;
-            return isTopDataset(selector->queryChild(0));
-        }
-    }
-    return false;
-}
-
 
 IHqlExpression * ScopedTransformer::getScopeState()
 {
@@ -4461,6 +4450,15 @@ unsigned ScopedTransformer::tableNesting()
         numTables--;
     return numTables;
 }
+
+unsigned __int64 ScopedTransformer::getNestedUsageCount()
+{
+    unsigned __int64 total = 0;
+    ForEachItemIn(i, scopeStack)
+        total += scopeStack.item(i).usageCount;
+    return total;
+}
+
 
 bool ScopedTransformer::insideActivity()
 {
@@ -4557,6 +4555,11 @@ void ScopedDependentTransformer::clearDataset(bool nested)
 ANewTransformInfo * ScopedDependentTransformer::createTransformInfo(IHqlExpression * expr)
 {
     return CREATE_NEWTRANSFORMINFO(MergingTransformInfo, expr);
+}
+
+void ScopedDependentTransformer::noteTransformedOnce(IHqlExpression * expr)
+{
+    queryExtra(expr)->setOnlyTransformOnce(true);
 }
 
 void ScopedDependentTransformer::pushChildContext(IHqlExpression * expr, IHqlExpression * transformed)
