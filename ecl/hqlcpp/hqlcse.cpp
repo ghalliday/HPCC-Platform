@@ -1082,6 +1082,13 @@ IHqlExpression * CseScopeTransformer::createTransformed(IHqlExpression * expr)
         return expr->cloneAnnotation(ret);
     }
 
+    if (expr->getOperator() == no_alias, false)
+    {
+        IHqlExpression * value = expr->queryChild(0);
+        if (!containsNonGlobalAlias(value))
+            return LINK(expr);
+    }
+
     IHqlExpression * transformed = NewHqlTransformer::createTransformed(expr);
     CseScopeInfo * splitter = queryBodyExtra(expr);
     if (splitter->aliasesToDefine.ordinality())
