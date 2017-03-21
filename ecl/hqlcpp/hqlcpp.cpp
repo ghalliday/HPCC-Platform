@@ -1589,6 +1589,7 @@ void HqlCppTranslator::cacheOptions()
         DebugOption(options.defaultPersistExpiry, "defaultPersistExpiry", DEFAULT_PERSIST_EXPIRY_PERIOD),
         DebugOption(options.defaultExpiry, "defaultExpiry", DEFAULT_EXPIRY_PERIOD),
         DebugOption(options.searchDistanceThreshold, "searchDistanceThreshold", 1000000),
+        DebugOption(options.generateActivityThreshold, "generateActivityThreshold", 0),  // Record activities which take more than this value (in ms) to generate (0 disables)
 
         DebugOption(options.checkAsserts,"checkAsserts", true),
         DebugOption(options.assertSortedDistributed,"assertSortedDistributed", false),
@@ -1793,6 +1794,7 @@ void HqlCppTranslator::cacheOptions()
         DebugOption(options.embeddedWarningsAsErrors,"embeddedWarningsFatal",true),
         DebugOption(options.optimizeCriticalFunctions,"optimizeCriticalFunctions",true),
         DebugOption(options.addLikelihoodToGraph,"addLikelihoodToGraph", true),
+        DebugOption(options.noteGenerateTimeAsStatistic,"noteGenerateTimeAsStatistic", false), // Not sure what is best at the moment
     };
 
     //get options values from workunit
@@ -1894,6 +1896,8 @@ void HqlCppTranslator::postProcessOptions()
 
     if (options.resourceSequential)
         options.resourceConditionalActions = true;
+
+    options.generateActivityThresholdCycles = nanosec_to_cycle(options.generateActivityThreshold * I64C(1000000));
 
     //Probably best to ignore this warning. - possibly configure it based on some other option
     globalOnWarnings->addOnWarning(HQLWRN_FoldRemoveKeyed, ignoreAtom);

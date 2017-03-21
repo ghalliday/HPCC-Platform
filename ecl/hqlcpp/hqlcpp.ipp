@@ -582,6 +582,8 @@ struct HqlCppOptions
     unsigned            defaultPersistExpiry;
     unsigned            defaultExpiry;
     unsigned            searchDistanceThreshold;
+    unsigned            generateActivityThreshold;
+    cycle_t             generateActivityThresholdCycles;
     int                 defaultNumPersistInstances;
     CompilerType        targetCompiler;
     DBZaction           divideByZeroAction;
@@ -770,6 +772,7 @@ struct HqlCppOptions
     bool                embeddedWarningsAsErrors;
     bool                optimizeCriticalFunctions;
     bool                addLikelihoodToGraph;
+    bool                noteGenerateTimeAsStatistic;
 };
 
 //Any information gathered while processing the query should be moved into here, rather than cluttering up the translator class

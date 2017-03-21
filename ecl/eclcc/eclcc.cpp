@@ -2357,6 +2357,10 @@ int compareFilenames(IInterface * const * pleft, IInterface * const * pright)
 
 void EclCC::processBatchFiles()
 {
+    //Add any notes about slow generate times as a statistic rather than a graph entry, so that results
+    //are binary identical if they are unchanged.
+    setDebugOption("noteGenerateTimeAsStatistic", true);
+
     Thread * * threads = NULL;
     RegressQueue queue;
     Semaphore fileReady;
