@@ -54,6 +54,7 @@ enum AssocKind
     AssocGraphNode         = 0x0000200,
     AssocSubGraph          = 0x0000400,
     AssocStmt              = 0x0000800,
+    AssocSequentialSearch  = 0x0001000,
  };
 
 class CHqlBoundExpr;
@@ -283,11 +284,31 @@ public:
 };
 
 
+class TemporaryGroup
+{
+public:
+    TemporaryGroup(BuildCtx & ctx)
+    {
+        group = ctx.addGroup();
+        group->setIncomplete(true);
+    }
+    ~TemporaryGroup()
+    {
+        group->setIncomplete(false);
+        group->mergeScopeWithContainer();
+    }
+private:
+    IHqlStmt * group;
+};
+
+
+
 unsigned calcTotalChildren(const IHqlStmt * stmt);
 
 IHqlExpression * stripTranslatedCasts(IHqlExpression * e);
 IHqlExpression * peepholeAddExpr(IHqlExpression * left, IHqlExpression * right);
 bool rightFollowsLeft(IHqlExpression * left, IHqlExpression * leftLen, IHqlExpression * right);
 extern HQLCPP_API void outputSizeStmts();
+extern HQLCPP_API unsigned __int64 querySearchDistance();
 
 #endif
