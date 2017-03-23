@@ -132,6 +132,30 @@ bool canCreateTemporary(IHqlExpression * expr)
 
 //---------------------------------------------------------------------------
 
+static bool isComplexSelect(IHqlExpression * expr)
+{
+    bool isNew;
+    IHqlExpression * row = querySelectorDataset(expr, isNew);
+    if (isNew)
+    {
+        switch (row->getOperator())
+        {
+        case no_selectnth:
+        {
+            IHqlExpression * ds = row->queryChild(0);
+            switch (ds->getOperator())
+            {
+            case no_newaggregate:
+            case no_filter:
+                return true;
+            }
+        }
+        case no_createrow:
+            return true;
+        }
+    }
+    return false;
+}
 /*
 
   Cse spotting...
@@ -276,7 +300,7 @@ void CseSpotter::analyseExpr(IHqlExpression * expr)
             return;
         if (!spottedCandidate && extra->worthAliasing())
             spottedCandidate = true;
-        if (canCreateTemporary(expr))
+        if (canCreateTemporary(expr) && (op != no_select))
             return;
 
         //Ugly! This is here as a temporary hack to stop branches of maps being commoned up and always
@@ -412,7 +436,7 @@ bool CseSpotter::containsPotentialCSE(IHqlExpression * expr)
 //  case no_evalonce:
         return false;
     case no_select:
-        return false; //isNewSelector(expr);
+        return isComplexSelect(expr);
     case NO_AGGREGATE:
         //There may possibly be cses, but we would need to do lots of scoping analysis to work out whether they were
         //really common.
