@@ -2406,7 +2406,7 @@ IHqlExpression * foldConstantOperator(IHqlExpression * expr, unsigned foldOption
     {
     case no_assertkeyed:
         {
-            assertex(expr->hasAttribute(_selectors_Atom));
+            //assertex(expr->hasAttribute(_selectors_Atom));
             IHqlExpression * child = expr->queryChild(0);
             IValue * value = child->queryValue();
             if (value)

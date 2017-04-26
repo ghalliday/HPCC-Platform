@@ -9095,7 +9095,7 @@ IHqlExpression * createDelayedReference(node_operator op, IHqlExpression * modul
     else
         ret.setown(createValue(op, attr->getType(), args));
 
-    if (attr->isScope())
+    if (attr->isScope() || attr->getOperator() == no_enum)
     {
         if (attr->getOperator() != no_funcdef)
             ret.setown(createDelayedScope(ret.getClear()));
@@ -9309,6 +9309,7 @@ bool canBeDelayed(IHqlExpression * expr)
     case no_record:             // LEFT has problems because queryRecord() is the unbound funcdef
     case no_keyindex:           // BUILD() and other functions a reliant on this being expanded out
     case no_newkeyindex:
+    case no_forwardscope:
         return false;
     case no_funcdef:
         return canBeDelayed(expr->queryChild(0));
@@ -10045,13 +10046,21 @@ CHqlDelayedScope::CHqlDelayedScope(HqlExprArray &_ownedOperands)
  : CHqlExpressionWithTables(no_delayedscope), type(nullptr)
 {
     setOperands(_ownedOperands); // after type is initialized
-    type = queryChild(0)->queryType();
+    IHqlExpression * arg0 = queryChild(0);
+    if (arg0->getOperator() == no_delayedselect)
+        arg0 = arg0->queryChild(2);
+    type = arg0->queryType();
 
     ITypeInfo * scopeType = type;
     if (scopeType->getTypeCode() == type_function)
         scopeType = scopeType->queryChildType();
 
     typeScope = ::queryScope(scopeType);
+    if (!typeScope)
+    {
+        typeScope = arg0->queryScope();
+        type = typeScope->queryExpression()->queryType();
+    }
     assertex(typeScope);
 
     if (!hasAttribute(_virtualSeq_Atom))

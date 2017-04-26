@@ -10805,6 +10805,7 @@ void HqlCppTranslator::addSchemaField(IHqlExpression *field, MemoryBuffer &schem
     switch(schemaType->getTypeCode())
     {
     case type_alien:
+    case type_enumerated:
         schemaType.set(schemaType->queryChildType());
         break;
     case type_bitfield:

@@ -33,7 +33,7 @@
 //It nearly works - but there are still some examples which have problems - primarily libraries, old parameter syntax, enums and other issues.
 //There may also problems with queryRecord() which needs to really be replaced with recordof(x), especially if "templates" are delayed expanded.
 //To work properly it may require many of the transformations in hqlgram2.cpp to be moved to after the expansion.  (E.g., BUILD)
-//#define DELAY_CALL_EXPANSION
+#define DELAY_CALL_EXPANSION
 
 #ifdef DELAY_CALL_EXPANSION
 #define DEFAULT_EXPAND_CALL false

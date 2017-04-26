@@ -2616,6 +2616,9 @@ void HqlGram::addField(const attribute &errpos, IIdAtom * name, ITypeInfo *_type
             fieldType.set(defaultIntegralType);
         }
         break;
+    case type_enumerated:
+        fieldType.set(fieldType->queryChildType());
+        break;
     case type_decimal:
         if (fieldType->getSize() == UNKNOWN_LENGTH)
         {
@@ -3504,8 +3507,8 @@ IHqlExpression *HqlGram::lookupParseSymbol(IIdAtom * searchName)
 
 IHqlExpression *HqlGram::lookupSymbol(IIdAtom * searchName, const attribute& errpos)
 {
-#if 0
-    if (stricmp(searchName->queryStr(), "gh2")==0)
+#if 1
+    if (stricmp(searchName->queryStr(), "errorCode")==0)
         searchName->queryStr();
 #endif
     if (expectedUnknownId)
@@ -3520,9 +3523,10 @@ IHqlExpression *HqlGram::lookupSymbol(IIdAtom * searchName, const attribute& err
         if (dotScope) 
         {
             IHqlExpression *ret = NULL;
-            if (dotScope->getOperator() == no_enum)
+            IHqlScope * scope = dotScope->queryScope();
+            if (scope)
             {
-                ret = dotScope->queryScope()->lookupSymbol(searchName, LSFrequired, lookupCtx);
+                ret = scope->lookupSymbol(searchName, LSFrequired, lookupCtx);
             }
             else
             {
@@ -7194,8 +7198,8 @@ void HqlGram::checkOutputRecord(attribute & errpos, bool outerLevel)
     OwnedHqlExpr record = errpos.getExpr();
     bool allConstant = true;
     errpos.setExpr(checkOutputRecord(record, errpos, allConstant, outerLevel));
-    if (allConstant && (record->getOperator() != no_null) && (record->numChildren() != 0))
-        reportWarning(CategoryUnusual, WRN_OUTPUT_ALL_CONSTANT,errpos.pos,"All values for OUTPUT are constant - is this the intention?");
+    if (allConstant && (record->getOperator() != no_null) && (record->numChildren() != 0) && record->isFullyBound())
+        reportWarning(CategoryUnusual, WRN_OUTPUT_ALL_CONSTANT, errpos.pos, "All values for OUTPUT are constant - is this the intention?");
 }
 
 void HqlGram::checkSoapRecord(attribute & errpos)
@@ -8928,7 +8932,7 @@ void HqlGram::checkRecordIsValid(const attribute &atr, IHqlExpression *record)
 void HqlGram::checkMergeInputSorted(attribute &atr, bool isLocal)
 {
     IHqlExpression * expr = atr.queryExpr();
-    if (appearsToBeSorted(expr, isLocal, true))
+    if (appearsToBeSorted(expr, isLocal, true) || !expr->isFullyBound())
         return;
     if (!isLocal && appearsToBeSorted(expr, true, true))
     {
