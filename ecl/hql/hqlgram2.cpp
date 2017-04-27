@@ -6248,7 +6248,13 @@ void HqlGram::checkFormals(IIdAtom * name, HqlExprArray& parms, HqlExprArray& de
         // check default value
         if (isMacro)
         {
-            IHqlExpression* def = &defaults.item(idx);
+            LinkedHqlExpr def = &defaults.item(idx);
+            if (!def->isConstant() && !lookupCtx.queryParseContext().expandCallsWhenBound)
+            {
+                OwnedHqlExpr expanded = expandDelayedFunctionCalls(nullptr, def);
+                defaults.replace(*LINK(expanded), idx);
+                def.set(expanded);
+            }
             
             if ((def->getOperator() != no_omitted) && !def->isConstant()) 
             {
@@ -6331,6 +6337,7 @@ IHqlExpression *HqlGram::bindParameters(const attribute & errpos, IHqlExpression
                 if (requireLateBind(function, actuals))
                 {
                     IHqlExpression * ret = NULL;
+                    const bool expandCallsWhenBound = true;
                     if (!expandCallsWhenBound)
                     {
                         HqlExprArray args;
@@ -6602,6 +6609,7 @@ IHqlExpression * HqlGram::checkParameter(const attribute * errpos, IHqlExpressio
             formalType = formalType->queryChildType();
         if (!formalType->assignableFrom(actualType->queryPromotedType()))
         {
+
             if (errpos)
             {
                 StringBuffer s,tp1,tp2;
@@ -6618,6 +6626,8 @@ IHqlExpression * HqlGram::checkParameter(const attribute * errpos, IHqlExpressio
                             getFriendlyTypeStr(actual,tp2).str());
                 }
                 reportError(ERR_PARAM_TYPEMISMATCH, *errpos, "%s", s.str());
+                EclIR::dbglogIR(2, formalType, actualType);
+                formalType->assignableFrom(actualType->queryPromotedType());
             }
             return NULL;
         }

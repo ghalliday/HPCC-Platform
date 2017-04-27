@@ -6173,9 +6173,11 @@ void CHqlField::onCreateField()
     case type_groupedtable:
         typeExpr = queryRecord();
 #ifdef _DEBUG
-        if (typeExpr && !hasAttribute(_linkCounted_Atom))
+        if (typeExpr && !hasAttribute(_linkCounted_Atom), false)
         {
             OwnedHqlExpr unadornedRecord = getUnadornedRecordOrField(typeExpr->queryRecord());
+            if (recordRequiresLinkCount(unadornedRecord))
+                EclIR::dbglogIR(unadornedRecord);
             assertex(!recordRequiresLinkCount(unadornedRecord));
         }
 #endif
@@ -9298,6 +9300,26 @@ no_purevirtual - a member that has no associated definition.
 
 */
 
+bool definesMacro(IHqlExpression * expr)
+{
+    IHqlScope * scope = expr->queryScope();
+    HqlExprArray syms;
+    scope->getSymbols(syms);
+    ForEachItemIn(i, syms)
+    {
+        //HACK - needs more work
+        IHqlExpression & symbol = syms.item(i);
+        if (symbol.isMacro())
+            return true;
+        if (symbol.isScope())
+        {
+            //MORE: Need to ensure that this symbol is defined, and walk the children
+        }
+
+    }
+    return false;
+}
+
 bool canBeDelayed(IHqlExpression * expr)
 {
     switch (expr->getOperator())
@@ -9311,6 +9333,15 @@ bool canBeDelayed(IHqlExpression * expr)
     case no_newkeyindex:
     case no_forwardscope:
         return false;
+    case no_remotescope:
+    case no_scope:
+    case no_privatescope:
+    case no_virtualscope:
+    {
+        if (definesMacro(expr))
+            return false;
+        return true;
+    }
     case no_funcdef:
         return canBeDelayed(expr->queryChild(0));
     }
@@ -11911,7 +11942,11 @@ protected:
             newCall.set(call);
 
         if (ctx.expandFunction(funcdef))
-            return expandFunctionCall(ctx, newCall);
+        {
+            OwnedHqlExpr expanded = expandFunctionCall(ctx, newCall);
+            return expanded.getClear();
+            return transform(expanded);
+        }
         return newCall.getClear();
     }
 
@@ -12217,6 +12252,16 @@ void expandDelayedFunctionCalls(IErrorReceiver * errors, HqlExprArray & exprs)
     replaceArray(exprs, target);
 }
 
+IHqlExpression * expandDelayedFunctionCalls(IErrorReceiver * errors, IHqlExpression * expr)
+{
+    HqlExprArray functionCache;
+    CallExpansionContext ctx;
+    ctx.functionCache = &functionCache;
+    ctx.errors = errors;
+    CallExpandTransformer binder(ctx);
+
+    return binder.transform(expr);
+}
 
 extern IHqlExpression * createReboundFunction(IHqlExpression *func, HqlExprArray &actuals)
 {

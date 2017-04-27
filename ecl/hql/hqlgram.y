@@ -4256,14 +4256,15 @@ recordDef
     | RECORDOF '(' goodObject ')'
                         {
                             OwnedHqlExpr ds = $3.getExpr();
-                            IHqlExpression * record = queryOriginalRecord(ds);
+                            LinkedHqlExpr record = queryOriginalRecord(ds);
                             if (!record)
                             {
                                 parser->reportError(ERR_EXPECTED, $3, "The argument does not have a associated record");
-                                record = queryNullRecord();
+                                record.set(queryNullRecord());
                             }
                             else if (ds->isFunction() && !record->isFullyBound())
-                                parser->reportError(ERR_EXPECTED, $1, "RECORDOF(function-definition), result record depends on the function parameters");
+                                record.setown(getUnadornedRecordOrField(record));
+                                //parser->reportError(ERR_EXPECTED, $1, "RECORDOF(function-definition), result record depends on the function parameters");
 
                             $$.setExpr(LINK(record));
                             $$.setPosition($1);

@@ -21,6 +21,6 @@ export abc(unsigned x, unsigned y) := module
     export f3(unsigned a, unsigned x = x) := a*x;
 end;
 
-abc(100,5).f1(9);   // 900
+//abc(100,5).f1(9);   // 900
 abc(100,5).f2(9);   // 45
-abc(100,5).f3(9);   // 900
+//abc(100,5).f3(9);   // 900
