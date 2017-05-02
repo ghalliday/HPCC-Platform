@@ -1397,7 +1397,7 @@ IHqlExpression * HqlUnadornedNormalizer::createTransformed(IHqlExpression * expr
             ForEachChild(idx, expr)
             {
                 IHqlExpression * cur = expr->queryChild(idx);
-                if (cur->isAttribute())
+                if (cur->isAttribute() && cur->queryName() != maxCountAtom && cur->queryName() != maxLengthAtom)
                 {
                     IHqlExpression * mapped = transform(cur);
                     children.append(*mapped);
@@ -1429,6 +1429,26 @@ IHqlExpression * HqlUnadornedNormalizer::createTransformed(IHqlExpression * expr
             transformChildren(expr, children);      // could just unwind
             return createParameter(expr->queryId(), UnadornedParameterIndex, newType.getClear(), children);
         }
+    case no_record:
+    {
+        //Remove the default values...
+        HqlExprArray children;
+        bool same = true;
+        ForEachChild(idx, expr)
+        {
+            IHqlExpression * cur = expr->queryChild(idx);
+            if (!cur->isAttribute() || (cur->queryName() != maxCountAtom && cur->queryName() != maxLengthAtom))
+            {
+                IHqlExpression * mapped = transform(cur);
+                children.append(*mapped);
+                if (mapped != cur)
+                    same = false;
+            }
+            else
+                same = false;
+        }
+        return expr->clone(children);
+    }
     }
 
     return HqlCachedPropertyTransformer::createTransformed(expr);

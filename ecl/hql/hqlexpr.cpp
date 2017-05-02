@@ -9332,6 +9332,7 @@ bool canBeDelayed(IHqlExpression * expr)
     case no_keyindex:           // BUILD() and other functions a reliant on this being expanded out
     case no_newkeyindex:
     case no_forwardscope:
+    case no_type:
         return false;
     case no_remotescope:
     case no_scope:

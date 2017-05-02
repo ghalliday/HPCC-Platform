@@ -6625,8 +6625,10 @@ IHqlExpression * HqlGram::checkParameter(const attribute * errpos, IHqlExpressio
                             getFriendlyTypeStr(formal,tp1).str(),
                             getFriendlyTypeStr(actual,tp2).str());
                 }
+                OwnedHqlExpr unadornedLeft = getUnadornedRecordOrField(formal->queryRecord());
+                OwnedHqlExpr unadornedRight = getUnadornedRecordOrField(actual->queryRecord());
+                EclIR::dbglogIR(2, unadornedLeft.get(), unadornedRight.get());
                 reportError(ERR_PARAM_TYPEMISMATCH, *errpos, "%s", s.str());
-                EclIR::dbglogIR(2, formalType, actualType);
                 formalType->assignableFrom(actualType->queryPromotedType());
             }
             return NULL;
