@@ -9283,7 +9283,7 @@ simpleDataSet
                                 {
                                     if (compareDs)
                                     {
-                                        if (isGrouped(cur) != isGrouped(compareDs))
+                                        if (parser->lookupCtx.queryParseContext().expandCallsWhenBound && (isGrouped(cur) != isGrouped(compareDs)))
                                             parser->reportError(ERR_GROUPING_MISMATCH, $1, "Branches of the condition have different grouping");
                                         OwnedHqlExpr mapped = parser->checkEnsureRecordsMatch(compareDs, cur, $5.pos, false);
                                         if (mapped != cur)

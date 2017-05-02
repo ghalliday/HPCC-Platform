@@ -8850,7 +8850,7 @@ void HqlGram::ensureMapToRecordsMatch(OwnedHqlExpr & defaultExpr, HqlExprArray &
         }
     }
 
-    if (groupingDiffers)
+    if (lookupCtx.queryParseContext().expandCallsWhenBound && groupingDiffers)
         reportError(ERR_GROUPING_MISMATCH, errpos, "Branches of the condition have different grouping");
 }
 
@@ -9161,7 +9161,7 @@ IHqlExpression * HqlGram::processIfProduction(attribute & condAttr, attribute & 
     if (left->queryRecord() && falseAttr)
         right.setown(checkEnsureRecordsMatch(left, right, falseAttr->pos, false));
 
-    if (isGrouped(left) != isGrouped(right))
+    if (lookupCtx.queryParseContext().expandCallsWhenBound && (isGrouped(left) != isGrouped(right)))
         reportError(ERR_GROUPING_MISMATCH, trueAttr, "Branches of the condition have different grouping");
 
     if (cond->isConstant())
