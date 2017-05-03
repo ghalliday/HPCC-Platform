@@ -5049,7 +5049,7 @@ public:
         addTransformMapping(target, source);
     }
 
-    bool empty() { return targets.empty(); }
+    bool empty() const { return targets.empty(); }
 
     IHqlExpression * expandFields(IHqlExpression * expr, IHqlExpression * exprSelector)
     {
@@ -5104,15 +5104,27 @@ public:
     }
     void intersectMapping(const HqlConstantPercolator * other)
     {
-        assertex(other);
-        ForEachItemInRev(i, targets)
+        if (empty())
+            return;
+
+        if (other)
         {
-            unsigned match = other->targets.find(targets.item(i));
-            if ((match == NotFound) || !expressionsEquivalent(&sources.item(i), &other->sources.item(match)))
+            ForEachItemInRev(i, targets)
             {
-                sources.remove(i);
-                targets.remove(i);
+                unsigned match = other->targets.find(targets.item(i));
+                if ((match == NotFound) || !expressionsEquivalent(&sources.item(i), &other->sources.item(match)))
+                {
+                    sources.remove(i);
+                    targets.remove(i);
+                    if (empty())
+                        return;
+                }
             }
+        }
+        else
+        {
+            targets.kill();
+            sources.kill();
         }
     }
 
@@ -5270,6 +5282,7 @@ void HqlConstantPercolator::doExtractConstantTransform(IHqlExpression * transfor
         }
     }
 }
+
 
 void HqlConstantPercolator::initTransformer(IHqlExpression * selector, ConstantReplacingTransformer & transformer) const
 {
@@ -5953,13 +5966,13 @@ IHqlExpression * CExprFolderTransformer::percolateConstants(IHqlExpression * exp
         break;
     case no_rollup:
         {
-            //only sustitute for right, left contains rolled up record.
+            //only substitute for right, left contains rolled up record.
             updated.setown(percolateConstants(updated, child, no_right));
 
             //If any assignments of the form
             //self.x := left.x then the constant can be percolated from the input, but 
             //self.x := left.x + 1 would cause invalid results.
-            //updated.setown(percolateRollupInvariantConstants(updated, child, no_left));
+            //updated.setown(percolateTransformInvariantConstants(updated, child, no_left));
 
             //changing the grouping conditions may confuse the code generator exactly what kind of dedup is going on,
             //so preserve any that would cause complications..
@@ -6007,6 +6020,8 @@ IHqlExpression * CExprFolderTransformer::percolateConstants(IHqlExpression * exp
                     //Nasty: left is repeated, and likely to be left outer => only replace join condition
                     updated.setown(percolateConstants(updated, child, no_left, 2));
                     updated.setown(percolateConstants(updated, rhs, no_right, 2));
+                    //Transform invariant constants could be substituted into the transform at this point
+                    //but they will still be required in the input dataset, and it is likely to make the code worse.
                     break;
                 }
             case no_denormalizegroup:
@@ -6537,15 +6552,12 @@ HqlConstantPercolator * CExprFolderTransformer::gatherConstants(IHqlExpression *
             // can only mark as constant if the inputDataset and the transform both assign them the same constant value
             IHqlExpression * dataset = expr->queryChild(0);
             IHqlExpression * transformExpr = queryNewColumnProvider(expr);
-            OwnedHqlExpr invarientTransformExpr = percolateRollupInvariantConstants(transformExpr, dataset, no_left, querySelSeq(expr));
+            OwnedHqlExpr invarientTransformExpr = percolateTransformInvariantConstants(transformExpr, dataset, no_left, querySelSeq(expr));
             exprMapping.setown(HqlConstantPercolator::extractConstantMapping(invarientTransformExpr));
             if (exprMapping)
             {
                 HqlConstantPercolator * inputMapping = gatherConstants(dataset);
-                if (inputMapping)
-                    exprMapping->intersectMapping(inputMapping);
-                else
-                    exprMapping.clear();
+                exprMapping->intersectMapping(inputMapping);
             }
             break;
         }
@@ -6695,19 +6707,20 @@ HqlConstantPercolator * CExprFolderTransformer::gatherConstants(IHqlExpression *
         break;
     case no_denormalize:
         {
-            HqlConstantPercolator * leftMapping = gatherConstants(expr->queryChild(0));
-            IHqlExpression * transform = queryNewColumnProvider(expr);
-            exprMapping.setown(HqlConstantPercolator::extractConstantMapping(transform));
-            if (exprMapping)
+            IHqlExpression * left = expr->queryChild(0);
+            HqlConstantPercolator * leftMapping = gatherConstants(left);
+
+            //Output is the intersection of the input and the transform, so will be empty if input has no constants
+            if (leftMapping)
             {
-                if (leftMapping)
-                {
+                IHqlExpression * transform = queryNewColumnProvider(expr);
+
+                //Replace any expressions of the form SELF.x := LEFT.x with SELF.x := <constant> if x is constant in the dataset
+                //More efficient would be to extract the constants directly to the mapping, but the code gets nasty - so KISS
+                OwnedHqlExpr invariantTransform = percolateTransformInvariantConstants(transform, left, no_left, querySelSeq(expr));
+                exprMapping.setown(HqlConstantPercolator::extractConstantMapping(invariantTransform));
+                if (exprMapping)
                     exprMapping->intersectMapping(leftMapping);
-                    if (exprMapping->empty())
-                        exprMapping.clear();
-                }
-                else
-                    exprMapping.clear();
             }
             break;
         }
@@ -6841,10 +6854,7 @@ HqlConstantPercolator * CExprFolderTransformer::gatherConstants(IHqlExpression *
         if (onFail)
         {
             HqlConstantPercolator * onFailMapping = gatherConstants(onFail->queryChild(0));
-            if (onFailMapping)
-                exprMapping->intersectMapping(onFailMapping);
-            else
-                exprMapping.clear();
+            exprMapping->intersectMapping(onFailMapping);
         }
 
         if (exprMapping && !exprMapping->empty())
@@ -6884,7 +6894,7 @@ IHqlExpression * CExprFolderTransformer::percolateConstants(IHqlExpression * exp
     return LINK(expr);
 }
 
-IHqlExpression * CExprFolderTransformer::percolateRollupInvariantConstants(IHqlExpression * expr, HqlConstantPercolator * mapping, IHqlExpression * selector)
+IHqlExpression * CExprFolderTransformer::percolateTransformInvariantConstants(IHqlExpression * expr, HqlConstantPercolator * mapping, IHqlExpression * selector)
 {
     switch (expr->getOperator())
     {
@@ -6894,7 +6904,7 @@ IHqlExpression * CExprFolderTransformer::percolateRollupInvariantConstants(IHqlE
         {
             HqlExprArray children;
             ForEachChild(i, expr)
-                children.append(*percolateRollupInvariantConstants(expr->queryChild(i), mapping, selector));
+                children.append(*percolateTransformInvariantConstants(expr->queryChild(i), mapping, selector));
             return cloneOrLink(expr, children);
         }
         break;
@@ -6922,14 +6932,14 @@ IHqlExpression * CExprFolderTransformer::percolateRollupInvariantConstants(IHqlE
     return LINK(expr);
 }
 
-IHqlExpression * CExprFolderTransformer::percolateRollupInvariantConstants(IHqlExpression * expr, IHqlExpression * dataset, node_operator side, IHqlExpression * selSeq)
+IHqlExpression * CExprFolderTransformer::percolateTransformInvariantConstants(IHqlExpression * expr, IHqlExpression * dataset, node_operator side, IHqlExpression * selSeq)
 {
     HqlConstantPercolator * mapping = gatherConstants(dataset);
     if (!mapping)
         return LINK(expr);
 
     OwnedHqlExpr selector = (side == no_none) ? LINK(dataset->queryNormalizedSelector()) : createSelector(side, dataset, selSeq);
-    return percolateRollupInvariantConstants(expr, mapping, selector);
+    return percolateTransformInvariantConstants(expr, mapping, selector);
 }
 
 

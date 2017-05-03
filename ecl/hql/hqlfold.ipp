@@ -87,8 +87,8 @@ protected:
     IHqlExpression * percolateConstants(IHqlExpression * expr, IHqlExpression * dataset, node_operator side, unsigned whichChild);
     IHqlExpression * percolateConstants(HqlConstantPercolator * mapping, IHqlExpression * expr, IHqlExpression * dataset, node_operator side);
 
-    IHqlExpression * percolateRollupInvariantConstants(IHqlExpression * expr, HqlConstantPercolator * mapping, IHqlExpression * selector);
-    IHqlExpression * percolateRollupInvariantConstants(IHqlExpression * expr, IHqlExpression * dataset, node_operator side, IHqlExpression * selSeq);
+    IHqlExpression * percolateTransformInvariantConstants(IHqlExpression * expr, HqlConstantPercolator * mapping, IHqlExpression * selector);
+    IHqlExpression * percolateTransformInvariantConstants(IHqlExpression * expr, IHqlExpression * dataset, node_operator side, IHqlExpression * selSeq);
 
     inline IHqlExpression * cloneAnnotationAndTransform(IHqlExpression * expr, IHqlExpression * transformed)
     {
