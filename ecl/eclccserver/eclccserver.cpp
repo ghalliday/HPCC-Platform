@@ -381,7 +381,7 @@ class EclccCompileThread : implements IPooledThread, implements IErrorReporter, 
                     throw makeStringException(999, "Failed to extract workunit from query dll");
 
                 Owned<ILocalWorkUnit> embeddedWU = createLocalWorkUnit(wuXML);
-                queryExtendedWU(workunit)->copyWorkUnit(embeddedWU, true);
+                queryExtendedWU(workunit)->copyWorkUnit(embeddedWU, false, true);
                 workunit->setIsClone(false);
                 const char *jobname = embeddedWU->queryJobName();
                 if (jobname && *jobname) //let ECL win naming job during initial compile
