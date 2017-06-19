@@ -196,8 +196,8 @@ static bool getHomeFolder(StringBuffer & homepath)
 struct EclCompileInstance
 {
 public:
-    EclCompileInstance(IFile * _inputFile, IErrorReceiver & _errorProcessor, FILE * _errout, const char * _outputFilename, bool _legacyImport, bool _legacyWhen, bool _ignoreSignatures) :
-      inputFile(_inputFile), errorProcessor(&_errorProcessor), errout(_errout), outputFilename(_outputFilename), legacyImport(_legacyImport), legacyWhen(_legacyWhen), ignoreSignatures(_ignoreSignatures)
+    EclCompileInstance(IFile * _inputFile, IErrorReceiver & _errorProcessor, FILE * _errout, const char * _outputFilename, bool _legacyImport, bool _legacyWhen, bool _ignoreSignatures, bool _optXml) :
+      inputFile(_inputFile), errorProcessor(&_errorProcessor), errout(_errout), outputFilename(_outputFilename), legacyImport(_legacyImport), legacyWhen(_legacyWhen), ignoreSignatures(_ignoreSignatures), optXml(_optXml)
 {
         stats.parseTime = 0;
         stats.generateTime = 0;
@@ -205,7 +205,7 @@ public:
         stats.cppSize = 0;
     }
 
-    void logStats();
+    void logStats(bool logTimings);
     void checkEclVersionCompatible();
     bool reportErrorSummary();
     inline IErrorReceiver & queryErrorProcessor() { return *errorProcessor; }
@@ -228,6 +228,7 @@ public:
     bool fromArchive = false;
     bool ignoreUnknownImport = false;
     bool ignoreSignatures = false;
+    bool optXml = false;
     struct {
         unsigned parseTime;
         unsigned generateTime;
@@ -398,6 +399,7 @@ protected:
     bool optShowPaths = false;
     bool optNoSourcePath = false;
     bool optFastSyntax = false;
+    bool optXml = false;
     mutable bool daliConnected = false;
     mutable bool disconnectReported = false;
     int argc;
@@ -1076,7 +1078,7 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
         saveXML("depends.xml", dependencies);
 #endif
 
-    Owned<IErrorReceiver> wuErrs = new WorkUnitErrorReceiver(instance.wu, "eclcc");
+    Owned<IErrorReceiver> wuErrs = new WorkUnitErrorReceiver(instance.wu, "eclcc", optBatchMode);
     Owned<IErrorReceiver> compoundErrs = createCompoundErrorReceiver(&instance.queryErrorProcessor(), wuErrs);
     Owned<ErrorSeverityMapper> severityMapper = new ErrorSeverityMapper(*compoundErrs);
 
@@ -1495,8 +1497,9 @@ void EclCC::processFile(EclCompileInstance & instance)
 
     const char * curFilename = instance.inputFile->queryFilename();
     assertex(curFilename);
+    bool inputFromStdIn = streq(curFilename, "stdin:");
 
-    Owned<ISourcePath> sourcePath = optNoSourcePath ? NULL : createSourcePath(curFilename);
+    Owned<ISourcePath> sourcePath = (optNoSourcePath||inputFromStdIn) ? NULL : createSourcePath(curFilename);
     Owned<IFileContents> queryText = createFileContentsFromFile(curFilename, sourcePath, false, NULL);
     const char * queryTxt = queryText->getText();
     if (optArchive || optGenerateDepend || optSaveQueryArchive)
@@ -1524,7 +1527,6 @@ void EclCC::processFile(EclCompileInstance & instance)
     {
         StringBuffer attributePath;
         bool withinRepository = false;
-        bool inputFromStdIn = streq(curFilename, "stdin:");
 
         //Specifying --main indicates that the query text (if present) replaces that definition
         if (optQueryRepositoryReference)
@@ -1539,10 +1541,13 @@ void EclCC::processFile(EclCompileInstance & instance)
 
 
         StringBuffer expandedSourceName;
-        if (!inputFromStdIn && !optNoSourcePath)
-            makeAbsolutePath(curFilename, expandedSourceName);
-        else
-            expandedSourceName.append(curFilename);
+        if (!inputFromStdIn)
+        {
+            if (!optNoSourcePath)
+                makeAbsolutePath(curFilename, expandedSourceName);
+            else
+                expandedSourceName.append(curFilename);
+        }
 
         EclRepositoryArray repositories;
         //Items first in the list have priority -Dxxx=y overrides all
@@ -1837,7 +1842,7 @@ bool EclCC::processFiles()
         searchPath.append(stdIncludeLibraryPath).append(ENVSEPCHAR);
     searchPath.append(includeLibraryPath);
 
-    Owned<IErrorReceiver> errs = createFileErrorReceiver(stderr);
+    Owned<IErrorReceiver> errs = optXml ? createXmlFileErrorReceiver(stderr) : createFileErrorReceiver(stderr);
     pluginsRepository.setown(createNewSourceFileEclRepository(errs, pluginsPath.str(), ESFallowplugins, logVerbose ? PLUGIN_DLL_MODULE : 0));
     if (!optNoBundles)
         bundlesRepository.setown(createNewSourceFileEclRepository(errs, eclBundlePath.str(), 0, 0));
@@ -1855,26 +1860,21 @@ bool EclCC::processFiles()
     else if (inputFiles.ordinality() == 0)
     {
         assertex(optQueryRepositoryReference);
-        EclCompileInstance info(NULL, *errs, stderr, optOutputFilename, optLegacyImport, optLegacyWhen, optIgnoreSignatures);
+        EclCompileInstance info(NULL, *errs, stderr, optOutputFilename, optLegacyImport, optLegacyWhen, optIgnoreSignatures, optXml);
         processReference(info, optQueryRepositoryReference);
         ok = (errs->errCount() == 0);
 
-        info.logStats();
+        info.logStats(logTimings);
     }
     else
     {
-        EclCompileInstance info(&inputFiles.item(0), *errs, stderr, optOutputFilename, optLegacyImport, optLegacyWhen, optIgnoreSignatures);
+        EclCompileInstance info(&inputFiles.item(0), *errs, stderr, optOutputFilename, optLegacyImport, optLegacyWhen, optIgnoreSignatures, optXml);
         processFile(info);
         ok = (errs->errCount() == 0);
 
-        info.logStats();
+        info.logStats(logTimings);
     }
 
-    if (logTimings)
-    {
-        StringBuffer s;
-        fprintf(stderr, "%s", queryActiveTimer()->getTimings(s).str());
-    }
     return ok;
 }
 
@@ -1892,7 +1892,7 @@ void EclCompileInstance::checkEclVersionCompatible()
     ::checkEclVersionCompatible(errorProcessor, eclVersion);
 }
 
-void EclCompileInstance::logStats()
+void EclCompileInstance::logStats(bool logTimings)
 {
     if (wu && wu->getDebugValueBool("logCompileStats", false))
     {
@@ -1906,14 +1906,39 @@ void EclCompileInstance::logStats()
         //Following only produces output if the system has been compiled with TRANSFORM_STATS defined
         dbglogTransformStats(true);
     }
+
+    if (logTimings)
+    {
+        Owned<IConstWUStatisticIterator> stats = &wu->getStatistics(nullptr);
+        SCMStringBuffer scope;
+        ForEach(*stats)
+        {
+            IConstWUStatistic & cur = stats->query();
+            cur.getScope(scope);
+            OwnedPTree tree = createPTree("stat", ipt_fast);
+            tree->setProp("@kind", queryStatisticName(cur.getKind()));
+            tree->setProp("@scope", scope.str());
+            tree->setPropInt("@scopeType", (unsigned)cur.getScopeType());
+            tree->setPropInt64("@value", cur.getValue());
+            tree->setPropInt64("@max", cur.getMax());
+            tree->setPropInt64("@count", cur.getCount());
+
+            StringBuffer msg;
+            toXML(tree, msg, 0, XML_Embed);
+            fprintf(stderr, "%s\n", msg.str());
+        }
+    }
 }
 
 bool EclCompileInstance::reportErrorSummary()
 {
     if (errorProcessor->errCount() || errorProcessor->warnCount())
     {
-        fprintf(errout, "%d error%s, %d warning%s\n", errorProcessor->errCount(), errorProcessor->errCount()<=1 ? "" : "s",
-                errorProcessor->warnCount(), errorProcessor->warnCount()<=1?"":"s");
+        if (optXml)
+            fprintf(errout, "<summary errors='%u' warnings='%u'/>\n", errorProcessor->errCount(), errorProcessor->warnCount());
+        else
+            fprintf(errout, "%d error%s, %d warning%s\n", errorProcessor->errCount(), errorProcessor->errCount()<=1 ? "" : "s",
+                    errorProcessor->warnCount(), errorProcessor->warnCount()<=1?"":"s");
     }
     return errorProcessor->errCount() != 0;
 }
@@ -2221,6 +2246,9 @@ int EclCC::parseCommandLineOptions(int argc, const char* argv[])
             else
                 printf("No errors\n");
         }
+        else if (iter.matchFlag(optXml, "--xml"))
+        {
+        }
         else if (iter.matchFlag(tempBool, "-save-cpps"))
         {
             setDebugOption("saveCppTempFiles", tempBool);
@@ -2526,7 +2554,7 @@ void EclCC::processBatchedFile(IFile & file, bool multiThreaded)
             }
 
             Owned<IErrorReceiver> localErrs = createFileErrorReceiver(logFile);
-            EclCompileInstance info(&file, *localErrs, logFile, outFilename, optLegacyImport, optLegacyWhen, optIgnoreSignatures);
+            EclCompileInstance info(&file, *localErrs, logFile, outFilename, optLegacyImport, optLegacyWhen, optIgnoreSignatures, optXml);
             processFile(info);
             if (info.wu &&
                 (info.wu->getDebugValueBool("generatePartialOutputOnError", false) || info.queryErrorProcessor().errCount() == 0))
@@ -2536,7 +2564,7 @@ void EclCC::processBatchedFile(IFile & file, bool multiThreaded)
                 info.stats.xmlSize = xml->size();
             }
 
-            info.logStats();
+            info.logStats(logTimings);
         }
     }
     catch (IException * e)
