@@ -38,4 +38,5 @@ EXPORT TestExcludeNthWord := MODULE
     EXPORT Test25 := ASSERT(Uni.ExcludeNthWord(U'  a b\nc \t  def    ',3)+U'!' = U'  a b\ndef    !');
   END;
 
+  EXPORT main() := EVALUATE(TestConst);
 END;
