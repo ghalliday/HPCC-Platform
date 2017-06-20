@@ -720,22 +720,24 @@ unsigned unicodeEditDistanceV4(UnicodeString & left, UnicodeString & right, unsi
 
 UnicodeString excludeNthWord(RuleBasedBreakIterator& bi, UnicodeString const & source, unsigned n)
 {
-    UnicodeString source;
     if (!n) return source;
     bi.setText(source);
     int32_t start = bi.first();
     while (start != BreakIterator::DONE && n)  {
         int breakType = bi.getRuleStatus();
-        if (breakTYpe != UBRK_WORD_NONE) {
+        if (breakType != UBRK_WORD_NONE) {
             // Exclude spaces, punctuation, and the like. 
             //   A status value UBRK_WORD_NONE indicates that the boundary does
             //   not start a word or number.            
             //    
             n--;
             if (!n) {
-                unsigned wordBegining = bi.preceding(start);
+                unsigned wordBeginning = bi.preceding(start);
                 unsigned wordEnd = bi.next();
-                source.removeBetween(wordBegining, wordEnd);
+                UnicodeString result;
+                result.append(source.tempSubString(0, wordBeginning)).append(source.tempSubStringBetween(wordEnd));
+                return result;
+                return UnicodeString(source).removeBetween(wordBeginning, wordEnd);
             }
         } 
         start = bi.next();
@@ -1449,7 +1451,7 @@ UNICODELIB_API void UNICODELIB_CALL ulUnicodeLocaleExcludeNthWord(unsigned & tgt
     RuleBasedBreakIterator* bi = (RuleBasedBreakIterator*)RuleBasedBreakIterator::createWordInstance(locale, status);
     
     UnicodeString uText(text, textLen);
-    UText.trim();
+    uText.trim();
     UnicodeString source = excludeNthWord(*bi, uText, n);
     delete bi;
     if(source.length()>0)
