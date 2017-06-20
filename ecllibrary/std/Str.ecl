@@ -340,7 +340,7 @@ EXPORT UNSIGNED4 WordCount(STRING text) :=
  * 
  * @param text          The string to be broken into words.
  * @param n             Which word should be returned from the function.
- * @return              The number of words in the string.
+ * @return              The n-th word from the string.
  */
 
 EXPORT STRING GetNthWord(STRING text, UNSIGNED4 n) :=

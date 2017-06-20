@@ -82,6 +82,7 @@ static const char * EclDefinition =
 "  boolean UnicodeLocaleEditDistanceWithinRadius(const unicode left, const unicode right, unsigned4 radius,  const varstring localename) : c,time,pure,entrypoint='ulUnicodeLocaleEditDistanceWithinRadius', hole; \n"
 "  unsigned4 UnicodeLocaleWordCount(const unicode text, const varstring localename) : c, pure,entrypoint='ulUnicodeLocaleWordCount', hole; \n"
 "  unicode UnicodeLocaleGetNthWord(const unicode text, unsigned4 n, const varstring localename) : c,pure,entrypoint='ulUnicodeLocaleGetNthWord';\n"
+"  unicode UnicodeLocaleExcludeNthWord(const unicode text, unsigned4 n, const varstring localename) : c,pure,entrypoint='ulUnicodeLocaleExcludeNthWord';\n"
 "END;\n";
 
 static const char * compatibleVersions[] = {

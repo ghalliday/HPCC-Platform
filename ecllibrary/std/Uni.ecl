@@ -376,10 +376,24 @@ EXPORT unsigned4 WordCount(unicode text, varstring localename = '') :=
  * @param text          The string to be broken into words.
  * @param n             Which word should be returned from the function.
  * @param localname     The locale to use for the break semantics.  Defaults to ''.
- * @return              The number of words in the string.
+ * @return              The n-th word from the string.
  */
 
 EXPORT unicode GetNthWord(unicode text, unsigned4 n, varstring localename = '') :=
     lib_unicodelib.UnicodeLib.UnicodeLocaleGetNthWord(text, n, localename);
+
+/**
+ * Returns everything except the nth word from the string.  Words are marked by the unicode break semantics.
+ * dskaff what happens to the whitespace???
+ * Whitespace after a word is removed with the word and leading whitespace is removed with the first word.
+ *
+ * @param text          The string to be broken into words.
+ * @param n             Which word should be returned from the function.
+ * @param localname     The locale to use for the break semantics.  Defaults to ''.
+ * @return              The string excluding the nth word.
+ */
+
+EXPORT ExcludeNthWord(unicode text, unsigned4 n, varstring localename = '') :=
+    lib_unicodelib.UnicodeLib.UnicodeLocaleExcludeNthWord(text, n, localename);
 
 END;
