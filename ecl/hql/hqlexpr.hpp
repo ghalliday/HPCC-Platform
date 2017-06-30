@@ -961,6 +961,7 @@ public:
     inline unsigned numErrors() const { return errs ? errs->errCount() : 0; }
     inline bool isAborting() const { return parseCtx.isAborting(); }
     inline void setAborting() { parseCtx.setAborting(); }
+    inline bool checkDirty() const { return parseCtx.checkDirty; }
 
 protected:
 

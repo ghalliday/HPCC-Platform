@@ -925,8 +925,6 @@ void HqlParseContext::setDefinitionText(IPropertyTree * target, const char * pro
     if (checkDirty && contents->isDirty())
     {
         target->setPropBool("@dirty", true);
-        Owned<IError> error = createError(CategoryInformation, SeverityInformation, WRN_DEFINITION_SANDBOXED, "Definition has been modified", str(contents->querySourcePath()), 0, 0, 0);
-        orphanedWarnings.append(*error.getClear());
     }
 }
 
@@ -8597,6 +8595,9 @@ IHqlExpression *CHqlRemoteScope::lookupSymbol(IIdAtom * searchName, unsigned loo
 
     //Preserve ob_sandbox etc. annotated on the original definition, but not on the parsed code.
     unsigned repositoryFlags=ret->getSymbolFlags();
+    if (ctx.checkDirty() && contents->isDirty())
+        repositoryFlags |= ob_sandbox;
+
     IHqlNamedAnnotation * symbol = queryNameAnnotation(newSymbol);
     assertex(symbol);
     symbol->setRepositoryFlags(repositoryFlags);
@@ -8604,7 +8605,7 @@ IHqlExpression *CHqlRemoteScope::lookupSymbol(IIdAtom * searchName, unsigned loo
     if (repositoryFlags&ob_sandbox)
     {
         if (ctx.errs)
-            ctx.errs->reportWarning(CategoryInformation,WRN_DEFINITION_SANDBOXED,"Definition is sandboxed",filename,0,0,0);
+            ctx.errs->reportWarning(CategoryInformation,WRN_DEFINITION_SANDBOXED,"Definition is modified",str(contents->querySourcePath()),0,0,0);
     }
 
     if (!(newSymbol->isExported() || (lookupFlags & LSFsharedOK)))
