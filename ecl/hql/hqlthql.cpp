@@ -683,7 +683,7 @@ void HqltHql::toECL(IHqlExpression *expr, StringBuffer &s, bool paren, bool inTy
     paren = true;
 #endif
 #ifdef SHOWCRC
-        s.appendf("[%p]", getExpressionCRC(expr));
+        s.appendf("[%x]", getExpressionCRC(expr));
 #endif
 #ifdef SHOWADDR
         s.appendf("[%p]", expr);
@@ -695,7 +695,7 @@ void HqltHql::toECL(IHqlExpression *expr, StringBuffer &s, bool paren, bool inTy
 #ifdef SHOWFLAGS
         s.append("[");
 #ifdef SHOWFLAGSVALUE
-        s.appendf("%p/", expr->getInfoFlags());
+        s.appendf("%x/", expr->getInfoFlags());
 #endif
         if (!expr->isFullyBound())
             s.append("*U");

@@ -13653,12 +13653,6 @@ void HqlCppTranslator::normalizeGraphForGeneration(HqlExprArray & exprs, HqlQuer
 
     {
         cycle_t startCycles = get_cycles_now();
-        expandDelayedFunctionCalls(&queryErrorProcessor(), exprs);
-        noteFinishedTiming("compile:tree transform: expand delayed calls", startCycles);
-    }
-
-    {
-        cycle_t startCycles = get_cycles_now();
         traceExpressions("before normalize", exprs);
         normalizeHqlTree(*this, exprs);
         noteFinishedTiming("compile:tree transform: normalize", startCycles);

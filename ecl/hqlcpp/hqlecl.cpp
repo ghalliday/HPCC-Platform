@@ -402,6 +402,7 @@ bool HqlDllGenerator::generateCode(HqlQueryContext & query)
 
         cycle_t startCycles = get_cycles_now();
         HqlCppTranslator translator(errs, wuname, code, targetClusterType, ctxCallback);
+        query.expr.setown(expandDelayedFunctionCalls(errs.get(), query.expr));
         processMetaCommands(translator, wu, query, ctxCallback);
         translator.exportWarningMappings();
 

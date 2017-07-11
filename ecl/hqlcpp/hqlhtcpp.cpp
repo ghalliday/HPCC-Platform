@@ -3819,11 +3819,13 @@ unsigned HqlCppTranslator::buildRtlRecordFields(StringBuffer & instanceName, IHq
     return fieldFlags;
 }
 
+
 unsigned HqlCppTranslator::getRtlFieldInfo(StringBuffer & fieldInfoName, IHqlExpression * field, IHqlExpression * rowRecord)
 {
     OwnedHqlExpr fieldKey = getRtlFieldKey(field, rowRecord);
     return buildRtlField(&fieldInfoName, fieldKey);
 }
+
 
 unsigned HqlCppTranslator::buildRtlType(StringBuffer & instanceName, ITypeInfo * type, unsigned typeFlags)
 {
@@ -6105,7 +6107,7 @@ double HqlCppTranslator::getComplexity(IHqlCppInstance & _code, IHqlExpression *
     WorkflowArray workflow;
 
     HqlQueryContext query;
-    query.expr.set(exprlist);
+    query.expr.setown(expandDelayedFunctionCalls(&queryErrorProcessor(), exprlist));
     if (!prepareToGenerate(query, workflow, false))
         return 0;
 
