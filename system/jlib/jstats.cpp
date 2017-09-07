@@ -541,6 +541,23 @@ bool getParentScope(StringBuffer & parent, const char * scope)
 }
 
 
+void describeScope(StringBuffer & description, const char * scope)
+{
+    if (!*scope)
+        return;
+
+    StatsScopeId id;
+    for(;;)
+    {
+        id.extractScopeText(scope, &scope);
+        id.describe(description);
+        if (!*scope)
+            return;
+        description.append(": ");
+        scope++;
+    }
+}
+
 const char * queryMeasurePrefix(StatisticMeasure measure)
 {
     switch (measure)
@@ -1230,6 +1247,33 @@ int StatsScopeId::compare(const StatsScopeId & other) const
     return 0;
 }
 
+void StatsScopeId::describe(StringBuffer & description) const
+{
+    const char * name = queryScopeTypeName(scopeType);
+    description.append((char)toupper(*name)).append(name+1);
+    switch (scopeType)
+    {
+    case SSTgraph:
+        description.append(" graph").append(id);
+        break;
+    case SSTsubgraph:
+    case SSTactivity:
+    case SSTworkflow:
+    case SSTchildgraph:
+        description.append(' ').append(id);
+        break;
+    case SSTedge:
+        description.append(' ').append(id).append(',').append(extra);
+        break;
+    case SSTfunction:
+        description.append(' ').append(name);
+        break;
+    default:
+        throwUnexpected();
+        break;
+    }
+
+}
 
 
 bool StatsScopeId::matches(const StatsScopeId & other) const
@@ -2739,6 +2783,12 @@ ScopeCompare ScopeFilter::compare(const char * scope) const
     }
 
     return result;
+}
+
+bool ScopeFilter::canAlwaysPreFilter() const
+{
+    //If the only filter being applied is a restriction on the minimum depth, then you can always apply it as a pre-filter
+    return (!ids && !scopeTypes && !scopes && maxDepth == UINT_MAX);
 }
 
 int ScopeFilter::compareDepth(unsigned depth) const

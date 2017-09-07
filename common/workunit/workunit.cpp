@@ -359,8 +359,10 @@ static void createDefaultDescription(StringBuffer & description, StatisticKind k
             unsigned subId = atoi(subgraph + strlen(SubGraphScopePrefix));
 
             formatGraphTimerLabel(description, graphname, 0, subId);
+            return;
         }
     }
+    describeScope(description, scope);
 }
 
 /* Represents a single statistic */
@@ -1968,6 +1970,8 @@ protected:
 class StatisticAggregator : public CInterfaceOf<IWuScopeVisitor>
 {
 public:
+    StatisticAggregator(StatisticKind _search) : filter(_search) {}
+
     virtual void noteAttribute(WuAttr attr, const char * value) override { throwUnexpected(); }
     virtual void noteHint(const char * kind, const char * value) override { throwUnexpected(); }
 protected:
@@ -1977,6 +1981,8 @@ protected:
 class SimpleAggregator : public StatisticAggregator
 {
 public:
+    SimpleAggregator(StatisticKind _search) : StatisticAggregator(_search) {}
+
     virtual void noteStatistic(StatisticKind kind, unsigned __int64 value, IConstWUStatistic & extra) override
     {
         if (filter.matches(kind, value, extra))
@@ -1987,6 +1993,24 @@ public:
     //with a noteAggregate(value, variant, value, grouping)?
 protected:
     StatsAggregation summary;
+};
+
+
+class SimpleReferenceAggregator : public StatisticAggregator
+{
+public:
+    SimpleReferenceAggregator(StatisticKind _search, StatsAggregation & _summary) : StatisticAggregator(_search), summary(_summary) {}
+
+    virtual void noteStatistic(StatisticKind kind, unsigned __int64 value, IConstWUStatistic & extra) override
+    {
+        if (filter.matches(kind, value, extra))
+            summary.noteValue(value);
+    }
+
+    //How should these be reported?  Should there be a playAggregates(IWuAggregatedScopeVisitor)
+    //with a noteAggregate(value, variant, value, grouping)?
+protected:
+    StatsAggregation & summary;
 };
 
 
@@ -2378,10 +2402,10 @@ WuScopeFilter::WuScopeFilter(const char * filter)
     finishedFilter();
 }
 
-void WuScopeFilter::addFilter(const char * filter)
+WuScopeFilter & WuScopeFilter::addFilter(const char * filter)
 {
     if (!filter)
-        return;
+        return *this;
 
     StringAttr option;
     StringAttr arg;
@@ -2414,7 +2438,7 @@ void WuScopeFilter::addFilter(const char * filter)
             break;
         }
         case FOsource:
-            setSource(arg);
+            addSource(arg);
             break;
         case FOwhere: // where[stat<op>value]
             addRequiredStat(arg);
@@ -2429,7 +2453,7 @@ void WuScopeFilter::addFilter(const char * filter)
             setIncludeScopeType(arg);
             break;
         case FOproperties:
-            addOutputProperties(arg);
+            addOutputProperties((WuPropertyTypes)getEnum(arg, propertyMappings));
             break;
         case FOstatistic:
             addOutputStatistic(arg);
@@ -2441,8 +2465,7 @@ void WuScopeFilter::addFilter(const char * filter)
             addOutputHint(arg);
             break;
         case FOmeasure:
-            desiredMeasure = queryMeasure(arg);
-            properties |= PTstatistics;
+            setMeasure(arg);
             break;
         case FOversion:
             minVersion = atoi64(arg);
@@ -2451,24 +2474,28 @@ void WuScopeFilter::addFilter(const char * filter)
             throw makeStringExceptionV(0, "Unrecognised filter option: %s", option.str());
         }
     }
+    return *this;
 }
 
-void WuScopeFilter::addScope(const char * scope)
+WuScopeFilter & WuScopeFilter::addScope(const char * scope)
 {
     scopeFilter.addScope(scope);
+    return *this;
 }
 
-void WuScopeFilter::addScopeType(const char * scopeType)
+WuScopeFilter & WuScopeFilter::addScopeType(const char * scopeType)
 {
     scopeFilter.addScopeType(queryScopeType(scopeType));
+    return *this;
 }
 
-void WuScopeFilter::addId(const char * id)
+WuScopeFilter & WuScopeFilter::addId(const char * id)
 {
     scopeFilter.addId(id);
+    return *this;
 }
 
-void WuScopeFilter::addOutput(const char * prop)
+WuScopeFilter & WuScopeFilter::addOutput(const char * prop)
 {
     if (queryStatisticKind(prop) != StKindNone)
         addOutputStatistic(prop);
@@ -2476,9 +2503,10 @@ void WuScopeFilter::addOutput(const char * prop)
         addOutputAttribute(prop);
     else
         addOutputHint(prop);
+    return *this;
 }
 
-void WuScopeFilter::addOutputStatistic(const char * prop)
+WuScopeFilter & WuScopeFilter::addOutputStatistic(const char * prop)
 {
     StatisticKind stat = queryStatisticKind(prop);
     if (stat != StKindNone)
@@ -2491,9 +2519,10 @@ void WuScopeFilter::addOutputStatistic(const char * prop)
     }
     else
         properties &= ~PTstatistics;
+    return *this;
 }
 
-void WuScopeFilter::addOutputAttribute(const char * prop)
+WuScopeFilter & WuScopeFilter::addOutputAttribute(const char * prop)
 {
     WuAttr attr = queryWuAttribute(prop);
     if (attr != WANone)
@@ -2506,10 +2535,11 @@ void WuScopeFilter::addOutputAttribute(const char * prop)
     }
     else
         properties &= ~PTattributes;
+    return *this;
 }
 
 
-void WuScopeFilter::addOutputHint(const char * prop)
+WuScopeFilter & WuScopeFilter::addOutputHint(const char * prop)
 {
     if (strieq(prop, "none"))
     {
@@ -2524,30 +2554,47 @@ void WuScopeFilter::addOutputHint(const char * prop)
             desiredHints.kill();
         properties |= PThints;
     }
+    return *this;
 }
 
-void WuScopeFilter::setIncludeMatch(bool value)
+WuScopeFilter & WuScopeFilter::setIncludeMatch(bool value)
 {
     include.matchedScope = value;
+    return *this;
 }
 
-void WuScopeFilter::setIncludeNesting(unsigned depth)
+WuScopeFilter & WuScopeFilter::setIncludeNesting(unsigned depth)
 {
     include.nestedDepth = depth;
+    return *this;
 }
 
-void WuScopeFilter::setIncludeScopeType(const char * scopeType)
+WuScopeFilter & WuScopeFilter::setIncludeScopeType(const char * scopeType)
 {
     include.scopeTypes.append(queryScopeType(scopeType));
+    return *this;
 }
 
-void WuScopeFilter::addOutputProperties(const char * prop)
+WuScopeFilter & WuScopeFilter::setMeasure(const char * measure)
 {
-    WuPropertyTypes mask = (WuPropertyTypes)getEnum(prop, propertyMappings);
+    desiredMeasure = queryMeasure(measure);
+    properties |= PTstatistics;
+    return *this;
+}
+
+WuScopeFilter & WuScopeFilter::addOutputProperties(WuPropertyTypes mask)
+{
     if (properties == PTnone)
         properties = mask;
     else
         properties |= mask;
+    return *this;
+}
+
+WuScopeFilter & WuScopeFilter::addRequiredStat(StatisticKind statKind, stat_type lowValue, stat_type highValue)
+{
+    requiredStats.emplace_back(statKind, lowValue, highValue);
+    return *this;
 }
 
 //This does not strictly validate - invalid filters may be accepted
@@ -2609,18 +2656,20 @@ void WuScopeFilter::addRequiredStat(const char * filter)
     requiredStats.emplace_back(statKind, lowValue, highValue);
 }
 
-void WuScopeFilter::setSource(const char * source)
+WuScopeFilter & WuScopeFilter::addSource(const char * source)
 {
     WuScopeSourceFlags mask = (WuScopeSourceFlags)getEnum(source, sourceMappings);
     if (!mask)
         sourceFlags = mask;
     else
         sourceFlags |= mask;
+    return *this;
 }
 
-void WuScopeFilter::setDepth(unsigned low, unsigned high)
+WuScopeFilter & WuScopeFilter::setDepth(unsigned low, unsigned high)
 {
     scopeFilter.setDepth(low, high);
+    return *this;
 }
 
 bool WuScopeFilter::matchOnly(StatisticScopeType scopeType) const
@@ -2646,6 +2695,8 @@ void WuScopeFilter::finishedFilter()
     optimized = true;
 
     preFilterScope = include.matchedScope && (include.nestedDepth == 0);
+    if (scopeFilter.canAlwaysPreFilter())
+        preFilterScope = true;
 
     //If the source flags have not been explicitly set then calculate which sources will provide the results
     if (!sourceFlags)
@@ -11016,7 +11067,10 @@ StatisticKind CLocalWUStatistic::getKind() const
 
 const char * CLocalWUStatistic::queryScope() const
 {
-    return p->queryProp("@scope");
+    const char * scope = p->queryProp("@scope");
+    if (scope && streq(scope, LEGACY_GLOBAL_SCOPE))
+        scope = GLOBAL_SCOPE;
+    return scope;
 }
 
 StatisticMeasure CLocalWUStatistic::getMeasure() const
@@ -12826,6 +12880,14 @@ IConstWUStatistic * getStatistic(IConstWorkUnit * wu, const IStatisticsFilter & 
     if (iter->first())
         return &OLINK(iter->query());
     return NULL;
+}
+
+void aggregateStatistic(StatsAggregation & result, IConstWorkUnit * wu, const WuScopeFilter & filter, StatisticKind search)
+{
+    SimpleReferenceAggregator aggregator(search, result);
+    Owned<IConstWUScopeIterator> it = &wu->getScopeIterator(filter);
+    ForEach(*it)
+        it->playProperties(PTstatistics, aggregator);
 }
 
 
