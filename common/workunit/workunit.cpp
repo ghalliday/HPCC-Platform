@@ -3450,8 +3450,8 @@ public:
             { return c->getRunningGraph(graphName, subId); }
     virtual IConstWUStatisticIterator & getStatistics(const IStatisticsFilter * filter) const
             { return c->getStatistics(filter); }
-    virtual IConstWUStatistic * getStatistic(const char * creator, const char * scope, StatisticKind kind) const
-            { return c->getStatistic(creator, scope, kind); }
+    virtual IConstWUStatistic * getStatistic(const char * scope, StatisticKind kind) const
+            { return c->getStatistic(scope, kind); }
     virtual IConstWUScopeIterator & getScopeIterator(const WuScopeFilter & filter) const override
             { return c->getScopeIterator(filter); }
     virtual IStringVal & getSnapshot(IStringVal & str) const
@@ -8037,10 +8037,20 @@ void CLocalWorkUnit::setStatistic(StatisticCreatorType creatorType, const char *
         else
             statTree->removeProp("@max");
     }
-    if (creatorType==SCTsummary && kind==StTimeElapsed && isGlobalScope(scope))
+
+    //Whenever a graph time is updated recalculate the total time spent in thor, and save it
+    if ((scopeType == SSTgraph) && (kind == StTimeElapsed))
     {
+        _loadStatistics();
+        stat_type totalTime = 0;
+        ForEachItemIn(i, statistics)
+        {
+            IConstWUStatistic & cur = statistics.item(i);
+            if ((cur.getScopeType() == SSTgraph) && (cur.getKind() == StTimeElapsed))
+                totalTime += cur.getValue();
+        }
         StringBuffer t;
-        formatTimeCollatable(t, value, false);
+        formatTimeCollatable(t, totalTime, false);
         p->setProp("@totalThorTime", t);
     }
 }
@@ -8063,11 +8073,10 @@ IConstWUStatisticIterator& CLocalWorkUnit::getStatistics(const IStatisticsFilter
     return * new CCompoundIteratorOf<IConstWUStatisticIterator, IConstWUStatistic>(localStats, graphStats);
 }
 
-IConstWUStatistic * CLocalWorkUnit::getStatistic(const char * creator, const char * scope, StatisticKind kind) const
+IConstWUStatistic * CLocalWorkUnit::getStatistic(const char * scope, StatisticKind kind) const
 {
     //MORE: Optimize this....
     StatisticsFilter filter;
-    filter.setCreator(creator);
     filter.setScope(scope);
     filter.setKind(kind);
     Owned<IConstWUStatisticIterator> stats = &getStatistics(&filter);
@@ -12844,43 +12853,11 @@ extern WORKUNIT_API void updateWorkunitTimings(IWorkUnit * wu, StatisticScopeTyp
 }
 
 
-extern WORKUNIT_API void getWorkunitTotalTime(IConstWorkUnit* workunit, const char* creator, unsigned __int64 & totalTimeNs, unsigned __int64 & totalThisTimeNs)
-{
-    StatisticsFilter summaryTimeFilter(SCTsummary, creator, SSTglobal, GLOBAL_SCOPE, SMeasureTimeNs, StTimeElapsed);
-    Owned<IConstWUStatistic> totalThorTime = getStatistic(workunit, summaryTimeFilter);
-    if (!totalThorTime)
-    {
-        StatisticsFilter legacySummaryTimeFilter(SCTsummary, creator, SSTglobal, LEGACY_GLOBAL_SCOPE, SMeasureTimeNs, StTimeElapsed);
-        totalThorTime.setown(getStatistic(workunit, legacySummaryTimeFilter));
-    }
-
-    Owned<IConstWUStatistic> totalThisThorTime = workunit->getStatistic(queryStatisticsComponentName(), GLOBAL_SCOPE, StTimeElapsed);
-    if (!totalThisThorTime)
-        totalThisThorTime.setown(workunit->getStatistic(queryStatisticsComponentName(), LEGACY_GLOBAL_SCOPE, StTimeElapsed));
-
-    if (totalThorTime)
-        totalTimeNs = totalThorTime->getValue();
-    else
-        totalTimeNs = 0;
-    if (totalThisThorTime)
-        totalThisTimeNs = totalThisThorTime->getValue();
-    else
-        totalThisTimeNs = 0;
-}
-
 extern WORKUNIT_API void addTimeStamp(IWorkUnit * wu, StatisticScopeType scopeType, const char * scope, StatisticKind kind)
 {
     wu->setStatistic(queryStatisticsComponentType(), queryStatisticsComponentName(), scopeType, scope, kind, NULL, getTimeStampNowValue(), 1, 0, StatsMergeAppend);
 }
 
-
-IConstWUStatistic * getStatistic(IConstWorkUnit * wu, const IStatisticsFilter & filter)
-{
-    Owned<IConstWUStatisticIterator> iter = &wu->getStatistics(&filter);
-    if (iter->first())
-        return &OLINK(iter->query());
-    return NULL;
-}
 
 void aggregateStatistic(StatsAggregation & result, IConstWorkUnit * wu, const WuScopeFilter & filter, StatisticKind search)
 {

@@ -2548,6 +2548,7 @@ static const char * checkDash(const char * s)
 
 static void dumpStats(IConstWorkUnit * workunit, const StatisticsFilter & filter, bool csv)
 {
+    /*
     Owned<IConstWUStatisticIterator> stats = &workunit->getStatistics(&filter);
     if (!csv)
         printf("<Statistics wuid=\"%s\">\n", workunit->queryWuid());
@@ -2644,6 +2645,7 @@ static void dumpStats(IConstWorkUnit * workunit, const StatisticsFilter & filter
     }
     if (!csv)
         printf("</Statistics>\n");
+    */
 }
 
 static void dumpStats(const char *wuid, const char * creatorTypeText, const char * creator, const char * scopeTypeText, const char * scope, const char * kindText, const char * userFilter, bool csv)

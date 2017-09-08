@@ -766,13 +766,17 @@ void WsWuInfo::doGetGraphs(IArrayOf<IEspECLGraph>& graphs)
 
         if (version >= 1.53)
         {
+            //MORE: Will need to be prefixed with the wfid
+            StringBuffer scope;
+            scope.append(name);
+
             SCMStringBuffer s;
-            Owned<IConstWUStatistic> whenGraphStarted = cw->getStatistic(NULL, name.str(), StWhenStarted);
+            Owned<IConstWUStatistic> whenGraphStarted = cw->getStatistic(scope.str(), StWhenStarted);
             if (!whenGraphStarted) // 6.x backward compatibility
-                whenGraphStarted.setown(cw->getStatistic(NULL, name.str(), StWhenGraphStarted));
-            Owned<IConstWUStatistic> whenGraphFinished = cw->getStatistic(NULL, name.str(), StWhenFinished);
+                whenGraphStarted.setown(cw->getStatistic(name.str(), StWhenGraphStarted));
+            Owned<IConstWUStatistic> whenGraphFinished = cw->getStatistic(scope.str(), StWhenFinished);
             if (!whenGraphFinished) // 6.x backward compatibility
-                whenGraphFinished.setown(cw->getStatistic(NULL, name.str(), StWhenGraphFinished));
+                whenGraphFinished.setown(cw->getStatistic(name.str(), StWhenGraphFinished));
 
             if (whenGraphStarted)
                 g->setWhenStarted(whenGraphStarted->getFormattedValue(s).str());
