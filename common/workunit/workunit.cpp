@@ -8075,6 +8075,15 @@ IConstWUStatisticIterator& CLocalWorkUnit::getStatistics(const IStatisticsFilter
 
 IConstWUStatistic * CLocalWorkUnit::getStatistic(const char * scope, StatisticKind kind) const
 {
+#if 0
+    //MORE: Optimize this....
+    WuScopeFilter filter;
+    filter.addScope(scope).setIncludeNesting(0).finishedFilter();
+    Owned<IConstWUScopeIterator> stats = &getScopeIterator(&filter);
+    if (stats->first())
+        return stats->getStat(kind, value);
+    return NULL;
+#else
     //MORE: Optimize this....
     StatisticsFilter filter;
     filter.setScope(scope);
@@ -8083,6 +8092,7 @@ IConstWUStatistic * CLocalWorkUnit::getStatistic(const char * scope, StatisticKi
     if (stats->first())
         return LINK(&stats->query());
     return NULL;
+#endif
 }
 
 IConstWUScopeIterator & CLocalWorkUnit::getScopeIterator(const WuScopeFilter & filter) const
