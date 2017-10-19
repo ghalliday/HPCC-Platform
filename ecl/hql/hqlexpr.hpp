@@ -1288,6 +1288,7 @@ extern HQL_API IHqlExpression * cloneFieldMangleName(IHqlExpression * expr);
 extern HQL_API IHqlExpression * expandOutOfLineFunctionCall(IHqlExpression * expr);
 extern HQL_API void expandDelayedFunctionCalls(IErrorReceiver * errors, HqlExprArray & exprs);
 extern HQL_API IHqlExpression * expandDelayedFunctionCalls(IErrorReceiver * errors, IHqlExpression * expr);
+extern HQL_API IHqlExpression * expandDelayedFunctionCalls(HqlLookupContext & ctx, IHqlExpression * expr);
 
 extern HQL_API IHqlExpression *createQuoted(const char * name, ITypeInfo *type);
 extern HQL_API IHqlExpression *createVariable(const char * name, ITypeInfo *type);

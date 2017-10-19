@@ -8219,14 +8219,21 @@ void HqlGram::checkJoinFlags(const attribute &err, IHqlExpression * join)
             reportWarning(CategoryEfficiency, ERR_BAD_JOINFLAG, err.pos, "Filtered RIGHT prevents a keyed join being used.  Consider including the filter in the join condition.");
     }
 
-    IHqlExpression * group = join->queryAttribute(groupAtom);
+    LinkedHqlExpr group = join->queryAttribute(groupAtom);
     if (group)
     {
         //Check that each of the fields mentioned in the group are projected into the output.
         OwnedHqlExpr left = createSelector(no_left, join->queryChild(0), querySelSeq(join));
         OwnedHqlExpr right = createSelector(no_right, join->queryChild(1), querySelSeq(join));
+        LinkedHqlExpr transform = join->queryChild(3);
+        if (!lookupCtx.queryExpandCallsWhenBound() && (transform->getOperator() != no_transform))
+        {
+            //Ugly because it may expand much more than a delayed function call, but required to parse
+            transform.setown(expandDelayedFunctionCalls(lookupCtx, transform));
+            group.setown(expandDelayedFunctionCalls(lookupCtx, group));
+        }
         NewProjectMapper2 mapper;
-        mapper.setMapping(join->queryChild(3));
+        mapper.setMapping(transform);
         IHqlExpression * sortlist = group->queryChild(0);
         ForEachChild(i, sortlist)
         {

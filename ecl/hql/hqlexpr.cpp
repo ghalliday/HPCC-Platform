@@ -12333,6 +12333,17 @@ IHqlExpression * expandDelayedFunctionCalls(IErrorReceiver * errors, IHqlExpress
     return binder.transform(expr);
 }
 
+IHqlExpression * expandDelayedFunctionCalls(HqlLookupContext & lookupCtx, IHqlExpression * expr)
+{
+    CallExpansionContext ctx;
+    ctx.functionCache = lookupCtx.functionCache;
+    ctx.errors = lookupCtx.errs;
+    CallExpandTransformer binder(ctx);
+
+    return binder.transform(expr);
+}
+
+
 extern IHqlExpression * createReboundFunction(IHqlExpression *func, HqlExprArray &actuals)
 {
     return createCallExpression(func, actuals);
