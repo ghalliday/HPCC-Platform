@@ -3730,6 +3730,7 @@ unsigned HqlCppTranslator::buildRtlField(StringBuffer & instanceName, IHqlExpres
                 throwError1(HQLERR_CouldNotGenerateDefault, str(field->queryName()));
         }
 
+        EclIR::dump_ir(fieldType);
         StringBuffer definition;
         StringBuffer typeName;
         typeFlags |= buildRtlType(typeName, fieldType);
@@ -3944,6 +3945,15 @@ unsigned HqlCppTranslator::buildRtlType(StringBuffer & instanceName, ITypeInfo *
     case type_utf8:
         arguments.append(", \"").append(info.locale).append("\"").toLowerCase();
         break;
+    case type_keyedint:
+    {
+        arguments.append(",&");
+        ITypeInfo * original = queryModifier(type, typemod_original);
+        assertex(original);
+        ITypeInfo * originalType = static_cast<IHqlExpression *>(original->queryModifierExtra())->queryType();
+        childType = buildRtlType(arguments, originalType);
+        break;
+    }
     }
     info.fieldType |= (childType & RFTMinherited);
 
@@ -10009,6 +10019,8 @@ static void createOutputIndexRecord(HqlMapTransformer & mapper, HqlExprArray & f
                     OwnedHqlExpr select = createSelectExpr(getActiveTableSelector(), LINK(cur));
                     OwnedHqlExpr value = getHozedKeyValue(select);
                     ITypeInfo * newType = value->getType();
+                    if (newType != cur->queryType())
+                        newType = makeOriginalModifier(newType, LINK(cur));
                     newField = createField(cur->queryId(), newType, NULL, extractFieldAttrs(cur));
 
                     //Now set up the mappings for ifblocks

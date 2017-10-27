@@ -9644,6 +9644,10 @@ void getFieldTypeInfo(FieldTypeInfoStruct &out, ITypeInfo *type)
             //until the alien field type is supported
         }
     }
+    ITypeInfo * original = queryModifier(type, typemod_original);
+    if (original)
+        tc = type_keyedint;
+
     out.fieldType |= tc;
     out.length = type->getSize();
     out.locale = nullptr;
@@ -9760,6 +9764,9 @@ void getFieldTypeInfo(FieldTypeInfoStruct &out, ITypeInfo *type)
         }
     case type_set:
         out.className = "RtlSetTypeInfo";
+        break;
+    case type_keyedint:
+        out.className = "RtlKeyedIntTypeInfo";
         break;
     case type_unicode:
         out.className = "RtlUnicodeTypeInfo";
@@ -9943,6 +9950,17 @@ const RtlTypeInfo *buildRtlType(IRtlFieldTypeDeserializer &deserializer, ITypeIn
     case type_set:
         info.childType = buildRtlType(deserializer, type->queryChildType());
         break;
+    default:
+    {
+        ITypeInfo * original = queryModifier(type, typemod_original);
+        if (original)
+        {
+            throwUnexpected();
+            info.fieldType = type_keyedint;
+            info.childType = buildRtlType(deserializer, static_cast<IHqlExpression *>(original->queryModifierExtra())->queryType());
+        }
+        break;
+    }
     }
     if (info.childType)
         info.fieldType |= info.childType->fieldType & RFTMinherited;

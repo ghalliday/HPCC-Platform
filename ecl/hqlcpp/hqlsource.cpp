@@ -519,7 +519,11 @@ static IHqlExpression * createPhysicalIndexRecord(HqlMapTransformer & mapper, IH
                     if (hozed->queryType() == select->queryType())
                         newField = LINK(cur);
                     else
-                        newField = createField(cur->queryId(), hozed->getType(), extractFieldAttrs(cur));
+                    {
+                        EclIR::dump_ir(hozed->queryType(), select->queryType());
+                        newField = createField(cur->queryId(), makeOriginalModifier(hozed->getType(), LINK(cur)), extractFieldAttrs(cur));
+                        assertex(queryModifier(newField->queryType(), typemod_original));
+                    }
                 }
             }
         }
