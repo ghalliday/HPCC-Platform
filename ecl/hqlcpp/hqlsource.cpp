@@ -471,6 +471,70 @@ static IHqlExpression * mapIfBlock(HqlMapTransformer & mapper, IHqlExpression * 
 }
 
 
+IHqlExpression * createMetadataIndexRecord(IHqlExpression * record, bool hasInternalFilePosition)
+{
+    HqlExprArray physicalFields;
+    unsigned max = record->numChildren() - (hasInternalFilePosition ? 1 : 0);
+
+    for (unsigned idx=0; idx < max; idx++)
+    {
+        IHqlExpression * cur = record->queryChild(idx);
+        IHqlExpression * newField = NULL;
+
+        if (cur->isAttribute())
+            physicalFields.append(*LINK(cur));
+        else if (cur->getOperator() == no_ifblock)
+        {
+            OwnedHqlExpr child = createMetadataIndexRecord(cur->queryChild(1), false);
+            newField = replaceChild(cur, 1, child.getClear());
+        }
+        else if (cur->getOperator() == no_record)
+            physicalFields.append(*createMetadataIndexRecord(cur, false));  // is this right
+        else if (cur->hasAttribute(blobAtom))
+            newField = createField(cur->queryId(), makeIntType(8, false), NULL, NULL);
+        else
+        {
+            newField = LINK(cur);
+            Linked<ITypeInfo> type = cur->queryType()->queryPromotedType();
+            type_t tc = type->getTypeCode();
+            switch (tc)
+            {
+            case type_int:
+            case type_swapint:
+                if (type->isSigned())
+                    type.setown(makeIntType(type->getSize(), false));
+                if ((type->getTypeCode() == type_littleendianint) && (type->getSize() != 1))
+                    type.setown(makeSwapIntType(type->getSize(), false));
+                break;
+            case type_string:
+                if (type->queryCharset()->queryName() != asciiAtom)
+                    type.setown(makeStringType(type->getSize(), NULL, NULL));
+                break;
+            case type_varstring:
+                if (type->queryCharset()->queryName() != asciiAtom)
+                    type.setown(makeVarStringType(type->getStringLen(), NULL, NULL));
+                break;
+            default:
+                //anything else is a payload field, don't do any transformations...
+                break;
+            }
+            if (type == cur->queryType())
+                newField = LINK(cur);
+            else
+                newField = createField(cur->queryId(), makeKeyedType(type.getClear()), extractFieldAttrs(cur));
+        }
+
+        if (newField)
+            physicalFields.append(*newField);
+    }
+    if (hasInternalFilePosition)
+    {
+        IHqlExpression * cur = record->queryChild(record->numChildren()-1);
+        physicalFields.append(*createField(cur->queryId(), makeFilePosType(cur->getType()), extractFieldAttrs(cur)));
+    }
+    return createRecord(physicalFields);
+}
+
 static IHqlExpression * createPhysicalIndexRecord(HqlMapTransformer & mapper, IHqlExpression * tableExpr, IHqlExpression * record, bool hasInternalFileposition, bool allowTranslate)
 {
     HqlExprArray physicalFields;
@@ -540,6 +604,7 @@ static IHqlExpression * createPhysicalIndexRecord(HqlMapTransformer & mapper, IH
 
     return createRecord(physicalFields);
 }
+
 
 IHqlExpression * HqlCppTranslator::convertToPhysicalIndex(IHqlExpression * tableExpr)
 {
@@ -2000,14 +2065,38 @@ ABoundActivity * SourceBuilder::buildActivity(BuildCtx & ctx, IHqlExpression * e
 
         if (tableExpr && (activityKind < TAKchildread || activityKind > TAKchildthroughnormalize))
         {
-            if (fieldInfo.hasVirtualsOrDeserialize())
+            switch (activityKind)
             {
-                OwnedHqlExpr diskTable = createDataset(no_anon, LINK(physicalRecord));
-                translator.buildMetaMember(instance->classctx, diskTable, false, "queryDiskRecordSize");
-            }
-            else
-                translator.buildMetaMember(instance->classctx, tableExpr, isGrouped(tableExpr), "queryDiskRecordSize");
+            case TAKindexread:
+            case TAKindexnormalize:
+            case TAKindexaggregate:
+            case TAKindexcount:
+            case TAKindexgroupaggregate:
+            case TAKindexexists:
+            {
+                LinkedHqlExpr serializedRecord = queryAttributeChild(tableExpr, _original_Atom, 0);
+                if (serializedRecord->hasAttribute(_payload_Atom))
+                    serializedRecord.setown(notePayloadFields(serializedRecord->queryRecord(), numPayloadFields(serializedRecord)));
+                else
+                    serializedRecord.set(serializedRecord->queryRecord());
+                serializedRecord.setown(getSerializedForm(serializedRecord, diskAtom));
 
+                bool hasFilePosition = getBoolAttribute(serializedRecord, filepositionAtom, true);  // MORE - why true?
+                serializedRecord.setown(createMetadataIndexRecord(serializedRecord, hasFilePosition));
+                translator.buildMetaMember(instance->classctx, serializedRecord, false, "queryDiskRecordSize");
+                break;
+            }
+            default:
+                if (fieldInfo.hasVirtualsOrDeserialize())
+                {
+                    OwnedHqlExpr diskTable = createDataset(no_anon, LINK(physicalRecord));
+                    translator.buildMetaMember(instance->classctx, diskTable, false, "queryDiskRecordSize");
+                }
+                else
+                {
+                    translator.buildMetaMember(instance->classctx, tableExpr, isGrouped(tableExpr), "queryDiskRecordSize");
+                }
+            }
         }
     }
     else

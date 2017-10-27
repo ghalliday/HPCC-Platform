@@ -1240,10 +1240,20 @@ void KeyedJoinInfo::splitFilter(IHqlExpression * filter, SharedHqlExpr & keyTarg
 
 void HqlCppTranslator::buildKeyedJoinExtra(ActivityInstance & instance, IHqlExpression * expr, KeyedJoinInfo * info)
 {
-    //virtual IOutputMetaData * queryDiskRecordSize() = 0;  // Excluding fpos and sequence
+    //virtual IOutputMetaData * queryDiskRecordSize() = 0;
     if (info->isFullJoin())
-        buildMetaMember(instance.classctx, info->queryRawRhs(), false, "queryDiskRecordSize");
+    {
+        LinkedHqlExpr serializedRecord = info->queryOriginalKey();
+        if (serializedRecord->hasAttribute(_payload_Atom))
+            serializedRecord.setown(notePayloadFields(serializedRecord->queryRecord(), numPayloadFields(serializedRecord)));
+        else
+            serializedRecord.set(serializedRecord->queryRecord());
+        serializedRecord.setown(getSerializedForm(serializedRecord, diskAtom));
 
+        bool hasFilePosition = getBoolAttribute(serializedRecord, filepositionAtom, true);  // MORE - why true?
+        serializedRecord.setown(createMetadataIndexRecord(serializedRecord, hasFilePosition));
+        buildMetaMember(instance.classctx, serializedRecord, false, "queryDiskRecordSize");
+    }
     //virtual unsigned __int64 extractPosition(const void * _right) = 0;  // Gets file position value from rhs row
     if (info->isFullJoin())
     {
