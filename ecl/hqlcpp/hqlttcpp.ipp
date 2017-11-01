@@ -536,6 +536,8 @@ protected:
     void analyseExpr(IHqlExpression * expr);
     void addWorkflowItem(WorkflowItem & item);
 
+    unsigned nextWfid() { return ++wfidCount; }
+
 protected:
     IWorkUnit *               wu;
     HqlCppTranslator &        translator;

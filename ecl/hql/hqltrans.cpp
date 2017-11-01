@@ -1013,7 +1013,10 @@ IHqlExpression * QuickHqlTransformer::createTransformedBody(IHqlExpression * exp
                 HqlDummyLookupContext dummyctx(errors);
                 IHqlScope * newScope = newModule->queryScope();
                 if (newScope)
-                    return newScope->lookupSymbol(selectedName, makeLookupFlags(true, expr->hasAttribute(ignoreBaseAtom), false), dummyctx);
+                {
+                    OwnedHqlExpr resolved = newScope->lookupSymbol(selectedName, makeLookupFlags(true, expr->hasAttribute(ignoreBaseAtom), false), dummyctx);
+                    return LINK(resolved->queryBody());
+                }
             }
             break;
         }
