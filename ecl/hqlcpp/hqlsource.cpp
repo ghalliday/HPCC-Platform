@@ -471,74 +471,10 @@ static IHqlExpression * mapIfBlock(HqlMapTransformer & mapper, IHqlExpression * 
 }
 
 
-IHqlExpression * createMetadataIndexRecord(IHqlExpression * record, bool hasInternalFilePosition)
+static IHqlExpression * createPhysicalIndexRecord(HqlMapTransformer & mapper, IHqlExpression * tableExpr, IHqlExpression * record, bool hasInternalFilePosition, bool allowTranslate, bool newFormat)
 {
     HqlExprArray physicalFields;
     unsigned max = record->numChildren() - (hasInternalFilePosition ? 1 : 0);
-
-    for (unsigned idx=0; idx < max; idx++)
-    {
-        IHqlExpression * cur = record->queryChild(idx);
-        IHqlExpression * newField = NULL;
-
-        if (cur->isAttribute())
-            physicalFields.append(*LINK(cur));
-        else if (cur->getOperator() == no_ifblock)
-        {
-            OwnedHqlExpr child = createMetadataIndexRecord(cur->queryChild(1), false);
-            newField = replaceChild(cur, 1, child.getClear());
-        }
-        else if (cur->getOperator() == no_record)
-            physicalFields.append(*createMetadataIndexRecord(cur, false));  // is this right
-        else if (cur->hasAttribute(blobAtom))
-            newField = createField(cur->queryId(), makeIntType(8, false), NULL, NULL);
-        else
-        {
-            newField = LINK(cur);
-            Linked<ITypeInfo> type = cur->queryType()->queryPromotedType();
-            type_t tc = type->getTypeCode();
-            switch (tc)
-            {
-            case type_int:
-            case type_swapint:
-                if (type->isSigned())
-                    type.setown(makeIntType(type->getSize(), false));
-                if ((type->getTypeCode() == type_littleendianint) && (type->getSize() != 1))
-                    type.setown(makeSwapIntType(type->getSize(), false));
-                break;
-            case type_string:
-                if (type->queryCharset()->queryName() != asciiAtom)
-                    type.setown(makeStringType(type->getSize(), NULL, NULL));
-                break;
-            case type_varstring:
-                if (type->queryCharset()->queryName() != asciiAtom)
-                    type.setown(makeVarStringType(type->getStringLen(), NULL, NULL));
-                break;
-            default:
-                //anything else is a payload field, don't do any transformations...
-                break;
-            }
-            if (type == cur->queryType())
-                newField = LINK(cur);
-            else
-                newField = createField(cur->queryId(), makeKeyedType(type.getClear()), extractFieldAttrs(cur));
-        }
-
-        if (newField)
-            physicalFields.append(*newField);
-    }
-    if (hasInternalFilePosition)
-    {
-        IHqlExpression * cur = record->queryChild(record->numChildren()-1);
-        physicalFields.append(*createField(cur->queryId(), makeFilePosType(cur->getType()), extractFieldAttrs(cur)));
-    }
-    return createRecord(physicalFields);
-}
-
-static IHqlExpression * createPhysicalIndexRecord(HqlMapTransformer & mapper, IHqlExpression * tableExpr, IHqlExpression * record, bool hasInternalFileposition, bool allowTranslate)
-{
-    HqlExprArray physicalFields;
-    unsigned max = record->numChildren() - (hasInternalFileposition ? 1 : 0);
     for (unsigned idx=0; idx < max; idx++)
     {
         IHqlExpression * cur = record->queryChild(idx);
@@ -549,7 +485,7 @@ static IHqlExpression * createPhysicalIndexRecord(HqlMapTransformer & mapper, IH
         else if (cur->getOperator() == no_ifblock)
             physicalFields.append(*mapIfBlock(mapper, cur));
         else if (cur->getOperator() == no_record)
-            physicalFields.append(*createPhysicalIndexRecord(mapper, tableExpr, cur, false, allowTranslate));
+            physicalFields.append(*createPhysicalIndexRecord(mapper, tableExpr, cur, false, allowTranslate, newFormat));
         else if (cur->hasAttribute(blobAtom))
         {
             newField = createField(cur->queryId(), makeIntType(8, false), NULL, NULL);
@@ -563,7 +499,7 @@ static IHqlExpression * createPhysicalIndexRecord(HqlMapTransformer & mapper, IH
             {
                 //MORE: Mappings for ifblocks using self.a.b (!)
                 HqlMapTransformer childMapper;
-                OwnedHqlExpr newRecord = createPhysicalIndexRecord(childMapper, select, cur->queryRecord(), false, allowTranslate);
+                OwnedHqlExpr newRecord = createPhysicalIndexRecord(childMapper, select, cur->queryRecord(), false, allowTranslate, newFormat);
                 HqlExprArray args;
                 unwindChildren(args, cur);
                 newField = createField(cur->queryId(), newRecord->getType(), args);
@@ -579,11 +515,44 @@ static IHqlExpression * createPhysicalIndexRecord(HqlMapTransformer & mapper, IH
                 }
                 else
                 {
-                    OwnedHqlExpr hozed = getHozedKeyValue(select);
-                    if (hozed->queryType() == select->queryType())
-                        newField = LINK(cur);
+                    if (newFormat)
+                    {
+                        Linked<ITypeInfo> type = cur->queryType()->queryPromotedType();
+                        type_t tc = type->getTypeCode();
+                        switch (tc)
+                        {
+                        case type_int:
+                        case type_swapint:
+                            if (type->isSigned())
+                                type.setown(makeIntType(type->getSize(), false));
+                            if ((type->getTypeCode() == type_littleendianint) && (type->getSize() != 1))
+                                type.setown(makeSwapIntType(type->getSize(), false));
+                            break;
+                        case type_string:
+                            if (type->queryCharset()->queryName() != asciiAtom)
+                                type.setown(makeStringType(type->getSize(), NULL, NULL));
+                            break;
+                        case type_varstring:
+                            if (type->queryCharset()->queryName() != asciiAtom)
+                                type.setown(makeVarStringType(type->getStringLen(), NULL, NULL));
+                            break;
+                        default:
+                            //anything else is a payload field, don't do any transformations...
+                            break;
+                        }
+                        if (type == cur->queryType())
+                            newField = LINK(cur);
+                        else
+                            newField = createField(cur->queryId(), makeKeyedType(type.getClear()), extractFieldAttrs(cur));
+                    }
                     else
-                        newField = createField(cur->queryId(), hozed->getType(), extractFieldAttrs(cur));
+                    {
+                        OwnedHqlExpr hozed = getHozedKeyValue(select);
+                        if (hozed->queryType() == select->queryType())
+                            newField = LINK(cur);
+                        else
+                            newField = createField(cur->queryId(), hozed->getType(), extractFieldAttrs(cur));
+                    }
                 }
             }
         }
@@ -602,9 +571,21 @@ static IHqlExpression * createPhysicalIndexRecord(HqlMapTransformer & mapper, IH
         }
     }
 
+    if (newFormat && hasInternalFilePosition)
+    {
+        IHqlExpression * cur = record->queryChild(record->numChildren()-1);
+        physicalFields.append(*createField(cur->queryId(), makeFilePosType(cur->getType()), extractFieldAttrs(cur)));
+   }
+
     return createRecord(physicalFields);
 }
 
+
+IHqlExpression * createMetadataIndexRecord(IHqlExpression * record, bool hasInternalFilePosition)
+{
+    HqlMapTransformer mapper;
+    return createPhysicalIndexRecord(mapper, queryActiveTableSelector(), record, hasInternalFilePosition, true, true);
+}
 
 IHqlExpression * HqlCppTranslator::convertToPhysicalIndex(IHqlExpression * tableExpr)
 {
@@ -620,7 +601,7 @@ IHqlExpression * HqlCppTranslator::convertToPhysicalIndex(IHqlExpression * table
 
     HqlMapTransformer mapper;
     bool hasFileposition = getBoolAttribute(tableExpr, filepositionAtom, true);
-    IHqlExpression * diskRecord = createPhysicalIndexRecord(mapper, tableExpr, record, hasFileposition, true);
+    IHqlExpression * diskRecord = createPhysicalIndexRecord(mapper, tableExpr, record, hasFileposition, true, false);
 
     unsigned payload = numPayloadFields(tableExpr);
     assertex(payload || !hasFileposition);
@@ -2082,7 +2063,9 @@ ABoundActivity * SourceBuilder::buildActivity(BuildCtx & ctx, IHqlExpression * e
                 serializedRecord.setown(getSerializedForm(serializedRecord, diskAtom));
 
                 bool hasFilePosition = getBoolAttribute(serializedRecord, filepositionAtom, true);  // MORE - why true?
-                serializedRecord.setown(createMetadataIndexRecord(serializedRecord, hasFilePosition));
+//                serializedRecord.setown(createMetadataIndexRecord(serializedRecord, hasFilePosition));
+                HqlMapTransformer mapper;
+                serializedRecord.setown(createPhysicalIndexRecord(mapper, tableExpr, serializedRecord, hasFilePosition, true, true));
                 translator.buildMetaMember(instance->classctx, serializedRecord, false, "queryDiskRecordSize");
                 break;
             }
