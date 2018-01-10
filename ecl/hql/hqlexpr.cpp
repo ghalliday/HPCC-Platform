@@ -2859,8 +2859,10 @@ bool definesColumnList(IHqlExpression * dataset)
     case no_select:
     case no_field:
         {
+#ifdef _DEBUG
             type_t tc = dataset->queryType()->getTypeCode();
             assertex(tc == type_table || tc == type_groupedtable || tc == type_dictionary);
+#endif
             return true;
         }
     case no_comma:
@@ -2944,10 +2946,16 @@ IHqlExpression * queryNewColumnProvider(IHqlExpression * expr)
     switch (op)
     {
     case no_alias:
+        return expr->queryChild(0)->queryRecord();
     case no_call:
-        return expr->queryRecord();
+        return expr->queryBody()->queryFunctionDefinition();
+    case no_null:
+    case no_fail:
+    case no_getresult:
     case no_createrow:
     case no_typetransfer:
+    case no_pseudods:
+    case no_workunit_dataset:
         return expr->queryChild(0);
     case no_usertable:
     case no_selectfields:
@@ -2962,6 +2970,11 @@ IHqlExpression * queryNewColumnProvider(IHqlExpression * expr)
     case no_xmlproject:
     case no_deserialize:
     case no_serialize:
+    case no_select:
+    case no_table:
+    case no_temptable:
+    case no_id2blob:
+    case no_embedbody:
         return expr->queryChild(1);
     case no_newkeyindex:
     case no_aggregate:
@@ -2975,6 +2988,13 @@ IHqlExpression * queryNewColumnProvider(IHqlExpression * expr)
     case no_process:
     case no_nwayjoin:
         return expr->queryChild(2);
+    case no_pipe:
+    {
+        IHqlExpression * record = expr->queryChild(2);
+        if (record && record->isRecord())
+            return record;
+        return expr->queryChild(0);
+    }
     case no_fetch:
     case no_join:
     case no_selfjoin:
@@ -3023,7 +3043,7 @@ bool datasetHasGroupBy(IHqlExpression * expr)
 
 
 
-bool isAggregateDataset(IHqlExpression * expr)
+bool isAggregateDataset(const IHqlExpression * expr)
 {
     switch (expr->getOperator())
     {
@@ -3512,12 +3532,12 @@ inline bool matchesTypeCode(ITypeInfo * type, type_t search)
 }
 
 
-bool CHqlExpression::isBoolean()
+bool CHqlExpression::isBoolean() const
 {
     return matchesTypeCode(queryType(), type_boolean);
 }
 
-bool CHqlExpression::isDataset()
+bool CHqlExpression::isDataset() const
 {
     ITypeInfo * cur = queryType();
     for (;;)
@@ -3539,23 +3559,23 @@ bool CHqlExpression::isDataset()
     }
 }
 
-bool CHqlExpression::isDictionary()
+bool CHqlExpression::isDictionary() const
 {
     return matchesTypeCode(queryType(), type_dictionary);
 }
 
-bool CHqlExpression::isDatarow()
+bool CHqlExpression::isDatarow() const
 {
     return matchesTypeCode(queryType(), type_row);
 }
 
-bool CHqlExpression:: isFunction()
+bool CHqlExpression:: isFunction() const
 {
     ITypeInfo * thisType = queryType();
     return thisType && thisType->getTypeCode() == type_function;
 }
 
-bool CHqlExpression::isMacro()
+bool CHqlExpression::isMacro() const
 {
     switch (op)
     {
@@ -3567,32 +3587,32 @@ bool CHqlExpression::isMacro()
     return false;
 }
 
-bool CHqlExpression::isRecord()
+bool CHqlExpression::isRecord() const
 {
     return matchesTypeCode(queryType(), type_record);
 }
 
-bool CHqlExpression::isAction()
+bool CHqlExpression::isAction() const
 {
     return matchesTypeCode(queryType(), type_void);
 }
 
-bool CHqlExpression::isTransform()
+bool CHqlExpression::isTransform() const
 {
     return matchesTypeCode(queryType(), type_transform);
 }
 
-bool CHqlExpression::isScope()
+bool CHqlExpression::isScope() const
 {
     return matchesTypeCode(queryType(), type_scope);
 }
 
-bool CHqlExpression::isField()
+bool CHqlExpression::isField() const
 {
     return op == no_field;
 }
 
-bool CHqlExpression::isType()
+bool CHqlExpression::isType() const
 {
     switch(op)
     {
@@ -3605,12 +3625,12 @@ bool CHqlExpression::isType()
     }
 }
 
-bool CHqlExpression::isList()
+bool CHqlExpression::isList() const
 {
     return matchesTypeCode(queryType(), type_set);
 }
 
-bool CHqlExpression::isAggregate()
+bool CHqlExpression::isAggregate() const
 {
     //This is only used for HOLe processing - I'm not sure how much sense it really makes.
     switch(op)
@@ -4481,62 +4501,81 @@ switch (op)
 #endif
 #endif      // _DEBUG
 
-    ITypeInfo * thisType = queryType();
-    if (thisType)
+    //Special case datasets to avoid calling queryType() unnecessarily
+    if (isDataset())
     {
-        type_t tc = thisType->getTypeCode();
-        switch (tc)
+        //Not strictly true for nested counters..
+        infoFlags &= ~HEFcontainsCounter;
+        switch (op)
         {
-        case type_alien:
-        case type_scope:
-            {
-                IHqlExpression * typeExpr = queryExpression(thisType);
-                if (typeExpr)
-                {
-                    infoFlags |= (typeExpr->getInfoFlags() & HEFalwaysInherit);
-                    infoFlags2 |= (typeExpr->getInfoFlags2() & HEF2alwaysInherit);
-                }
-                break;
-            }
-        case type_dictionary:
-        case type_groupedtable:
-        case type_table:
-            {
-                //Not strictly true for nested counters..
-                infoFlags &= ~HEFcontainsCounter;
-            }
-            //fall through
-        case type_row:
-        case type_transform:
-            {
-                IHqlExpression * record = queryRecord();
-                if (record)
-                {
-                    infoFlags |= (record->getInfoFlags() & HEFalwaysInherit);
-                    infoFlags2 |= (record->getInfoFlags2() & HEF2alwaysInherit);
-                }
-
-                switch (op)
-                {
-                case no_fail: case no_assert: case no_assert_ds: case no_externalcall: case no_libraryscopeinstance:
-                case no_call:
-                    break;
-                case no_transform: case no_newtransform:
-                    infoFlags &= ~HEFoldthrows;
-                    break;
-                default:
-                    infoFlags &= ~HEFthrowscalar;
-                    infoFlags &= ~HEFoldthrows;
-                    if (tc == type_row)
-                        infoFlags &= ~HEFthrowds;
-                    break;
-                }
-                break;
-            }
-        case type_void:
-            if (op != no_assign)
-                infoFlags &= ~HEFthrowds;
+        case no_fail: case no_assert: case no_assert_ds: case no_externalcall: case no_libraryscopeinstance:
+        case no_call:
             break;
+        default:
+            infoFlags &= ~HEFthrowscalar;
+            infoFlags &= ~HEFoldthrows;
+            break;
+        }
+    }
+    else
+    {
+        ITypeInfo * thisType = queryType();
+        if (thisType)
+        {
+            type_t tc = thisType->getTypeCode();
+            switch (tc)
+            {
+            case type_alien:
+            case type_scope:
+                {
+                    IHqlExpression * typeExpr = queryExpression(thisType);
+                    if (typeExpr)
+                    {
+                        infoFlags |= (typeExpr->getInfoFlags() & HEFalwaysInherit);
+                        infoFlags2 |= (typeExpr->getInfoFlags2() & HEF2alwaysInherit);
+                    }
+                    break;
+                }
+            case type_dictionary:
+            case type_groupedtable:
+            case type_table:
+                {
+                    //Not strictly true for nested counters..
+                    infoFlags &= ~HEFcontainsCounter;
+                }
+                //fall through
+            case type_row:
+            case type_transform:
+                {
+                    IHqlExpression * record = queryRecord();
+                    if (record)
+                    {
+                        infoFlags |= (record->getInfoFlags() & HEFalwaysInherit);
+                        infoFlags2 |= (record->getInfoFlags2() & HEF2alwaysInherit);
+                    }
+
+                    switch (op)
+                    {
+                    case no_fail: case no_assert: case no_assert_ds: case no_externalcall: case no_libraryscopeinstance:
+                    case no_call:
+                        break;
+                    case no_transform: case no_newtransform:
+                        infoFlags &= ~HEFoldthrows;
+                        break;
+                    default:
+                        infoFlags &= ~HEFthrowscalar;
+                        infoFlags &= ~HEFoldthrows;
+                        if (tc == type_row)
+                            infoFlags &= ~HEFthrowds;
+                        break;
+                    }
+                    break;
+                }
+            case type_void:
+                if (op != no_assign)
+                    infoFlags &= ~HEFthrowds;
+                break;
+            }
         }
     }
 
@@ -4579,7 +4618,7 @@ switch (op)
 }
 
 
-bool CHqlRealExpression::isConstant()
+bool CHqlRealExpression::isConstant() const
 {
     return constant();
 }
@@ -4767,8 +4806,11 @@ bool CHqlRealExpression::equals(const IHqlExpression & other) const
     case no_libraryscopeinstance:
         break;
     default:
-        if (queryType() != other.queryType())
-            return false;
+        if (!isDataset() || !other.isDataset())
+        {
+            if (queryType() != other.queryType())
+                return false;
+        }
         break;
     }
     unsigned kids = other.numChildren();
@@ -6563,12 +6605,17 @@ ITypeInfo *CHqlDataset::getType()
     return thisType;
 }
 
-bool CHqlDataset::isDataset()
+bool CHqlDataset::isDataset() const
 {
     return true;
 }
 
-bool CHqlDataset::isAction()
+bool CHqlDataset::isDatarow() const
+{
+    return false;
+}
+
+bool CHqlDataset::isAction() const
 {
     return false;
 }
@@ -6798,9 +6845,89 @@ void CHqlDataset::cacheParent()
     }
 }
 
-bool CHqlDataset::isAggregate()
+bool CHqlDataset::isAggregate() const
 {
     return isAggregateDataset(this);
+}
+
+IHqlExpression * CHqlDataset::queryRecord()
+{
+    IHqlExpression * record = evalRecord();
+    IHqlExpression * typeRecord = ::queryRecord(queryType());
+    assertex(record->queryBody() == typeRecord->queryBody());
+    return record;
+}
+
+IHqlExpression * CHqlDataset::evalRecord()
+{
+    //Move this into a function that return the index of the argument that returns the record
+    switch (op)
+    {
+    case no_inlinetable:
+        return queryChild(0)->queryChild(0)->queryRecord();
+    case no_merge:
+    case no_addfiles:
+    case no_regroup:
+    case no_nonempty:
+    case no_colon:
+    case no_alias:
+    case no_globalscope:
+    case no_nothor:
+    case no_map:
+    case no_readspill:
+    case no_commonspill:
+    case no_translated:
+    case no_datasetfromrow:
+    case no_rows:
+    case no_anon:
+    case no_rowsetindex:
+    case no_mergejoin:
+    case no_getgraphresult:
+    case no_loop:
+    case no_graphloop:
+    case no_allnodes:
+    case no_datasetfromdictionary:
+    case no_getgraphloopresult:
+    case no_filtergroup:
+    case no_forcelocal:
+    case no_libraryselect:
+    case no_libraryinput:
+    case no_purevirtual:
+    case no_nwaymerge:
+    case no_delayedselect:
+    case no_internalselect:
+    case no_unboundselect:
+    case no_cogroup:
+    case no_thisnode:
+    case no_dataset_alias:
+    case no_forcenolocal:
+        return queryChild(0)->queryRecord();
+    case no_compound:
+    case no_if:
+    case no_case:
+    case no_chooseds:
+    case no_mapto:
+    case no_newkeyindex:
+        return queryChild(1)->queryRecord();
+    case no_selectfields:
+    {
+        IHqlExpression * arg = queryChild(1);
+        if (arg->getOperator() != no_null)
+            return arg->queryRecord();
+        return queryChild(0)->queryRecord();
+    }
+    }
+
+    if (definesColumnList(this))
+    {
+        IHqlExpression * recordOrTransform = queryNewColumnProvider(this);
+        if (!recordOrTransform)
+            throw makeStringExceptionV(0, "Missing %s", EclIR::getOperatorIRText(op));
+        assertex(recordOrTransform->queryRecord());
+        return recordOrTransform->queryRecord();
+    }
+
+    return queryChild(0)->queryRecord();
 }
 
 IHqlExpression * CHqlDataset::queryNormalizedSelector(bool skipIndex)
@@ -7071,12 +7198,12 @@ unsigned CHqlAnnotation::getSymbolFlags() const
     return body->getSymbolFlags();
 }
 
-bool CHqlAnnotation::isConstant()
+bool CHqlAnnotation::isConstant() const
 {
     return body->isConstant();
 }
 
-bool CHqlAnnotation::isPure()
+bool CHqlAnnotation::isPure() const
 {
     return body->isPure();
 }
@@ -7261,22 +7388,22 @@ IPropertyTree * CHqlAnnotation::getDocumentation() const
     return body->getDocumentation();
 }
 
-bool CHqlAnnotation::isGroupAggregateFunction()
+bool CHqlAnnotation::isGroupAggregateFunction() const
 {
     return body->isGroupAggregateFunction();
 }
 
-bool CHqlAnnotation::isMacro()
+bool CHqlAnnotation::isMacro() const
 {
     return body->isMacro();
 }
 
-bool CHqlAnnotation::isType()
+bool CHqlAnnotation::isType() const
 {
     return body->isType();
 }
 
-bool CHqlAnnotation::isScope()
+bool CHqlAnnotation::isScope() const
 {
     return body->isScope();
 }
@@ -7309,6 +7436,11 @@ ITypeInfo * CHqlAnnotation::queryType() const
 ITypeInfo * CHqlAnnotation::getType()
 {
     return body->getType();
+}
+
+IHqlExpression *CHqlAnnotation::queryRecord()
+{
+    return body->queryRecord();
 }
 
 
@@ -7816,6 +7948,8 @@ extern HQL_API bool okToAddAnnotation(IHqlExpression * expr)
     case no_ifblock:
         return false;
     }
+    if (expr->isDataset())
+        return true;
     ITypeInfo * type = expr->queryType();
     if (!type)
         return false;
@@ -7832,6 +7966,8 @@ extern HQL_API bool okToAddLocation(IHqlExpression * expr)
 #if defined(ANNOTATE_EXPR_POSITION)
     return true;
 #elif defined(ANNOTATE_DATASET_POSITION)
+    if (expr->isDataset())
+        return true;
     ITypeInfo * type = expr->queryType();
     switch (type->getTypeCode())
     {

@@ -1490,7 +1490,7 @@ void HqlGram::addAssignment(attribute & target, attribute &source)
         if (checkAlreadyAssigned(target, targetExpr))
         {
         }
-        else if (targetExpr->queryType()->getTypeCode() == type_row)
+        else if (targetExpr->isDatarow())
         {
             //assertex(srcExpr->getOperator() == no_null);
             addAssignall(targetExpr.getClear(), srcExpr.getClear(), target);

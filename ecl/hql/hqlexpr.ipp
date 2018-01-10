@@ -194,7 +194,7 @@ protected:
         return true;
     }
 
-    bool isAggregate();
+    virtual bool isAggregate() const;
     IHqlExpression * commonUpExpression();
 
     IHqlExpression * calcNormalizedSelector() const;
@@ -217,19 +217,19 @@ public:
     virtual IHqlSimpleScope *querySimpleScope();
     virtual IHqlExpression *queryFunctionDefinition() const { return NULL; };
     virtual IHqlExpression *queryExternalDefinition() const { return NULL; };
-    virtual bool isBoolean();
-    virtual bool isDataset();
-    virtual bool isDictionary();
-    virtual bool isDatarow();
-    virtual bool isScope();
-    virtual bool isMacro();
-    virtual bool isType();
-    virtual bool isList();
-    virtual bool isField();
-    virtual bool isRecord();
-    virtual bool isAction();
-    virtual bool isTransform();
-    virtual bool isFunction();
+    virtual bool isBoolean() const;
+    virtual bool isDataset() const;
+    virtual bool isDictionary() const;
+    virtual bool isDatarow() const;
+    virtual bool isScope() const;
+    virtual bool isMacro() const;
+    virtual bool isType() const;
+    virtual bool isList() const;
+    virtual bool isField() const;
+    virtual bool isRecord() const;
+    virtual bool isAction() const;
+    virtual bool isTransform() const;
+    virtual bool isFunction() const;
     virtual annotate_kind getAnnotationKind() const { return annotate_none; }
     virtual IHqlAnnotation * queryAnnotation() { return NULL; }
     virtual bool isAttribute() const { return false; }
@@ -300,9 +300,9 @@ public:
     virtual bool isFullyBound() const { return fullyBound(); };
     virtual unsigned getInfoFlags() const { return infoFlags; }
     virtual unsigned getInfoFlags2() const { return infoFlags2; }
-    virtual bool isGroupAggregateFunction() { return functionOfGroupAggregate(); }
-    virtual bool isPure()       { return pure(); }
-    virtual bool isConstant();
+    virtual bool isGroupAggregateFunction() const { return functionOfGroupAggregate(); }
+    virtual bool isPure() const       { return pure(); }
+    virtual bool isConstant() const;
     virtual IHqlExpression *closeExpr(); // MORE - should be in expressionBuilder interface!
     virtual bool equals(const IHqlExpression & other) const;
 
@@ -605,13 +605,13 @@ public:
     virtual ITypeInfo *getType();
     virtual IAtom * queryName() const;
     virtual IIdAtom * queryId() const;
-    virtual bool isScope();
-    virtual bool isType();
-    virtual bool isConstant();
-    virtual bool isMacro();
-    virtual bool isGroupAggregateFunction();
+    virtual bool isScope() const;
+    virtual bool isType() const;
+    virtual bool isConstant() const;
+    virtual bool isMacro() const;
+    virtual bool isGroupAggregateFunction() const;
     virtual annotate_kind getAnnotationKind() const = 0;
-    virtual bool isPure();
+    virtual bool isPure() const;
     virtual bool isAttribute() const;
     virtual unsigned getInfoFlags() const;
     virtual unsigned getInfoFlags2() const;
@@ -631,6 +631,7 @@ public:
     virtual unsigned __int64 querySequenceExtra();
     virtual IHqlDataset *queryDataset();
     virtual IHqlScope *queryScope();
+    virtual IHqlExpression * queryRecord();
     virtual IHqlSimpleScope *querySimpleScope();
     virtual IHqlExpression *queryFunctionDefinition() const;
     virtual IHqlExpression *queryExternalDefinition() const;
@@ -934,7 +935,7 @@ class CHqlExternalDatasetCall: public CHqlExternalCall, implements IHqlDataset
     virtual IHqlDataset * queryRootTable()          { return this; }
     virtual IHqlExpression * queryContainer()       { return NULL; }
 
-    virtual bool isAggregate()                      { return false; }
+    virtual bool isAggregate() const                { return false; }
 };
 
 #ifdef THREAD_SAFE_SYMBOLS
@@ -1070,7 +1071,7 @@ class CHqlDelayedDatasetCall: public CHqlDelayedCall, implements IHqlDataset
     virtual IHqlDataset * queryRootTable()          { return this; }
     virtual IHqlExpression * queryContainer()       { return NULL; }
 
-    virtual bool isAggregate()                      { return false; }
+    virtual bool isAggregate() const                { return false; }
 };
 
 class CHqlDelayedScopeCall: public CHqlDelayedCall, implements IHqlScope
@@ -1464,7 +1465,7 @@ public:
     virtual IHqlDataset * queryRootTable() { return this; }
     virtual IHqlExpression * queryContainer() { return NULL; }
     
-    virtual bool isAggregate() { return false; }
+    virtual bool isAggregate() const { return false; }
 
 //Overlapped methods
     virtual IHqlSimpleScope* querySimpleScope() { return CHqlParameter::querySimpleScope(); }
@@ -1492,7 +1493,7 @@ public:
     virtual IHqlDataset * queryRootTable() { return this; }
     virtual IHqlExpression * queryContainer() { return NULL; }
 
-    virtual bool isAggregate() { return false; }
+    virtual bool isAggregate() const { return false; }
 
 //Overlapped methods
     virtual IHqlSimpleScope* querySimpleScope() { return CHqlParameter::querySimpleScope(); }
@@ -1791,8 +1792,9 @@ public:
     virtual IHqlExpression *queryNormalizedSelector(bool skipIndex);
     virtual ITypeInfo *queryType() const;
     virtual ITypeInfo *getType();
-    virtual bool isDataset();
-    virtual bool isAction();
+    virtual bool isDataset() const;
+    virtual bool isDatarow() const;
+    virtual bool isAction() const;
 
     bool equals(const IHqlExpression & r) const;
     virtual IHqlExpression *clone(HqlExprArray &newkids);
@@ -1808,6 +1810,7 @@ protected:
 
     void cacheParent();
     ITypeInfo * ensureType() const;
+    IHqlExpression * evalRecord();
 
 public:
     CHqlDataset(node_operator op, HqlExprArray &_ownedOperands);
@@ -1819,7 +1822,8 @@ public:
 //interface IHqlDataset 
     virtual IHqlDataset *queryRootTable() { return rootTable; };
     virtual IHqlExpression * queryContainer() { return container; }
-    virtual bool isAggregate();
+    virtual bool isAggregate() const;
+    virtual IHqlExpression * queryRecord();
 };
 
 

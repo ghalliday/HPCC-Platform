@@ -6835,6 +6835,7 @@ HqlConstantPercolator * CExprFolderTransformer::gatherConstants(IHqlExpression *
     case no_selectmap:
     case no_select:
     case no_record:
+    case no_matchrow:
         break;
 
     default:
