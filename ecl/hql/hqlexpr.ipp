@@ -385,8 +385,12 @@ protected:
     CHqlExpressionWithType(node_operator op, ITypeInfo *type, HqlExprArray & ownedOperands);
     ~CHqlExpressionWithType();
 
-protected:
-    ITypeInfo *type;
+//Should only be called from when constructing an object
+    void setType(ITypeInfo * newOwnedType);
+    void internalSetScopeType(ITypeInfo * newType);
+
+private:
+    std::atomic<ITypeInfo *> type;
 };
 
 class CHqlNamedExpression : public CHqlExpressionWithType

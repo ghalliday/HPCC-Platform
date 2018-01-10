@@ -4935,19 +4935,20 @@ CHqlExpressionWithType::CHqlExpressionWithType(node_operator _op, ITypeInfo * _t
 
 CHqlExpressionWithType::~CHqlExpressionWithType()
 {
-    ::Release(type);
+    ::Release(type.load(std::memory_order_relaxed));
 }
 
 
 ITypeInfo *CHqlExpressionWithType::queryType() const
 {
-    return type;
+    return type.load(std::memory_order_relaxed);
 }
 
 ITypeInfo *CHqlExpressionWithType::getType()
 {
-    ::Link(type);
-    return type;
+    ITypeInfo * thisType = type.load(std::memory_order_relaxed);
+    ::Link(thisType);
+    return thisType;
 }
 
 CHqlExpression *CHqlExpressionWithType::makeExpression(node_operator _op, ITypeInfo *_type, HqlExprArray &_ownedOperands)
@@ -5015,10 +5016,21 @@ IHqlExpression *CHqlExpressionWithType::clone(HqlExprArray &newkids)
     }
 
     if (!newType)
-        newType = LINK(type);
+        newType = getType();
     return CHqlExpressionWithType::makeExpression(op, newType, newkids);
 }
 
+void CHqlExpressionWithType::setType(ITypeInfo * newOwnedType)
+{
+    ITypeInfo * thisType = type.load(std::memory_order_relaxed);
+    ::Release(thisType);
+    type.store(newOwnedType, std::memory_order_relaxed);
+}
+
+void CHqlExpressionWithType::internalSetScopeType(ITypeInfo * newType)
+{
+    type.store(newType, std::memory_order_relaxed);
+}
 //--------------------------------------------------------------------------------------------------------------
 
 CHqlNamedExpression::CHqlNamedExpression(node_operator _op, ITypeInfo *_type, IIdAtom * _id, ...) : CHqlExpressionWithType(_op, _type)
@@ -6151,12 +6163,11 @@ CHqlField::CHqlField(IIdAtom * _id, ITypeInfo *_type, HqlExprArray &_ownedOperan
 void CHqlField::onCreateField()
 {
     bool hasLCA = hasAttribute(_linkCounted_Atom);
-    ITypeInfo * newType = setLinkCountedAttr(type, hasLCA);
-    type->Release();
-    type = newType;
+    ITypeInfo * thisType = setLinkCountedAttr(queryType(), hasLCA);
+    setType(thisType);
 
 #ifdef _DEBUG
-    if (hasLinkCountedModifier(type) != hasAttribute(_linkCounted_Atom))
+    if (hasLinkCountedModifier(thisType) != hasAttribute(_linkCounted_Atom))
         throwUnexpected();
 #endif
 #ifdef DEBUG_ON_CREATE
@@ -6167,13 +6178,13 @@ void CHqlField::onCreateField()
     infoFlags &= ~(HEFfunctionOfGroupAggregate);
     infoFlags |= HEFcontextDependentException;
 
-    assertex(type->getTypeCode() != type_record);
+    assertex(thisType->getTypeCode() != type_record);
 
     IHqlExpression * typeExpr = NULL;
-    switch (type->getTypeCode())
+    switch (thisType->getTypeCode())
     {
     case type_alien:
-        typeExpr = queryExpression(type);
+        typeExpr = queryExpression(thisType);
         break;
     case type_row:
         break;
@@ -6212,7 +6223,7 @@ bool CHqlField::equals(const IHqlExpression & r) const
 
 IHqlExpression *CHqlField::clone(HqlExprArray &newkids)
 {
-    CHqlField* e = new CHqlField(id, LINK(type), newkids);
+    CHqlField* e = new CHqlField(id, getType(), newkids);
     return e->closeExpr();
 }
 
@@ -6292,7 +6303,7 @@ IHqlExpression *CHqlRow::queryNormalizedSelector(bool skipIndex)
 
 IHqlSimpleScope *CHqlRow::querySimpleScope()
 {
-    return QUERYINTERFACE(queryUnqualifiedType(type->queryChildType()), IHqlSimpleScope);
+    return QUERYINTERFACE(queryUnqualifiedType(queryType()->queryChildType()), IHqlSimpleScope);
 }
 
 IHqlDataset *CHqlRow::queryDataset()
@@ -6512,7 +6523,7 @@ IHqlDataset *CHqlDataset::queryTable()
 
 void CHqlDataset::sethash() 
 { 
-    CHqlExpression::sethash(); 
+    setInitialHash(0U); // Do not include the type - it can always be deduced from the parameters
 }
 
 //==============================================================================================================
@@ -8063,16 +8074,17 @@ extern HQL_API IFileContents * createFileContentsSubset(IFileContents * contents
 
 //==============================================================================================================
 
+//MORE: This should probably be derived from CHqlExpressionWithTables, but CHqlScopeParameter would then need reimplementing
 CHqlScope::CHqlScope(node_operator _op, IIdAtom * _id, const char * _fullName)
-: CHqlExpressionWithType(_op, NULL), id(_id), fullName(_fullName)
+: CHqlExpressionWithType(_op, nullptr), id(_id), fullName(_fullName)
 {
     containerId = NULL;
-    type = this;
+    internalSetScopeType(this);
     initContainer();
 }
 
 CHqlScope::CHqlScope(IHqlScope* scope)
-: CHqlExpressionWithType(no_scope, NULL)
+: CHqlExpressionWithType(no_scope, nullptr)
 {
     id = scope->queryId();
     containerId = NULL;
@@ -8080,23 +8092,38 @@ CHqlScope::CHqlScope(IHqlScope* scope)
     CHqlScope* s = QUERYINTERFACE(scope, CHqlScope);
     if (s && s->text)
         text.set(s->text);
-    type = this;
+    internalSetScopeType(this);
     initContainer();
 }
 
 CHqlScope::CHqlScope(node_operator _op) 
-: CHqlExpressionWithType(_op, NULL)
+: CHqlExpressionWithType(_op, nullptr)
 {
     id = NULL;
     containerId = NULL;
-    type = this;
+    internalSetScopeType(this);
 }
 
 CHqlScope::~CHqlScope()
 {
-    if (type == this)
-        type = NULL;
+    if (CHqlExpressionWithType::queryType() == this)
+        internalSetScopeType(nullptr);
 }
+
+/*
+ * Following functions would be implemented if CHqlScope was derived from CHqlExpressionWithTables
+
+ITypeInfo *CHqlScope::queryType() const
+{
+    const ITypeInfo * thisType = this;
+    return const_cast<ITypeInfo *>(thisType);
+}
+
+ITypeInfo *CHqlScope::getType()
+{
+    return LINK(this);
+}
+ */
 
 void CHqlScope::initContainer()
 {
@@ -9973,7 +10000,7 @@ IHqlExpression * CHqlParameter::makeParameter(IIdAtom * _id, unsigned _idx, ITyp
 
 IHqlSimpleScope *CHqlParameter::querySimpleScope()
 {
-    ITypeInfo * recordType = ::queryRecordType(type);
+    ITypeInfo * recordType = ::queryRecordType(queryType());
     if (!recordType)
         return NULL;
     return QUERYINTERFACE(queryUnqualifiedType(recordType), IHqlSimpleScope);
@@ -9989,7 +10016,7 @@ void CHqlParameter::sethash()
 
 IHqlExpression *CHqlParameter::clone(HqlExprArray &newkids)
 {
-    return makeParameter(id, idx, LINK(type), newkids);
+    return makeParameter(id, idx, getType(), newkids);
 }
 
 StringBuffer &CHqlParameter::toString(StringBuffer &ret)
@@ -10006,9 +10033,9 @@ StringBuffer &CHqlParameter::toString(StringBuffer &ret)
 CHqlScopeParameter::CHqlScopeParameter(IIdAtom * _id, unsigned _idx, ITypeInfo *_type)
  : CHqlScope(no_param, _id, str(_id))
 {
-    type = _type;
+    internalSetScopeType(_type);
     idx = _idx;
-    typeScope = ::queryScope(type);
+    typeScope = ::queryScope(_type);
     infoFlags |= HEFunbound;
     uid = (idx == UnadornedParameterIndex) ? 0 : parameterSequence.next();
     if (!hasAttribute(_virtualSeq_Atom))
@@ -10017,7 +10044,7 @@ CHqlScopeParameter::CHqlScopeParameter(IIdAtom * _id, unsigned _idx, ITypeInfo *
 
 bool CHqlScopeParameter::assignableFrom(ITypeInfo * source) 
 { 
-    return type->assignableFrom(source);
+    return queryType()->assignableFrom(source);
 }
 
 
@@ -10036,7 +10063,7 @@ bool CHqlScopeParameter::equals(const IHqlExpression & _other) const
 IHqlExpression *CHqlScopeParameter::clone(HqlExprArray &newkids)
 {
     throwUnexpected();
-    return createParameter(id, idx, LINK(type), newkids);
+    return createParameter(id, idx, getType(), newkids);
 }
 
 IHqlScope * CHqlScopeParameter::clone(HqlExprArray & children, HqlExprArray & symbols)
@@ -10371,7 +10398,7 @@ void CHqlUnknown::sethash()
 IHqlExpression *CHqlUnknown::clone(HqlExprArray &newkids)
 {
     assertex(newkids.ordinality() == 0);
-    return createUnknown(op, type, name, extra.getLink());
+    return createUnknown(op, getType(), name, extra.getLink());
 }
 
 StringBuffer &CHqlUnknown::toString(StringBuffer &ret)
@@ -10509,7 +10536,7 @@ CHqlExternalCall::CHqlExternalCall(IHqlExpression * _funcdef, ITypeInfo * _type,
 
     infoFlags |= impureFlags;
     
-    if (body->hasAttribute(actionAtom) || (type && type->getTypeCode() == type_void))
+    if (body->hasAttribute(actionAtom) || (_type && _type->getTypeCode() == type_void))
         infoFlags |= HEFaction;
 
     if (body->hasAttribute(userMatchFunctionAtom))
@@ -10521,10 +10548,7 @@ CHqlExternalCall::CHqlExternalCall(IHqlExpression * _funcdef, ITypeInfo * _type,
         infoFlags |= HEFaccessRuntimeContext;
 
     if (hasAttribute(_pseudoAction_Atom))
-    {
-        ::Release(type);
-        type = makeVoidType();
-    }
+        setType(makeVoidType());
 }
 
 bool CHqlExternalCall::equals(const IHqlExpression & other) const
@@ -10553,7 +10577,7 @@ IHqlExpression *CHqlExternalCall::clone(HqlExprArray &newkids)
 {
     if ((newkids.ordinality() == 0) && (operands.ordinality() == 0))
         return LINK(this);
-    return makeExternalCall(LINK(funcdef), LINK(type), newkids);
+    return makeExternalCall(LINK(funcdef), getType(), newkids);
 }
 
 
@@ -10576,7 +10600,7 @@ IHqlExpression * CHqlExternalCall::makeExternalCall(IHqlExpression * _funcdef, I
 
 IHqlExpression *CHqlExternalDatasetCall::clone(HqlExprArray &newkids)
 {
-    return makeExternalCall(LINK(funcdef), LINK(type), newkids);
+    return makeExternalCall(LINK(funcdef), getType(), newkids);
 }
 
 
