@@ -10013,6 +10013,18 @@ IHqlExpression * HqlScopeTagger::transformNewDataset(IHqlExpression * expr, bool
 
 IHqlExpression * HqlScopeTagger::transformAmbiguous(IHqlExpression * expr, bool isActiveOk)
 {
+#if 1
+    if (expr->isDataset())
+    {
+        pushScope(expr);
+        OwnedHqlExpr ret = transformNewDataset(expr, isActiveOk);
+        popScope();
+        return ret.getClear();
+    }
+    if (expr->isAction())
+        return transformAmbiguousChildren(expr);
+    return transform(expr);
+#else
     ITypeInfo * type = expr->queryType();
     type_t tc = type_void;
     if (type)
@@ -10032,6 +10044,7 @@ IHqlExpression * HqlScopeTagger::transformAmbiguous(IHqlExpression * expr, bool 
         }
     }
     return transform(expr);
+#endif
 }
 
 

@@ -2859,7 +2859,7 @@ bool definesColumnList(IHqlExpression * dataset)
     case no_select:
     case no_field:
         {
-#ifdef _DEBUG
+#ifdef _DEBUGX
             type_t tc = dataset->queryType()->getTypeCode();
             assertex(tc == type_table || tc == type_groupedtable || tc == type_dictionary);
 #endif
@@ -6569,9 +6569,17 @@ void CHqlDataset::sethash()
 
 //==============================================================================================================
 
+static struct x
+{
+    unsigned types = 0;
+    unsigned instances = 0;
+    ~x() { printf("%u types %u instance\n", types, instances); }
+} _localx;
+
 CHqlDataset::CHqlDataset(node_operator _op, HqlExprArray &_ownedOperands)
 : CHqlExpressionWithType(_op, nullptr)
 {
+    ++_localx.instances;
     setOperands(_ownedOperands); // after type is initialized - should probably be post constructor
 
     //Ensure that none of the functions called from setOperands() required the type...
@@ -6615,6 +6623,11 @@ bool CHqlDataset::isDatarow() const
     return false;
 }
 
+bool CHqlDataset::isDictionary() const
+{
+    return false;
+}
+
 bool CHqlDataset::isAction() const
 {
     return false;
@@ -6626,6 +6639,7 @@ ITypeInfo *CHqlDataset::ensureType() const
     ITypeInfo * thisType = type.load(std::memory_order_relaxed);
     if (!thisType)
     {
+        ++_localx.types;
         CriticalBlock block(datasetTypeCs);
         thisType = type.load(std::memory_order_relaxed);
         if (!thisType)
@@ -6853,8 +6867,8 @@ bool CHqlDataset::isAggregate() const
 IHqlExpression * CHqlDataset::queryRecord()
 {
     IHqlExpression * record = evalRecord();
-    IHqlExpression * typeRecord = ::queryRecord(queryType());
-    assertex(record->queryBody() == typeRecord->queryBody());
+//    IHqlExpression * typeRecord = ::queryRecord(queryType());
+//    assertex(record->queryBody() == typeRecord->queryBody());
     return record;
 }
 
@@ -6923,8 +6937,9 @@ IHqlExpression * CHqlDataset::evalRecord()
         IHqlExpression * recordOrTransform = queryNewColumnProvider(this);
         if (!recordOrTransform)
             throw makeStringExceptionV(0, "Missing %s", EclIR::getOperatorIRText(op));
-        assertex(recordOrTransform->queryRecord());
-        return recordOrTransform->queryRecord();
+        IHqlExpression * record = recordOrTransform->queryRecord();
+        assertex(record);
+        return record;
     }
 
     return queryChild(0)->queryRecord();
@@ -7202,6 +7217,27 @@ bool CHqlAnnotation::isConstant() const
 {
     return body->isConstant();
 }
+
+bool CHqlAnnotation::isDataset() const
+{
+    return body->isDataset();
+}
+
+bool CHqlAnnotation::isDatarow() const
+{
+    return body->isDatarow();
+}
+
+bool CHqlAnnotation::isAction() const
+{
+    return body->isAction();
+}
+
+bool CHqlAnnotation::isDictionary() const
+{
+    return body->isDictionary();
+}
+
 
 bool CHqlAnnotation::isPure() const
 {
@@ -12523,6 +12559,7 @@ IHqlExpression *createDataset(node_operator op, HqlExprArray & parms)
         if ((parms.ordinality() > 2) && isAlwaysActiveRow(&parms.item(0)))
             removeAttribute(parms, newAtom);
         break;
+#ifdef _DEBUGX
     case no_denormalize:
         {
             IHqlExpression * transform = &parms.item(3);
@@ -12541,6 +12578,7 @@ IHqlExpression *createDataset(node_operator op, HqlExprArray & parms)
             assertRecordTypesMatch(parms.item(0).queryRecordType(), transform->queryRecordType());
             break;
         }
+#endif
      }
 
 #if 0
@@ -12732,6 +12770,18 @@ extern IHqlExpression *createRow(node_operator op, HqlExprArray & args)
         {
             IHqlExpression * dataset = &args.item(0);
             assertex(dataset);
+#if 1
+            if (dataset->isDatarow())
+            {
+                type = dataset->getType();
+            }
+            else
+            {
+                IHqlExpression * record = dataset->queryRecord();
+                if (record)
+                    type = makeRowType(LINK(record->queryType()));
+            }
+#else
             ITypeInfo * datasetType = dataset->queryType();
             if (datasetType)
             {
@@ -12740,6 +12790,7 @@ extern IHqlExpression *createRow(node_operator op, HqlExprArray & args)
                 else
                     type = makeRowType(LINK(dataset->queryRecordType()));
             }
+#endif
             break;
         }
     }
@@ -13532,6 +13583,7 @@ extern IHqlExpression * createComma(IHqlExpression * expr1, IHqlExpression * exp
     if (!expr2)
         return expr1;
     return createValue(no_comma, expr1->getType(), expr1, expr2);
+//    return createValue(no_comma, makeNullType(), expr1, expr2); - changes format crcs
 }
 
 extern IHqlExpression * createComma(IHqlExpression * expr1, IHqlExpression * expr2, IHqlExpression * expr3)
@@ -14959,17 +15011,9 @@ bool isNewSelector(IHqlExpression * expr)
     IHqlExpression * ds = expr->queryChild(0);
     while (ds->getOperator() == no_select)
     {
-        type_t tc = ds->queryType()->getTypeCode();
-        switch (tc)
+        if (!ds->isDatarow())
         {
-        case type_groupedtable:
-        case type_table:
-        case type_dictionary:
-            return false;
-        case type_row:
-            break;
-        default:
-            throwUnexpected();
+            assertex(ds->isDataset() || ds->isDictionary());
             return false;
         }
         if (ds->hasAttribute(newAtom))

@@ -611,6 +611,10 @@ public:
     virtual bool isMacro() const;
     virtual bool isGroupAggregateFunction() const;
     virtual annotate_kind getAnnotationKind() const = 0;
+    virtual bool isDataset() const;
+    virtual bool isDatarow() const;
+    virtual bool isAction() const;
+    virtual bool isDictionary() const;
     virtual bool isPure() const;
     virtual bool isAttribute() const;
     virtual unsigned getInfoFlags() const;
@@ -1795,6 +1799,7 @@ public:
     virtual bool isDataset() const;
     virtual bool isDatarow() const;
     virtual bool isAction() const;
+    virtual bool isDictionary() const;
 
     bool equals(const IHqlExpression & r) const;
     virtual IHqlExpression *clone(HqlExprArray &newkids);

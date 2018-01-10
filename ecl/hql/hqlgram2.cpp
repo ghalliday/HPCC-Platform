@@ -8804,6 +8804,9 @@ IHqlExpression * HqlGram::checkEnsureRecordsMatch(IHqlExpression * left, IHqlExp
 {
     //Need to add a project to make the field names correct, otherwise problems occur if one the left side is optimized away,
     //because that causes the record type and fields to change.
+    while (left->getOperator() == no_comma)
+        left = left->queryChild(0);
+
     if (recordTypesMatch(left, right)) 
         return LINK(right);
 
