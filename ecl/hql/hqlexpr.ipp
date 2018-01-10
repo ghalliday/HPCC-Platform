@@ -371,6 +371,7 @@ protected:
 class HQL_API CHqlExpressionWithType : public CHqlExpressionWithTables
 {
     friend HQL_API IHqlExpression *createOpenValue(node_operator op, ITypeInfo *type);
+    friend class CHqlDataset; // fix later
 public:
     static CHqlExpression *makeExpression(node_operator op, ITypeInfo *type, HqlExprArray &operands);
     static CHqlExpression *makeExpression(node_operator op, ITypeInfo *type, ...);
@@ -390,7 +391,7 @@ protected:
     void internalSetScopeType(ITypeInfo * newType);
 
 private:
-    std::atomic<ITypeInfo *> type;
+    mutable std::atomic<ITypeInfo *> type;
 };
 
 class CHqlNamedExpression : public CHqlExpressionWithType
@@ -1781,13 +1782,17 @@ class CHqlDataset : public CHqlExpressionWithType, implements IHqlDataset
 {
 public:
     IMPLEMENT_IINTERFACE_USING(CHqlExpression)
-    static CHqlDataset *makeDataset(node_operator op, ITypeInfo *type, HqlExprArray &operands);
+    static CHqlDataset *makeDataset(node_operator op, HqlExprArray &operands);
 
     virtual IHqlDataset *queryDataset() { return this; };
     virtual IHqlExpression * queryExpression() { return this; }
     virtual IHqlSimpleScope *querySimpleScope();
     virtual IHqlDataset* queryTable();
     virtual IHqlExpression *queryNormalizedSelector(bool skipIndex);
+    virtual ITypeInfo *queryType() const;
+    virtual ITypeInfo *getType();
+    virtual bool isDataset();
+    virtual bool isAction();
 
     bool equals(const IHqlExpression & r) const;
     virtual IHqlExpression *clone(HqlExprArray &newkids);
@@ -1802,9 +1807,10 @@ protected:
     Owned<IInterface> metaProperty;
 
     void cacheParent();
+    ITypeInfo * ensureType() const;
 
 public:
-    CHqlDataset(node_operator op, ITypeInfo *_type, HqlExprArray &_ownedOperands);
+    CHqlDataset(node_operator op, HqlExprArray &_ownedOperands);
     ~CHqlDataset();
 
     virtual StringBuffer &printAliases(StringBuffer &s, unsigned, bool &) { return s; }

@@ -4927,9 +4927,8 @@ IHqlExpression *CHqlRealExpression::queryAttribute(IAtom * propname) const
 //--------------------------------------------------------------------------------------------------------------
 
 CHqlExpressionWithType::CHqlExpressionWithType(node_operator _op, ITypeInfo * _type, HqlExprArray & _ownedOperands)
-: CHqlExpressionWithTables(_op)
+: CHqlExpressionWithTables(_op), type(_type)
 {
-    type = _type;
     setOperands(_ownedOperands); // after type is initialized
 }
 
@@ -6486,9 +6485,9 @@ IHqlExpression * CHqlDictionary::queryNormalizedSelector(bool skipIndex)
 
 //===========================================================================
 
-CHqlDataset *CHqlDataset::makeDataset(node_operator _op, ITypeInfo *type, HqlExprArray &_ownedOperands)
+CHqlDataset *CHqlDataset::makeDataset(node_operator _op, HqlExprArray &_ownedOperands)
 {
-    CHqlDataset *e = new CHqlDataset(_op, type, _ownedOperands);
+    CHqlDataset *e = new CHqlDataset(_op, _ownedOperands);
     return (CHqlDataset *) e->closeExpr();
 }
 
@@ -6528,9 +6527,14 @@ void CHqlDataset::sethash()
 
 //==============================================================================================================
 
-CHqlDataset::CHqlDataset(node_operator _op, ITypeInfo *_type, HqlExprArray &_ownedOperands) 
-: CHqlExpressionWithType(_op, _type, _ownedOperands)
+CHqlDataset::CHqlDataset(node_operator _op, HqlExprArray &_ownedOperands)
+: CHqlExpressionWithType(_op, nullptr)
 {
+    setOperands(_ownedOperands); // after type is initialized - should probably be post constructor
+
+    //Ensure that none of the functions called from setOperands() required the type...
+    assertex(!CHqlExpressionWithType::queryType());
+
     infoFlags &= ~(HEFfunctionOfGroupAggregate|HEFassertkeyed); // parent dataset should never have keyed attribute
     infoFlags &= ~(HEF2assertstepped);
 
@@ -6545,6 +6549,47 @@ CHqlDataset::~CHqlDataset()
 {
     ::Release(container);
 }
+
+ITypeInfo *CHqlDataset::queryType() const
+{
+    ITypeInfo * thisType = ensureType();
+    return thisType;
+}
+
+ITypeInfo *CHqlDataset::getType()
+{
+    ITypeInfo * thisType = ensureType();
+    ::Link(thisType);
+    return thisType;
+}
+
+bool CHqlDataset::isDataset()
+{
+    return true;
+}
+
+bool CHqlDataset::isAction()
+{
+    return false;
+}
+
+static CriticalSection datasetTypeCs;
+ITypeInfo *CHqlDataset::ensureType() const
+{
+    ITypeInfo * thisType = type.load(std::memory_order_relaxed);
+    if (!thisType)
+    {
+        CriticalBlock block(datasetTypeCs);
+        thisType = type.load(std::memory_order_relaxed);
+        if (!thisType)
+        {
+            thisType = calculateDatasetType(op, operands);
+            type.store(thisType, std::memory_order_relaxed);
+        }
+    }
+    return thisType;
+}
+
 
 bool CHqlDataset::equals(const IHqlExpression & r) const
 {
@@ -12370,9 +12415,7 @@ IHqlExpression *createDataset(node_operator op, HqlExprArray & parms)
         parms.append(*createAttribute(_metadata_Atom));
 #endif
 
-    Owned<ITypeInfo> type = calculateDatasetType(op, parms);
-
-    IHqlExpression * ret = CHqlDataset::makeDataset(op, type.getClear(), parms);
+    IHqlExpression * ret = CHqlDataset::makeDataset(op, parms);
 
 #ifdef GATHER_LINK_STATS
     insideCreate--;
