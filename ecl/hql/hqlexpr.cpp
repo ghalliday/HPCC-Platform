@@ -927,6 +927,9 @@ void HqlParseContext::setDefinitionText(IPropertyTree * target, const char * pro
         target->setPropBool("@dirty", true);
     }
 
+    timestamp_type ts = contents->getTimeStamp();
+    if (ts)
+        target->setPropInt64("@ts", ts);
 }
 
 IPropertyTree * HqlParseContext::beginMetaSource(IFileContents * contents)
@@ -7913,11 +7916,28 @@ CFileContents::CFileContents(IFile * _file, ISourcePath * _sourcePath, bool _isS
         file.clear();
 }
 
+CFileContents::CFileContents(const char *query, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature, timestamp_type _ts)
+: sourcePath(_sourcePath), implicitlySigned(_isSigned), gpgSignature(_gpgSignature), ts(_ts)
+{
+    if (query)
+        setContents(strlen(query), query);
+
+    delayedRead = false;
+}
+
+CFileContents::CFileContents(unsigned len, const char *query, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature, timestamp_type _ts)
+: sourcePath(_sourcePath), implicitlySigned(_isSigned), gpgSignature(_gpgSignature), ts(_ts)
+{
+    setContents(len, query);
+    delayedRead = false;
+}
+
+
 timestamp_type CFileContents::getTimeStamp()
 {
     //MORE: Could store a timestamp if the source was the legacy repository which has no corresponding file
     if (!file)
-        return 0;
+        return ts;
     return ::getTimeStamp(file);
 }
 
@@ -8012,23 +8032,6 @@ void CFileContents::ensureLoaded()
     setContentsOwn(buffer);
 }
 
-CFileContents::CFileContents(const char *query, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature)
-: sourcePath(_sourcePath), implicitlySigned(_isSigned), gpgSignature(_gpgSignature)
-{
-    if (query)
-        setContents(strlen(query), query);
-
-    delayedRead = false;
-}
-
-CFileContents::CFileContents(unsigned len, const char *query, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature)
-: sourcePath(_sourcePath), implicitlySigned(_isSigned), gpgSignature(_gpgSignature)
-{
-    setContents(len, query);
-    delayedRead = false;
-}
-
-
 void CFileContents::setContents(unsigned len, const char * query)
 {
     void * buffer = fileContents.allocate(len+1);
@@ -8044,15 +8047,15 @@ void CFileContents::setContentsOwn(MemoryBuffer & buffer)
     fileContents.setOwn(len, buffer.detach());
 }
 
-IFileContents * createFileContentsFromText(unsigned len, const char * text, ISourcePath * sourcePath, bool isSigned, IHqlExpression * gpgSignature)
+IFileContents * createFileContentsFromText(unsigned len, const char * text, ISourcePath * sourcePath, bool isSigned, IHqlExpression * gpgSignature, timestamp_type ts)
 {
-    return new CFileContents(len, text, sourcePath, isSigned, gpgSignature);
+    return new CFileContents(len, text, sourcePath, isSigned, gpgSignature, ts);
 }
 
-IFileContents * createFileContentsFromText(const char * text, ISourcePath * sourcePath, bool isSigned, IHqlExpression * gpgSignature)
+IFileContents * createFileContentsFromText(const char * text, ISourcePath * sourcePath, bool isSigned, IHqlExpression * gpgSignature, timestamp_type ts)
 {
     //MORE: Treatment of nulls?
-    return new CFileContents(text, sourcePath, isSigned, gpgSignature);
+    return new CFileContents(text, sourcePath, isSigned, gpgSignature, ts);
 }
 
 IFileContents * createFileContentsFromFile(const char * filename, ISourcePath * sourcePath, bool isSigned, IHqlExpression * gpgSignature)

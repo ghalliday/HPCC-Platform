@@ -462,17 +462,18 @@ protected:
 class CFileContents : public CInterfaceOf<IFileContents>
 {
 private:
+    bool delayedRead;
+    bool implicitlySigned;
+    enum : byte { unchecked, unknown, dirty, clean } dirtyState = unchecked;
+    timestamp_type ts;
     Linked<IFile> file;
     MemoryAttr fileContents;
     Linked<ISourcePath> sourcePath;
-    bool delayedRead;
-    bool implicitlySigned;
     LinkedHqlExpr gpgSignature;
-    enum { unchecked, unknown, dirty, clean } dirtyState = unchecked;
 public:
     CFileContents(IFile * _file, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature);
-    CFileContents(const char *query, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature);
-    CFileContents(unsigned len, const char *query, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature);
+    CFileContents(const char *query, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature, timestamp_type _ts);
+    CFileContents(unsigned len, const char *query, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature, timestamp_type _ts);
 
     virtual IFile * queryFile() override { return file; }
     virtual ISourcePath * querySourcePath() override { return sourcePath; }

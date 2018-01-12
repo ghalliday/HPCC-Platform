@@ -59,7 +59,10 @@ bool EclCachedDefinition::calcUpToDate() const
     IFileContents * contents = definition->queryFileContents();
     if (!contents)
         return false;
-    if (getTimeStamp() < contents->getTimeStamp())
+
+    //If the cached information is younger than the original ecl (or if the original no longer exists) then not valid
+    timestamp_type originalTs = contents->getTimeStamp();
+    if ((originalTs == 0) || (getTimeStamp() < originalTs))
         return false;
 
     StringArray dependencies;
@@ -85,6 +88,13 @@ public:
     virtual void queryDependencies(StringArray & values) const override;
 
 protected:
+    virtual bool calcUpToDate() const override
+    {
+        if (!root)
+            return false;
+        return EclCachedDefinition::calcUpToDate();
+    }
+
     const char * queryName() const { return root->queryProp("@name"); }
 
 private:

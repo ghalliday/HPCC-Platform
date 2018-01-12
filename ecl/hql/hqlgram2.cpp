@@ -12035,7 +12035,7 @@ IHqlExpression * reparseTemplateFunction(IHqlExpression * funcdef, IHqlScope *sc
     text.append("=>").append(contents->length(), contents->getText());
 
     //Could use a merge string implementation of IFileContents instead of expanding...
-    Owned<IFileContents> parseContents = createFileContentsFromText(text.str(), contents->querySourcePath(), contents->isImplicitlySigned(), contents->queryGpgSignature());
+    Owned<IFileContents> parseContents = createFileContentsFromText(text.str(), contents->querySourcePath(), contents->isImplicitlySigned(), contents->queryGpgSignature(), 0);
     HqlGram parser(scope, scope, parseContents, ctx, NULL, hasFieldMap, true);
     unsigned startLine = funcdef->getStartLine();
 
@@ -12165,7 +12165,7 @@ extern HQL_API IHqlExpression * parseQuery(const char * text, IErrorReceiver * e
 {
     Owned<IHqlScope> scope = createScope();
     HqlDummyLookupContext ctx(errs);
-    Owned<IFileContents> contents = createFileContentsFromText(text, NULL, false, NULL);
+    Owned<IFileContents> contents = createFileContentsFromText(text, NULL, false, NULL, 0);
     return parseQuery(scope, contents, ctx, NULL, NULL, true, true);
 }
 

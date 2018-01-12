@@ -317,7 +317,7 @@ bool FileSystemFile::checkValid()
                         version.set(pb.version);
 
                         Owned<ISourcePath> pluginPath = createSourcePath(pb.moduleName);
-                        fileContents.setown(createFileContentsFromText(pb.ECL, pluginPath, true, NULL));
+                        fileContents.setown(createFileContentsFromText(pb.ECL, pluginPath, true, NULL, ::getTimeStamp(file)));
 
                         //if (traceMask & PLUGIN_DLL_MODULE)
                         DBGLOG("Loading plugin %s[%s] version = %s", filename, pb.moduleName, version.get());
@@ -731,7 +731,7 @@ IFileContents * CXmlEclElement::queryFileContents()
                 getFullName(defaultName);
                 sourcePath.setown(createSourcePath(defaultName));
             }
-            fileContents.setown(createFileContentsFromText(text, sourcePath, false, NULL));
+            fileContents.setown(createFileContentsFromText(text, sourcePath, false, NULL, elemTree->getPropInt64("@ts")));
         }
     }
     return fileContents;
@@ -876,6 +876,9 @@ IEclSourceCollection * createSingleDefinitionEclCollection(const char * moduleNa
     const char * filename = str(contents->querySourcePath());
     if (filename)
         attr->setProp("@sourcePath", filename);
+    timestamp_type ts = contents->getTimeStamp();
+    if (ts)
+        attr->setPropInt64("@ts", ts);
 
     StringBuffer temp;
     temp.append(contents->length(), contents->getText());
