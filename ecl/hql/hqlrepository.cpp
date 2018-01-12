@@ -145,7 +145,7 @@ public:
     void addRepository(IEclRepository & _repository);
 
     virtual IHqlScope * queryRootScope() { return rootScope; }
-    virtual IEclSource * getSource(const char * path) override { UNIMPLEMENTED; }
+    virtual IEclSource * getSource(const char * path) override;
 
 protected:
     IArrayOf<IEclRepository> repositories;
@@ -157,6 +157,18 @@ void CompoundEclRepository::addRepository(IEclRepository & _repository)
     repositories.append(OLINK(_repository));
     rootScope->addScope(_repository.queryRootScope());
 }
+
+IEclSource * CompoundEclRepository::getSource(const char * path)
+{
+    ForEachItemIn(i, repositories)
+    {
+        IEclSource * match = repositories.item(i).getSource(path);
+        if (match)
+            return match;
+    }
+    return nullptr;
+}
+
 
 //-------------------------------------------------------------------------------------------------------------------
 
@@ -189,6 +201,9 @@ extern HQL_API IEclRepository * createCompoundRepository(EclRepositoryArray & re
 
 //-------------------------------------------------------------------------------------------------------------------
 
+/*
+ * This class is used to represent a source fiole that is not really part of the repository, but still allow $ to work.
+ */
 class HQL_API NestedEclRepository : implements IEclRepository, public CInterface
 {
 public:
@@ -203,7 +218,7 @@ public:
     IMPLEMENT_IINTERFACE;
 
     virtual IHqlScope * queryRootScope() { return rootScope; }
-    virtual IEclSource * getSource(const char * path) override { UNIMPLEMENTED; }
+    virtual IEclSource * getSource(const char * path) override { return nullptr; }
 
 protected:
     Linked<IEclRepository> repository;
@@ -261,7 +276,22 @@ protected:
 
 IEclSource * CNewEclRepository::getSource(const char * path)
 {
-    UNIMPLEMENTED;
+    Owned<IEclSource> parent = nullptr;
+    for (;;)
+    {
+        IIdAtom * id;
+        const char * dot = strchr(path, '.');
+        if (dot)
+            id = createIdAtom(path, dot-path);
+        else
+            id = createIdAtom(path);
+        Owned<IEclSource> child = collection->getSource(parent, id);
+        if (!child)
+            return nullptr;
+        if (!dot)
+            return child.getClear();
+        parent.swap(child);
+    }
 }
 
 
