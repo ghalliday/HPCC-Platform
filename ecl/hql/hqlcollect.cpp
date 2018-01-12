@@ -986,7 +986,7 @@ protected:
 
 private:
     IPropertyTree * getAttributes(const char *module, const char *attr, int version, unsigned char infoLevel);
-    IPropertyTree * getModules(timestamp_t from);
+    IPropertyTree * getModules(timestamp_type from);
 
     static IPropertyTree * lookup(IPropertyTree * parent, const char * name);
     static IPropertyTree * update(IPropertyTree * parent, IPropertyTree * child, bool needToDelete);
@@ -996,7 +996,7 @@ public:
     Linked<IEclUser> user;
     StringAttr snapshot;
     StringBuffer lastError;
-    timestamp_t cachestamp;
+    timestamp_type cachestamp;
     bool useSandbox;
     bool preloadText;
 };
@@ -1073,12 +1073,12 @@ void RemoteXmlEclCollection::checkCacheValid()
     }
 
     bool somethingChanged = false;
-    timestamp_t newest = cachestamp;
+    timestamp_type newest = cachestamp;
     Owned<IPropertyTreeIterator> it = repository->getElements("./Module");
     for (it->first(); it->isValid(); it->next())
     {
         IPropertyTree & cur = it->query();
-        timestamp_t timestamp = (timestamp_t)cur.getPropInt64("@timestamp");
+        timestamp_type timestamp = (timestamp_type)cur.getPropInt64("@timestamp");
         if ((cachestamp == 0) || (timestamp > cachestamp))
         {
             updateModule(cur);
@@ -1175,7 +1175,7 @@ IPropertyTree * RemoteXmlEclCollection::fetchAttribute(const char * moduleName, 
     return updateAttribute(module, attributeTree);
 }
 
-IPropertyTree* RemoteXmlEclCollection::getModules(timestamp_t from)
+IPropertyTree* RemoteXmlEclCollection::getModules(timestamp_type from)
 {
     StringBuffer modNames;
     IPropertyTree* repositoryTree = 0;
@@ -1263,7 +1263,7 @@ public:
         return NULL;
     }
 
-    virtual int getModules(StringBuffer & xml, IEclUser * , timestamp_t )
+    virtual int getModules(StringBuffer & xml, IEclUser * , timestamp_type )
     {
         Owned<IPropertyTree> result = createPTree("Repository");
         Owned<IPropertyTreeIterator> iter = archive->getElements("./Module");
@@ -1322,7 +1322,7 @@ public:
     }
     IMPLEMENT_IINTERFACE;
 
-    virtual int getModules(StringBuffer & xml, IEclUser * user, timestamp_t timestamp)
+    virtual int getModules(StringBuffer & xml, IEclUser * user, timestamp_type timestamp)
     {
         StringBuffer xpath;
         xpath.append("Timestamp[@seq=\"").append(++seq).append("\"]");

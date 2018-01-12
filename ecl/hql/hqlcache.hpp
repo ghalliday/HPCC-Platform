@@ -41,5 +41,7 @@ interface IEclCachedDefinitionCollection : public IInterface
 };
 
 
+extern HQL_API IEclCachedDefinitionCollection * createEclXmlCachedDefinitionCollection(IEclRepository * repository, IPropertyTree * root);
+
 
 #endif
