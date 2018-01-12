@@ -261,7 +261,7 @@ public:
 //interface IEclRepositoryCallback
     virtual bool loadModule(IHqlRemoteScope *scope, IErrorReceiver *errs, bool forceAll) override;
     virtual IHqlExpression * loadSymbol(IHqlRemoteScope *scope, IIdAtom * searchName) override;
-    virtual IEclSource * getSource(IHqlRemoteScope *scope, IIdAtom * searchName) override; // possibly change to IEclSource * parent
+    virtual IEclSource * getSource(IEclSource * parent, IIdAtom * searchName) override;
 
 protected:
     IHqlExpression * createSymbol(IHqlRemoteScope * rScope, IEclSource * source);
@@ -312,16 +312,16 @@ bool CNewEclRepository::loadModule(IHqlRemoteScope * rScope, IErrorReceiver *err
     return true;
 }
 
-IEclSource * CNewEclRepository::getSource(IHqlRemoteScope * rScope, IIdAtom * searchName)
+IEclSource * CNewEclRepository::getSource(IEclSource * parent, IIdAtom * searchName)
 {
-    IEclSource * parent = rScope->queryEclSource();
     return collection->getSource(parent, searchName);
 }
 
 
 IHqlExpression * CNewEclRepository::loadSymbol(IHqlRemoteScope * rScope, IIdAtom * searchName)
 {
-    Owned<IEclSource> source = getSource(rScope, searchName);
+    IEclSource * parent = rScope->queryEclSource();
+    Owned<IEclSource> source = getSource(parent, searchName);
     if (!source)
         return nullptr;
     return createSymbol(rScope, source);

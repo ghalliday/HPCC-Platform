@@ -23,37 +23,25 @@
 
 //---------------------------------------------------------------------------------------------------------------------
 
-class EclXmlCachedDefinition : public CInterfaceOf<IEclCachedDefinition>
+class EclCachedDefinition : public CInterfaceOf<IEclCachedDefinition>
 {
 public:
-    EclXmlCachedDefinition(IEclCachedDefinitionCollection * _collection, IPropertyTree * _root, IEclSource * _definition)
-    : collection(_collection), root(_root), definition(_definition) {}
+    EclCachedDefinition(IEclCachedDefinitionCollection * _collection, IEclSource * _definition)
+    : collection(_collection), definition(_definition) {}
 
-    virtual timestamp_type getTimeStamp() const override;
     virtual bool isUpToDate() const override;
-    virtual IFileContents * querySimplifiedEcl() const override;
-    virtual void queryDependencies(StringArray & values) const override;
 
 protected:
-    bool calcUpToDate() const;
-    const char * queryName() const { return root->queryProp("@name"); }
+    virtual bool calcUpToDate() const;
 
-private:
+protected:
     mutable bool cachedUpToDate = false;
     mutable bool upToDate = false;
     IEclCachedDefinitionCollection * collection = nullptr;
-    Linked<IPropertyTree> root;
     Linked<IEclSource> definition;
 };
 
-timestamp_type EclXmlCachedDefinition::getTimeStamp() const
-{
-    if (!root)
-        return 0;
-    return root->getPropInt64("@ts");
-}
-
-bool EclXmlCachedDefinition::isUpToDate() const
+bool EclCachedDefinition::isUpToDate() const
 {
     //MORE: Thread safety?
     if (!cachedUpToDate)
@@ -64,9 +52,9 @@ bool EclXmlCachedDefinition::isUpToDate() const
     return upToDate;
 }
 
-bool EclXmlCachedDefinition::calcUpToDate() const
+bool EclCachedDefinition::calcUpToDate() const
 {
-    if (!root || !definition)
+    if (!definition)
         return false;
     IFileContents * contents = definition->queryFileContents();
     if (!contents)
@@ -83,6 +71,31 @@ bool EclXmlCachedDefinition::calcUpToDate() const
             return false;
     }
     return true;
+}
+
+
+class EclXmlCachedDefinition : public EclCachedDefinition
+{
+public:
+    EclXmlCachedDefinition(IEclCachedDefinitionCollection * _collection, IEclSource * _definition, IPropertyTree * _root)
+    : EclCachedDefinition(_collection, _definition), root(_root) {}
+
+    virtual timestamp_type getTimeStamp() const override;
+    virtual IFileContents * querySimplifiedEcl() const override;
+    virtual void queryDependencies(StringArray & values) const override;
+
+protected:
+    const char * queryName() const { return root->queryProp("@name"); }
+
+private:
+    Linked<IPropertyTree> root;
+};
+
+timestamp_type EclXmlCachedDefinition::getTimeStamp() const
+{
+    if (!root)
+        return 0;
+    return root->getPropInt64("@ts");
 }
 
 IFileContents * EclXmlCachedDefinition::querySimplifiedEcl() const
@@ -162,7 +175,7 @@ IEclCachedDefinition * EclXmlCachedDefinitionCollection::createDefinition(const 
     VStringBuffer xpath("Cache[@name='%s']", lowerPath);
     Owned<IPropertyTree> resolved = root->getBranch(xpath);
     Owned<IEclSource> definition = repository->getSource(lowerPath);
-    return new EclXmlCachedDefinition(this, resolved, definition);
+    return new EclXmlCachedDefinition(this, definition, resolved);
 }
 
 IEclCachedDefinitionCollection * createEclXmlCachedDefinitionCollection(IEclRepository * repository, IPropertyTree * root)
