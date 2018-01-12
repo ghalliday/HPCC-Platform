@@ -181,6 +181,7 @@ interface IEclSource;
 interface IEclRepository: public IInterface
 {
     virtual IHqlScope * queryRootScope() = 0;
+    virtual IEclSource * getSource(const char * path) = 0;
 };
 
 //MORE: Make this more private

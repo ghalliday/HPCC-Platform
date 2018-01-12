@@ -145,6 +145,7 @@ public:
     void addRepository(IEclRepository & _repository);
 
     virtual IHqlScope * queryRootScope() { return rootScope; }
+    virtual IEclSource * getSource(const char * path) override { UNIMPLEMENTED; }
 
 protected:
     IArrayOf<IEclRepository> repositories;
@@ -202,6 +203,7 @@ public:
     IMPLEMENT_IINTERFACE;
 
     virtual IHqlScope * queryRootScope() { return rootScope; }
+    virtual IEclSource * getSource(const char * path) override { UNIMPLEMENTED; }
 
 protected:
     Linked<IEclRepository> repository;
@@ -239,6 +241,9 @@ public:
     IMPLEMENT_IINTERFACE
 
     virtual IHqlScope * queryRootScope() override { return rootScope->queryScope(); }
+    virtual IEclSource * getSource(const char * path) override;
+
+//interface IEclRepositoryCallback
     virtual bool loadModule(IHqlRemoteScope *scope, IErrorReceiver *errs, bool forceAll) override;
     virtual IHqlExpression * loadSymbol(IHqlRemoteScope *scope, IIdAtom * searchName) override;
     virtual IEclSource * getSource(IHqlRemoteScope *scope, IIdAtom * searchName) override; // possibly change to IEclSource * parent
@@ -252,6 +257,12 @@ protected:
     CriticalSection cs;
 };
 
+
+
+IEclSource * CNewEclRepository::getSource(const char * path)
+{
+    UNIMPLEMENTED;
+}
 
 
 bool CNewEclRepository::loadModule(IHqlRemoteScope * rScope, IErrorReceiver *errs, bool forceAll)
