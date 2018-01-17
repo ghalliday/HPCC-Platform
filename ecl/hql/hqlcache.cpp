@@ -194,3 +194,18 @@ IEclCachedDefinitionCollection * createEclXmlCachedDefinitionCollection(IEclRepo
 }
 
 //---------------------------------------------------------------------------------------------------------------------
+
+
+void convertSelectsToPath(StringBuffer & filename, const char * eclPath)
+{
+    for(;;)
+    {
+        const char * dot = strchr(eclPath, '.');
+        if (!dot)
+            break;
+        filename.append(dot-eclPath, eclPath);
+        addPathSepChar(filename);
+        eclPath = dot + 1;
+    }
+    filename.append(eclPath);
+}
