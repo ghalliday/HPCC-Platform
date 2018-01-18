@@ -1151,9 +1151,11 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
             options.includeExternalUses = instance.wu->getDebugValueBool("metaIncludeExternalUse", true);
             options.includeLocations = instance.wu->getDebugValueBool("metaIncludeLocations", true);
             options.includeJavadoc = instance.wu->getDebugValueBool("metaIncludeJavadoc", true);
-            options.cacheLocation.set(optMetaLocation);
             parseCtx.setGatherMeta(options);
         }
+
+        if (optMetaLocation)
+            parseCtx.setCacheLocation(optMetaLocation);
 
         setLegacyEclSemantics(instance.legacyImport, instance.legacyWhen);
         if (instance.archive)
@@ -1165,7 +1167,7 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
         parseCtx.ignoreUnknownImport = instance.ignoreUnknownImport;
         parseCtx.ignoreSignatures = instance.ignoreSignatures;
         bool exportDependencies = instance.wu->getDebugValueBool("exportDependencies",false);
-        if (exportDependencies)
+        if (exportDependencies || optMetaLocation)
             parseCtx.nestedDependTree.setown(createPTree("Dependencies", ipt_fast));
 
         addTimeStamp(instance.wu, SSTcompilestage, "compile:parse", StWhenStarted);
@@ -1249,7 +1251,7 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
             else if (optIncludeMeta && instance.metaOutputFilename)
             {
                 Owned<IPropertyTree> meta = parseCtx.getClearMetaTree();
-                saveXML(instance.metaOutputFilename, meta, 0, XML_Embed|XML_LineBreak);
+                saveXML(instance.metaOutputFilename, meta, 0, XML_Embed|XML_LineBreak|XML_SortTags);
             }
 
             if (parseCtx.globalDependTree)

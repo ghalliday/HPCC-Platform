@@ -897,6 +897,7 @@ public:
     void noteExternalLookup(IHqlScope * parentScope, IHqlExpression * expr);
 
     void setGatherMeta(const MetaOptions & options);
+    void setCacheLocation(const char * path);
 
     inline IPropertyTree * getClearMetaTree() { return metaTree.getClear(); }
     inline IPropertyTree * queryArchive() const { return archive; }
@@ -907,6 +908,7 @@ public:
     inline IPropertyTree * queryNestedDependTree() const { return nestedDependTree; }
 
     void beginMetaScope() { metaStack.append(*new FileParseMeta); }
+    void beginMetaScope(FileParseMeta & active) { metaStack.append(OLINK(active)); }
     void endMetaScope() { metaStack.pop(); }
     inline FileParseMeta & curMeta() { return metaStack.tos(); }
 

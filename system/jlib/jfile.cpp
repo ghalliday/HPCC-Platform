@@ -5157,6 +5157,13 @@ StringBuffer &makeAbsolutePath(const char *relpath,StringBuffer &out, bool mustE
     }
     out.append(rPath);
 #else
+    StringBuffer expanded;
+    if (*relpath == '~')
+    {
+        getHomeDir(expanded);
+        expanded.append(relpath+1);
+        relpath = expanded.str();
+    }
     char rPath[PATH_MAX];
     if (mustExist)
     {

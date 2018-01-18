@@ -915,6 +915,13 @@ void HqlParseContext::setGatherMeta(const MetaOptions & options)
 }
 
 
+void HqlParseContext::setCacheLocation(const char * path)
+{
+    StringBuffer expandedPath;
+    makeAbsolutePath(path, expandedPath, false);
+    metaOptions.cacheLocation.set(expandedPath);
+}
+
 void HqlParseContext::setDefinitionText(IPropertyTree * target, const char * prop, IFileContents * contents)
 {
     StringBuffer sillyTempBuffer;
@@ -1108,7 +1115,6 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
         const char * originalName = tos->queryProp("@name");
         if (originalName && !hasPrefix(originalName, "_local_directory_", true))
         {
-            StringBuffer baseFilename;
             baseFilename.append(metaOptions.cacheLocation);
             addPathSepChar(baseFilename);
             convertSelectsToPath(baseFilename, originalName);
@@ -1126,7 +1132,8 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
         Owned<IIOStream> stream = createIOStream(cacheIO);
         stream.setown(createBufferedIOStream(stream));
         writeStringToStream(*stream, "<Cache>\n");
-        saveXML(*stream, metaStack.tos().dependencies, 0, XML_Embed|XML_LineBreak);
+        if (curMeta().dependencies)
+            saveXML(*stream, curMeta().dependencies, 0, XML_Embed|XML_LineBreak);
         writeStringToStream(*stream, "</Cache>\n");
     }
 
@@ -1149,7 +1156,7 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
         }
         else
         {
-            IPropertyTree * tree = curMeta().meta.getClear();
+            IPropertyTree * tree = curMeta().meta;//.getClear();
             metaTree->addPropTree(tree->queryName(), LINK(tree));
         }
     }
@@ -9823,6 +9830,7 @@ protected:
     IHqlScope * parentScope;
     Owned<HqlGramCtx> parentCtx;
     Owned<IHqlScope> resolved;
+    Owned<FileParseMeta> activeMeta;
     bool resolvedAll;
 };
 
@@ -9843,6 +9851,7 @@ CHqlForwardScope::CHqlForwardScope(IHqlScope * _parentScope, HqlGramCtx * _paren
     ForEachChild(i, this)
         resolvedScopeExpr->addOperand(LINK(queryChild(i)));
     resolvedAll = false;
+    activeMeta.set(&parseCtx.curMeta());
 }
 
 
@@ -9877,7 +9886,9 @@ IHqlExpression *CHqlForwardScope::lookupSymbol(IIdAtom * searchName, unsigned lo
     IHqlExpression * processingSymbol = createSymbol(searchName, LINK(processingMarker), ob_exported);
     resolved->defineSymbol(processingSymbol);
 
+    ctx.queryParseContext().beginMetaScope(*activeMeta);
     bool ok = parseForwardModuleMember(*parentCtx, this, ret, ctx);
+    ctx.queryParseContext().endMetaScope();
     OwnedHqlExpr newSymbol = resolved->lookupSymbol(searchName, lookupFlags, ctx);
 
     if(!ok || !newSymbol || (newSymbol == processingSymbol))
