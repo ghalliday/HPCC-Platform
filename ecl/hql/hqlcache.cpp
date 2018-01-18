@@ -20,6 +20,7 @@
 #include "hqlcache.hpp"
 #include "hqlcollect.hpp"
 #include "hqlexpr.hpp"
+#include "hqlutil.hpp"
 
 //---------------------------------------------------------------------------------------------------------------------
 
@@ -208,4 +209,58 @@ void convertSelectsToPath(StringBuffer & filename, const char * eclPath)
         eclPath = dot + 1;
     }
     filename.append(eclPath);
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+
+IHqlExpression * createSimplifiedDefinition(ITypeInfo * type)
+{
+#if 0 //Testing!
+    try
+    {
+        //MORE: For records should use
+        //OwnedHqlExpr actualRecord = getUnadornedRecordOrField(actual->queryRecord());
+        return createNullExpr(type);
+    }
+    catch (IException * e)
+    {
+        e->Release();
+    }
+#endif
+
+    return nullptr;
+}
+
+IHqlExpression * createSimplifiedDefinition(IHqlExpression * expr)
+{
+    if (expr->isFunction())
+    {
+        if (expr->getOperator() != no_funcdef)
+            return nullptr;
+        OwnedHqlExpr newBody = createSimplifiedDefinition(expr->queryChild(0));
+        if (newBody)
+            return replaceChild(expr, 0, newBody);
+        return nullptr;
+    }
+
+    ITypeInfo * type = expr->queryType();
+    if (!type)
+        return nullptr;
+
+    switch (type->getTypeCode())
+    {
+    case type_scope: // These may be possible - if the scope is not a forward scope or derived from another scope
+        return nullptr;
+    case type_pattern:
+    case type_rule:
+    case type_token:
+        //Possible, but the default testing code doesn't work
+        return nullptr;
+    }
+
+    OwnedHqlExpr simple = createSimplifiedDefinition(type);
+    if (simple)
+        return expr->cloneAllAnnotations(simple);
+
+    return nullptr;
 }

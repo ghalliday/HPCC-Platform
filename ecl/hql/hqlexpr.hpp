@@ -886,7 +886,7 @@ public:
     void noteBeginModule(IHqlScope * scope, IFileContents * contents);
     void noteBeginQuery(IHqlScope * scope, IFileContents * contents);
     void noteBeginMacro(IHqlScope * scope, IIdAtom * name);
-    void noteEndAttribute(bool success);
+    void noteEndAttribute(bool success, IHqlExpression * definition);
     void noteEndModule(bool success);
     void noteEndQuery(bool success);
     void noteFinishedParse(IHqlScope * scope);
@@ -936,7 +936,7 @@ private:
     void setDefinitionText(IPropertyTree * target, const char * prop, IFileContents * contents);
     bool checkBeginMeta();
     bool checkEndMeta();
-    void finishMeta(bool isSeparateFile, bool success, bool generateMeta);
+    void finishMeta(bool isSeparateFile, bool success, bool generateMeta, IHqlExpression * definition);
     IPropertyTree * beginMetaSource(IFileContents * contents);
 
     MetaOptions metaOptions;
@@ -971,7 +971,7 @@ public:
     void noteBeginModule(IHqlScope * scope, IFileContents * contents);
     void noteBeginQuery(IHqlScope * scope, IFileContents * contents);
     void noteBeginMacro(IHqlScope * scope, IIdAtom * name) { parseCtx.noteBeginMacro(scope, name); }
-    inline void noteEndAttribute(bool success) { parseCtx.noteEndAttribute(success); }
+    inline void noteEndAttribute(bool success, IHqlExpression * simplifiedDefinition) { parseCtx.noteEndAttribute(success, simplifiedDefinition); }
     inline void noteEndModule(bool success) { parseCtx.noteEndModule(success); }
     inline void noteEndQuery(bool success) { parseCtx.noteEndQuery(success); }
     inline void noteEndMacro() { parseCtx.noteEndMacro(); }
@@ -1019,6 +1019,7 @@ enum
     LSFrequired     = 0x0004,
     LSFimport       = 0x0008,
     LSFfromderived  = 0x0010,
+    LSFnoreport     = 0x0020,   // Do not include looking up this symbol in the list of dependencies.
 };
 inline unsigned makeLookupFlags(bool sharedOK, bool ignoreBase, bool required)
 {

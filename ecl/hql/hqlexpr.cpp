@@ -1041,23 +1041,23 @@ void HqlParseContext::noteBeginMacro(IHqlScope * scope, IIdAtom * name)
 }
 
 
-void HqlParseContext::noteEndAttribute(bool success)
+void HqlParseContext::noteEndAttribute(bool success, IHqlExpression * simplifiedDefinition)
 {
-    finishMeta(true, success, checkEndMeta());
+    finishMeta(true, success, checkEndMeta(), simplifiedDefinition);
 
     endMetaScope();
 }
 
 void HqlParseContext::noteEndQuery(bool success)
 {
-    finishMeta(false, success, checkEndMeta());
+    finishMeta(false, success, checkEndMeta(), nullptr);
 
     endMetaScope();
 }
 
 void HqlParseContext::noteEndModule(bool success)
 {
-    finishMeta(true, success, checkEndMeta());
+    finishMeta(true, success, checkEndMeta(), nullptr);
 
     endMetaScope();
 }
@@ -1103,7 +1103,7 @@ bool HqlParseContext::checkEndMeta()
     return wasGathering;
 }
 
-void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generateMeta)
+void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generateMeta, IHqlExpression * simplifiedDefinition)
 {
     if (metaStack.empty())  // paranoid - could only happen on an internal error
         return;
@@ -1134,6 +1134,14 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
         writeStringToStream(*stream, "<Cache>\n");
         if (curMeta().dependencies)
             saveXML(*stream, curMeta().dependencies, 0, XML_Embed|XML_LineBreak);
+        if (simplifiedDefinition)
+        {
+            writeStringToStream(*stream, "<Simplified>\n");
+            StringBuffer ecl;
+            regenerateECL(simplifiedDefinition, ecl);
+            encodeXML(ecl, *stream, 0, -1, false);
+            writeStringToStream(*stream, "</Simplified>\n");
+        }
         writeStringToStream(*stream, "</Cache>\n");
     }
 
@@ -8628,7 +8636,8 @@ IHqlExpression *CHqlRemoteScope::lookupSymbol(IIdAtom * searchName, unsigned loo
     {
         if (resolvedSym)
         {
-            ctx.noteExternalLookup(this, resolvedSym);
+            if (!(lookupFlags & LSFnoreport))
+                ctx.noteExternalLookup(this, resolvedSym);
             return resolvedSym.getClear();
         }
     }
@@ -8653,7 +8662,8 @@ IHqlExpression *CHqlRemoteScope::lookupSymbol(IIdAtom * searchName, unsigned loo
 
     if ((lookupFlags & LSFignoreBase))
     {
-        ctx.noteExternalLookup(this, ret);
+        if (!(lookupFlags & LSFnoreport))
+            ctx.noteExternalLookup(this, ret);
         return ret.getClear();
     }
 
@@ -8714,7 +8724,8 @@ IHqlExpression *CHqlRemoteScope::lookupSymbol(IIdAtom * searchName, unsigned loo
     if (!(newSymbol->isExported() || (lookupFlags & LSFsharedOK)))
         return NULL;
 
-    ctx.noteExternalLookup(this, newSymbol);
+    if (!(lookupFlags & LSFnoreport))
+        ctx.noteExternalLookup(this, newSymbol);
     return newSymbol.getClear();
 }
 

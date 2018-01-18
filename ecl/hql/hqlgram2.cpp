@@ -49,6 +49,7 @@
 #include "hqlrepository.hpp"
 #include "hqlir.hpp"
 #include "reservedwords.hpp"
+#include "hqlcache.hpp"
 
 #define ADD_IMPLICIT_FILEPOS_FIELD_TO_INDEX         TRUE
 #define FAST_FIND_FIELD
@@ -12206,10 +12207,13 @@ void parseAttribute(IHqlScope * scope, IFileContents * contents, HqlLookupContex
     }
     catch (...)
     {
-        attrCtx.noteEndAttribute(false);
+        attrCtx.noteEndAttribute(false, nullptr);
         throw;
     }
-    attrCtx.noteEndAttribute(true);
+    OwnedHqlExpr parsed = scope->lookupSymbol(name, LSFsharedOK|LSFnoreport, ctx);
+    OwnedHqlExpr simplified = createSimplifiedDefinition(parsed);
+
+    attrCtx.noteEndAttribute(true, simplified);
 }
 
 int testHqlInternals()

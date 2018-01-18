@@ -45,5 +45,6 @@ extern HQL_API IEclCachedDefinitionCollection * createEclXmlCachedDefinitionColl
 
 extern HQL_API void convertSelectsToPath(StringBuffer & filename, const char * eclPath);
 
+extern HQL_API IHqlExpression * createSimplifiedDefinition(IHqlExpression * definition);
 
 #endif
