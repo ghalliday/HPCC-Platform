@@ -1041,23 +1041,23 @@ void HqlParseContext::noteBeginMacro(IHqlScope * scope, IIdAtom * name)
 }
 
 
-void HqlParseContext::noteEndAttribute(bool success, IHqlExpression * simplifiedDefinition)
+void HqlParseContext::noteEndAttribute(bool success, bool canCache, IHqlExpression * simplifiedDefinition)
 {
-    finishMeta(true, success, checkEndMeta(), simplifiedDefinition);
+    finishMeta(true, success, checkEndMeta(), canCache, simplifiedDefinition);
 
     endMetaScope();
 }
 
 void HqlParseContext::noteEndQuery(bool success)
 {
-    finishMeta(false, success, checkEndMeta(), nullptr);
+    finishMeta(false, success, checkEndMeta(), true, nullptr);
 
     endMetaScope();
 }
 
 void HqlParseContext::noteEndModule(bool success)
 {
-    finishMeta(true, success, checkEndMeta(), nullptr);
+    finishMeta(true, success, checkEndMeta(), true, nullptr);
 
     endMetaScope();
 }
@@ -1103,7 +1103,7 @@ bool HqlParseContext::checkEndMeta()
     return wasGathering;
 }
 
-void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generateMeta, IHqlExpression * simplifiedDefinition)
+void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generateMeta, bool canCache, IHqlExpression * simplifiedDefinition)
 {
     if (metaStack.empty())  // paranoid - could only happen on an internal error
         return;
@@ -1122,7 +1122,7 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
         }
     }
 
-    if (baseFilename)
+    if (canCache && baseFilename)
     {
         StringBuffer filename(baseFilename);
         filename.append(".cache");
