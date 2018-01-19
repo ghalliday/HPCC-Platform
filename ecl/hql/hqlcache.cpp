@@ -78,6 +78,8 @@ bool EclCachedDefinition::calcUpToDate() const
 }
 
 
+//---------------------------------------------------------------------------------------------------------------------
+
 class EclXmlCachedDefinition : public EclCachedDefinition
 {
 public:
@@ -130,6 +132,29 @@ void EclXmlCachedDefinition::queryDependencies(StringArray & values) const
         else
             values.append(attr);
     }
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+
+class EclFileCachedDefinition : public EclXmlCachedDefinition
+{
+public:
+    EclFileCachedDefinition(IEclCachedDefinitionCollection * _collection, IEclSource * _definition, IPropertyTree * _root, IFile * _file)
+    : EclXmlCachedDefinition(_collection, _definition, _root), file(_file)
+    {
+    }
+
+    virtual timestamp_type getTimeStamp() const override;
+
+private:
+    Linked<IFile> file;
+};
+
+timestamp_type EclFileCachedDefinition::getTimeStamp() const
+{
+    if (!file)
+        return 0;
+    return ::getTimeStamp(file);
 }
 
 //---------------------------------------------------------------------------------------------------------------------
@@ -196,6 +221,54 @@ IEclCachedDefinitionCollection * createEclXmlCachedDefinitionCollection(IEclRepo
 
 //---------------------------------------------------------------------------------------------------------------------
 
+class EclFileCachedDefinitionCollection : public EclCachedDefinitionCollection
+{
+public:
+    EclFileCachedDefinitionCollection(IEclRepository * _repository, const char * _root)
+    : EclCachedDefinitionCollection(_repository), root(_root)
+    {
+        addPathSepChar(root);
+    }
+
+    virtual IEclCachedDefinition * createDefinition(const char * lowerPath) override;
+
+private:
+    StringBuffer root;
+};
+
+
+IEclCachedDefinition * EclFileCachedDefinitionCollection::createDefinition(const char * lowerPath)
+{
+    StringBuffer filename(root);
+    convertSelectsToPath(filename, lowerPath);
+
+    Owned<IFile> file = createIFile(filename);
+    Owned<IPropertyTree> root;
+    if (file->exists())
+    {
+        try
+        {
+            root.setown(createPTree(*file));
+        }
+        catch (IException * e)
+        {
+            DBGLOG(e);
+            e->Release();
+        }
+    }
+
+    Owned<IEclSource> definition = repository->getSource(lowerPath);
+    return new EclFileCachedDefinition(this, definition, root, file);
+}
+
+
+extern HQL_API IEclCachedDefinitionCollection * createEclFileCachedDefinitionCollection(IEclRepository * repository, const char * root)
+{
+    return new EclFileCachedDefinitionCollection(repository, root);
+}
+
+
+//---------------------------------------------------------------------------------------------------------------------
 
 void convertSelectsToPath(StringBuffer & filename, const char * eclPath)
 {

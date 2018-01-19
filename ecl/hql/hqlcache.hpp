@@ -42,6 +42,7 @@ interface IEclCachedDefinitionCollection : public IInterface
 
 
 extern HQL_API IEclCachedDefinitionCollection * createEclXmlCachedDefinitionCollection(IEclRepository * repository, IPropertyTree * root);
+extern HQL_API IEclCachedDefinitionCollection * createEclFileCachedDefinitionCollection(const char * path, IPropertyTree * root);
 
 extern HQL_API void convertSelectsToPath(StringBuffer & filename, const char * eclPath);
 
