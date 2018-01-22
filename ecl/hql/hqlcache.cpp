@@ -23,6 +23,7 @@
 #include "hqlutil.hpp"
 #include "hqlerrors.hpp"
 #include "junicode.hpp"
+#include "hqlplugins.hpp"
 
 //---------------------------------------------------------------------------------------------------------------------
 
@@ -402,7 +403,6 @@ public:
     }
     ArchiveCreator(IEclCachedDefinitionCollection * _collection, IPropertyTree * _archive) : collection(_collection), archive(_archive)
     {
-        archive.setown(createAttributeArchive());
     }
 
     void processDependency(const char * name);
@@ -427,23 +427,58 @@ void ArchiveCreator::processDependency(const char * fullName)
     if (!original)
         throwError1(HQLERR_CacheMissingOriginal, fullName);
 
+    createArchiveItem(fullName, original);
+
     StringArray dependencies;
     definition->queryDependencies(dependencies);
     ForEachItemIn(i, dependencies)
         processDependency(dependencies.item(i));
-
-    createArchiveItem(fullName, original);
 }
 
 void ArchiveCreator::createArchiveItem(const char * fullName, IEclSource * original)
 {
-    StringBuffer moduleName;
-    const char * attrName = splitFullname(moduleName, fullName);
+    if (original->queryType() == ESTdefinition)
+    {
+        StringBuffer moduleName;
+        const char * attrName = splitFullname(moduleName, fullName);
 
-    IPropertyTree * module = queryEnsureArchiveModule(archive, moduleName, nullptr);
-    assertex(!queryArchiveAttribute(module, attrName));
-    IPropertyTree * attr = createArchiveAttribute(module, attrName);
-    setDefinitionText(attr, "", original->queryFileContents(), false);
+        IPropertyTree * module = queryEnsureArchiveModule(archive, moduleName, nullptr);
+        assertex(!queryArchiveAttribute(module, attrName));
+        IPropertyTree * attr = createArchiveAttribute(module, attrName);
+        setDefinitionText(attr, "", original->queryFileContents(), false);
+    }
+    else
+    {
+        Owned<IProperties> properties = original->getProperties();
+        IPropertyTree * module = queryEnsureArchiveModule(archive, fullName, nullptr);
+        IFileContents * contents = original->queryFileContents();
+        setDefinitionText(module, "Text", contents, false);
+
+        StringBuffer s;
+        unsigned flagsToSave = (properties->getPropInt(str(flagsAtom), 0) & PLUGIN_SAVEMASK);
+        if (flagsToSave)
+            module->setPropInt("@flags", flagsToSave);
+        properties->getProp(str(pluginAtom), s.clear());
+        if (s.length())
+        {
+            module->setProp("@fullname", s.str());
+
+            StringBuffer pluginName(s.str());
+            getFileNameOnly(pluginName, false);
+            module->setProp("@plugin", pluginName.str());
+        }
+        properties->getProp(str(versionAtom), s.clear());
+        if (s.length())
+            module->setProp("@version", s.str());
+        /*
+        if (original->queryType() == ESTplugin)
+        {
+            //properties->setProp(str(flagsAtom), extraFlags);
+            //properties->setProp(str(versionAtom), version.get());
+            module->setProp("plugin", contents->queryFile()->queryFilename());
+        }
+        */
+    }
 }
 
 

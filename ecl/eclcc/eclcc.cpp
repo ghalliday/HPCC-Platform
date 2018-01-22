@@ -1131,6 +1131,17 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
     if (optMetaLocation)
         cache.setown(createEclFileCachedDefinitionCollection(instance.dataServer, optMetaLocation));
 
+    if (instance.archive)
+    {
+        instance.archive->setPropBool("@legacyImport", instance.legacyImport);
+        instance.archive->setPropBool("@legacyWhen", instance.legacyWhen);
+        if (withinRepository)
+        {
+            instance.archive->setProp("Query", "");
+            instance.archive->setProp("Query/@attributePath", queryAttributePath);
+        }
+    }
+
     if (withinRepository && instance.archive && cache)
     {
         Owned<IEclCachedDefinition> main = cache->getDefinition(queryAttributePath);
@@ -1171,11 +1182,6 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
             parseCtx.setCacheLocation(optMetaLocation);
 
         setLegacyEclSemantics(instance.legacyImport, instance.legacyWhen);
-        if (instance.archive)
-        {
-            instance.archive->setPropBool("@legacyImport", instance.legacyImport);
-            instance.archive->setPropBool("@legacyWhen", instance.legacyWhen);
-        }
 
         parseCtx.ignoreUnknownImport = instance.ignoreUnknownImport;
         parseCtx.ignoreSignatures = instance.ignoreSignatures;
@@ -1190,12 +1196,6 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
 
             if (withinRepository)
             {
-                if (instance.archive)
-                {
-                    instance.archive->setProp("Query", "");
-                    instance.archive->setProp("Query/@attributePath", queryAttributePath);
-                }
-
                 instance.query.setown(getResolveAttributeFullPath(queryAttributePath, LSFpublic, ctx));
                 if (!instance.query && !syntaxChecking && (errorProcessor.errCount() == prevErrs))
                 {

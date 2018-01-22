@@ -1167,16 +1167,36 @@ void HqlParseContext::noteExternalLookup(IHqlScope * parentScope, IHqlExpression
         {
             meta.dependents.append(*expr);
 
-            const char * moduleName = parentScope->queryFullName();
-            if (moduleName)
+            if (parentScope)
             {
-                VStringBuffer xpath("Depend[@module=\"%s\"][@name=\"%s\"]", moduleName, str(expr->queryName()));
+                const char * moduleName = parentScope->queryFullName();
+                if (moduleName)
+                {
+                    VStringBuffer xpath("Depend[@module=\"%s\"][@name=\"%s\"]", moduleName, str(expr->queryName()));
+
+                    if (!meta.dependencies->queryPropTree(xpath.str()))
+                    {
+                        IPropertyTree * depend = meta.dependencies->addPropTree("Depend");
+                        depend->setProp("@module", moduleName);
+                        depend->setProp("@name", str(expr->queryName()));
+                    }
+                }
+            }
+        }
+        else if (!parentScope)
+        {
+            //Dependencies for items with modules contained within a single source file only record the module
+            IHqlScope * scope = expr->queryScope();
+            assertex(scope);
+            const char * fullName = scope->queryFullName();
+            if (fullName)
+            {
+                VStringBuffer xpath("Depend[@name=\"%s\"]", fullName);
 
                 if (!meta.dependencies->queryPropTree(xpath.str()))
                 {
                     IPropertyTree * depend = meta.dependencies->addPropTree("Depend");
-                    depend->setProp("@module", moduleName);
-                    depend->setProp("@name", str(expr->queryName()));
+                    depend->setProp("@name", fullName);
                 }
             }
         }
@@ -1269,16 +1289,23 @@ extern HQL_API IPropertyTree * createArchiveAttribute(IPropertyTree * module, co
 
 extern HQL_API IPropertyTree * queryArchiveEntry(IPropertyTree * archive, const char * name)
 {
+    StringBuffer lowerName;
     const char * dot = strrchr(name, '.');
-    StringBuffer lowerName, xpath;
     if (dot)
     {
-        lowerName.append(dot-name, name).toLowerCase();
+        lowerName.appendLower(dot-name, name);
         name = dot+1;
     }
+
+    StringBuffer xpath;
     xpath.append("Module[@key=\"").append(lowerName).append("\"]/");
-    lowerName.append(name).toLowerCase();
-    xpath.append("Attribute[@key=\"").append(lowerName).append("\"]");
+    xpath.append("Attribute[@key=\"").appendLower(strlen(name), name).append("\"]");
+    IPropertyTree * match = archive->queryPropTree(xpath);
+    if (match)
+        return match;
+
+    xpath.clear();
+    xpath.append("Module[@key=\"").appendLower(strlen(name), name).append("\"]");
     return archive->queryPropTree(xpath);
 }
 
@@ -8607,6 +8634,14 @@ IHqlExpression *CHqlRemoteScope::clone(HqlExprArray &newkids)
 }
 
 
+void CHqlRemoteScope::noteExternalLookup(HqlLookupContext & ctx, IHqlExpression * expr)
+{
+    if (!text)
+        ctx.noteExternalLookup(this, expr);
+    else
+        ctx.noteExternalLookup(nullptr, this);
+}
+
 IHqlExpression *CHqlRemoteScope::lookupSymbol(IIdAtom * searchName, unsigned lookupFlags, HqlLookupContext & ctx)
 {
 //  PrintLog("lookupSymbol %s#%d", searchName->getAtomNamePtr(),version);
@@ -8624,7 +8659,7 @@ IHqlExpression *CHqlRemoteScope::lookupSymbol(IIdAtom * searchName, unsigned loo
         if (resolvedSym)
         {
             if (!(lookupFlags & LSFnoreport))
-                ctx.noteExternalLookup(this, resolvedSym);
+                noteExternalLookup(ctx, resolvedSym);
             return resolvedSym.getClear();
         }
     }
@@ -8650,7 +8685,7 @@ IHqlExpression *CHqlRemoteScope::lookupSymbol(IIdAtom * searchName, unsigned loo
     if ((lookupFlags & LSFignoreBase))
     {
         if (!(lookupFlags & LSFnoreport))
-            ctx.noteExternalLookup(this, ret);
+            noteExternalLookup(ctx, ret);
         return ret.getClear();
     }
 
@@ -8712,7 +8747,7 @@ IHqlExpression *CHqlRemoteScope::lookupSymbol(IIdAtom * searchName, unsigned loo
         return NULL;
 
     if (!(lookupFlags & LSFnoreport))
-        ctx.noteExternalLookup(this, newSymbol);
+        noteExternalLookup(ctx, newSymbol);
     return newSymbol.getClear();
 }
 

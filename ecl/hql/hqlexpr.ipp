@@ -1236,6 +1236,7 @@ protected:
     void doParseScopeText(HqlLookupContext & ctx);
     IHqlExpression * repositoryLoadSymbol(IIdAtom * attrName);
     void repositoryLoadModule(HqlLookupContext & ctx, bool forceAll);
+    void noteExternalLookup(HqlLookupContext & ctx, IHqlExpression * expr);
 
     virtual bool equals(const IHqlExpression & other) const override;
 
