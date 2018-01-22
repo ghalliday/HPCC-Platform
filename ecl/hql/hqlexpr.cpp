@@ -883,18 +883,6 @@ static bool isSameText(IFileContents * text1, IFileContents * text2)
     return memcmp(text1->getText(), text2->getText(), len1) == 0;
 }
 
-void getFileContentText(StringBuffer & result, IFileContents * contents)
-{
-    unsigned len = contents->length();
-    const char * text = contents->getText();
-    if ((len >= 3) && (memcmp(text, UTF8_BOM, 3) == 0))
-    {
-        len -= 3;
-        text += 3;
-    }
-    result.append(len, text);
-}
-
 //---------------------------------------------------------------------------------------------------------------------
 
 void HqlParseContext::addForwardReference(IHqlScope * owner, IHasUnlinkedOwnerReference * child)
@@ -922,24 +910,6 @@ void HqlParseContext::setCacheLocation(const char * path)
     metaOptions.cacheLocation.set(expandedPath);
 }
 
-void HqlParseContext::setDefinitionText(IPropertyTree * target, const char * prop, IFileContents * contents)
-{
-    StringBuffer sillyTempBuffer;
-    getFileContentText(sillyTempBuffer, contents);  // We can't rely on IFileContents->getText() being null terminated..
-    target->setProp(prop, sillyTempBuffer);
-
-    ISourcePath * sourcePath = contents->querySourcePath();
-    target->setProp("@sourcePath", str(sourcePath));
-    if (checkDirty && contents->isDirty())
-    {
-        target->setPropBool("@dirty", true);
-    }
-
-    timestamp_type ts = contents->getTimeStamp();
-    if (ts)
-        target->setPropInt64("@ts", ts);
-}
-
 IPropertyTree * HqlParseContext::beginMetaSource(IFileContents * contents)
 {
     ISourcePath * sourcePath = contents->querySourcePath();
@@ -965,7 +935,7 @@ void HqlParseContext::noteBeginAttribute(IHqlScope * scope, IFileContents * cont
         if (!attr)
             attr = createArchiveAttribute(module, str(name));
 
-        setDefinitionText(attr, "", contents);
+        setDefinitionText(attr, "", contents, checkDirty);
     }
 
     ISourcePath * sourcePath = contents->querySourcePath();
@@ -997,7 +967,7 @@ void HqlParseContext::noteBeginQuery(IHqlScope * scope, IFileContents * contents
         if (moduleName && *moduleName)
         {
             IPropertyTree * module = queryEnsureArchiveModule(moduleName, scope);
-            setDefinitionText(module, "Text", contents);
+            setDefinitionText(module, "Text", contents, checkDirty);
         }
     }
 
@@ -1023,13 +993,14 @@ void HqlParseContext::noteBeginModule(IHqlScope * scope, IFileContents * content
         if (moduleName && *moduleName)
         {
             IPropertyTree * module = queryEnsureArchiveModule(moduleName, scope);
-            setDefinitionText(module, "Text", contents);
+            setDefinitionText(module, "Text", contents, checkDirty);
         }
     }
 
     if (checkBeginMeta())
     {
-        beginMetaSource(contents);
+        IPropertyTree * attr = beginMetaSource(contents);
+        attr->setProp("@name", scope->queryFullName());
     }
 }
 
@@ -1295,6 +1266,22 @@ extern HQL_API IPropertyTree * createArchiveAttribute(IPropertyTree * module, co
     attr->setProp("@key", lowerName);
     return attr;
 }
+
+extern HQL_API IPropertyTree * queryArchiveEntry(IPropertyTree * archive, const char * name)
+{
+    const char * dot = strrchr(name, '.');
+    StringBuffer lowerName, xpath;
+    if (dot)
+    {
+        lowerName.append(dot-name, name).toLowerCase();
+        name = dot+1;
+    }
+    xpath.append("Module[@key=\"").append(lowerName).append("\"]/");
+    lowerName.append(name).toLowerCase();
+    xpath.append("Attribute[@key=\"").append(lowerName).append("\"]");
+    return archive->queryPropTree(xpath);
+}
+
 
 //---------------------------------------------------------------------------------------------------------------------
 

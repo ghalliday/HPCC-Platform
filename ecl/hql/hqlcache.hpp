@@ -26,6 +26,7 @@ interface IEclCachedDefinition : public IInterface
 {
 public:
     virtual timestamp_type getTimeStamp() const = 0;
+    virtual IEclSource * queryOriginal() const = 0;
     virtual bool isUpToDate() const = 0;
     virtual IFileContents * querySimplifiedEcl() const = 0;
     virtual void queryDependencies(StringArray & values) const = 0;
@@ -42,10 +43,15 @@ interface IEclCachedDefinitionCollection : public IInterface
 
 
 extern HQL_API IEclCachedDefinitionCollection * createEclXmlCachedDefinitionCollection(IEclRepository * repository, IPropertyTree * root);
-extern HQL_API IEclCachedDefinitionCollection * createEclFileCachedDefinitionCollection(const char * path, IPropertyTree * root);
+extern HQL_API IEclCachedDefinitionCollection * createEclFileCachedDefinitionCollection(IEclRepository * repository, const char * root);
 
 extern HQL_API void convertSelectsToPath(StringBuffer & filename, const char * eclPath);
 
+
 extern HQL_API IHqlExpression * createSimplifiedDefinition(IHqlExpression * definition);
+extern HQL_API IPropertyTree * createArchiveFromCache(IEclCachedDefinitionCollection * collection, const char * root);
+extern HQL_API void updateArchiveFromCache(IEclCachedDefinitionCollection * collection, const char * root, IPropertyTree * archive);
+
+void setDefinitionText(IPropertyTree * target, const char * prop, IFileContents * contents, bool checkDirty);
 
 #endif

@@ -290,6 +290,7 @@ IEclSource * CNewEclRepository::getSource(const char * path)
             return nullptr;
         if (!dot)
             return child.getClear();
+        path = dot + 1;
         parent.swap(child);
     }
 }

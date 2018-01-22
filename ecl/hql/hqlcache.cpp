@@ -21,6 +21,8 @@
 #include "hqlcollect.hpp"
 #include "hqlexpr.hpp"
 #include "hqlutil.hpp"
+#include "hqlerrors.hpp"
+#include "junicode.hpp"
 
 //---------------------------------------------------------------------------------------------------------------------
 
@@ -31,6 +33,7 @@ public:
     : collection(_collection), definition(_definition) {}
 
     virtual bool isUpToDate() const override;
+    virtual IEclSource * queryOriginal() const override { return definition; }
 
 protected:
     virtual bool calcUpToDate() const;
@@ -118,8 +121,11 @@ IFileContents * EclXmlCachedDefinition::querySimplifiedEcl() const
 
 void EclXmlCachedDefinition::queryDependencies(StringArray & values) const
 {
+    if (!root)
+        return;
+
     StringBuffer fullname;
-    Owned<IPropertyTreeIterator> iter = root->getElements("Depend");
+    Owned<IPropertyTreeIterator> iter = root->getElements("Attr/Depend");
     ForEach(*iter)
     {
         const char * module = iter->query().queryProp("@module");
@@ -227,6 +233,7 @@ public:
     EclFileCachedDefinitionCollection(IEclRepository * _repository, const char * _root)
     : EclCachedDefinitionCollection(_repository), root(_root)
     {
+        makeAbsolutePath(root, false);
         addPathSepChar(root);
     }
 
@@ -241,6 +248,7 @@ IEclCachedDefinition * EclFileCachedDefinitionCollection::createDefinition(const
 {
     StringBuffer filename(root);
     convertSelectsToPath(filename, lowerPath);
+    filename.append(".cache");
 
     Owned<IFile> file = createIFile(filename);
     Owned<IPropertyTree> root;
@@ -277,11 +285,11 @@ void convertSelectsToPath(StringBuffer & filename, const char * eclPath)
         const char * dot = strchr(eclPath, '.');
         if (!dot)
             break;
-        filename.append(dot-eclPath, eclPath);
+        filename.appendLower(dot-eclPath, eclPath);
         addPathSepChar(filename);
         eclPath = dot + 1;
     }
-    filename.append(eclPath);
+    filename.appendLower(strlen(eclPath), eclPath);
 }
 
 //---------------------------------------------------------------------------------------------------------------------
@@ -336,4 +344,118 @@ IHqlExpression * createSimplifiedDefinition(IHqlExpression * expr)
         return expr->cloneAllAnnotations(simple);
 
     return nullptr;
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+
+const char * splitFullname(StringBuffer & module, const char * fullname)
+{
+    const char * dot = strrchr(fullname, '.');
+    if (dot)
+    {
+        module.append(dot-fullname, fullname);
+        return dot+1;
+    }
+    else
+        return fullname;
+}
+
+void getFileContentText(StringBuffer & result, IFileContents * contents)
+{
+    unsigned len = contents->length();
+    const char * text = contents->getText();
+    if ((len >= 3) && (memcmp(text, UTF8_BOM, 3) == 0))
+    {
+        len -= 3;
+        text += 3;
+    }
+    result.append(len, text);
+}
+
+void setDefinitionText(IPropertyTree * target, const char * prop, IFileContents * contents, bool checkDirty)
+{
+    StringBuffer sillyTempBuffer;
+    getFileContentText(sillyTempBuffer, contents);  // We can't rely on IFileContents->getText() being null terminated..
+    target->setProp(prop, sillyTempBuffer);
+
+    ISourcePath * sourcePath = contents->querySourcePath();
+    target->setProp("@sourcePath", str(sourcePath));
+    if (checkDirty && contents->isDirty())
+    {
+        target->setPropBool("@dirty", true);
+    }
+
+    timestamp_type ts = contents->getTimeStamp();
+    if (ts)
+        target->setPropInt64("@ts", ts);
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+
+
+class ArchiveCreator
+{
+public:
+    ArchiveCreator(IEclCachedDefinitionCollection * _collection) : collection(_collection)
+    {
+        archive.setown(createAttributeArchive());
+    }
+    ArchiveCreator(IEclCachedDefinitionCollection * _collection, IPropertyTree * _archive) : collection(_collection), archive(_archive)
+    {
+        archive.setown(createAttributeArchive());
+    }
+
+    void processDependency(const char * name);
+    IPropertyTree * getArchive() { return archive.getClear(); }
+
+protected:
+    void createArchiveItem(const char * fullName, IEclSource * original);
+
+protected:
+    Linked<IPropertyTree> archive;
+    IEclCachedDefinitionCollection * collection;
+};
+
+
+void ArchiveCreator::processDependency(const char * fullName)
+{
+    if (queryArchiveEntry(archive, fullName))
+        return;
+
+    Owned<IEclCachedDefinition> definition = collection->getDefinition(fullName);
+    IEclSource * original = definition->queryOriginal();
+    if (!original)
+        throwError1(HQLERR_CacheMissingOriginal, fullName);
+
+    StringArray dependencies;
+    definition->queryDependencies(dependencies);
+    ForEachItemIn(i, dependencies)
+        processDependency(dependencies.item(i));
+
+    createArchiveItem(fullName, original);
+}
+
+void ArchiveCreator::createArchiveItem(const char * fullName, IEclSource * original)
+{
+    StringBuffer moduleName;
+    const char * attrName = splitFullname(moduleName, fullName);
+
+    IPropertyTree * module = queryEnsureArchiveModule(archive, moduleName, nullptr);
+    assertex(!queryArchiveAttribute(module, attrName));
+    IPropertyTree * attr = createArchiveAttribute(module, attrName);
+    setDefinitionText(attr, "", original->queryFileContents(), false);
+}
+
+
+IPropertyTree * createArchiveFromCache(IEclCachedDefinitionCollection * collection, const char * root)
+{
+    ArchiveCreator creator(collection);
+    creator.processDependency(root);
+    return creator.getArchive();
+}
+
+extern HQL_API void updateArchiveFromCache(IEclCachedDefinitionCollection * collection, const char * root, IPropertyTree * archive)
+{
+    ArchiveCreator creator(collection, archive);
+    creator.processDependency(root);
 }

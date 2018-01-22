@@ -933,7 +933,6 @@ public:
 
 private:
     void createDependencyEntry(IHqlScope * scope, IIdAtom * name);
-    void setDefinitionText(IPropertyTree * target, const char * prop, IFileContents * contents);
     bool checkBeginMeta();
     bool checkEndMeta();
     void finishMeta(bool isSeparateFile, bool success, bool generateMeta, bool canCache, IHqlExpression * definition);

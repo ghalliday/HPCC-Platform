@@ -50,6 +50,7 @@
 #include "hqltrans.ipp"
 #include "hqlutil.hpp"
 #include "hqlstmt.hpp"
+#include "hqlcache.hpp"
 
 #include "build-config.h"
 #include "rmtfile.hpp"
@@ -1125,6 +1126,18 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
     //The following is only here to provide information about the source file being compiled when reporting leaks
     if (instance.inputFile)
         setActiveSource(instance.inputFile->queryFilename());
+
+    Owned<IEclCachedDefinitionCollection> cache;
+    if (optMetaLocation)
+        cache.setown(createEclFileCachedDefinitionCollection(instance.dataServer, optMetaLocation));
+
+    if (withinRepository && instance.archive && cache)
+    {
+        Owned<IEclCachedDefinition> main = cache->getDefinition(queryAttributePath);
+//        if (main->isUpToDate())
+            updateArchiveFromCache(cache, queryAttributePath, instance.archive);
+        return;
+    }
 
     {
         //Minimize the scope of the parse context to reduce lifetime of cached items.
