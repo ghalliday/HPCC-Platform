@@ -1294,15 +1294,16 @@ extern HQL_API IPropertyTree * queryArchiveEntry(IPropertyTree * archive, const 
 {
     StringBuffer lowerName;
     const char * dot = strrchr(name, '.');
+    const char * attrName = name;
     if (dot)
     {
         lowerName.appendLower(dot-name, name);
-        name = dot+1;
+        attrName = dot+1;
     }
 
     StringBuffer xpath;
     xpath.append("Module[@key=\"").append(lowerName).append("\"]/");
-    xpath.append("Attribute[@key=\"").appendLower(strlen(name), name).append("\"]");
+    xpath.append("Attribute[@key=\"").appendLower(strlen(attrName), attrName).append("\"]");
     IPropertyTree * match = archive->queryPropTree(xpath);
     if (match)
         return match;
