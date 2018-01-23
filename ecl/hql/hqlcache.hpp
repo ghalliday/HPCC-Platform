@@ -52,6 +52,7 @@ extern HQL_API void convertSelectsToPath(StringBuffer & filename, const char * e
 extern HQL_API IHqlExpression * createSimplifiedDefinition(IHqlExpression * definition);
 extern HQL_API IPropertyTree * createArchiveFromCache(IEclCachedDefinitionCollection * collection, const char * root);
 extern HQL_API void updateArchiveFromCache(IEclCachedDefinitionCollection * collection, const char * root, IPropertyTree * archive);
+extern HQL_API void expandArchive(const char * path, IPropertyTree * archive);
 
 void setDefinitionText(IPropertyTree * target, const char * prop, IFileContents * contents, bool checkDirty);
 

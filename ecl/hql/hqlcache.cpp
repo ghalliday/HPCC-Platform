@@ -48,10 +48,11 @@ protected:
 
 bool EclCachedDefinition::isUpToDate() const
 {
-    //MORE: Thread safety?
+    //MORE: Improve thread safety if this object is shared between multiple thr:ads.
     if (!cachedUpToDate)
     {
         cachedUpToDate = true;
+        upToDate = true; // Can currently have self as a dependency - ensure that returns upToDate.
         upToDate = calcUpToDate();
     }
     return upToDate;
@@ -320,6 +321,9 @@ IHqlExpression * createSimplifiedDefinition(ITypeInfo * type)
 
 IHqlExpression * createSimplifiedDefinition(IHqlExpression * expr)
 {
+    if (!expr)
+        return nullptr;
+
     if (expr->isFunction())
     {
         if (expr->getOperator() != no_funcdef)
@@ -498,4 +502,66 @@ extern HQL_API void updateArchiveFromCache(IEclCachedDefinitionCollection * coll
 {
     ArchiveCreator creator(collection, archive);
     creator.processDependency(root);
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+
+static void extractFile(const char * path, const char * moduleName, const char * attrName, const char * text, timestamp_type ts)
+{
+    StringBuffer filename;
+    filename.append(path);
+    if (moduleName && *moduleName)
+        convertSelectsToPath(filename, moduleName);
+    if (attrName)
+    {
+        addPathSepChar(filename);
+        convertSelectsToPath(filename, attrName);
+        filename.append(".ecl");
+    }
+    else
+        filename.append(".ecllib");
+    recursiveCreateDirectoryForFile(filename);
+
+    Owned<IFile> file = createIFile(filename);
+    Owned<IFileIO> io = file->open(IFOcreate);
+    if (text)
+        io->write(0, strlen(text), text);
+    io.clear();
+    if (ts)
+    {
+        CDateTime timeStamp;
+        timeStamp.setTimeStamp(ts);
+        file->setTime(&timeStamp, &timeStamp, &timeStamp);
+    }
+}
+
+
+extern HQL_API void expandArchive(const char * path, IPropertyTree * archive)
+{
+    StringBuffer baseFilename;
+    makeAbsolutePath(path, baseFilename, false);
+    addPathSepChar(baseFilename);
+
+    Owned<IPropertyTreeIterator> modules = archive->getElements("Module");
+    ForEach(*modules)
+    {
+        IPropertyTree & curModule = modules->query();
+        const char * moduleName = curModule.queryProp("@name");
+        if (curModule.hasProp("Text"))
+        {
+            //Don't bother expanding plugins
+//            if (!curModule.hasProp("@plugin"))
+                extractFile(baseFilename, moduleName, nullptr, curModule.queryProp("Text"), curModule.getPropInt64("@ts"));
+        }
+        else
+        {
+            Owned<IPropertyTreeIterator> attrs = curModule.getElements("Attribute");
+            ForEach(*attrs)
+            {
+                IPropertyTree & curAttr = attrs->query();
+                const char * attrName = curAttr.queryProp("@name");
+                extractFile(baseFilename, moduleName, attrName, curAttr.queryProp(""), curAttr.getPropInt64("@ts"));
+            }
+        }
+    }
 }

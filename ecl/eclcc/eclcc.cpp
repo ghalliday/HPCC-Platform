@@ -325,6 +325,7 @@ protected:
     StringAttr optUser;
     StringAttr optPassword;
     StringAttr optWUID;
+    StringAttr optExpandPath;
     FILE * batchLog = nullptr;
 
     StringAttr optManifestFilename;
@@ -1149,11 +1150,14 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
         {
             if (main->hasKnownDependents())
             {
+                DBGLOG("Create archive from cache for %s", queryAttributePath);
                 updateArchiveFromCache(cache, queryAttributePath, instance.archive);
                 return;
             }
             DBGLOG("Cannot create archive from cache for %s because it is a macro", queryAttributePath);
         }
+        else
+            DBGLOG("Cannot create archive from cache for %s because it is not up to date", queryAttributePath);
     }
 
     {
@@ -1401,6 +1405,12 @@ void EclCC::processDefinitions(EclRepositoryArray & repositories)
 void EclCC::processXmlFile(EclCompileInstance & instance, const char *archiveXML)
 {
     instance.srcArchive.setown(createPTreeFromXMLString(archiveXML, ipt_caseInsensitive));
+
+    if (optExpandPath)
+    {
+        expandArchive(optExpandPath, instance.srcArchive);
+        return;
+    }
 
     IPropertyTree * archiveTree = instance.srcArchive;
     Owned<IPropertyTreeIterator> iter = archiveTree->getElements("Option");
@@ -2311,6 +2321,9 @@ int EclCC::parseCommandLineOptions(int argc, const char* argv[])
             definitions.append(tempArg);
         }
         else if (iter.matchFlag(optArchive, "-E"))
+        {
+        }
+        else if (iter.matchOption(optExpandPath, "--expand"))
         {
         }
         else if (iter.matchFlag(tempArg, "-f"))

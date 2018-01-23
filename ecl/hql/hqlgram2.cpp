@@ -10583,10 +10583,7 @@ IHqlExpression * HqlGram::resolveImportModule(const attribute & errpos, IHqlExpr
                 msg.appendf("Import names unknown module \"%s\"", str(id));
             else
                 msg.appendf("Import item  \"%s\" is not a module", str(id));
-            reportError(ERR_MODULE_UNKNOWN, msg.str(),
-                        lexObject->getActualLineNo(), 
-                        lexObject->getActualColumn(), 
-                        lexObject->get_yyPosition());
+            reportWarning(CategorySyntax, SeverityError, ERR_MODULE_UNKNOWN, errpos.pos, "%s", msg.str());
             return NULL;
         }
 
