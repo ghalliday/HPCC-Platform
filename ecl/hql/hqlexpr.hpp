@@ -886,7 +886,7 @@ public:
     void noteBeginModule(IHqlScope * scope, IFileContents * contents);
     void noteBeginQuery(IHqlScope * scope, IFileContents * contents);
     void noteBeginMacro(IHqlScope * scope, IIdAtom * name);
-    void noteEndAttribute(bool success, bool canCache, IHqlExpression * definition);
+    void noteEndAttribute(bool success, bool canCache, bool isMacro, IHqlExpression * definition);
     void noteEndModule(bool success);
     void noteEndQuery(bool success);
     void noteFinishedParse(IHqlScope * scope);
@@ -935,7 +935,7 @@ private:
     void createDependencyEntry(IHqlScope * scope, IIdAtom * name);
     bool checkBeginMeta();
     bool checkEndMeta();
-    void finishMeta(bool isSeparateFile, bool success, bool generateMeta, bool canCache, IHqlExpression * definition);
+    void finishMeta(bool isSeparateFile, bool success, bool generateMeta, bool canCache, bool isMacro, IHqlExpression * definition);
     IPropertyTree * beginMetaSource(IFileContents * contents);
 
     MetaOptions metaOptions;
@@ -970,7 +970,7 @@ public:
     void noteBeginModule(IHqlScope * scope, IFileContents * contents);
     void noteBeginQuery(IHqlScope * scope, IFileContents * contents);
     void noteBeginMacro(IHqlScope * scope, IIdAtom * name) { parseCtx.noteBeginMacro(scope, name); }
-    inline void noteEndAttribute(bool success, bool canCache, IHqlExpression * simplifiedDefinition) { parseCtx.noteEndAttribute(success, canCache, simplifiedDefinition); }
+    inline void noteEndAttribute(bool success, bool canCache, bool isMacro, IHqlExpression * simplifiedDefinition) { parseCtx.noteEndAttribute(success, canCache, isMacro, simplifiedDefinition); }
     inline void noteEndModule(bool success) { parseCtx.noteEndModule(success); }
     inline void noteEndQuery(bool success) { parseCtx.noteEndQuery(success); }
     inline void noteEndMacro() { parseCtx.noteEndMacro(); }

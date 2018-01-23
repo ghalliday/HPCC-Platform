@@ -1012,23 +1012,23 @@ void HqlParseContext::noteBeginMacro(IHqlScope * scope, IIdAtom * name)
 }
 
 
-void HqlParseContext::noteEndAttribute(bool success, bool canCache, IHqlExpression * simplifiedDefinition)
+void HqlParseContext::noteEndAttribute(bool success, bool canCache, bool isMacro, IHqlExpression * simplifiedDefinition)
 {
-    finishMeta(true, success, checkEndMeta(), canCache, simplifiedDefinition);
+    finishMeta(true, success, checkEndMeta(), canCache, isMacro, simplifiedDefinition);
 
     endMetaScope();
 }
 
 void HqlParseContext::noteEndQuery(bool success)
 {
-    finishMeta(false, success, checkEndMeta(), true, nullptr);
+    finishMeta(false, success, checkEndMeta(), true, false, nullptr);
 
     endMetaScope();
 }
 
 void HqlParseContext::noteEndModule(bool success)
 {
-    finishMeta(true, success, checkEndMeta(), true, nullptr);
+    finishMeta(true, success, checkEndMeta(), true, false, nullptr);
 
     endMetaScope();
 }
@@ -1074,7 +1074,7 @@ bool HqlParseContext::checkEndMeta()
     return wasGathering;
 }
 
-void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generateMeta, bool canCache, IHqlExpression * simplifiedDefinition)
+void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generateMeta, bool canCache, bool isMacro, IHqlExpression * simplifiedDefinition)
 {
     if (metaStack.empty())  // paranoid - could only happen on an internal error
         return;
@@ -1102,7 +1102,10 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
         OwnedIFileIO cacheIO = cacheFile->open(IFOcreate);
         Owned<IIOStream> stream = createIOStream(cacheIO);
         stream.setown(createBufferedIOStream(stream));
-        writeStringToStream(*stream, "<Cache>\n");
+        writeStringToStream(*stream, "<Cache");
+        if (isMacro)
+            writeStringToStream(*stream, " isMacro='1'");
+        writeStringToStream(*stream, ">\n");
         if (curMeta().dependencies)
             saveXML(*stream, curMeta().dependencies, 0, XML_Embed|XML_LineBreak);
         if (simplifiedDefinition)

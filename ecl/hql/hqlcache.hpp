@@ -30,6 +30,7 @@ public:
     virtual bool isUpToDate() const = 0;
     virtual IFileContents * querySimplifiedEcl() const = 0;
     virtual void queryDependencies(StringArray & values) const = 0;
+    virtual bool hasKnownDependents() const = 0;
 };
 
 /*

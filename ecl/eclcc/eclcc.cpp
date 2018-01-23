@@ -1145,9 +1145,15 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
     if (withinRepository && instance.archive && cache)
     {
         Owned<IEclCachedDefinition> main = cache->getDefinition(queryAttributePath);
-//        if (main->isUpToDate())
-            updateArchiveFromCache(cache, queryAttributePath, instance.archive);
-        return;
+        if (main->isUpToDate())
+        {
+            if (main->hasKnownDependents())
+            {
+                updateArchiveFromCache(cache, queryAttributePath, instance.archive);
+                return;
+            }
+            DBGLOG("Cannot create archive from cache for %s because it is a macro", queryAttributePath);
+        }
     }
 
     {

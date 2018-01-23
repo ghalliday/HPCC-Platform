@@ -93,6 +93,10 @@ public:
     virtual timestamp_type getTimeStamp() const override;
     virtual IFileContents * querySimplifiedEcl() const override;
     virtual void queryDependencies(StringArray & values) const override;
+    virtual bool hasKnownDependents() const override
+    {
+        return !root->getPropBool("@isMacro");
+    }
 
 protected:
     virtual bool calcUpToDate() const override
@@ -101,6 +105,7 @@ protected:
             return false;
         return EclCachedDefinition::calcUpToDate();
     }
+
 
     const char * queryName() const { return root->queryProp("@name"); }
 

@@ -731,7 +731,8 @@ IFileContents * CXmlEclElement::queryFileContents()
                 getFullName(defaultName);
                 sourcePath.setown(createSourcePath(defaultName));
             }
-            fileContents.setown(createFileContentsFromText(text, sourcePath, false, NULL, elemTree->getPropInt64("@ts")));
+            timestamp_type ts = elemTree->getPropInt64("@ts");
+            fileContents.setown(createFileContentsFromText(text, sourcePath, false, NULL, ts));
         }
     }
     return fileContents;

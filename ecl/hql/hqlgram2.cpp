@@ -12207,14 +12207,15 @@ void parseAttribute(IHqlScope * scope, IFileContents * contents, HqlLookupContex
     }
     catch (...)
     {
-        attrCtx.noteEndAttribute(false, false, nullptr);
+        attrCtx.noteEndAttribute(false, false, false, nullptr);
         throw;
     }
     OwnedHqlExpr parsed = scope->lookupSymbol(name, LSFsharedOK|LSFnoreport, ctx);
     OwnedHqlExpr simplified = createSimplifiedDefinition(parsed);
     bool canCache = parsed && (parsed->getOperator() != no_forwardscope);
+    bool isMacro = parsed && parsed->isMacro();
 
-    attrCtx.noteEndAttribute(true, canCache, simplified);
+    attrCtx.noteEndAttribute(true, canCache, isMacro, simplified);
 }
 
 int testHqlInternals()
