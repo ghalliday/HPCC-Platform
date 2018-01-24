@@ -1297,7 +1297,7 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
             else if (optIncludeMeta && instance.metaOutputFilename)
             {
                 Owned<IPropertyTree> meta = parseCtx.getClearMetaTree();
-                saveXML(instance.metaOutputFilename, meta, 0, XML_Embed|XML_LineBreak|XML_SortTags);
+                saveXML(instance.metaOutputFilename, meta, 0, XML_Embed|XML_LineBreak);
             }
 
             if (parseCtx.globalDependTree)

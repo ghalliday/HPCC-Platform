@@ -1152,7 +1152,7 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
                     filename.append(".errmeta");
 
                 //Could possibly avoid updating if the contents of the xml haven't changed, but filedate should still be touched
-                saveXML(filename, tos, 0, XML_Embed|XML_LineBreak|XML_SortTags);
+                saveXML(filename, tos, 0, XML_Embed|XML_LineBreak);
             }
         }
         else

@@ -6194,7 +6194,9 @@ void HqlGram::report(IError* error)
         if (!isFatalError)
         {
             if (associateWarnings)
+            {
                 pendingWarnings.append(*LINK(error));
+            }
             else
             {
                 Owned<IError> mappedError = mapError(error);
@@ -6203,15 +6205,6 @@ void HqlGram::report(IError* error)
         }
         else
         {
-            //If a fatal error is reported, report any previous soft errors that might have been potentially ignored
-            //E.g., importing an unknown module (soft), followed by access to an unknown identifier.
-            ForEachItemIn(i, pendingWarnings)
-            {
-                IError & pending = pendingWarnings.item(i);
-                if (isError(&pending))
-                    errorHandler->report(&pending);
-            }
-
             errorHandler->report(error);
             checkErrorCountAndAbort();
         }
@@ -10592,7 +10585,10 @@ IHqlExpression * HqlGram::resolveImportModule(const attribute & errpos, IHqlExpr
                 msg.appendf("Import names unknown module \"%s\"", str(id));
             else
                 msg.appendf("Import item  \"%s\" is not a module", str(id));
-            reportWarning(CategorySyntax, SeverityError, ERR_MODULE_UNKNOWN, errpos.pos, "%s", msg.str());
+            reportError(ERR_MODULE_UNKNOWN, msg.str(),
+                        lexObject->getActualLineNo(),
+                        lexObject->getActualColumn(),
+                        lexObject->get_yyPosition());
             return NULL;
         }
 
