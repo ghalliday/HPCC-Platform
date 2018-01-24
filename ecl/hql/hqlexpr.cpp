@@ -1083,16 +1083,23 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
     bool createCacheEntry = canCache;
     if (isSeparateFile && !metaOptions.cacheLocation.isEmpty())
     {
-        IPropertyTree * tos = curMeta().meta;
-        const char * originalName = tos->queryProp("@name");
-        if (originalName && !hasPrefix(originalName, INTERNAL_LOCAL_MODULE_NAME, true))
+        assertex(curMeta().dependencies);
+        StringBuffer fullName;
+        const char * module = curMeta().dependencies->queryProp("@module");
+        const char * attr = curMeta().dependencies->queryProp("@name");
+        fullName.append(module);
+        if (!isEmptyString(module) && !isEmptyString(attr))
+            fullName.append(".");
+        fullName.append(attr);
+
+        if (fullName && !hasPrefix(fullName, INTERNAL_LOCAL_MODULE_NAME, true))
         {
             baseFilename.append(metaOptions.cacheLocation);
             addPathSepChar(baseFilename);
-            convertSelectsToPath(baseFilename, originalName);
+            convertSelectsToPath(baseFilename, fullName);
             recursiveCreateDirectoryForFile(baseFilename);
 
-            Owned<IEclCachedDefinition> cached = cache->getDefinition(originalName);
+            Owned<IEclCachedDefinition> cached = cache->getDefinition(fullName);
             if (cached->isUpToDate())
                 createCacheEntry = false;
         }

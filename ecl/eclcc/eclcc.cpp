@@ -2428,7 +2428,6 @@ int EclCC::parseCommandLineOptions(int argc, const char* argv[])
         }
         else if (iter.matchOption(optMetaLocation, "--metacache"))
         {
-            optIncludeMeta = true;
         }
         else if (iter.matchFlag(optGenerateMeta, "-M"))
         {
