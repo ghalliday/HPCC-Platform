@@ -51,11 +51,11 @@ protected:
 
 bool EclCachedDefinition::isUpToDate(__uint64 optionHash) const
 {
-    //MORE: Improve thread safety if this object is shared between multiple thr:ads.
+    //MORE: Improve thread safety if this object is shared between multiple threads.
     if (!cachedUpToDate)
     {
         cachedUpToDate = true;
-        upToDate = true; // It should not occur, but initialise to ensure recursive references are treated correctly
+        upToDate = true; // They should not occur, but initialise to ensure recursive references are treated correctly
         upToDate = calcUpToDate(optionHash);
     }
     return upToDate;

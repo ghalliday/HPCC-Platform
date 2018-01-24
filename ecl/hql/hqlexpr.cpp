@@ -1152,8 +1152,11 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
         }
         else
         {
-            IPropertyTree * tree = curMeta().meta;//.getClear();
-            metaTree->addPropTree(tree->queryName(), LINK(tree));
+            //addPropTree will clone the node if there is another link to the tree node, so use getClear()
+            IPropertyTree * tree = curMeta().meta.getClear();
+            tree = metaTree->addPropTree(tree->queryName(), tree);
+            //Forward modules might cause this to be updated => save the added tree element back into curMeta()
+            curMeta().meta.set(tree);
         }
     }
 }
