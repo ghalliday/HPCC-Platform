@@ -1111,26 +1111,31 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
         filename.append(".cache");
 
         OwnedIFile cacheFile = createIFile(filename);
-        OwnedIFileIO cacheIO = cacheFile->open(IFOcreate);
-        Owned<IIOStream> stream = createIOStream(cacheIO);
-        stream.setown(createBufferedIOStream(stream));
-        writeStringToStream(*stream, "<Cache");
-        VStringBuffer extraText(" hash='%" I64F "u'", optionHash);
-        if (isMacro)
-            extraText.append(" isMacro='1'");
-        writeStringToStream(*stream, extraText);
-        writeStringToStream(*stream, ">\n");
-        if (curMeta().dependencies)
-            saveXML(*stream, curMeta().dependencies, 0, XML_Embed|XML_LineBreak);
-        if (simplifiedDefinition)
         {
-            writeStringToStream(*stream, "<Simplified>\n");
-            StringBuffer ecl;
-            regenerateECL(simplifiedDefinition, ecl);
-            encodeXML(ecl, *stream, 0, -1, false);
-            writeStringToStream(*stream, "</Simplified>\n");
+            //Theoretically there is a potential for multiple processes to generate this file at the same time
+            //but since the create is unconditional, each process will create an independent file, and
+            //only one self consistent file will remain at the end.  Which survives does not matter.
+            OwnedIFileIO cacheIO = cacheFile->open(IFOcreate);
+            Owned<IIOStream> stream = createIOStream(cacheIO);
+            stream.setown(createBufferedIOStream(stream));
+            writeStringToStream(*stream, "<Cache");
+            VStringBuffer extraText(" hash='%" I64F "u'", optionHash);
+            if (isMacro)
+                extraText.append(" isMacro='1'");
+            writeStringToStream(*stream, extraText);
+            writeStringToStream(*stream, ">\n");
+            if (curMeta().dependencies)
+                saveXML(*stream, curMeta().dependencies, 0, XML_Embed|XML_LineBreak);
+            if (simplifiedDefinition)
+            {
+                writeStringToStream(*stream, "<Simplified>\n");
+                StringBuffer ecl;
+                regenerateECL(simplifiedDefinition, ecl);
+                encodeXML(ecl, *stream, 0, -1, false);
+                writeStringToStream(*stream, "</Simplified>\n");
+            }
+            writeStringToStream(*stream, "</Cache>\n");
         }
-        writeStringToStream(*stream, "</Cache>\n");
     }
 
     if (generateMeta)
