@@ -27,6 +27,9 @@
 
 //---------------------------------------------------------------------------------------------------------------------
 
+/*
+ * Base class for implementing a cache entry for a single source file.
+ */
 class EclCachedDefinition : public CInterfaceOf<IEclCachedDefinition>
 {
 public:
@@ -85,6 +88,9 @@ bool EclCachedDefinition::calcUpToDate() const
 
 //---------------------------------------------------------------------------------------------------------------------
 
+/*
+ * class for representing a cache entry defined by a block of xml
+ */
 class EclXmlCachedDefinition : public EclCachedDefinition
 {
 public:
@@ -149,6 +155,9 @@ void EclXmlCachedDefinition::queryDependencies(StringArray & values) const
 
 //---------------------------------------------------------------------------------------------------------------------
 
+/*
+ * class for representing a cache entry defined by a single file (in xml format)
+ */
 class EclFileCachedDefinition : public EclXmlCachedDefinition
 {
 public:
@@ -172,6 +181,9 @@ timestamp_type EclFileCachedDefinition::getTimeStamp() const
 
 //---------------------------------------------------------------------------------------------------------------------
 
+/*
+ * base class for representing a cache of information extracted from the ecl definitions
+ */
 class EclCachedDefinitionCollection : public CInterfaceOf<IEclCachedDefinitionCollection>
 {
 public:
@@ -301,7 +313,7 @@ void convertSelectsToPath(StringBuffer & filename, const char * eclPath)
 
 //---------------------------------------------------------------------------------------------------------------------
 
-IHqlExpression * createSimplifiedDefinition(ITypeInfo * type)
+static IHqlExpression * createSimplifiedDefinition(ITypeInfo * type)
 {
 #if 0 //Testing!
     try
@@ -358,7 +370,10 @@ IHqlExpression * createSimplifiedDefinition(IHqlExpression * expr)
 
 //---------------------------------------------------------------------------------------------------------------------
 
-const char * splitFullname(StringBuffer & module, const char * fullname)
+/*
+ * split a full ecl path (e.g. a.b.c.d) into a module and a tail name (e.g. a.b.c, d)
+ */
+static const char * splitFullname(StringBuffer & module, const char * fullname)
 {
     const char * dot = strrchr(fullname, '.');
     if (dot)
@@ -402,7 +417,9 @@ void setDefinitionText(IPropertyTree * target, const char * prop, IFileContents 
 
 //---------------------------------------------------------------------------------------------------------------------
 
-
+/*
+ * Class for creating an archive directly from the cache and the original source files.
+ */
 class ArchiveCreator
 {
 public:
