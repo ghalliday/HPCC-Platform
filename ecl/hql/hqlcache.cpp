@@ -55,7 +55,7 @@ bool EclCachedDefinition::isUpToDate(__uint64 optionHash) const
     if (!cachedUpToDate)
     {
         cachedUpToDate = true;
-        upToDate = true; // Can currently have self as a dependency - ensure that returns upToDate.
+        upToDate = true; // It should not occur, but initialise to ensure recursive references are treated correctly
         upToDate = calcUpToDate(optionHash);
     }
     return upToDate;

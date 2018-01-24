@@ -1208,12 +1208,17 @@ void HqlParseContext::noteExternalLookup(IHqlScope * parentScope, IHqlExpression
             const char * fullName = scope->queryFullName();
             if (fullName)
             {
-                VStringBuffer xpath("Depend[@name=\"%s\"]", fullName);
-
-                if (!meta.dependencies->queryPropTree(xpath.str()))
+                //References to definitions with this module should not result in adding self as a dependency:
+                bool recursive = strsame(fullName, meta.dependencies->queryProp("@module")) && isEmptyString(meta.dependencies->queryProp("@name"));
+                if (!recursive)
                 {
-                    IPropertyTree * depend = meta.dependencies->addPropTree("Depend");
-                    depend->setProp("@name", fullName);
+                    VStringBuffer xpath("Depend[@name=\"%s\"]", fullName);
+
+                    if (!meta.dependencies->queryPropTree(xpath.str()))
+                    {
+                        IPropertyTree * depend = meta.dependencies->addPropTree("Depend");
+                        depend->setProp("@name", fullName);
+                    }
                 }
             }
         }
