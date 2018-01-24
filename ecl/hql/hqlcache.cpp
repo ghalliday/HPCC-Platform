@@ -181,7 +181,7 @@ public:
     virtual IEclCachedDefinition * getDefinition(const char * path) override;
 
 protected:
-    virtual IEclCachedDefinition * createDefinition(const char * lowerPath) = 0;
+    virtual IEclCachedDefinition * createDefinition(const char * path) = 0;
 
 protected:
     Linked<IEclRepository> repository;
@@ -197,8 +197,7 @@ IEclCachedDefinition * EclCachedDefinitionCollection::getDefinition(const char *
     if (match)
         return LINK(match);
 
-    Owned<IEclCachedDefinition> cached = createDefinition(lowerPath);
-
+    Owned<IEclCachedDefinition> cached = createDefinition(path);
     map.setValue(lowerPath, cached);
     return cached.getClear();
 }
@@ -219,11 +218,12 @@ private:
 
 
 
-IEclCachedDefinition * EclXmlCachedDefinitionCollection::createDefinition(const char * lowerPath)
+IEclCachedDefinition * EclXmlCachedDefinitionCollection::createDefinition(const char * path)
 {
-    VStringBuffer xpath("Cache[@name='%s']", lowerPath);
+    StringBuffer xpath;
+    xpath.append("Cache[@name='").appendLower(path).append("']");
     Owned<IPropertyTree> resolved = root->getBranch(xpath);
-    Owned<IEclSource> definition = repository->getSource(lowerPath);
+    Owned<IEclSource> definition = repository->getSource(path);
     return new EclXmlCachedDefinition(this, definition, resolved);
 }
 
@@ -244,17 +244,17 @@ public:
         addPathSepChar(root);
     }
 
-    virtual IEclCachedDefinition * createDefinition(const char * lowerPath) override;
+    virtual IEclCachedDefinition * createDefinition(const char * path) override;
 
 private:
     StringBuffer root;
 };
 
 
-IEclCachedDefinition * EclFileCachedDefinitionCollection::createDefinition(const char * lowerPath)
+IEclCachedDefinition * EclFileCachedDefinitionCollection::createDefinition(const char * path)
 {
     StringBuffer filename(root);
-    convertSelectsToPath(filename, lowerPath);
+    convertSelectsToPath(filename, path);
     filename.append(".cache");
 
     Owned<IFile> file = createIFile(filename);
@@ -272,7 +272,7 @@ IEclCachedDefinition * EclFileCachedDefinitionCollection::createDefinition(const
         }
     }
 
-    Owned<IEclSource> definition = repository->getSource(lowerPath);
+    Owned<IEclSource> definition = repository->getSource(path);
     return new EclFileCachedDefinition(this, definition, root, file);
 }
 
@@ -296,7 +296,7 @@ void convertSelectsToPath(StringBuffer & filename, const char * eclPath)
         addPathSepChar(filename);
         eclPath = dot + 1;
     }
-    filename.appendLower(strlen(eclPath), eclPath);
+    filename.appendLower(eclPath);
 }
 
 //---------------------------------------------------------------------------------------------------------------------
@@ -479,14 +479,6 @@ void ArchiveCreator::createArchiveItem(const char * fullName, IEclSource * origi
         properties->getProp(str(versionAtom), s.clear());
         if (s.length())
             module->setProp("@version", s.str());
-        /*
-        if (original->queryType() == ESTplugin)
-        {
-            //properties->setProp(str(flagsAtom), extraFlags);
-            //properties->setProp(str(versionAtom), version.get());
-            module->setProp("plugin", contents->queryFile()->queryFilename());
-        }
-        */
     }
 }
 
@@ -498,7 +490,7 @@ IPropertyTree * createArchiveFromCache(IEclCachedDefinitionCollection * collecti
     return creator.getArchive();
 }
 
-extern HQL_API void updateArchiveFromCache(IEclCachedDefinitionCollection * collection, const char * root, IPropertyTree * archive)
+extern HQL_API void updateArchiveFromCache(IPropertyTree * archive, IEclCachedDefinitionCollection * collection, const char * root)
 {
     ArchiveCreator creator(collection, archive);
     creator.processDependency(root);
@@ -536,7 +528,7 @@ static void extractFile(const char * path, const char * moduleName, const char *
 }
 
 
-extern HQL_API void expandArchive(const char * path, IPropertyTree * archive)
+extern HQL_API void expandArchive(const char * path, IPropertyTree * archive, bool includePlugins)
 {
     StringBuffer baseFilename;
     makeAbsolutePath(path, baseFilename, false);
@@ -549,8 +541,7 @@ extern HQL_API void expandArchive(const char * path, IPropertyTree * archive)
         const char * moduleName = curModule.queryProp("@name");
         if (curModule.hasProp("Text"))
         {
-            //Don't bother expanding plugins
-//            if (!curModule.hasProp("@plugin"))
+            if (includePlugins || !curModule.hasProp("@plugin"))
                 extractFile(baseFilename, moduleName, nullptr, curModule.queryProp("Text"), curModule.getPropInt64("@ts"));
         }
         else

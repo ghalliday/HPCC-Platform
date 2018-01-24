@@ -37,6 +37,8 @@
 #define GATHER_HIDDEN_SELECTORS
 
 #define XPATH_CONTENTS_TEXT     "<>"
+#define INTERNAL_LOCAL_MODULE_NAME "_local_directory_"
+
 
 //This should be defined, but HOLe does not cope with variable length stored strings.  Need to wait until HOLe is integrated into thor.
 //#define STORED_CAN_CHANGE_LENGTH

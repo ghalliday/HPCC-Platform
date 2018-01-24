@@ -202,7 +202,7 @@ extern HQL_API IEclRepository * createCompoundRepository(EclRepositoryArray & re
 //-------------------------------------------------------------------------------------------------------------------
 
 /*
- * This class is used to represent a source fiole that is not really part of the repository, but still allow $ to work.
+ * This class is used to represent a source file that is not really part of the repository, contained in an implicit module of its own
  */
 class HQL_API NestedEclRepository : implements IEclRepository, public CInterface
 {

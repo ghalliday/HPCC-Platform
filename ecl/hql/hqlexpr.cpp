@@ -1084,7 +1084,7 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
     {
         IPropertyTree * tos = curMeta().meta;
         const char * originalName = tos->queryProp("@name");
-        if (originalName && !hasPrefix(originalName, "_local_directory_", true))
+        if (originalName && !hasPrefix(originalName, INTERNAL_LOCAL_MODULE_NAME, true))
         {
             baseFilename.append(metaOptions.cacheLocation);
             addPathSepChar(baseFilename);
@@ -1188,7 +1188,7 @@ void HqlParseContext::noteExternalLookup(IHqlScope * parentScope, IHqlExpression
         }
         else if (!parentScope)
         {
-            //Dependencies for items with modules contained within a single source file only record the module
+            //Dependencies for items within modules defined by a single source file only record the module
             IHqlScope * scope = expr->queryScope();
             assertex(scope);
             const char * fullName = scope->queryFullName();
@@ -1308,6 +1308,7 @@ extern HQL_API IPropertyTree * queryArchiveEntry(IPropertyTree * archive, const 
     if (match)
         return match;
 
+    //Check for a plugin module or similar
     xpath.clear();
     xpath.append("Module[@key=\"").appendLower(strlen(name), name).append("\"]");
     return archive->queryPropTree(xpath);

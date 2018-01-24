@@ -6203,6 +6203,15 @@ void HqlGram::report(IError* error)
         }
         else
         {
+            //If a fatal error is reported, report any previous soft errors that might have been potentially ignored
+            //E.g., importing an unknown module (soft), followed by access to an unknown identifier.
+            ForEachItemIn(i, pendingWarnings)
+            {
+                IError & pending = pendingWarnings.item(i);
+                if (isError(&pending))
+                    errorHandler->report(&pending);
+            }
+
             errorHandler->report(error);
             checkErrorCountAndAbort();
         }

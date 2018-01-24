@@ -5158,7 +5158,9 @@ StringBuffer &makeAbsolutePath(const char *relpath,StringBuffer &out, bool mustE
     out.append(rPath);
 #else
     StringBuffer expanded;
-    if (*relpath == '~')
+    //Expand ~ on the front of a filename - useful for paths not passed on the command line
+    //Note, it does not support the ~user/ version of the syntax
+    if ((*relpath == '~') && isPathSepChar(relpath[1]))
     {
         getHomeDir(expanded);
         expanded.append(relpath+1);

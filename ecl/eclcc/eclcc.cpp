@@ -1151,7 +1151,7 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
             if (main->hasKnownDependents())
             {
                 DBGLOG("Create archive from cache for %s", queryAttributePath);
-                updateArchiveFromCache(cache, queryAttributePath, instance.archive);
+                updateArchiveFromCache(instance.archive, cache, queryAttributePath);
                 return;
             }
             DBGLOG("Cannot create archive from cache for %s because it is a macro", queryAttributePath);
@@ -1408,7 +1408,7 @@ void EclCC::processXmlFile(EclCompileInstance & instance, const char *archiveXML
 
     if (optExpandPath)
     {
-        expandArchive(optExpandPath, instance.srcArchive);
+        expandArchive(optExpandPath, instance.srcArchive, true);
         return;
     }
 
@@ -1599,7 +1599,7 @@ void EclCC::processFile(EclCompileInstance & instance)
             {
                 //Associate the contents of the directory with an internal module called _local_directory_
                 //(If it was root it might override existing root symbols).  $ is the only public way to get at the symbol
-                const char * moduleName = "_local_directory_";
+                const char * moduleName = INTERNAL_LOCAL_MODULE_NAME;
                 IIdAtom * moduleNameId = createIdAtom(moduleName);
 
                 StringBuffer thisDirectory;
