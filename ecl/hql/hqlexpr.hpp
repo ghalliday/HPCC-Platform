@@ -854,6 +854,7 @@ public:
     Owned<IPropertyTree> meta;
 };
 
+interface IEclCachedDefinitionCollection;
 class HQL_API HqlParseContext
 {
 public:
@@ -932,6 +933,7 @@ public:
     bool checkDirty = false;
     Linked<ICodegenContextCallback> codegenCtx;
     CIArrayOf<FileParseMeta> metaStack;
+    IEclCachedDefinitionCollection * cache;
 
 private:
     void createDependencyEntry(IHqlScope * scope, IIdAtom * name);

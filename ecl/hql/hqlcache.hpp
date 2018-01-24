@@ -18,6 +18,8 @@
 #ifndef __HQLCACHE_HPP_
 #define __HQLCACHE_HPP_
 
+interface IHqlExpression;
+
 /*
  * This interface represents cached information about an ECL definition.  If it is up to date then
  * the stored information can be used to optimize creating an archive, and parsing source code.

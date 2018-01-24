@@ -1163,6 +1163,7 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
     {
         //Minimize the scope of the parse context to reduce lifetime of cached items.
         HqlParseContext parseCtx(instance.dataServer, this, instance.archive);
+        parseCtx.cache = cache;
         if (optFastSyntax)
             parseCtx.setFastSyntax();
         unsigned maxErrorsDebugOption = instance.wu->getDebugValueInt("maxErrors", 0);

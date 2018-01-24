@@ -1080,6 +1080,7 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
         return;
 
     StringBuffer baseFilename;
+    bool createCacheEntry = canCache;
     if (isSeparateFile && !metaOptions.cacheLocation.isEmpty())
     {
         IPropertyTree * tos = curMeta().meta;
@@ -1090,10 +1091,14 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
             addPathSepChar(baseFilename);
             convertSelectsToPath(baseFilename, originalName);
             recursiveCreateDirectoryForFile(baseFilename);
+
+            Owned<IEclCachedDefinition> cached = cache->getDefinition(originalName);
+            if (cached->isUpToDate())
+                createCacheEntry = false;
         }
     }
 
-    if (canCache && baseFilename)
+    if (createCacheEntry && baseFilename)
     {
         StringBuffer filename(baseFilename);
         filename.append(".cache");
