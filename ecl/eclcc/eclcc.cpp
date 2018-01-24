@@ -1129,8 +1129,29 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
         setActiveSource(instance.inputFile->queryFilename());
 
     Owned<IEclCachedDefinitionCollection> cache;
+    __uint64 optionHash = 0;
     if (optMetaLocation)
+    {
+        //Update the hash to include information about which options affect how symbols are processed.  It should only include options that
+        //affect how the code is parsed, not how it is generated.
+        //Include path
+        optionHash = rtlHash64VStr(eclLibraryPath, optionHash);
+        if (!optNoBundles)
+            optionHash = rtlHash64VStr(eclBundlePath, optionHash);
+        if (!optNoStdInc)
+            optionHash = rtlHash64VStr(stdIncludeLibraryPath, optionHash);
+        optionHash = rtlHash64VStr(includeLibraryPath, optionHash);
+
+        //Any explicit -D definitions
+        ForEachItemIn(i, definitions)
+            optionHash = rtlHash64VStr(definitions.item(i), optionHash);
+
+        optionHash = rtlHash64Data(sizeof(optLegacyImport), &optLegacyImport, optionHash);
+        optionHash = rtlHash64Data(sizeof(optLegacyWhen), &optLegacyWhen, optionHash);
+
+        //And create a cache instances
         cache.setown(createEclFileCachedDefinitionCollection(instance.dataServer, optMetaLocation));
+    }
 
     if (instance.archive)
     {
@@ -1146,7 +1167,7 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
     if (withinRepository && instance.archive && cache)
     {
         Owned<IEclCachedDefinition> main = cache->getDefinition(queryAttributePath);
-        if (main->isUpToDate())
+        if (main->isUpToDate(optionHash))
         {
             if (main->hasKnownDependents())
             {
@@ -1164,6 +1185,7 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
         //Minimize the scope of the parse context to reduce lifetime of cached items.
         HqlParseContext parseCtx(instance.dataServer, this, instance.archive);
         parseCtx.cache = cache;
+        parseCtx.optionHash = optionHash;
         if (optFastSyntax)
             parseCtx.setFastSyntax();
         unsigned maxErrorsDebugOption = instance.wu->getDebugValueInt("maxErrors", 0);
@@ -1397,7 +1419,8 @@ void EclCC::processDefinitions(EclRepositoryArray & repositories)
         }
 
         //Create a repository with just that attribute.
-        Owned<IFileContents> contents = createFileContentsFromText(value, NULL, false, NULL, 0);
+        timestamp_type ts = 1; // Use a non zero timestamp so the value can be cached.  Changes are spotted through the optionHash
+        Owned<IFileContents> contents = createFileContentsFromText(value, NULL, false, NULL, ts);
         repositories.append(*createSingleDefinitionEclRepository(module, attr, contents));
     }
 }

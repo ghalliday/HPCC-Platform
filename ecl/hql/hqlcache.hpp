@@ -19,7 +19,6 @@
 #define __HQLCACHE_HPP_
 
 interface IHqlExpression;
-
 /*
  * This interface represents cached information about an ECL definition.  If it is up to date then
  * the stored information can be used to optimize creating an archive, and parsing source code.
@@ -29,7 +28,7 @@ interface IEclCachedDefinition : public IInterface
 public:
     virtual timestamp_type getTimeStamp() const = 0;
     virtual IEclSource * queryOriginal() const = 0;
-    virtual bool isUpToDate() const = 0;
+    virtual bool isUpToDate(__uint64 optionHash) const = 0;
     virtual IFileContents * querySimplifiedEcl() const = 0;
     virtual void queryDependencies(StringArray & values) const = 0;
     virtual bool hasKnownDependents() const = 0;

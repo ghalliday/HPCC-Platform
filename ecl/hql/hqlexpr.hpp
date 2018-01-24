@@ -933,7 +933,8 @@ public:
     bool checkDirty = false;
     Linked<ICodegenContextCallback> codegenCtx;
     CIArrayOf<FileParseMeta> metaStack;
-    IEclCachedDefinitionCollection * cache;
+    IEclCachedDefinitionCollection * cache = nullptr;
+    __uint64 optionHash = 0;
 
 private:
     void createDependencyEntry(IHqlScope * scope, IIdAtom * name);

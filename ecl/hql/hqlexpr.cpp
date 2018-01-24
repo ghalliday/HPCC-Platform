@@ -1100,7 +1100,7 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
             recursiveCreateDirectoryForFile(baseFilename);
 
             Owned<IEclCachedDefinition> cached = cache->getDefinition(fullName);
-            if (cached->isUpToDate())
+            if (cached->isUpToDate(optionHash))
                 createCacheEntry = false;
         }
     }
@@ -1115,8 +1115,10 @@ void HqlParseContext::finishMeta(bool isSeparateFile, bool success, bool generat
         Owned<IIOStream> stream = createIOStream(cacheIO);
         stream.setown(createBufferedIOStream(stream));
         writeStringToStream(*stream, "<Cache");
+        VStringBuffer extraText(" hash='%" I64F "u'", optionHash);
         if (isMacro)
-            writeStringToStream(*stream, " isMacro='1'");
+            extraText.append(" isMacro='1'");
+        writeStringToStream(*stream, extraText);
         writeStringToStream(*stream, ">\n");
         if (curMeta().dependencies)
             saveXML(*stream, curMeta().dependencies, 0, XML_Embed|XML_LineBreak);

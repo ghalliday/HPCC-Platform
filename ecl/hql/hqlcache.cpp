@@ -36,11 +36,11 @@ public:
     EclCachedDefinition(IEclCachedDefinitionCollection * _collection, IEclSource * _definition)
     : collection(_collection), definition(_definition) {}
 
-    virtual bool isUpToDate() const override;
+    virtual bool isUpToDate(__uint64 optionHash) const override;
     virtual IEclSource * queryOriginal() const override { return definition; }
 
 protected:
-    virtual bool calcUpToDate() const;
+    virtual bool calcUpToDate(__uint64 optionHash) const;
 
 protected:
     mutable bool cachedUpToDate = false;
@@ -49,19 +49,19 @@ protected:
     Linked<IEclSource> definition;
 };
 
-bool EclCachedDefinition::isUpToDate() const
+bool EclCachedDefinition::isUpToDate(__uint64 optionHash) const
 {
     //MORE: Improve thread safety if this object is shared between multiple thr:ads.
     if (!cachedUpToDate)
     {
         cachedUpToDate = true;
         upToDate = true; // Can currently have self as a dependency - ensure that returns upToDate.
-        upToDate = calcUpToDate();
+        upToDate = calcUpToDate(optionHash);
     }
     return upToDate;
 }
 
-bool EclCachedDefinition::calcUpToDate() const
+bool EclCachedDefinition::calcUpToDate(__uint64 optionHash) const
 {
     if (!definition)
         return false;
@@ -79,7 +79,7 @@ bool EclCachedDefinition::calcUpToDate() const
     ForEachItemIn(i, dependencies)
     {
         Owned<IEclCachedDefinition> match = collection->getDefinition(dependencies.item(i));
-        if (!match || !match->isUpToDate())
+        if (!match || !match->isUpToDate(optionHash))
             return false;
     }
     return true;
@@ -106,11 +106,13 @@ public:
     }
 
 protected:
-    virtual bool calcUpToDate() const override
+    virtual bool calcUpToDate(__uint64 optionHash) const override
     {
         if (!root)
             return false;
-        return EclCachedDefinition::calcUpToDate();
+        if (optionHash != root->getPropInt64("@hash"))
+            return false;
+        return EclCachedDefinition::calcUpToDate(optionHash);
     }
 
 
