@@ -1583,7 +1583,7 @@ protected:
 class InMemoryRowCursor : public ISourceRowCursor
 {
 public:
-    InMemoryRowCursor(InMemoryRows & _source) : source(_source), seekRow(_source.queryRecord())
+    InMemoryRowCursor(InMemoryRows & _source, unsigned _lookAhead) : lookAhead(_lookAhead), source(_source), seekRow(_source.queryRecord())
     {
     }
 
@@ -1594,19 +1594,41 @@ public:
             return nullptr;
 
         size_t high = numRows;
-        size_t low = 0; // Could be cur
-
-        bool scanOnNext = false;
-        if (cur != 0 && scanOnNext)
+        size_t low = 0;
+        size_t max = numRows;
+        if (cur != 0 && lookAhead)
         {
             //MORE: The next match is likely to be close, so first of all look for a match in the next few rows
             //An always searching forwards, so can guarantee that it follows cur > low
+            size_t next = cur+lookAhead;
+            if (next < numRows)
+            {
+                seekRow.setRow(source.queryRow(next), search.numFilterFields());
+                int rc = search.compareNext(seekRow);  // compare seekRow with the row we are hoping to find
+                if (rc >= 0)
+                    high = next+1;
+            }
         }
         //Find the value of low,high where all rows 0..low-1 are < search and rows low..max are >= search
         while (low<high)
         {
             size_t mid = low + (high - low) / 2;
-            seekRow.setRow(source.queryRow(mid), search.numFilterFields());
+            //Could combine upper and lower bound checking with unsigned wrapping: (mid - cur >= max - cur)
+            if (mid < cur)
+            {
+                low = mid + 1;
+                continue;
+            }
+
+            size_t lownext = mid+1;
+            size_t midnexta = lownext + (high - lownext) / 2;
+            size_t midnextb = low + (mid - low) / 2;
+            __builtin_prefetch(source.queryRow(midnexta));
+            __builtin_prefetch(source.queryRow(midnextb));
+
+            const byte * curRow = source.queryRow(mid);
+
+            seekRow.setRow(curRow, search.numFilterFields());
             int rc = search.compareNext(seekRow);  // compare seekRow with the row we are hoping to find
             if (rc < 0)
                 low = mid + 1;  // if this row is lower than the seek row, exclude mid from the potential positions
@@ -1637,6 +1659,7 @@ protected:
     size_t cur = 0;
     InMemoryRows & source;
     RtlDynRow seekRow;
+    unsigned lookAhead;
 };
 
 /*
@@ -1687,7 +1710,8 @@ public:
     {
         while (next < rows.ordinality())
         {
-            curRow.setRow(rows.item(next));
+            const void * nextRow = rows.item(next);
+            curRow.setRow(nextRow);
             if (filter.matches(curRow))
             {
                 curIndex = next;
@@ -2502,7 +2526,7 @@ protected:
         processFilter(filter, originalFilter, record);
 
         InMemoryRows source(_elements_in(testRows), rows, record);
-        InMemoryRowCursor sourceCursor(source); // could be created by source.createCursor()
+        InMemoryRowCursor sourceCursor(source, 0); // could be created by source.createCursor()
         KeySearcher searcher(source.queryRecord(), filter, &sourceCursor);
 
         StringBuffer matches;
@@ -2544,7 +2568,7 @@ protected:
         //Second field
         //Second field y ranges from 0 .. n2, and is included if (x + y) % 3 != 0 and (x + y) % 5 != 0
         //Third field is sparse from 0..n3.  m = ((x + y) % 11 ^2 + 1;  if (n3 + x *2 + y) % m = 0 then it is included
-        unsigned n = 100000;
+        unsigned n = 10000000;
         unsigned f1 = 0;
         unsigned f2 = 0;
         unsigned f3 = 0;
@@ -2624,7 +2648,7 @@ protected:
         unsigned countKeyed = 0;
         {
             InMemoryRows source(rows.ordinality(), (const byte * *)rows.getArray(), searchRecord);
-            InMemoryRowCursor sourceCursor(source); // could be created by source.createCursor()
+            InMemoryRowCursor sourceCursor(source, 0); // could be created by source.createCursor()
             KeySearcher searcher(source.queryRecord(), filter, &sourceCursor);
 
             while (searcher.next())
@@ -2659,7 +2683,7 @@ protected:
         processFilter(filter, filterText, searchRecord);
 
         InMemoryRows source(rows.ordinality(), (const byte * *)rows.getArray(), searchRecord);
-        InMemoryRowCursor sourceCursor(source); // could be created by source.createCursor()
+        InMemoryRowCursor sourceCursor(source, 0); // could be created by source.createCursor()
         KeySearcher searcher(source.queryRecord(), filter, &sourceCursor);
         RowScanner scanner(source.queryRecord(), filter, rows);
 
