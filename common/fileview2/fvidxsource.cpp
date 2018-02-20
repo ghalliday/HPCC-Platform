@@ -32,6 +32,10 @@ static IKeyIndex *openKeyFile(IDistributedFilePart *keyFile)
 {
     unsigned numCopies = keyFile->numCopies();
     assertex(numCopies);
+    //If a single part file is duplicated over a large roxie, this may try and open each of the parts in turn.
+    //If that roxie is not accessible it will take a long time to timeout, so limit to the first 3 copies.
+    if (numCopies > 3)
+        numCopies = 3;
     for (unsigned copy=0; copy < numCopies; copy++)
     {
         RemoteFilename rfn;
