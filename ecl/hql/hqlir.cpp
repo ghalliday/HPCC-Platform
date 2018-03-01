@@ -2040,7 +2040,8 @@ id_t ExpressionIRPlayer::doProcessExpr(IHqlExpression * expr)
             IHqlAlienTypeInfo * alienType = queryAlienType(expr->queryType());
             //MORE: Need to output information about members of the scope, but no functions are avaiable to generate it...
             info.special.append(processExpr(alienType->queryLoadFunction()));
-            info.special.append(processExpr(alienType->queryLengthFunction()));
+            if (isUnknownSize(alienType->queryPhysicalType()))
+                info.special.append(processExpr(alienType->queryLengthFunction()));
             info.special.append(processExpr(alienType->queryStoreFunction()));
             break;
         }

@@ -4923,6 +4923,8 @@ void ContainsExternalParamSpotter::doAnalyseBody(IHqlExpression * expr)
 
 bool containsExternalParameter(IHqlExpression * expr, IHqlExpression * params)
 {
+    if (!expr)
+        return false;
     ContainsExternalParamSpotter spotter(params);
     spotter.analyse(expr);
     return spotter.containsExternal();

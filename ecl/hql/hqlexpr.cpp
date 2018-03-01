@@ -4474,7 +4474,8 @@ void CHqlRealExpression::updateFlagsAfterOperands()
             {
                 //This test could be done for all funcdefs, but the cost of calculating often outweighs
                 //the savings when binding functions.
-                if (!containsExternalParameter(body, queryChild(1)))
+                if (!containsExternalParameter(body, queryChild(1)) &&
+                    !containsExternalParameter(queryChild(2), queryChild(1)))
                     infoFlags &= ~HEFunbound;
             }
             break;
@@ -12073,14 +12074,22 @@ public:
 protected:
     virtual IHqlExpression * createTransformedBody(IHqlExpression * expr)
     {
-        if (!containsCall(expr, ctx.forceOutOfLineExpansion))
-            return LINK(expr);
+//        if (!containsCall(expr, ctx.forceOutOfLineExpansion))
+//            return LINK(expr);
 
         OwnedHqlExpr transformed = QuickHqlTransformer::createTransformedBody(expr);
         if (transformed->getOperator() == no_call)
         {
             IHqlExpression * funcdef = transformed->queryBody()->queryFunctionDefinition();
-            return queryExpandFunctionCall(funcdef, transformed);
+            IHqlExpression * expanded = queryExpandFunctionCall(funcdef, transformed);
+            IHqlExpression * record = expr->queryRecord();
+            if (record)
+            {
+                IHqlExpression * newRecord = expanded->queryRecord();
+                if (record != newRecord)
+                    setMapping(record, newRecord);
+            }
+            return expanded;
         }
         return transformed.getClear();
     }

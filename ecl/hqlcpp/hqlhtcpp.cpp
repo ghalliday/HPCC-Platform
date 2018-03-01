@@ -5762,7 +5762,6 @@ bool isLibraryScope(IHqlExpression * expr)
 bool HqlCppTranslator::prepareToGenerate(HqlQueryContext & query, WorkflowArray & actions, bool isEmbeddedLibrary)
 {
     bool createLibrary = isLibraryScope(query.expr);
-
     if (createLibrary)
     {
         if (query.expr->getOperator() != no_funcdef)
