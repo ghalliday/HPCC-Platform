@@ -19,6 +19,7 @@
 #include <openssl/pem.h>
 #include <openssl/err.h>
 #endif
+#include "jencrypt.hpp"
 #include "digisign.hpp"
 
 static CriticalSection digiSignCrit;
@@ -41,7 +42,7 @@ private:
     StringBuffer publicKeyBuff;
     StringAttr   privateKeyFile;
     StringBuffer privateKeyBuff;
-    StringBuffer passphraseBuff;
+    StringBuffer passphraseBuffEnc;
     bool         signingConfigured;
     bool         verifyingConfigured;
 
@@ -59,7 +60,7 @@ public:
         if (!isEmptyString(privKey))
             privateKeyFile.set(privKey);
         if (!isEmptyString(passPhrase))
-            passphraseBuff.set(passPhrase);
+            passphraseBuffEnc.set(passPhrase);//MD5 encrypted passphrase
         signingConfigured = !publicKeyFile.isEmpty();
         verifyingConfigured = !privateKeyFile.isEmpty();
 #else
@@ -81,7 +82,7 @@ public:
         return verifyingConfigured;
     }
 
-    bool digiInit(bool isSigning, const char * keyBuff, const char * passphrase, EVP_MD_CTX * * ctx, EVP_PKEY * * PKey)
+    bool digiInit(bool isSigning, const char * keyBuff, const char * passphraseEnc, EVP_MD_CTX * * ctx, EVP_PKEY * * PKey)
     {
         //create an RSA object from public key
         BIO * keybio = BIO_new_mem_buf((void*) keyBuff, -1);
@@ -92,7 +93,12 @@ public:
 
         RSA * rsa;
         if (isSigning)
-            rsa = PEM_read_bio_RSAPrivateKey(keybio, nullptr, nullptr, (void*)passphrase);
+        {
+            StringBuffer ppDec;
+            if (!isEmptyString(passphraseEnc))
+                decrypt(ppDec, passphraseEnc);
+            rsa = PEM_read_bio_RSAPrivateKey(keybio, nullptr, nullptr, (void*)ppDec.str());
+        }
         else
             rsa = PEM_read_bio_RSA_PUBKEY(keybio, nullptr, nullptr, nullptr);
         BIO_free_all(keybio);
@@ -107,6 +113,7 @@ public:
         EVP_PKEY* pKey = EVP_PKEY_new();
         if (nullptr == pKey)
         {
+            RSA_free(rsa);
             EVP_THROW("digiSign:EVP_PKEY_new: %s");
         }
         EVP_PKEY_assign_RSA(pKey, rsa);//take ownership of the rsa. pKey will free rsa
@@ -153,7 +160,7 @@ public:
 #ifdef _USE_OPENSSL
         EVP_MD_CTX * RSACtx;
         EVP_PKEY * EVPKey;
-        digiInit(true, privateKeyBuff.str(), passphraseBuff.str(), &RSACtx, &EVPKey);
+        digiInit(true, privateKeyBuff.str(), passphraseBuffEnc.str(), &RSACtx, &EVPKey);
 
         //add string to the context
         if (EVP_DigestSignUpdate(RSACtx, (size_t*)text, strlen(text)) <= 0)
@@ -220,7 +227,7 @@ public:
 #ifdef _USE_OPENSSL
         EVP_MD_CTX * RSACtx;
         EVP_PKEY * EVPKey;
-        digiInit(false, publicKeyBuff.str(), passphraseBuff.str(), &RSACtx, &EVPKey);
+        digiInit(false, publicKeyBuff.str(), passphraseBuffEnc.str(), &RSACtx, &EVPKey);
 
         //decode base64 signature
         StringBuffer decodedSig;
