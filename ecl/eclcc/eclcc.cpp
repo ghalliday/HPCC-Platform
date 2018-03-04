@@ -484,11 +484,16 @@ static int doMain(int argc, const char *argv[])
     return 0;
 }
 
+void runAllTests();
+
 int main(int argc, const char *argv[])
 {
     EnableSEHtoExceptionMapping();
     setTerminateOnSEH(true);
     InitModuleObjects();
+    runAllTests();
+    return 0;
+
     queryStderrLogMsgHandler()->setMessageFields(0);
 
     // Turn logging down (we turn it back up if -v option seen)
@@ -2952,4 +2957,147 @@ bool EclCC::printKeywordsToXml()
 
     ::printKeywordsToXml();
     return true;
+}
+
+
+#include "jdebug.hpp"
+#include "jmutex.hpp"
+
+class CasCounter
+{
+public:
+    operator unsigned __int64() { return value; }
+    unsigned __int64 operator = (unsigned __int64 _value) 
+    {
+        value = _value;
+        return _value;
+    }
+
+    unsigned __int64 operator ++(int) 
+    {
+        unsigned __int64 expected = value.load();
+        while (!value.compare_exchange_weak(expected, expected + 1))
+        {
+        }
+        expected+1;
+    }
+
+    std::atomic<unsigned __int64> value = { 0 };
+};
+
+template <typename LOCK, typename BLOCK, typename COUNTER, unsigned NUMVALUES, unsigned NUMLOCKS>
+class LockTester
+{
+public:
+    class LockTestThread : public Thread
+    {
+    public:
+        LockTestThread(Semaphore & _startSem, Semaphore & _endSem, LOCK & _lock1, COUNTER & _value1, LOCK & _lock2, COUNTER * _extraValues, unsigned _numIterations)
+            : startSem(_startSem), endSem(_endSem), 
+              lock1(_lock1), value1(_value1),
+              lock2(_lock2), extraValues(_extraValues),
+              numIterations(_numIterations)
+        {
+        }
+
+        virtual void execute()
+        {
+            {
+                BLOCK block(lock1);
+                value1++;
+                for (unsigned i=1; i < NUMVALUES; i++)
+                    extraValues[i]++;
+            }
+            if (NUMLOCKS == 2)
+            {
+                BLOCK block(lock2);
+                extraValues[1]++;
+            }
+        }
+
+        virtual int run()
+        {
+            startSem.wait();
+            for (unsigned i = 0; i < numIterations; i++)
+                execute();
+            endSem.signal();
+            return 0;
+        }
+
+    protected:
+        Semaphore & startSem;
+        Semaphore & endSem;
+        LOCK & lock1;
+        LOCK & lock2;
+        COUNTER & value1;
+        COUNTER * extraValues;
+        const unsigned numIterations;
+    };
+
+    void run(const char * title, unsigned numThreads, unsigned numIterations)
+    {
+        value1 = 0;
+        for (unsigned ix = 1; ix < NUMVALUES; ix++)
+            extraValues[ix] = 0;
+        for (unsigned i = 0; i < numThreads; i++)
+        {
+            LockTestThread * next = new LockTestThread(startSem, endSem, lock, value1, lock, extraValues, numIterations);
+            threads.append(*next);
+            next->start();
+        }
+
+        cycle_t startCycles = get_cycles_now();
+        startSem.signal(numThreads);
+        for (unsigned i2 = 0; i2 < numThreads; i2++)
+            endSem.wait();
+        cycle_t endCycles = get_cycles_now();
+        unsigned __int64 expected = (unsigned __int64)numIterations * numThreads;
+        printf("%s@%u/%u threads(%u) %" I64F "uns/iteration lost(%" I64F "d)\n", title, NUMVALUES, NUMLOCKS, numThreads, cycle_to_nanosec(endCycles - startCycles) / (numIterations * numThreads), expected - value1);
+        for (unsigned i3 = 0; i3 < numThreads; i3++)
+            threads.item(i3).join();
+    }
+
+protected:
+    CIArrayOf<LockTestThread> threads;
+    Semaphore startSem;
+    Semaphore endSem;
+    LOCK lock;
+    COUNTER value1 = { 0 };
+    COUNTER extraValues[NUMVALUES];
+};
+
+#define DO_TEST(LOCK, CLOCK, COUNTER, NUMVALUES, NUMLOCKS)   \
+{ \
+    const char * title = #LOCK "," #COUNTER;\
+    LockTester<LOCK, CLOCK, COUNTER, NUMVALUES, NUMLOCKS> tester;\
+    tester.run(title, 1, numIterations);\
+    tester.run(title, numCores / 2, numIterations);\
+    tester.run(title, numCores, numIterations);\
+    tester.run(title, numCores + 1, numIterations);\
+    tester.run(title, numCores * 2, numIterations);\
+}
+
+class Null
+{};
+
+const unsigned numIterations = 1000000;
+const unsigned numCores = 4;
+void runAllTests()
+{
+    DO_TEST(CriticalSection, CriticalBlock, unsigned __int64, 1, 1);
+    DO_TEST(CriticalSection, CriticalBlock, unsigned __int64, 2, 1);
+    DO_TEST(CriticalSection, CriticalBlock, unsigned __int64, 5, 1);
+    DO_TEST(CriticalSection, CriticalBlock, unsigned __int64, 1, 2);
+    DO_TEST(SpinLock, SpinBlock, unsigned __int64, 1, 1);
+    DO_TEST(SpinLock, SpinBlock, unsigned __int64, 2, 1);
+    DO_TEST(SpinLock, SpinBlock, unsigned __int64, 1, 2);
+    DO_TEST(Null, Null, std::atomic<unsigned __int64>, 1, 1);
+    DO_TEST(Null, Null, std::atomic<unsigned __int64>, 2, 1);
+    DO_TEST(Null, Null, std::atomic<unsigned __int64>, 5, 1);
+    DO_TEST(Null, Null, std::atomic<unsigned __int64>, 1, 2);
+    DO_TEST(Null, Null, RelaxedAtomic<unsigned __int64>, 1, 1);
+    DO_TEST(Null, Null, CasCounter, 1, 1);
+    DO_TEST(Null, Null, unsigned __int64, 1, 1);
+    DO_TEST(Null, Null, unsigned __int64, 2, 1);
+    DO_TEST(Null, Null, unsigned __int64, 5, 1);
 }
