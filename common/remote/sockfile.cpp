@@ -3502,13 +3502,6 @@ inline void appendErr2(MemoryBuffer &reply, unsigned e, unsigned v)
     msg.append(getRFSERRText(e)).append(':').append(v);
     reply.append(e).append(msg.str());
 }
-inline void appendErr3(MemoryBuffer &reply, unsigned e, int code, const char *errMsg)
-{
-    StringBuffer msg;
-    msg.appendf("ERROR: %s(%d) '%s'", getRFSERRText(e), code, errMsg?errMsg:"");
-    reply.append(e);
-    reply.append(msg.str());
-}
 inline void appendCmdErr(MemoryBuffer &reply, RemoteFileCommandType e, int code, const char *errMsg)
 {
     StringBuffer msg;
@@ -4970,18 +4963,7 @@ public:
             reply.reserve(sizeof(numRead));
             data = reply.reserve(len);
         }
-        try {
-            numRead = fileio->read(pos,len,data);
-        }
-        catch (IException *e)
-        {
-            reply.setWritePos(posOfErr);
-            StringBuffer s;
-            e->errorMessage(s);
-            appendErr3(reply, RFSERR_ReadFailed, e->errorCode(), s.str());
-            e->Release();
-            return false;
-        }
+        numRead = fileio->read(pos,len,data);
         stats.addRead(len);
         if (TF_TRACE)
             PROGLOG("read file,  handle = %d, pos = %" I64F "d, toread = %d, read = %d",handle,pos,len,numRead);
@@ -5686,23 +5668,12 @@ public:
 
     bool cmdStreamReadTestSocket(MemoryBuffer & msg, MemoryBuffer & reply, CRemoteClientHandler &client)
     {
-        unsigned replyPos = reply.length();
-        try
-        {
-            /* testsocket is not actually passing in a command, and is interpreting '{' as the cmd to get here.
-             * so rewind so it can be read/parsed as JSON by cmdStreamRead
-             */
-            msg.reset(msg.getPos()-sizeof(RemoteFileCommandType));
-
-            reply.append('J');
-            return cmdStreamRead(msg, reply, client);
-        }
-        catch (IException *)
-        {
-            reply.rewrite(replyPos);
-            reply.append('-');
-            throw;
-        }
+        /* testsocket is not actually passing in a command, and is interpreting '{' as the cmd to get here.
+         * so rewind so it can be read/parsed as JSON by cmdStreamRead
+         */
+        msg.reset(msg.getPos()-sizeof(RemoteFileCommandType));
+        reply.append('J');
+        return cmdStreamRead(msg, reply, client);
     }
 
     bool cmdStreamRead(MemoryBuffer & msg, MemoryBuffer & reply, CRemoteClientHandler &client)
@@ -6028,9 +5999,15 @@ public:
         {
             ret = false;
             reply.setWritePos(posOfErr);
-            StringBuffer s;
-            e->errorMessage(s);
-            appendErr3(reply, RFSERR_InternalError, e->errorCode(), s.str());
+            StringBuffer msg;
+            msg.appendf("ERROR: %s(%d) ''", getRFSERRText(RFSERR_InternalError), e->errorCode());
+            e->errorMessage(msg);
+            msg.append("'");
+            if (testSocketFlag)
+                reply.append('-');
+            else
+                reply.append(RFSERR_InternalError)
+            reply.append(msg.str());
             e->Release();
         }
         if (!ret) // append error string

@@ -8269,7 +8269,8 @@ bool CHThorDiskReadBaseActivity::openNext()
                 try
                 {
                     inputfile.setown(createIFile(rfilename));
-                    if (rfilename.isLocal() && (!readRemote() || !canSerialize))
+                    bool canSerialize = actualDiskMeta->queryTypeInfo()->canSerialize() && projectedDiskMeta->queryTypeInfo()->canSerialize();
+                    if (rfilename.isLocal() && (!forceRemoteFiles || !canSerialize))
                     {
                         if(compressed)
                         {
