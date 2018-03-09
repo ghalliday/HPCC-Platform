@@ -8247,6 +8247,7 @@ bool CHThorDiskReadBaseActivity::openNext()
             }
             if (!actualDiskMeta)
                 actualDiskMeta.set(expectedDiskMeta->querySerializedDiskMeta());
+            bool canSerialize = actualDiskMeta->queryTypeInfo()->canSerialize() && projectedDiskMeta->queryTypeInfo()->canSerialize();
             if (grouped)
                 actualDiskMeta.setown(new CSuffixedOutputMeta(+1, actualDiskMeta));
 
@@ -8268,7 +8269,6 @@ bool CHThorDiskReadBaseActivity::openNext()
                 try
                 {
                     inputfile.setown(createIFile(rfilename));
-                    bool canSerialize = actualDiskMeta->queryTypeInfo()->canSerialize() && projectedDiskMeta->queryTypeInfo()->canSerialize();
                     if (rfilename.isLocal() && (!readRemote() || !canSerialize))
                     {
                         if(compressed)
