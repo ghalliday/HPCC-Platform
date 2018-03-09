@@ -8196,6 +8196,14 @@ void CHThorDiskReadBaseActivity::closepart()
     inputfile.clear();
 }
 
+
+bool CHThorDiskReadBaseActivity::readRemote() const
+{
+    if (rt_binary != readType) // only binary supported for remote read at the moment.
+        return false;
+    return queryEnvironmentConf().getPropBool("forceRemoteFiles");
+}
+
 bool CHThorDiskReadBaseActivity::openNext()
 {
     offsetOfPart += localOffset;
@@ -8261,7 +8269,7 @@ bool CHThorDiskReadBaseActivity::openNext()
                 {
                     inputfile.setown(createIFile(rfilename));
                     bool canSerialize = actualDiskMeta->queryTypeInfo()->canSerialize() && projectedDiskMeta->queryTypeInfo()->canSerialize();
-                    if (rfilename.isLocal() && (!forceRemoteFiles || !canSerialize))
+                    if (rfilename.isLocal() && (!readRemote() || !canSerialize))
                     {
                         if(compressed)
                         {
@@ -8455,6 +8463,7 @@ CHThorBinaryDiskReadBase::CHThorBinaryDiskReadBase(IAgentContext &_agent, unsign
 : CHThorDiskReadBaseActivity(_agent, _activityId, _subgraphId, _arg, _kind),
   segHelper(_segHelper), prefetchBuffer(NULL)
 {
+    readType = rt_binary;
 }
 
 void CHThorBinaryDiskReadBase::calcFixedDiskRecordSize()
@@ -9007,6 +9016,7 @@ const void *CHThorDiskGroupAggregateActivity::nextRow()
 CHThorCsvReadActivity::CHThorCsvReadActivity(IAgentContext &_agent, unsigned _activityId, unsigned _subgraphId, IHThorCsvReadArg &_arg, ThorActivityKind _kind) : CHThorDiskReadBaseActivity(_agent, _activityId, _subgraphId, _arg, _kind), helper(_arg)
 {
     maxRowSize = agent.queryWorkUnit()->getDebugValueInt(OPT_MAXCSVROWSIZE, defaultMaxCsvRowSize) * 1024 * 1024;
+    readType = rt_csv;
 }
 
 CHThorCsvReadActivity::~CHThorCsvReadActivity()
@@ -9146,6 +9156,7 @@ void CHThorCsvReadActivity::checkOpenNext()
 
 CHThorXmlReadActivity::CHThorXmlReadActivity(IAgentContext &_agent, unsigned _activityId, unsigned _subgraphId, IHThorXmlReadArg &_arg, ThorActivityKind _kind) : CHThorDiskReadBaseActivity(_agent, _activityId, _subgraphId, _arg, _kind), helper(_arg)
 {
+    readType = rt_xml;
 }
 
 void CHThorXmlReadActivity::ready()

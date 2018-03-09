@@ -2253,6 +2253,8 @@ protected:
     MemoryAttr encryptionkey;
     bool persistent;
     bool grouped;
+    enum ReadType:byte { rt_unknown, rt_binary, rt_csv, rt_xml } readType = rt_unknown;
+
     unsigned __int64 localOffset;
     unsigned __int64 offsetOfPart;
     StringBuffer mangledHelperFileName;
@@ -2280,6 +2282,7 @@ protected:
     {
         agent.reportProgress(NULL);
     }
+    bool readRemote() const;
 
 public:
     CHThorDiskReadBaseActivity(IAgentContext &agent, unsigned _activityId, unsigned _subgraphId, IHThorDiskReadBaseArg &_arg, ThorActivityKind _kind);
