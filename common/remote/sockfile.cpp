@@ -1760,7 +1760,8 @@ public:
             request.append("\n ]");
         }
         MemoryBuffer actualTypeInfo;
-        dumpTypeInfo(actualTypeInfo, actual->querySerializedDiskMeta()->queryTypeInfo());
+        if (!dumpTypeInfo(actualTypeInfo, actual->querySerializedDiskMeta()->queryTypeInfo()))
+            throw MakeStringException(0, "Format not supported by remote read");
         request.append(",\n \"inputBin\": \"");
         JBASE64_Encode(actualTypeInfo.toByteArray(), actualTypeInfo.length(), request, false);
         request.append("\"");
@@ -1911,7 +1912,16 @@ protected:
 
 extern IFileIO *createRemoteFilteredFile(SocketEndpoint &ep, const char * filename, IOutputMetaData *actual, IOutputMetaData *projected, const RowFilter &fieldFilters, bool compressed)
 {
-    return new CRemoteFilteredFileIO(ep, filename, actual, projected, fieldFilters, compressed);
+    try
+    {
+        return new CRemoteFilteredFileIO(ep, filename, actual, projected, fieldFilters, compressed);
+    }
+    catch (IException *e)
+    {
+        EXCLOG(e, nullptr);
+        e->Release();
+    }
+    return nullptr;
 }
 
 class CRemoteFile : public CRemoteBase, implements IFile

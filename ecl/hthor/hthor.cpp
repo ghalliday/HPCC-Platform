@@ -8260,7 +8260,8 @@ bool CHThorDiskReadBaseActivity::openNext()
                 try
                 {
                     inputfile.setown(createIFile(rfilename));
-                    if (rfilename.isLocal() && !forceRemoteFiles)
+                    bool canSerialize = actualDiskMeta->queryTypeInfo()->canSerialize() && projectedDiskMeta->queryTypeInfo()->canSerialize();
+                    if (rfilename.isLocal() && (!forceRemoteFiles || !canSerialize))
                     {
                         if(compressed)
                         {
@@ -8286,9 +8287,12 @@ bool CHThorDiskReadBaseActivity::openNext()
                         StringBuffer path;
                         rfilename.getLocalPath(path);
                         inputfileio.setown(createRemoteFilteredFile(ep, path, actualDiskMeta, projectedDiskMeta, actualFilter, compressed));
-                        actualDiskMeta.set(projectedDiskMeta);
-                        expectedDiskMeta = projectedDiskMeta;
-                        actualFilter.clear();
+                        if (inputfileio)
+                        {
+                            actualDiskMeta.set(projectedDiskMeta);
+                            expectedDiskMeta = projectedDiskMeta;
+                            actualFilter.clear();
+                        }
                     }
                     if (inputfileio)
                         break;
