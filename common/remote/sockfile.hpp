@@ -27,7 +27,7 @@
 #define REMOTE_API DECL_IMPORT
 #endif
 
-#define RFEnoerror      0
+static const unsigned RFEnoerror = 0;
 
 enum ThrottleClass
 {
