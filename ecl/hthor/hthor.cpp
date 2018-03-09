@@ -8212,8 +8212,6 @@ bool CHThorDiskReadBaseActivity::openNext()
     actualFilter.clear();
     unsigned projectedCrc = helper.getFormatCrc();
 
-    bool forceRemoteFiles = queryEnvironmentConf().getPropBool("forceRemoteFiles");
-
     if (dfsParts||ldFile)
     {
         // open next part of a multipart, if there is one
@@ -8269,8 +8267,7 @@ bool CHThorDiskReadBaseActivity::openNext()
                 try
                 {
                     inputfile.setown(createIFile(rfilename));
-                    bool canSerialize = actualDiskMeta->queryTypeInfo()->canSerialize() && projectedDiskMeta->queryTypeInfo()->canSerialize();
-                    if (rfilename.isLocal() && (!forceRemoteFiles || !canSerialize))
+                    if (rfilename.isLocal() && (!readRemote() || !canSerialize))
                     {
                         if(compressed)
                         {
