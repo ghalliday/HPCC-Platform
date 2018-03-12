@@ -3547,7 +3547,7 @@ inline void appendErr(MemoryBuffer &reply, unsigned e)
 
 #define MAPCOMMAND(c,p) case c: { this->p(msg, reply) ; break; }
 #define MAPCOMMANDCLIENT(c,p,client) case c: { this->p(msg, reply, client); break; }
-#define MAPCOMMANDCLIENTTESTSOCKET(c,p,client) case c: { this->p(msg, reply, client); testSocketFlag = true; break; }
+#define MAPCOMMANDCLIENTTESTSOCKET(c,p,client) case c: { testSocketFlag = true; this->p(msg, reply, client); break; }
 #define MAPCOMMANDCLIENTTHROTTLE(c,p,client,throttler) case c: { this->p(msg, reply, client, throttler); break; }
 #define MAPCOMMANDSTATS(c,p,stats) case c: { this->p(msg, reply, stats); break; }
 #define MAPCOMMANDCLIENTSTATS(c,p,client,stats) case c: { this->p(msg, reply, client, stats); break; }
@@ -5629,27 +5629,8 @@ public:
         throw createDafsException(RFSERR_InvalidCommand, nullptr);
     }
 
-    void cmdStreamReadTestSocket(MemoryBuffer & msg, MemoryBuffer & reply, CRemoteClientHandler &client)
+    void cmdStreamReadCommon(MemoryBuffer & msg, MemoryBuffer & reply, CRemoteClientHandler &client)
     {
-        /* testsocket is not actually passing in a command, and is interpreting '{' as the cmd to get here.
-         * so rewind so it can be read/parsed as JSON by cmdStreamRead
-         */
-        msg.reset(msg.getPos()-sizeof(RemoteFileCommandType));
-        reply.append('J');
-        cmdStreamRead(msg, reply, client);
-    }
-
-    void cmdStreamRead(MemoryBuffer & msg, MemoryBuffer & reply, CRemoteClientHandler &client)
-    {
-        // this is an attempt to authenticate when we haven't got authentication turned on
-        if (TF_TRACE_CLIENT_STATS)
-        {
-            StringBuffer s(client.queryPeerName());
-            PROGLOG("Connect from %s",s.str());
-        }
-
-        reply.append(RFEnoerror);
-
         size32_t jsonSz = msg.remaining();
         Owned<IPropertyTree> requestTree = createPTreeFromJSONString(jsonSz, (const char *)msg.readDirect(jsonSz));
 
@@ -5789,6 +5770,22 @@ public:
         }
     }
 
+    void cmdStreamReadTestSocket(MemoryBuffer & msg, MemoryBuffer & reply, CRemoteClientHandler &client)
+    {
+        reply.append('J');
+        /* testsocket is not actually passing in a command, and is interpreting '{' as the cmd to get here.
+         * so rewind so it can be read/parsed as JSON by cmdStreamRead
+         */
+        msg.reset(msg.getPos()-sizeof(RemoteFileCommandType));
+        cmdStreamReadCommon(msg, reply, client);
+    }
+
+    void cmdStreamReadStd(MemoryBuffer & msg, MemoryBuffer & reply, CRemoteClientHandler &client)
+    {
+        reply.append(RFEnoerror);
+        cmdStreamReadCommon(msg, reply, client);
+    }
+
     // legacy version
     void cmdSetThrottle(MemoryBuffer & msg, MemoryBuffer & reply)
     {
@@ -5825,7 +5822,7 @@ public:
         VStringBuffer errMsg("ERROR: cmd=%s, error=%s", getRFCText(cmd), getRFSERRText(dfsErrorCode));
         if (e)
         {
-            errMsg.appendf("(%u, ", e->errorCode());
+            errMsg.appendf(" (%u, ", e->errorCode());
             unsigned len = errMsg.length();
             e->errorMessage(errMsg);
             if (len == errMsg.length())
@@ -5950,7 +5947,7 @@ public:
                 MAPCOMMAND(RFCfirewall, cmdFirewall);
                 MAPCOMMANDCLIENT(RFCunlock, cmdUnlock, *client);
                 MAPCOMMANDCLIENTTESTSOCKET(RFCStreamReadTestSocket, cmdStreamReadTestSocket, *client);
-                MAPCOMMANDCLIENT(RFCStreamRead, cmdStreamRead, *client);
+                MAPCOMMANDCLIENT(RFCStreamRead, cmdStreamReadStd, *client);
                 MAPCOMMANDCLIENT(RFCcopysection, cmdCopySection, *client);
                 MAPCOMMANDCLIENTTHROTTLE(RFCtreecopy, cmdTreeCopy, *client, &slowCmdThrottler);
                 MAPCOMMANDCLIENTTHROTTLE(RFCtreecopytmp, cmdTreeCopyTmp, *client, &slowCmdThrottler);
