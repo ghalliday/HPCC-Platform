@@ -53,7 +53,7 @@ public:
         verifyingConfigured = false;
 #ifdef _USE_OPENSSL
         //query private key file location from environment.conf
-        const char * cert=0, * privKey=0, * passPhrase=0;
+        const char * cert=nullptr, * privKey=nullptr, * passPhrase=nullptr;
         bool rc = queryHPCCPKIKeyFiles(&cert, &privKey, &passPhrase);
         if (!isEmptyString(cert))
             publicKeyFile.set(cert);
