@@ -324,7 +324,7 @@ extern ECLRTL_API IFieldFilter * createSubStringFieldFilter(unsigned fieldId, si
 extern ECLRTL_API IFieldFilter * deserializeFieldFilter(unsigned fieldId, const RtlTypeInfo & type, const char * src);
 extern ECLRTL_API IFieldFilter * deserializeFieldFilter(const RtlRecord & record, const char * src);
 extern ECLRTL_API IFieldFilter * deserializeFieldFilter(unsigned fieldId, const RtlTypeInfo & type, MemoryBuffer & in);
-
+extern ECLRTL_API void readFieldFromFieldFilter(StringBuffer & fieldText, const char * & src);
 
 
 #endif

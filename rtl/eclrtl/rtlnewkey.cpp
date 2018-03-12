@@ -76,6 +76,11 @@ static void readUntilTerminator(StringBuffer & out, const char * & in, const cha
 }
 
 
+void readFieldFromFieldFilter(StringBuffer & fieldText, const char * & src)
+{
+    readUntilTerminator(fieldText, src, "=*:");
+}
+
 void deserializeSet(ISetCreator & creator, const char * filter)
 {
     while (*filter)
@@ -1230,7 +1235,7 @@ StringBuffer & SetFieldFilter::serialize(StringBuffer & out) const
 }
 MemoryBuffer & SetFieldFilter::serialize(MemoryBuffer & out) const
 {
-    out.append(field).append('=');
+    out.appendPacked(field).append('=');
     return values->serialize(out);
 }
 
@@ -1293,7 +1298,7 @@ StringBuffer & SubStringFieldFilter::serialize(StringBuffer & out) const
 
 MemoryBuffer & SubStringFieldFilter::serialize(MemoryBuffer & out) const
 {
-    out.append(field).append(':').append(subLength);
+    out.appendPacked(field).append(':').append(subLength);
     return values->serialize(out);
 }
 
@@ -1515,7 +1520,7 @@ public:
 
     virtual MemoryBuffer & serialize(MemoryBuffer & out) const override
     {
-        return out.append(field).append('*');
+        return out.appendPacked(field).append('*');
     }
 };
 
@@ -1572,7 +1577,7 @@ IFieldFilter * deserializeFieldFilter(unsigned fieldId, const RtlTypeInfo & type
 IFieldFilter * deserializeFieldFilter(const RtlRecord & record, const char * src)
 {
     StringBuffer fieldText;
-    readUntilTerminator(fieldText, src, "=*:");
+    readFieldFromFieldFilter(fieldText, src);
     unsigned fieldNum;
     if (isdigit(fieldText.str()[0]))
         fieldNum = atoi(fieldText.str());
