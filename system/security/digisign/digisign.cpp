@@ -48,15 +48,14 @@ private:
 
 public:
     CDigitalSignatureManager()
+        : signingConfigured(false), verifyingConfigured(false)
     {
-        signingConfigured = false;
-        verifyingConfigured = false;
 #ifdef _USE_OPENSSL
         //query private key file location from environment.conf
-        const char * cert=nullptr, * privKey=nullptr, * passPhrase=nullptr;
-        bool rc = queryHPCCPKIKeyFiles(&cert, &privKey, &passPhrase);
-        if (!isEmptyString(cert))
-            publicKeyFile.set(cert);
+        const char * pubKey, * privKey, * passPhrase;
+        bool rc = queryHPCCPKIKeyFiles(nullptr, &pubKey, &privKey, &passPhrase);
+        if (!isEmptyString(pubKey))
+            publicKeyFile.set(pubKey);
         if (!isEmptyString(privKey))
             privateKeyFile.set(privKey);
         if (!isEmptyString(passPhrase))
@@ -82,8 +81,30 @@ public:
         return verifyingConfigured;
     }
 
-    bool digiInit(bool isSigning, const char * keyBuff, const char * passphraseEnc, EVP_MD_CTX * * ctx, EVP_PKEY * * PKey)
+    bool digiInit(bool isSigning, const char * passphraseEnc, EVP_MD_CTX * * ctx, EVP_PKEY * * PKey)
     {
+        const char * keyBuff = nullptr;
+        if (isSigning)
+        {
+            if (privateKeyBuff.isEmpty())
+            {
+                privateKeyBuff.loadFile(privateKeyFile.str());
+                if (privateKeyBuff.isEmpty())
+                    throw MakeStringException(-1, "digiSign:Cannot load private key file");
+            }
+            keyBuff = privateKeyBuff.str();
+        }
+        else
+        {
+            if (publicKeyBuff.isEmpty())
+            {
+                publicKeyBuff.loadFile(publicKeyFile.str());
+                if (publicKeyBuff.isEmpty())
+                    throw MakeStringException(-1, "digiSign:Cannot load public key file");
+            }
+            keyBuff = publicKeyBuff.str();
+        }
+
         //create an RSA object from public key
         BIO * keybio = BIO_new_mem_buf((void*) keyBuff, -1);
         if (nullptr == keybio)
@@ -150,36 +171,31 @@ public:
         if (!signingConfigured)
             throw MakeStringException(-1, "digiSign:Creating Digital Signatures not configured");
 
-        if (privateKeyBuff.isEmpty())
-            privateKeyBuff.loadFile(privateKeyFile.str());
-        if (privateKeyBuff.isEmpty())
-            throw MakeStringException(-1, "digiSign:Cannot load private key file");
-
         CriticalBlock b(digiSignCrit);
 
 #ifdef _USE_OPENSSL
-        EVP_MD_CTX * RSACtx;
-        EVP_PKEY * EVPKey;
-        digiInit(true, privateKeyBuff.str(), passphraseBuffEnc.str(), &RSACtx, &EVPKey);
+        EVP_MD_CTX * signingCtx;
+        EVP_PKEY *   signingKey;
+        digiInit(true, passphraseBuffEnc.str(), &signingCtx, &signingKey);
 
         //add string to the context
-        if (EVP_DigestSignUpdate(RSACtx, (size_t*)text, strlen(text)) <= 0)
+        if (EVP_DigestSignUpdate(signingCtx, (size_t*)text, strlen(text)) <= 0)
         {
-            EVP_CLEANUP(EVPKey, RSACtx);
+            EVP_CLEANUP(signingKey, signingCtx);
             EVP_THROW("digiSign:EVP_DigestSignUpdate: %s");
         }
 
         //compute length of signature
         size_t encMsgLen;
-        if (EVP_DigestSignFinal(RSACtx, nullptr, &encMsgLen) <= 0)
+        if (EVP_DigestSignFinal(signingCtx, nullptr, &encMsgLen) <= 0)
         {
-            EVP_CLEANUP(EVPKey, RSACtx);
+            EVP_CLEANUP(signingKey, signingCtx);
             EVP_THROW("digiSign:EVP_DigestSignFinal1: %s");
         }
 
         if (encMsgLen == 0)
         {
-            EVP_CLEANUP(EVPKey, RSACtx);
+            EVP_CLEANUP(signingKey, signingCtx);
             EVP_THROW("digiSign:EVP_DigestSignFinal length returned 0: %s");
         }
 
@@ -187,23 +203,24 @@ public:
         unsigned char * encMsg = (unsigned char*) malloc(encMsgLen);
         if (encMsg == nullptr)
         {
-            EVP_CLEANUP(EVPKey, RSACtx);
+            EVP_CLEANUP(signingKey, signingCtx);
             throw MakeStringException(-1, "digiSign:malloc(%u) returned NULL",(unsigned)encMsgLen);
         }
 
-        if (EVP_DigestSignFinal(RSACtx, encMsg, &encMsgLen) <= 0)
+        if (EVP_DigestSignFinal(signingCtx, encMsg, &encMsgLen) <= 0)
         {
             free(encMsg);
-            EVP_CLEANUP(EVPKey, RSACtx);
+            EVP_CLEANUP(signingKey, signingCtx);
             EVP_THROW("digiSign:EVP_DigestSignFinal2: %s");
         }
-        EVP_CLEANUP(EVPKey, RSACtx);
+
 
         //convert to base64
         JBASE64_Encode(encMsg, encMsgLen, b64Signature, false);
 
         //cleanup
         free(encMsg);
+        EVP_CLEANUP(signingKey, signingCtx);
         return true;//success
 #else
         throw MakeStringException(-1, "digiSign:Platform built without OPENSSL");
@@ -217,29 +234,25 @@ public:
         if (!verifyingConfigured)
             throw MakeStringException(-1, "digiVerify:Verifying Digital Signatures not configured");
 
-        if (publicKeyBuff.isEmpty())
-            publicKeyBuff.loadFile(publicKeyFile.str());
-        if (publicKeyBuff.isEmpty())
-            throw MakeStringException(-1, "digiSign:Cannot load public key file");
-
         CriticalBlock b(digiVerifyCrit);
 
 #ifdef _USE_OPENSSL
-        EVP_MD_CTX * RSACtx;
-        EVP_PKEY * EVPKey;
-        digiInit(false, publicKeyBuff.str(), passphraseBuffEnc.str(), &RSACtx, &EVPKey);
+        EVP_MD_CTX * verifyingCtx;
+        EVP_PKEY *   verifyingKey;
+        digiInit(false, passphraseBuffEnc.str(), &verifyingCtx, &verifyingKey);
 
         //decode base64 signature
         StringBuffer decodedSig;
         JBASE64_Decode(b64Signature.str(), decodedSig);
-        if (EVP_DigestVerifyUpdate(RSACtx, text, strlen(text)) <= 0)
+
+        if (EVP_DigestVerifyUpdate(verifyingCtx, text, strlen(text)) <= 0)
         {
-            EVP_CLEANUP(EVPKey, RSACtx);
+            EVP_CLEANUP(verifyingKey, verifyingCtx);
             EVP_THROW("digiVerify:EVP_DigestVerifyUpdate: %s");
         }
 
-        int match = EVP_DigestVerifyFinal(RSACtx, (unsigned char *)decodedSig.str(), decodedSig.length());
-        EVP_CLEANUP(EVPKey, RSACtx);//cleans allocated key and digest context
+        int match = EVP_DigestVerifyFinal(verifyingCtx, (unsigned char *)decodedSig.str(), decodedSig.length());
+        EVP_CLEANUP(verifyingKey, verifyingCtx);
         return match == 1;
 #else
         throw MakeStringException(-1, "digiSign:Platform built without OPENSSL");

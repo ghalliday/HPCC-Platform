@@ -35,6 +35,7 @@ set (    SRCS
 
 include_directories (
          ./../../system/security/LdapSecurity
+         ./../../system/security/digisign
          ./../../system/security/shared
          ./../../system/jlib
          ./../../system/include
@@ -53,6 +54,7 @@ install ( TARGETS initldap RUNTIME DESTINATION ${EXEC_DIR} )
 target_link_libraries ( initldap
          jlib
          LdapSecurity
+         digisign
     )
 
 
