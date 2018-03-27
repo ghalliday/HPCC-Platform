@@ -29,19 +29,25 @@
 
 //General purpose digital signature manager
 //Useful to sign a text string, so the consumer can be assured it has not been altered
-//Uses the HPCCPublicKey/HPCCPrivateKey key files specified in environment.conf
-interface IDigitalSignatureManager //Public/Private key message signer/verifyer
+interface IDigitalSignatureManager : extends IInterface //Public/Private key message signer/verifyer
 {
 public:
     virtual bool isDigiSignerConfigured() = 0;
     virtual bool isDigiVerifierConfigured() = 0;
-    virtual bool digiSign(const char * text, StringBuffer & b64Signature) = 0;
-    virtual bool digiVerify(const char * text, StringBuffer & b64Signature) = 0;
+    virtual bool digiSign(const char * text, StringBuffer & b64Signature) = 0;//signs, using private key
+    virtual bool digiVerify(const char * text, StringBuffer & b64Signature) = 0;//verifies, using public key
 };
 
 extern "C"
 {
-    DIGISIGN_API IDigitalSignatureManager * digitalSignatureManagerInstance();
+    //Uses the HPCCPublicKey/HPCCPrivateKey key files specified in environment.conf
+    DIGISIGN_API IDigitalSignatureManager * staticDigitalSignatureManagerInstance();
+
+    //Create using the given key files
+    DIGISIGN_API IDigitalSignatureManager * createDigitalSignatureManagerInstanceFromFiles(const char * _pubKey, const char *_privKey, const char * _passPhrase);
+
+    //Create using the given PEM formatted keys
+    DIGISIGN_API IDigitalSignatureManager * createDigitalSignatureManagerInstanceFromKeys(StringBuffer & _pubKeyBuff, StringBuffer & _privKeyBuff, const char * _passPhrase);
 }
 
 #endif

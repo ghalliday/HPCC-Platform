@@ -34,8 +34,7 @@ static CriticalSection digiVerifyCrit;
                          throw MakeStringException(-1, str, buff);  \
                        }
 
-
-class CDigitalSignatureManager : implements IDigitalSignatureManager
+class CDigitalSignatureManager : implements IDigitalSignatureManager, public CInterface
 {
 private:
     StringAttr   publicKeyFile;
@@ -46,41 +45,7 @@ private:
     bool         signingConfigured;
     bool         verifyingConfigured;
 
-public:
-    CDigitalSignatureManager()
-        : signingConfigured(false), verifyingConfigured(false)
-    {
 #ifdef _USE_OPENSSL
-        //query private key file location from environment.conf
-        const char * pubKey, * privKey, * passPhrase;
-        bool rc = queryHPCCPKIKeyFiles(nullptr, &pubKey, &privKey, &passPhrase);
-        if (!isEmptyString(pubKey))
-            publicKeyFile.set(pubKey);
-        if (!isEmptyString(privKey))
-            privateKeyFile.set(privKey);
-        if (!isEmptyString(passPhrase))
-            passphraseBuffEnc.set(passPhrase);//MD5 encrypted passphrase
-        signingConfigured = !publicKeyFile.isEmpty();
-        verifyingConfigured = !privateKeyFile.isEmpty();
-#else
-        WARNLOG("CDigitalSignatureManager: Platform built without OPENSSL!");
-#endif
-    }
-
-    virtual ~CDigitalSignatureManager()
-    {
-    }
-
-    bool isDigiSignerConfigured()
-    {
-        return signingConfigured;
-    }
-
-    bool isDigiVerifierConfigured()
-    {
-        return verifyingConfigured;
-    }
-
     bool digiInit(bool isSigning, const char * passphraseEnc, EVP_MD_CTX * * ctx, EVP_PKEY * * PKey)
     {
         const char * keyBuff = nullptr;
@@ -163,6 +128,70 @@ public:
         *ctx = RSACtx;
         *PKey = pKey;
         return true;
+    }
+#endif
+
+public:
+    IMPLEMENT_IINTERFACE;
+
+    //Construct with given key files
+    CDigitalSignatureManager(const char * _pubKey, const char *_privKey, const char * _passPhrase)
+        : signingConfigured(false), verifyingConfigured(false)
+    {
+#ifdef _USE_OPENSSL
+        publicKeyFile.set(_pubKey);
+        privateKeyFile.set(_privKey);
+        passphraseBuffEnc.set(_passPhrase);//MD5 encrypted passphrase
+        signingConfigured = !publicKeyFile.isEmpty();
+        verifyingConfigured = !privateKeyFile.isEmpty();
+#else
+        WARNLOG("CDigitalSignatureManager: Platform built without OPENSSL!");
+#endif
+    }
+
+    //Construct with given PEM keys (as read from key files)
+    CDigitalSignatureManager(StringBuffer & _pubKeyBuff, StringBuffer & _privKeyBuff, const char * _passPhrase)
+        : signingConfigured(false), verifyingConfigured(false)
+    {
+#ifdef _USE_OPENSSL
+        publicKeyBuff.set(_pubKeyBuff.str());
+        privateKeyBuff.set(_privKeyBuff.str());
+        passphraseBuffEnc.set(_passPhrase);//MD5 encrypted passphrase
+        signingConfigured = !publicKeyBuff.isEmpty();
+        verifyingConfigured = !privateKeyBuff.isEmpty();
+#else
+        WARNLOG("CDigitalSignatureManager: Platform built without OPENSSL!");
+#endif
+    }
+
+    //Construct using key file locations from environment.conf
+    CDigitalSignatureManager()
+        : signingConfigured(false), verifyingConfigured(false)
+    {
+#ifdef _USE_OPENSSL
+        const char * pubKey, * privKey, * passPhrase;
+        bool rc = queryHPCCPKIKeyFiles(nullptr, &pubKey, &privKey, &passPhrase);
+        publicKeyFile.set(pubKey);
+        privateKeyFile.set(privKey);
+        passphraseBuffEnc.set(passPhrase);//MD5 encrypted passphrase
+        signingConfigured = !publicKeyFile.isEmpty();
+        verifyingConfigured = !privateKeyFile.isEmpty();
+#else
+        WARNLOG("CDigitalSignatureManager: Platform built without OPENSSL!");
+#endif
+    }
+    virtual ~CDigitalSignatureManager()
+    {
+    }
+
+    bool isDigiSignerConfigured()
+    {
+        return signingConfigured;
+    }
+
+    bool isDigiVerifierConfigured()
+    {
+        return verifyingConfigured;
     }
 
     //Create base 64 encoded digital signature of given text string
@@ -258,15 +287,31 @@ public:
         throw MakeStringException(-1, "digiSign:Platform built without OPENSSL");
 #endif
     }
-} digitalSignatureManager;
+};
 
 
 extern "C"
 {
 
-    DIGISIGN_API IDigitalSignatureManager * digitalSignatureManagerInstance()
+	//Returns static instance created from environment.conf key file settings
+    DIGISIGN_API IDigitalSignatureManager * staticDigitalSignatureManagerInstance()
     {
+        static CDigitalSignatureManager digitalSignatureManager;
         return & digitalSignatureManager;
+    }
+
+    //Create using given key filespecs
+    //Caller must release when no longer needed
+    DIGISIGN_API IDigitalSignatureManager * createDigitalSignatureManagerInstanceFromFiles(const char * _pubKey, const char *_privKey, const char * _passPhrase)
+    {
+        return new CDigitalSignatureManager(_pubKey, _privKey, _passPhrase);
+    }
+
+    //Create using given PEM formatted keys
+    //Caller must release when no longer needed
+    DIGISIGN_API IDigitalSignatureManager * createDigitalSignatureManagerInstanceFromKeys(StringBuffer & _pubKeyBuff, StringBuffer & _privKeyBuff, const char * _passPhrase)
+    {
+        return new CDigitalSignatureManager(_pubKeyBuff, _privKeyBuff, _passPhrase);
     }
 }
 
