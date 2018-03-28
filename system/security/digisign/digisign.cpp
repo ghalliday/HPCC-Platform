@@ -22,8 +22,6 @@
 #include "jencrypt.hpp"
 #include "digisign.hpp"
 
-static CriticalSection digiSignCrit;
-static CriticalSection digiVerifyCrit;
 
 #define EVP_CLEANUP(key,ctx) EVP_PKEY_free(key);       \
                              EVP_MD_CTX_destroy(ctx);
@@ -37,9 +35,7 @@ static CriticalSection digiVerifyCrit;
 class CDigitalSignatureManager : implements IDigitalSignatureManager, public CInterface
 {
 private:
-    StringAttr   publicKeyFile;
     StringBuffer publicKeyBuff;
-    StringAttr   privateKeyFile;
     StringBuffer privateKeyBuff;
     StringBuffer passphraseBuffEnc;
     bool         signingConfigured;
@@ -48,27 +44,7 @@ private:
 #ifdef _USE_OPENSSL
     bool digiInit(bool isSigning, const char * passphraseEnc, EVP_MD_CTX * * ctx, EVP_PKEY * * PKey)
     {
-        const char * keyBuff = nullptr;
-        if (isSigning)
-        {
-            if (privateKeyBuff.isEmpty())
-            {
-                privateKeyBuff.loadFile(privateKeyFile.str());
-                if (privateKeyBuff.isEmpty())
-                    throw MakeStringException(-1, "digiSign:Cannot load private key file");
-            }
-            keyBuff = privateKeyBuff.str();
-        }
-        else
-        {
-            if (publicKeyBuff.isEmpty())
-            {
-                publicKeyBuff.loadFile(publicKeyFile.str());
-                if (publicKeyBuff.isEmpty())
-                    throw MakeStringException(-1, "digiSign:Cannot load public key file");
-            }
-            keyBuff = publicKeyBuff.str();
-        }
+        const char * keyBuff = isSigning ? privateKeyBuff.str() : publicKeyBuff.str();
 
         //create an RSA object from public key
         BIO * keybio = BIO_new_mem_buf((void*) keyBuff, -1);
@@ -134,21 +110,6 @@ private:
 public:
     IMPLEMENT_IINTERFACE;
 
-    //Construct with given key files
-    CDigitalSignatureManager(const char * _pubKey, const char *_privKey, const char * _passPhrase)
-        : signingConfigured(false), verifyingConfigured(false)
-    {
-#ifdef _USE_OPENSSL
-        publicKeyFile.set(_pubKey);
-        privateKeyFile.set(_privKey);
-        passphraseBuffEnc.set(_passPhrase);//MD5 encrypted passphrase
-        signingConfigured = !publicKeyFile.isEmpty();
-        verifyingConfigured = !privateKeyFile.isEmpty();
-#else
-        WARNLOG("CDigitalSignatureManager: Platform built without OPENSSL!");
-#endif
-    }
-
     //Construct with given PEM keys (as read from key files)
     CDigitalSignatureManager(StringBuffer & _pubKeyBuff, StringBuffer & _privKeyBuff, const char * _passPhrase)
         : signingConfigured(false), verifyingConfigured(false)
@@ -164,22 +125,6 @@ public:
 #endif
     }
 
-    //Construct using key file locations from environment.conf
-    CDigitalSignatureManager()
-        : signingConfigured(false), verifyingConfigured(false)
-    {
-#ifdef _USE_OPENSSL
-        const char * pubKey, * privKey, * passPhrase;
-        bool rc = queryHPCCPKIKeyFiles(nullptr, &pubKey, &privKey, &passPhrase);
-        publicKeyFile.set(pubKey);
-        privateKeyFile.set(privKey);
-        passphraseBuffEnc.set(passPhrase);//MD5 encrypted passphrase
-        signingConfigured = !publicKeyFile.isEmpty();
-        verifyingConfigured = !privateKeyFile.isEmpty();
-#else
-        WARNLOG("CDigitalSignatureManager: Platform built without OPENSSL!");
-#endif
-    }
     virtual ~CDigitalSignatureManager()
     {
     }
@@ -199,8 +144,6 @@ public:
     {
         if (!signingConfigured)
             throw MakeStringException(-1, "digiSign:Creating Digital Signatures not configured");
-
-        CriticalBlock b(digiSignCrit);
 
 #ifdef _USE_OPENSSL
         EVP_MD_CTX * signingCtx;
@@ -263,8 +206,6 @@ public:
         if (!verifyingConfigured)
             throw MakeStringException(-1, "digiVerify:Verifying Digital Signatures not configured");
 
-        CriticalBlock b(digiVerifyCrit);
-
 #ifdef _USE_OPENSSL
         EVP_MD_CTX * verifyingCtx;
         EVP_PKEY *   verifyingKey;
@@ -294,17 +235,58 @@ extern "C"
 {
 
 	//Returns static instance created from environment.conf key file settings
+    static CriticalSection staticDSMCrit;
     DIGISIGN_API IDigitalSignatureManager * staticDigitalSignatureManagerInstance()
     {
-        static CDigitalSignatureManager digitalSignatureManager;
-        return & digitalSignatureManager;
+        static Owned<IDigitalSignatureManager> dsm;
+
+#ifdef _USE_OPENSSL
+        if (nullptr == dsm.get())
+        {
+            CriticalBlock b(staticDSMCrit);
+            if (nullptr == dsm.get())
+            {
+                const char * pubKey=nullptr, * privKey=nullptr, * passPhrase=nullptr;
+                queryHPCCPKIKeyFiles(nullptr, &pubKey, &privKey, &passPhrase);
+                IDigitalSignatureManager * _dsm = createDigitalSignatureManagerInstanceFromFiles(pubKey, privKey, passPhrase);
+                dsm.setown(_dsm);
+            }
+        }
+#endif
+        return dsm;
     }
 
     //Create using given key filespecs
     //Caller must release when no longer needed
+    static CriticalSection DSMFilesCrit;
     DIGISIGN_API IDigitalSignatureManager * createDigitalSignatureManagerInstanceFromFiles(const char * _pubKey, const char *_privKey, const char * _passPhrase)
     {
-        return new CDigitalSignatureManager(_pubKey, _privKey, _passPhrase);
+        StringBuffer privateKeyBuff;
+        StringBuffer publicKeyBuff;
+
+        if (!isEmptyString(_pubKey))
+        {
+            CriticalBlock b(DSMFilesCrit);
+            if (!isEmptyString(_pubKey))
+            {
+                publicKeyBuff.loadFile(_pubKey);
+                if (publicKeyBuff.isEmpty())
+                    throw MakeStringException(-1, "digiSign:Cannot load public key file");
+            }
+        }
+
+        if (!isEmptyString(_privKey))
+        {
+            CriticalBlock b(DSMFilesCrit);
+            if (!isEmptyString(_privKey))
+            {
+                privateKeyBuff.loadFile(_privKey);
+                if (privateKeyBuff.isEmpty())
+                    throw MakeStringException(-1, "digiSign:Cannot load private key file");
+            }
+        }
+
+        return createDigitalSignatureManagerInstanceFromKeys(publicKeyBuff, privateKeyBuff, _passPhrase);
     }
 
     //Create using given PEM formatted keys
