@@ -69,6 +69,7 @@ const char * pubKey =
 
 /* ============================================================= */
 
+static const unsigned numIterations = 10000;
 class DigiSignUnitTest : public CppUnit::TestFixture
 {
 public:
@@ -106,8 +107,10 @@ protected:
         } afor(_dsm);
 
         printf("Executing 1000 asynchronous digisign/digiverify operations\n");
-        afor.For(1000,20,true,true);
-        printf("Asynchronous digisign/digiverify test complete\n");
+        unsigned start = msTick();
+        afor.For(numIterations,20,true,true);
+        unsigned elapsed = msTick() - start;
+        printf("Asynchronous digisign/digiverify test complete in %u ms\n", elapsed);
     }
 
 
@@ -193,7 +196,7 @@ protected:
             //Perform
             printf("digiSign() loop test\n");
             unsigned now = msTick();
-            for (int x=0; x<1000; x++)
+            for (int x=0; x<numIterations; x++)
             {
                 dsm->digiSign(text3, sig3.clear());
             }
@@ -202,9 +205,10 @@ protected:
 
             printf("digiVerify() loop test\n");
             now = msTick();
-            for (int x=0; x<1000; x++)
+            for (int x=0; x<numIterations; x++)
             {
-                dsm->digiVerify(text3, sig3);
+                bool ok = dsm->digiVerify(text3, sig3);
+                ASSERT(ok);
             }
             taken = msTick() - now;
             printf("digiverify 1000 iterations took %d MS\n", taken);

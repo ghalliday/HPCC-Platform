@@ -40,9 +40,11 @@ private:
     StringBuffer passphraseBuffEnc;
     bool         signingConfigured;
     bool         verifyingConfigured;
+    EVP_PKEY *   verifyingKey;
+
 
 #ifdef _USE_OPENSSL
-    bool digiInit(bool isSigning, const char * passphraseEnc, EVP_MD_CTX * * ctx, EVP_PKEY * * PKey)
+    bool digiInit(bool isSigning, const char * passphraseEnc, EVP_PKEY * * PKey)
     {
         const char * keyBuff = isSigning ? privateKeyBuff.str() : publicKeyBuff.str();
 
@@ -80,28 +82,6 @@ private:
         }
         EVP_PKEY_assign_RSA(pKey, rsa);//take ownership of the rsa. pKey will free rsa
 
-        EVP_MD_CTX * RSACtx = EVP_MD_CTX_create();//allocate, initializes and return a digest context
-        if (nullptr == RSACtx)
-        {
-            EVP_PKEY_free(pKey);
-            EVP_THROW("digiSign:EVP_MD_CTX_create: %s");
-        }
-
-        //initialize context for SHA-256 hashing function
-        int rc;
-        if (isSigning)
-            rc = EVP_DigestSignInit(RSACtx, nullptr, EVP_sha256(), nullptr, pKey);
-        else
-            rc = EVP_DigestVerifyInit(RSACtx, nullptr, EVP_sha256(), nullptr, pKey);
-        if (rc <= 0)
-        {
-            EVP_CLEANUP(pKey, RSACtx);//cleans allocated key and digest context
-            if (isSigning)
-                EVP_THROW("digiSign:EVP_DigestSignInit: %s")
-            else
-                EVP_THROW("digiSign:EVP_DigestVerifyInit: %s")
-        }
-        *ctx = RSACtx;
         *PKey = pKey;
         return true;
     }
@@ -120,6 +100,7 @@ public:
         passphraseBuffEnc.set(_passPhrase);//MD5 encrypted passphrase
         signingConfigured = !publicKeyBuff.isEmpty();
         verifyingConfigured = !privateKeyBuff.isEmpty();
+        digiInit(false, passphraseBuffEnc.str(), &verifyingKey);
 #else
         WARNLOG("CDigitalSignatureManager: Platform built without OPENSSL!");
 #endif
@@ -146,9 +127,26 @@ public:
             throw MakeStringException(-1, "digiSign:Creating Digital Signatures not configured");
 
 #ifdef _USE_OPENSSL
-        EVP_MD_CTX * signingCtx;
         EVP_PKEY *   signingKey;
-        digiInit(true, passphraseBuffEnc.str(), &signingCtx, &signingKey);
+        digiInit(true, passphraseBuffEnc.str(), &signingKey);
+
+        EVP_MD_CTX * signingCtx;
+        EVP_MD_CTX * RSACtx = EVP_MD_CTX_create();//allocate, initializes and return a digest context
+        if (nullptr == RSACtx)
+        {
+            EVP_PKEY_free(signingKey);
+            EVP_THROW("digiSign:EVP_MD_CTX_create: %s");
+        }
+
+        //initialize context for SHA-256 hashing function
+        int rc;
+            rc = EVP_DigestSignInit(RSACtx, nullptr, EVP_sha256(), nullptr, signingKey);
+        if (rc <= 0)
+        {
+            EVP_CLEANUP(signingKey, RSACtx);//cleans allocated key and digest context
+                EVP_THROW("digiSign:EVP_DigestSignInit: %s")
+        }
+        signingCtx = RSACtx;
 
         //add string to the context
         if (EVP_DigestSignUpdate(signingCtx, (size_t*)text, strlen(text)) <= 0)
@@ -207,9 +205,20 @@ public:
             throw MakeStringException(-1, "digiVerify:Verifying Digital Signatures not configured");
 
 #ifdef _USE_OPENSSL
-        EVP_MD_CTX * verifyingCtx;
-        EVP_PKEY *   verifyingKey;
-        digiInit(false, passphraseBuffEnc.str(), &verifyingCtx, &verifyingKey);
+        EVP_MD_CTX * verifyingCtx = EVP_MD_CTX_create();//allocate, initializes and return a digest context
+        if (nullptr == verifyingCtx)
+        {
+            EVP_THROW("digiSign:EVP_MD_CTX_create: %s");
+        }
+
+        //initialize context for SHA-256 hashing function
+        int rc;
+            rc = EVP_DigestVerifyInit(verifyingCtx, nullptr, EVP_sha256(), nullptr, verifyingKey);
+        if (rc <= 0)
+        {
+            EVP_MD_CTX_destroy(verifyingCtx);
+                EVP_THROW("digiSign:EVP_DigestVerifyInit: %s")
+        }
 
         //decode base64 signature
         StringBuffer decodedSig;
@@ -217,12 +226,12 @@ public:
 
         if (EVP_DigestVerifyUpdate(verifyingCtx, text, strlen(text)) <= 0)
         {
-            EVP_CLEANUP(verifyingKey, verifyingCtx);
+            EVP_MD_CTX_destroy(verifyingCtx);
             EVP_THROW("digiVerify:EVP_DigestVerifyUpdate: %s");
         }
 
         int match = EVP_DigestVerifyFinal(verifyingCtx, (unsigned char *)decodedSig.str(), decodedSig.length());
-        EVP_CLEANUP(verifyingKey, verifyingCtx);
+        EVP_MD_CTX_destroy(verifyingCtx);
         return match == 1;
 #else
         throw MakeStringException(-1, "digiSign:Platform built without OPENSSL");
