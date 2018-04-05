@@ -240,27 +240,33 @@ public:
 };
 
 
+static CriticalSection staticDSMCrit;
+static std::atomic<IDigitalSignatureManager *> dsm;
+
+MODULE_INIT(INIT_PRIORITY_STANDARD)
+{
+    return true;
+}
+MODULE_EXIT()
+{
+    ::Release(dsm.load());
+}
+
+IDigitalSignatureManager *createDigitalSignatureManagerInstance()
+{
+    const char * pubKey=nullptr, * privKey=nullptr, * passPhrase=nullptr;
+    queryHPCCPKIKeyFiles(nullptr, &pubKey, &privKey, &passPhrase);
+    return createDigitalSignatureManagerInstanceFromFiles(pubKey, privKey, passPhrase);
+}
+
 extern "C"
 {
 
 	//Returns static instance created from environment.conf key file settings
-    static CriticalSection staticDSMCrit;
     DIGISIGN_API IDigitalSignatureManager * staticDigitalSignatureManagerInstance()
     {
-        static Owned<IDigitalSignatureManager> dsm;
-
 #ifdef _USE_OPENSSL
-        if (nullptr == dsm.get())
-        {
-            CriticalBlock b(staticDSMCrit);
-            if (nullptr == dsm.get())
-            {
-                const char * pubKey=nullptr, * privKey=nullptr, * passPhrase=nullptr;
-                queryHPCCPKIKeyFiles(nullptr, &pubKey, &privKey, &passPhrase);
-                IDigitalSignatureManager * _dsm = createDigitalSignatureManagerInstanceFromFiles(pubKey, privKey, passPhrase);
-                dsm.setown(_dsm);
-            }
-        }
+        return querySingleton(dsm, staticDSMCrit, []{ return createDigitalSignatureManagerInstance(); });
 #endif
         return dsm;
     }
