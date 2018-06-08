@@ -201,13 +201,21 @@ static bool isTrivialInlineOutput(IHqlExpression * expr)
 {
     if (queryRealChild(expr, 1))
         return false;
-    IHqlExpression * ds = expr->queryChild(0);
-    if ((ds->getOperator() != no_null) || !ds->isDataset())
-        return false;
+
     IHqlExpression * seq = querySequence(expr);
     if (getIntValue(seq, -1) >= 0)
         return false;
-    return true;
+
+    IHqlExpression * ds = expr->queryChild(0);
+    switch (ds->getOperator())
+    {
+    case no_null:
+        return ds->isDataset();
+    case no_inlinetable:
+        return isConstantDataset(ds);
+    default:
+        return false;
+    }
 }
 
 //---------------------------------------------------------------------------
