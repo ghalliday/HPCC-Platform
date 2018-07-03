@@ -786,7 +786,7 @@ IHqlExpression * HqlGram::getActiveCounter(attribute & errpos)
     {
         IHqlExpression * seq = counterSeq.tos();
         if (seq)
-            counter.setown(createValue(no_counter, makeIntType(8, false), LINK(seq)));
+            counter.setown(createValue(no_counter, makeIntType(8, false), LINK(seq), createUniqueId(_uid_Atom)));
         else
             counter.setown(createCounter());
     }

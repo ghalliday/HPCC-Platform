@@ -27,10 +27,6 @@ unsigned numrecsbase := 1000000 : stored('numrecsbase');
 unsigned numrecsadd  := numrecsbase/4 : stored('numrecsadd');
 unsigned numrecsdel  := numrecsbase/4 : stored('numrecsdell');
 
-zeroa := 0 : stored('zeroa');
-zerob := 0 : stored('zerob');
-zeroc := 0 : stored('zeroc');
-
 rec := record
      unsigned4 len;
      string86 payload;
@@ -58,13 +54,13 @@ one_per_node := distribute(normalize(seed, CLUSTERSIZE, addNodeNum(LEFT, COUNTER
 
 rec generatePseudoRandom(rec L, unsigned4 c) := transform
     SELF.payload := (string) RANDOM() + (string) RANDOM()+(string) RANDOM() + (string) RANDOM()+(string) RANDOM() + (string) RANDOM();
-    SELF.key := (string) (c+RANDOM()) + (string) RANDOM();
+    SELF.key := (string) RANDOM() + (string) RANDOM();
     SELF.len := LENGTH(SELF.payload)+LENGTH(SELF.key)+4;
   END;
 
-dsbase := NORMALIZE(one_per_node, numrecsbase, generatePseudoRandom(LEFT, zeroa)) : INDEPENDENT;
-dsadd := NORMALIZE(one_per_node, numrecsadd, generatePseudoRandom(LEFT, zerob)) ;
-dsdel := NORMALIZE(one_per_node, numrecsdel, generatePseudoRandom(LEFT, zeroc)) ;
+dsbase := NORMALIZE(one_per_node, numrecsbase, generatePseudoRandom(LEFT, counter)) : INDEPENDENT;
+dsadd := NORMALIZE(one_per_node, numrecsadd, generatePseudoRandom(LEFT, counter)) ;
+dsdel := NORMALIZE(one_per_node, numrecsdel, generatePseudoRandom(LEFT, counter)) ;
 
 dsold := dsbase+dsdel;
 dsnew := dsbase+dsadd;
