@@ -639,6 +639,24 @@ IHqlExpression * NewThorStoredReplacer::createTransformed(IHqlExpression * expr)
                 return expr->clone(actions);
             return transform(expr->queryChild(0));
         }
+    case no_if:
+    {
+        IHqlExpression * cond = expr->queryChild(0);
+        OwnedHqlExpr newCond = transform(cond);
+        if (newCond->isConstant())
+        {
+            OwnedHqlExpr folded = quickFoldExpression(newCond);
+            IValue * foldedValue = folded->queryValue();
+            if (foldedValue)
+            {
+                if (foldedValue->getBoolValue())
+                    return transform(expr->queryChild(1));
+                else
+                    return transform(expr->queryChild(2));
+            }
+        }
+        break;
+    }
     }
     return QuickHqlTransformer::createTransformed(expr);
 }
