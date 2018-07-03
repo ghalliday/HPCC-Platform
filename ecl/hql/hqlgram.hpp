@@ -939,6 +939,7 @@ protected:
     HqlExprArray localFunctionCache;
     HqlExprArray curListStack;
     CIArrayOf<OwnedHqlExprItem> counterStack;
+    ArrayOf<IHqlExpression *> counterSeq;
     CIArrayOf<TransformSaveInfo> transformSaveStack;
     CIArrayOf<ActiveScopeInfo> defineScopes;
     OwnedHqlExpr curList;
@@ -1010,7 +1011,10 @@ protected:
     void popLocale();
     IHqlExpression *queryDefaultLocale();
 
+    void beginCounter(bool dependsOnInput);
     IHqlExpression * getActiveCounter(attribute & errpos);
+    IHqlExpression * endCounter();
+
     void pushRecord(IHqlExpression *);
     IHqlExpression *endRecordDef();
     IHqlExpression *popRecord();

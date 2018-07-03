@@ -36,6 +36,10 @@ varrec := record, maxlength(2000000)
 dummy := dataset([{'A', '0'}], fixedrec);
 thornodes := MAX(dummy, thorlib.nodes()) : global;  // Force it to calculate nodes() on thor not hthor
 
+zeroa := 0 : stored('zeroa');
+zerob := 0 : stored('zerob');
+zeroc := 0 : stored('zeroc');
+zerod := 0 : stored('zerod');
 
 dotest(kind,rec) := macro
 
@@ -63,13 +67,13 @@ dotest(kind,rec) := macro
 
   rec %generatePseudoRandom%(rec L, unsigned4 c) := transform
       SELF.payload := (string) RANDOM() + (string) RANDOM()+(string) RANDOM() + (string) RANDOM()+(string) RANDOM() + (string) RANDOM();
-      SELF.key := (string) (RANDOM() % 100000);
+      SELF.key := (string) (c + RANDOM() % 100000);
     END;
 
-  %sortedrecs1% := sort(NORMALIZE(%one_per_node%, numrecs, %generatePseudoRandom%(LEFT, counter)), key);
-  %sortedrecs2% := sort(NORMALIZE(%one_per_node%, numrecs, %generatePseudoRandom%(LEFT, counter)), key);
-  %sortedrecs3% := sort(NORMALIZE(%one_per_node%, numrecs, %generatePseudoRandom%(LEFT, counter)), key);
-  %sortedrecs4% := sort(NORMALIZE(%one_per_node%, numrecs, %generatePseudoRandom%(LEFT, counter)), key);
+  %sortedrecs1% := sort(NORMALIZE(%one_per_node%, numrecs, %generatePseudoRandom%(LEFT, zeroa)), key);
+  %sortedrecs2% := sort(NORMALIZE(%one_per_node%, numrecs, %generatePseudoRandom%(LEFT, zerob)), key);
+  %sortedrecs3% := sort(NORMALIZE(%one_per_node%, numrecs, %generatePseudoRandom%(LEFT, zeroc)), key);
+  %sortedrecs4% := sort(NORMALIZE(%one_per_node%, numrecs, %generatePseudoRandom%(LEFT, zerod)), key);
   %sortedrecs% := MERGE(%sortedrecs1%,%sortedrecs2%,%sortedrecs3%,%sortedrecs4%);
 
   rec %checksort%(rec l, rec r) := TRANSFORM

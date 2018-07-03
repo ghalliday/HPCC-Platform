@@ -7114,19 +7114,22 @@ optMaxMin
 beginCounterScope
     :                       
                         { 
-                            parser->counterStack.append(* new OwnedHqlExprItem); 
+                            parser->beginCounter(true);
+                            $$.clear();
+                        }
+    ;
+
+beginSourceCounterScope
+    :
+                        {
+                            parser->beginCounter(false);
                             $$.clear();
                         }
     ;
 
 endCounterScope
     :                   {
-                            $$.setNullExpr();
-                            if (parser->counterStack.ordinality())
-                            {
-                                $$.setExpr(parser->counterStack.tos().value.getClear());
-                                parser->counterStack.pop();
-                            }
+                            $$.setExpr(parser->endCounter());
                         }
     ;
 
@@ -8331,7 +8334,7 @@ simpleDataSet
                             }
 
                             if (counter)
-                                flags.setown(createComma(flags.getClear(), createAttribute(_countProject_Atom, counter.getClear())));
+                                flags.setown(createComma(flags.getClear(), createExprAttribute(_countProject_Atom, counter.getClear())));
 
                             IHqlExpression *join = createDataset(no_join, left, createComma(right, cond, createComma(transform.getClear(), flags.getClear(), $12.getExpr())));
 
@@ -8401,7 +8404,7 @@ simpleDataSet
                             IHqlExpression * counter = $13.getExpr();
                             IHqlExpression * attr = $11.getExpr();
                             if (counter)
-                                attr = createComma(attr, createAttribute(_countProject_Atom, counter));
+                                attr = createComma(attr, createExprAttribute(_countProject_Atom, counter));
                             parser->ensureTransformTypeMatch($8, left);
                             parser->ensureTransformTypeMatch($10, right);
                             $$.setExpr(createDataset(no_process, left, createComma(right, $8.getExpr(), $10.getExpr(), createComma(attr, $14.getExpr()))));
@@ -8495,7 +8498,7 @@ simpleDataSet
                             IHqlExpression * body = createValue(no_loopbody, makeNullType(), $8.getExpr());
                             IHqlExpression * counter = $9.getExpr();
                             if (counter)
-                                body = createComma(body, createAttribute(_countProject_Atom, counter));
+                                body = createComma(body, createExprAttribute(_countProject_Atom, counter));
                             IHqlExpression * loopCondition = parser->createLoopCondition(left, $6.getExpr(), NULL, $13.queryExpr(), $12.queryExpr());
                             IHqlExpression * loopExpr = createDataset(no_loop, left, createComma(loopCondition, body, $10.getExpr(), createComma($12.getExpr(), $13.getExpr())));
                             parser->checkLoopFlags($1, loopExpr);
@@ -8512,7 +8515,7 @@ simpleDataSet
                             IHqlExpression * body = createValue(no_loopbody, makeNullType(), $10.getExpr());
                             IHqlExpression * counter = $11.getExpr();
                             if (counter)
-                                body = createComma(body, createAttribute(_countProject_Atom, counter));
+                                body = createComma(body, createExprAttribute(_countProject_Atom, counter));
                             IHqlExpression * loopCondition = parser->createLoopCondition(left, $6.getExpr(), $8.getExpr(), $15.queryExpr(), $14.queryExpr());
                             IHqlExpression * loopExpr = createDataset(no_loop, left, createComma(loopCondition, body, $12.getExpr(), createComma($14.getExpr(), $15.getExpr())));
                             parser->checkLoopFlags($1, loopExpr);
@@ -8530,7 +8533,7 @@ simpleDataSet
                             IHqlExpression * body = createValue(no_loopbody, makeNullType(), $12.getExpr());
                             IHqlExpression * counter = $13.getExpr();
                             if (counter)
-                                body = createComma(body, createAttribute(_countProject_Atom, counter));
+                                body = createComma(body, createExprAttribute(_countProject_Atom, counter));
                             IHqlExpression * loopCondition = createComma($6.getExpr(), $8.getExpr(), $10.getExpr());
                             IHqlExpression * loopExpr = createDataset(no_loop, left, createComma(loopCondition, body, $14.getExpr(), createComma($16.getExpr(), $17.getExpr())));
                             parser->checkLoopFlags($1, loopExpr);
@@ -8546,7 +8549,7 @@ simpleDataSet
                             IHqlExpression * body = createValue(no_loopbody, makeNullType(), $8.getExpr());
                             IHqlExpression * counter = $9.getExpr();
                             if (counter)
-                                body = createComma(body, createAttribute(_countProject_Atom, counter));
+                                body = createComma(body, createExprAttribute(_countProject_Atom, counter));
                             IHqlExpression * loopExpr = createDataset(no_graphloop, left, createComma($6.getExpr(), body, $10.getExpr(), createComma($12.getExpr(), $13.getExpr())));
                             parser->checkLoopFlags($1, loopExpr);
                             $$.setExpr(loopExpr);
@@ -8567,7 +8570,7 @@ simpleDataSet
                             IHqlExpression *attr = $7.getExpr();
                             IHqlExpression * counter = $9.getExpr();
                             if (counter)
-                                attr = createComma(attr, createAttribute(_countProject_Atom, counter));
+                                attr = createComma(attr, createExprAttribute(_countProject_Atom, counter));
                             $$.setExpr(createDataset(no_iterate, ds, createComma(tr, attr, $10.getExpr())));
                             $$.setPosition($1);
                             parser->checkDistribution($3, $$.queryExpr(), false);
@@ -8705,7 +8708,7 @@ simpleDataSet
                             IHqlExpression *ds = $3.getExpr();
                             OwnedHqlExpr counter = $7.getExpr();
                             if (counter)
-                                te = createComma(te, createAttribute(_countProject_Atom, LINK(counter)));
+                                te = createComma(te, createExprAttribute(_countProject_Atom, LINK(counter)));
                             $$.setExpr(createDataset(no_hqlproject, ds, te));
                             $$.setPosition($1);
                         }
@@ -8736,7 +8739,7 @@ simpleDataSet
                             IHqlExpression * transform = $10.getExpr();
                             IHqlExpression * counter = $11.getExpr();
                             if (counter)
-                                counter = createAttribute(_countProject_Atom, counter);
+                                counter = createExprAttribute(_countProject_Atom, counter);
 
                             //MORE: This should require local otherwise it needs to do a full join type thing.
                             OwnedHqlExpr extra = createComma($5.getExpr(), $7.getExpr(), transform, createComma($12.getExpr(), counter, $14.getExpr()));
@@ -8782,7 +8785,7 @@ simpleDataSet
                             parser->normalizeExpression($5, type_numeric, false);
                             IHqlExpression * counter = $9.getExpr();
                             if (counter)
-                                counter = createAttribute(_countProject_Atom, counter);
+                                counter = createExprAttribute(_countProject_Atom, counter);
                             IHqlExpression * extra = createComma($5.getExpr(), $8.getExpr(), counter, createComma($10.getExpr(), $12.getExpr()));
                             $$.setExpr(createDataset(no_normalize, $3.getExpr(), extra));
                             $$.setPosition($1);
@@ -8792,7 +8795,7 @@ simpleDataSet
                             //NB: SelSeq is based only on the left dataset, not the right as well.
                             IHqlExpression * counter = $9.getExpr();
                             if (counter)
-                                counter = createAttribute(_countProject_Atom, counter);
+                                counter = createExprAttribute(_countProject_Atom, counter);
                             IHqlExpression * extra = createComma($5.getExpr(), $8.getExpr(), counter, createComma($10.getExpr(), $12.getExpr()));
                             $$.setExpr(createDataset(no_normalize, $3.getExpr(), extra));
                             $$.setPosition($1);
@@ -8805,7 +8808,7 @@ simpleDataSet
                             parser->checkGrouped($3);
                             IHqlExpression * counter = $9.getExpr();
                             if (counter)
-                                counter = createAttribute(_countProject_Atom, counter);
+                                counter = createExprAttribute(_countProject_Atom, counter);
                             IHqlExpression *attr = createComma($10.getExpr(), $12.getExpr(), $13.getExpr());
                             $$.setExpr(createDataset(no_normalizegroup, $3.getExpr(), createComma($8.getExpr(), counter, attr)));
                             $$.setPosition($1);
@@ -9003,7 +9006,7 @@ simpleDataSet
                             $$.setExpr(dataset.getClear());
                             $$.setPosition($1);
                         }
-    | DATASET '(' thorFilenameOrList ',' beginCounterScope dsRecordDef endCounterScope ',' mode optDsOptions dsEnd
+    | DATASET '(' thorFilenameOrList ',' beginSourceCounterScope dsRecordDef endCounterScope ',' mode optDsOptions dsEnd
                         {
                             OwnedHqlExpr counter = $7.queryExpr();
                             if (counter)
@@ -9038,7 +9041,7 @@ simpleDataSet
                             $$.setExpr(dataset);
                             $$.setPosition($1);
                         }
-    | DATASET '(' thorFilenameOrList ',' beginCounterScope simpleType endCounterScope optDsOptions dsEnd
+    | DATASET '(' thorFilenameOrList ',' beginSourceCounterScope simpleType endCounterScope optDsOptions dsEnd
                         {
                             OwnedHqlExpr counter = $7.queryExpr();
                             if (counter)
@@ -9118,7 +9121,7 @@ simpleDataSet
                             $$.setExpr(createDataset(no_inlinetable, createValue(no_transformlist, makeNullType(), values), createComma(LINK(record), $7.getExpr())));
                             $$.setPosition($1);
                         }
-    | DATASET '(' thorFilenameOrList ',' beginCounterScope recordDef endCounterScope ')'
+    | DATASET '(' thorFilenameOrList ',' beginSourceCounterScope recordDef endCounterScope ')'
                         {
                             //NB: $3 is required to be a list, but uses thorfilename production to work around a s/r error
                             OwnedHqlExpr counter = $7.queryExpr();
@@ -9158,12 +9161,12 @@ simpleDataSet
                             $$.setExpr(createDataset(no_workunit_dataset, $8.getExpr(), arg));
                             $$.setPosition($1);
                         }
-    | DATASET '(' thorFilenameOrList ',' beginCounterScope transform endCounterScope optDatasetFlags ')'
+    | DATASET '(' thorFilenameOrList ',' beginSourceCounterScope transform endCounterScope optDatasetFlags ')'
                         {
                             parser->normalizeExpression($3, type_int, false);
                             IHqlExpression * counter = $7.getExpr();
                             if (counter)
-                                counter = createAttribute(_countProject_Atom, counter);
+                                counter = createExprAttribute(_countProject_Atom, counter);
                             parser->checkInlineDatasetOptions($8);
                             $$.setExpr(createDataset(no_dataset_from_transform, $3.getExpr(), createComma($6.getExpr(), counter, $8.getExpr())), $1);
                         }
@@ -9736,7 +9739,7 @@ simpleDataSet
                             OwnedHqlExpr options = $11.getExpr();
                             OwnedHqlExpr counter = $12.getExpr();
                             if (counter)
-                                options.setown(createComma(options.getClear(), createAttribute(_countProject_Atom, counter.getClear())));
+                                options.setown(createComma(options.getClear(), createExprAttribute(_countProject_Atom, counter.getClear())));
                             OwnedHqlExpr selSeq = $15.getExpr();
                             $$.setExpr(createDatasetF(no_quantile, ds.getClear(), $5.getExpr(), sortlist.getClear(), transform.getClear(), selSeq.getClear(), options.getClear(), NULL), $1);
                         }

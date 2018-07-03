@@ -749,21 +749,48 @@ void HqlGram::endList(HqlExprArray & args)
     unwindChildren(args, list);
 }
 
+void HqlGram::beginCounter(bool dependsOnInput)
+{
+    counterStack.append(* new OwnedHqlExprItem);
+    if (dependsOnInput)
+    {
+        assertex(leftRightScopes.ordinality());
+        counterSeq.append(leftRightScopes.tos().selSeq);
+    }
+    else
+        counterSeq.append(nullptr);
+}
+
+IHqlExpression * HqlGram::endCounter()
+{
+    IHqlExpression * counter = nullptr;
+    if (counterStack.ordinality())
+    {
+        counter = counterStack.tos().value.getClear();
+        counterStack.pop();
+        counterSeq.pop();
+    }
+    return counter;
+}
+
 IHqlExpression * HqlGram::getActiveCounter(attribute & errpos)
 {
-    OwnedHqlExpr tempCounter;
-    OwnedHqlExpr * ref;
     if (counterStack.empty())
     {
         reportError(ERR_COUNT_ILL_HERE, errpos, "COUNTER not valid in this context");
-        ref = &tempCounter;
+        return createCounter();
     }
-    else
-        ref = &counterStack.tos().value;
 
-    if (!ref->get())
-        ref->setown(createCounter());
-    return LINK(*ref);
+    OwnedHqlExpr & counter = counterStack.tos().value;
+    if (!counter)
+    {
+        IHqlExpression * seq = counterSeq.tos();
+        if (seq)
+            counter.setown(createValue(no_counter, makeIntType(8, false), LINK(seq)));
+        else
+            counter.setown(createCounter());
+    }
+    return LINK(counter);
 }
 
 
