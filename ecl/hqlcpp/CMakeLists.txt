@@ -127,6 +127,10 @@ ENDIF()
 
 ADD_DEFINITIONS( -DHQLCPP_EXPORTS -D_USRDLL )
 
+if (USE_LTO AND (CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANGXX))
+    SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -flto")
+endif()
+
 HPCC_ADD_LIBRARY( hqlcpp SHARED ${SRCS} )
 install ( TARGETS hqlcpp RUNTIME DESTINATION ${EXEC_DIR} LIBRARY DESTINATION ${LIB_DIR} )
 target_link_libraries ( hqlcpp
@@ -141,5 +145,3 @@ target_link_libraries ( hqlcpp
 if (NOT WIN32)
   target_link_libraries ( hqlcpp ${BINUTILS_LIBRARIES})
 endif()
-
-
