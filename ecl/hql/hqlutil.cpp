@@ -5702,9 +5702,9 @@ static bool splitDatasetAttribute(SharedHqlExpr & dataset, SharedHqlExpr & attri
     case no_map:
     case no_externalcall:
     case no_call:
-//  case no_not:
-//  case no_and:
-//  case no_or:
+    case no_not:
+    case no_and:
+    case no_or:
 //  case no_substring:
 //  case no_charlen:
         {
