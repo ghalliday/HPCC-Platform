@@ -645,7 +645,6 @@ protected:
         unsigned last = first + getNumActivityArguments(expr);
         unsigned max = expr->numChildren();
         unsigned i;
-        HqlExprCopyArray hiddenSelectors;
         for (i = 0; i < first; i++)
             expr->queryChild(i)->gatherTablesUsed(&hiddenSelectors, NULL);
         for (i = last; i < max; i++)
@@ -724,7 +723,12 @@ protected:
                 return false;
 
             if (ambiguousSelectors.contains(cur))
+            {
+                if (hiddenSelectors.contains(cur))
+                    cur.numChildren();
+
                 return false;
+            }
         }
 
         if (!isEfficientToHoistDataset(ds, ignoreInline))
@@ -765,6 +769,7 @@ protected:
     IHqlExpression * original;
     HqlExprCopyArray & selectors;
     HqlExprCopyArray ambiguousSelectors;
+    HqlExprCopyArray hiddenSelectors;
     unsigned conditionalDepth;
     bool okToSelect;
     bool gathered;
