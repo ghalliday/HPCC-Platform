@@ -762,6 +762,7 @@ protected:
 
     void defineImport(const attribute & errpos, IHqlExpression * imported, IIdAtom * newName);
     IHqlExpression * resolveImportModule(const attribute & errpos, IHqlExpression * expr);
+    IHqlExpression * resolveRelativeImport(IHqlScope * scope, const char * path, IIdAtom * id);
 
     void setActiveAttrs(int activityToken, const TokenMap * attrs);
 

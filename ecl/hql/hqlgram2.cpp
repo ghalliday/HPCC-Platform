@@ -10644,6 +10644,33 @@ inline bool isRootModule(IHqlExpression * expr)
     return expr->isAttribute() && (expr->queryName() == _root_Atom);
 }
 
+IHqlExpression * HqlGram::resolveRelativeImport(IHqlScope * scope, const char * path, IIdAtom * id)
+{
+    if (stricmp(str(id), "ml_core"))
+        id->queryLower();
+    if (path)
+    {
+        const char * dot = strchr(path, '.');
+        IIdAtom * nextId;
+        if (dot)
+            nextId = createIdAtom(path, dot-path);
+        else
+            nextId = createIdAtom(path);
+
+        IHqlExpression * thisScopeExpr = scope->lookupSymbol(nextId, LSFimport, lookupCtx);
+        assertex(thisScopeExpr);
+        IHqlScope * thisScope = thisScopeExpr->queryScope();
+        assertex(thisScope);
+
+        OwnedHqlExpr resolved = resolveRelativeImport(thisScope, dot ? dot+1 : nullptr, id);
+        if (resolved)
+            return resolved.getClear();
+    }
+
+    return scope->lookupSymbol(id, LSFimport, lookupCtx);
+}
+
+
 IHqlExpression * HqlGram::resolveImportModule(const attribute & errpos, IHqlExpression * expr)
 {
     if (isDollarModule(expr))
@@ -10665,7 +10692,17 @@ IHqlExpression * HqlGram::resolveImportModule(const attribute & errpos, IHqlExpr
         }
 
         IIdAtom * id = expr->queryId();
-        OwnedHqlExpr importMatch = lookupCtx.queryRepository()->queryRootScope()->lookupSymbol(id, LSFimport, lookupCtx);
+        OwnedHqlExpr importMatch;
+
+        bool relativeImports = true;
+        IHqlScope * rootScope = lookupCtx.queryRepository()->queryRootScope();
+        if (relativeImports)
+        {
+            const char * containerPath = str(queryExpression(globalScope)->queryBody()->queryFullContainerId());
+            importMatch.setown(resolveRelativeImport(rootScope, containerPath, id));
+        }
+        else
+            importMatch.setown(rootScope->lookupSymbol(id, LSFimport, lookupCtx));
         if (!importMatch)
             importMatch.setown(lookupParseSymbol(id));
 
