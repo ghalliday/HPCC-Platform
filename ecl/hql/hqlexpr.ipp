@@ -78,24 +78,33 @@ class CUsedTablesBuilder;
 //Create once all the processing is done so the array is exactly the right size.
 class HQL_API CUsedTables
 {
+    friend class CUsedTablesBuilder;
 public:
     CUsedTables();
     ~CUsedTables();
 
     inline bool isIndependentOfScope() const { return (numActiveTables == 0); }
-    bool usesSelector(IHqlExpression * selector) const;
+
     void gatherTablesUsed(CUsedTablesBuilder & used) const;
     void gatherTablesUsed(HqlExprCopyArray & inScope) const;
+    bool matches(const CUsedTables * other) const;
+    const CUsedTables * queryCloned() const { return isClone() ? tables.cloned : this; }
+    void set(const CUsedTables * other);
     void set(HqlExprCopyArray & _activeTables);
     void setActiveTable(IHqlExpression * expr);
+    bool usesSelector(IHqlExpression * selector) const;
+
+    bool isClone() const { return numActiveTables == CLONED_TABLES; }
 
 private:
+    const static unsigned CLONED_TABLES = 0xFFFFFFFF;
     union
     {
         IHqlExpression * single;
         IHqlExpression * * multi;
+        const CUsedTables * cloned; // never set if numActiveTables <= 1, numActiveTables = CLONED_TABLES
     } tables;
-    unsigned numActiveTables;
+    unsigned numActiveTables = 0;
 };
 
 class HQL_API UsedExpressionHashTable : public SuperHashTableOf<IHqlExpression, IHqlExpression>
@@ -132,37 +141,24 @@ class HQL_API CUsedTablesBuilder
 public:
     void addActiveTable(IHqlExpression * expr);
     void cleanupProduction();
-    inline void removeActive(IHqlExpression * expr)
-    {
-        HqlExprCopyArray toRemove;
-        for (IHqlExpression & cur : inScopeTables)
-        {
-            IHqlExpression * selector = &cur;
-            for(;;)
-            {
-                if (selector == expr)
-                {
-                    toRemove.append(cur);
-                    break;
-                }
-                if (selector->getOperator() != no_select)
-                    break;
-                selector = selector->queryChild(0);
-            }
-        }
-        ForEachItemIn(i, toRemove)
-            removeActiveSelector(&toRemove.item(i));
-    }
-    void removeActiveSelector(IHqlExpression * expr) { inScopeTables.remove(expr); }
+    void gather(CUsedTables & tables) const;
+    void inherit(const CUsedTables * clone);
     void removeParent(IHqlExpression * expr);
     void removeActiveRecords();
+    void removeActive(IHqlExpression * expr);
     void removeRows(IHqlExpression * expr, IHqlExpression * left, IHqlExpression * right);
-    void set(CUsedTables & tables);
 
-    inline bool isIndependentOfScope() const { return inScopeTables.ordinality() == 0; }
+    inline bool isIndependentOfScope() const { return !cloned && inScopeTables.ordinality() == 0; }
+
+protected:
+    void expandIfCloned() { if (cloned) expandCloned(); }
+    void expandCloned();
+    void expandCloned(const CUsedTables * other);
+    void removeActiveSelector(IHqlExpression * expr);
 
 protected:
     UsedExpressionHashTable inScopeTables;     // may need to rename, since use has changed.
+    const CUsedTables * cloned = nullptr;
 };
 
 #ifdef HQLEXPR_MULTI_THREADED

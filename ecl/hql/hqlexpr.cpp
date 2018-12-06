@@ -5363,7 +5363,7 @@ CUsedTables::CUsedTables()
 
 CUsedTables::~CUsedTables()
 {
-    if (numActiveTables > 1)
+    if ((numActiveTables > 1) && !isClone())
         delete [] tables.multi;
 }
 
@@ -5371,6 +5371,9 @@ bool CUsedTables::usesSelector(IHqlExpression * selector) const
 {
     if (numActiveTables > 1)
     {
+        if (isClone())
+            return tables.cloned->usesSelector(selector);
+
         for (unsigned i=0; i < numActiveTables; i++)
         {
             if (tables.multi[i] == selector)
@@ -5406,10 +5409,51 @@ void CUsedTables::gatherTablesUsed(HqlExprCopyArray & inScope) const
     {
         addUniqueTable(inScope, tables.single);
     }
+    else if (isClone())
+        tables.cloned->gatherTablesUsed(inScope);
     else
     {
         for (unsigned i1=0; i1 < numActiveTables; i1++)
             addUniqueTable(inScope, tables.multi[i1]);
+    }
+}
+
+bool CUsedTables::matches(const CUsedTables * other) const
+{
+    assertex(!isClone() && !other->isClone());
+    if (numActiveTables != other->numActiveTables)
+        return false;
+    switch (numActiveTables)
+    {
+    case 0:
+        return true;
+    case 1:
+        return tables.single == other->tables.single;
+    default:
+    {
+        for (unsigned i1=0; i1 < numActiveTables; i1++)
+            if (!other->usesSelector(tables.multi[i1]))
+                return false;
+        return true;
+    }
+    }
+}
+
+
+void CUsedTables::set(const CUsedTables * other)
+{
+    switch (other->numActiveTables)
+    {
+    case 0:
+        break;
+    case 1:
+        numActiveTables = 1;
+        tables.single = other->tables.single;
+        break;
+    default:
+        numActiveTables = CLONED_TABLES;
+        tables.cloned = other->queryCloned();
+        break;
     }
 }
 
@@ -5441,11 +5485,72 @@ void CUsedTables::setActiveTable(IHqlExpression * expr)
 
 void CUsedTablesBuilder::addActiveTable(IHqlExpression * expr)
 {
+    if (cloned)
+    {
+        //Check if the selector is already in the list.
+        if (cloned->usesSelector(expr))
+            return;
+        expandCloned();
+    }
+
     ::addActiveTable(inScopeTables, expr);
 }
 
+
+void CUsedTablesBuilder::inherit(const CUsedTables * other)
+{
+    switch (other->numActiveTables)
+    {
+    case 0:
+        return;
+    case 1:
+        addActiveTable(other->tables.single);
+        return;
+    }
+
+    other = other->queryCloned();
+    if (cloned)
+    {
+        if ((other == cloned) || cloned->matches(other))
+            return;
+
+        expandCloned();
+    }
+    else
+    {
+        switch (inScopeTables.ordinality())
+        {
+        case 0:
+            cloned = other;
+            return;
+        case 1:
+            cloned = other;
+            //Check if the only item is in cloned, and if so clear the table and set to cloned.  Likely to be worth it.
+            //The following code would also work for >1 tables, so could experiment with the benefit.
+            for (auto& cur : inScopeTables)
+            {
+                if (!other->usesSelector(&cur))
+                {
+                    cloned = nullptr;
+                    break;
+                }
+            }
+            if (cloned)
+            {
+                inScopeTables.kill();
+                return;
+            }
+            break;
+        }
+    }
+    expandCloned(other);
+}
+
+
 void CUsedTablesBuilder::cleanupProduction()
 {
+    //MORE: Could check whether this has any potential matches ahead of time
+    expandIfCloned();
     HqlExprCopyArray toRemove;
     for (IHqlExpression& cur : inScopeTables)
     {
@@ -5459,7 +5564,53 @@ void CUsedTablesBuilder::cleanupProduction()
     }
 
     ForEachItemIn(i, toRemove)
-        inScopeTables.remove(&toRemove.item(i));
+        removeActive(&toRemove.item(i));
+}
+
+void CUsedTablesBuilder::expandCloned()
+{
+    const CUsedTables * other = cloned;
+    cloned = nullptr;
+    expandCloned(other);
+}
+
+void CUsedTablesBuilder::expandCloned(const CUsedTables * other)
+{
+    HqlExprCopyArray inScope;
+    other->gatherTablesUsed(inScope);
+
+    ForEachItemIn(i, inScope)
+        ::addActiveTable(inScopeTables, &inScope.item(i));
+}
+
+void CUsedTablesBuilder::removeActive(IHqlExpression * expr)
+{
+    expandIfCloned();
+
+    HqlExprCopyArray toRemove;
+    for (IHqlExpression & cur : inScopeTables)
+    {
+        IHqlExpression * selector = &cur;
+        for(;;)
+        {
+            if (selector == expr)
+            {
+                toRemove.append(cur);
+                break;
+            }
+            if (selector->getOperator() != no_select)
+                break;
+            selector = selector->queryChild(0);
+        }
+    }
+    ForEachItemIn(i, toRemove)
+        removeActiveSelector(&toRemove.item(i));
+}
+
+void CUsedTablesBuilder::removeActiveSelector(IHqlExpression * expr)
+{
+    expandIfCloned();
+    inScopeTables.remove(expr);
 }
 
 void CUsedTablesBuilder::removeParent(IHqlExpression * expr)
@@ -5485,6 +5636,7 @@ void CUsedTablesBuilder::removeRows(IHqlExpression * expr, IHqlExpression * left
     if (rowsSide == no_none)
         return;
 
+    expandIfCloned();
     IHqlExpression * rowsid = expr->queryAttribute(_rowsid_Atom);
     switch (rowsSide)
     {
@@ -5507,6 +5659,8 @@ void CUsedTablesBuilder::removeRows(IHqlExpression * expr, IHqlExpression * left
 
 void CUsedTablesBuilder::removeActiveRecords()
 {
+    expandIfCloned();
+
     HqlExprCopyArray toRemove;
     for (IHqlExpression&cur : inScopeTables)
     {
@@ -5524,11 +5678,21 @@ inline void expand(HqlExprCopyArray & target, const UsedExpressionHashTable & so
         target.append(cur);
 }
 
-void CUsedTablesBuilder::set(CUsedTables & tables)
+void CUsedTablesBuilder::gather(CUsedTables & tables) const
 {
-    HqlExprCopyArray inTables;
-    expand(inTables, inScopeTables);
-    tables.set(inTables);
+    if (cloned)
+    {
+        tables.set(cloned);
+    }
+    else
+    {
+        HqlExprCopyArray inTables;
+        if (cloned)
+            cloned->gatherTablesUsed(inTables);
+        else
+            expand(inTables, inScopeTables);
+        tables.set(inTables);
+    }
 }
 
 //---------------------------------------------------------------------------------------------------------------------
@@ -5960,7 +6124,7 @@ void CHqlExpressionWithTables::cacheTablesUsed()
         {
             CUsedTablesBuilder used;
             calcTablesUsed(used, false);
-            used.set(usedTables);
+            used.gather(usedTables);
         }
         infoFlags |= HEFgatheredNew;
     }
@@ -5995,7 +6159,8 @@ void CHqlExpressionWithTables::gatherTablesUsed(HqlExprCopyArray & inScope)
 void CHqlExpressionWithTables::gatherTablesUsed(CUsedTablesBuilder & used)
 {
     cacheTablesUsed();
-    usedTables.gatherTablesUsed(used);
+    used.inherit(&usedTables);
+//    usedTables.gatherTablesUsed(used);
 }
 
 //==============================================================================================================
