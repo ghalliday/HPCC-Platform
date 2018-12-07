@@ -1138,6 +1138,7 @@ extern HQL_API int getPrecedence(node_operator op);
 struct BindParameterContext;
 interface IHqlAnnotation;
 class HQL_API CUsedTablesBuilder;
+class HQL_API CUsedTables;
 interface IHqlExpression : public IInterface
 {
     virtual IAtom * queryName() const = 0;
@@ -1231,6 +1232,7 @@ interface IHqlExpression : public IInterface
 
 //purely used for internal processing.  Should not be called directly
     virtual void gatherTablesUsed(CUsedTablesBuilder & used) = 0;
+    virtual void gatherTablesUsed(CUsedTables & used) = 0;
     virtual unsigned            getCachedEclCRC() = 0;          // do not call directly - use getExpressionCRC()
 
 // The following inline functions are purely derived from the functions in this interface

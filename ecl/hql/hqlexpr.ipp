@@ -85,6 +85,7 @@ public:
     inline bool isIndependentOfScope() const { return (numActiveTables == 0); }
     bool usesSelector(IHqlExpression * selector) const;
     void gatherTablesUsed(CUsedTablesBuilder & used) const;
+    void gatherTablesUsed(CUsedTables & used) const;
     void gatherTablesUsed(HqlExprCopyArray & inScope) const;
     void set(HqlExprCopyArray & _activeTables);
     void setActiveTable(IHqlExpression * expr);
@@ -380,6 +381,7 @@ public:
     virtual bool isIndependentOfScopeIgnoringInputs() override;
     virtual bool usesSelector(IHqlExpression * selector) override;
     virtual void gatherTablesUsed(CUsedTablesBuilder & used) override;
+    virtual void gatherTablesUsed(CUsedTables & used) override;
     virtual void gatherTablesUsed(HqlExprCopyArray & inScope) override;
 
 protected:
@@ -454,6 +456,7 @@ public:
     virtual bool isIndependentOfScopeIgnoringInputs() override;
     virtual bool usesSelector(IHqlExpression * selector) override;
     virtual void gatherTablesUsed(CUsedTablesBuilder & used) override;
+    virtual void gatherTablesUsed(CUsedTables & used) override;
     virtual void gatherTablesUsed(HqlExprCopyArray & inScope) override;
 
     virtual void calcNormalized() = 0;
@@ -643,6 +646,7 @@ public:
     virtual bool isIndependentOfScopeIgnoringInputs() override;
     virtual bool usesSelector(IHqlExpression * selector) override;
     virtual void gatherTablesUsed(CUsedTablesBuilder & used) override;
+    virtual void gatherTablesUsed(CUsedTables & used) override;
     virtual void gatherTablesUsed(HqlExprCopyArray & inScope) override;
     virtual IValue *queryValue() const override;
     virtual IInterface *queryUnknownExtra() override;
@@ -1453,6 +1457,7 @@ public:
     virtual bool isIndependentOfScopeIgnoringInputs() override { return true; }
     virtual bool usesSelector(IHqlExpression * selector) override { return false; }
     virtual void gatherTablesUsed(CUsedTablesBuilder & used) override {}
+    virtual void gatherTablesUsed(CUsedTables & used) override {}
     virtual void gatherTablesUsed(HqlExprCopyArray & inScope) override {}
 };
 
@@ -1649,6 +1654,7 @@ public:
     virtual bool isIndependentOfScopeIgnoringInputs() override { return true; }
     virtual bool usesSelector(IHqlExpression * selector) override { return false; }
     virtual void gatherTablesUsed(CUsedTablesBuilder & used) override {}
+    virtual void gatherTablesUsed(CUsedTables & used) override {}
     virtual void gatherTablesUsed(HqlExprCopyArray & inScope) override {}
 };
 
