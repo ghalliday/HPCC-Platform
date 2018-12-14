@@ -848,6 +848,7 @@ class CHThorSkipCatchActivity : public CHThorSimpleActivityBase
 {
 public:
     CHThorSkipCatchActivity(IAgentContext &agent, unsigned _activityId, unsigned _subgraphId, IHThorCatchArg &_arg, ThorActivityKind _kind);
+    virtual void ready();
     virtual void stop();
     virtual const void * nextRow();
 

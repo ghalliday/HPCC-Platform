@@ -203,11 +203,11 @@ IHThorInput *CHThorActivityBase::queryOutput(unsigned index)
 
 void CHThorActivityBase::ready()
 {
-    if (input)
-        input->ready();
     if (needsAllocator())       
         createRowAllocator();   
     initialProcessed = processed;
+    if (input)
+        input->ready();
 }
 
 CHThorActivityBase::~CHThorActivityBase()
@@ -3100,6 +3100,20 @@ CHThorSkipCatchActivity::CHThorSkipCatchActivity(IAgentContext &_agent, unsigned
 {
 }
 
+void CHThorSkipCatchActivity::ready()
+{
+    try
+    {
+        CHThorSimpleActivityBase::ready();
+    }
+    catch (IException * e)
+    {
+        onException(e);
+    }
+}
+
+
+
 void CHThorSkipCatchActivity::stop()
 {
     CHThorSimpleActivityBase::stop();
@@ -3108,7 +3122,11 @@ void CHThorSkipCatchActivity::stop()
 
 void CHThorSkipCatchActivity::onException(IException *E)
 {
-    buffer->clear();
+    if (buffer)
+        buffer->clear();
+    else
+        buffer.setown(new CRowBuffer(input->queryOutputMeta(), true));
+
     if (kind == TAKcreaterowcatch)
     {
         createRowAllocator();
