@@ -490,7 +490,7 @@ protected:
     HqlExprAttr normalized;
 };
 
-class CFileContents : public CInterfaceOf<IFileContents>
+class CFileContents : public CSimpleInterfaceOf<IFileContents>
 {
 private:
     bool delayedRead;

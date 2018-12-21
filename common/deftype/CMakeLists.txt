@@ -44,6 +44,7 @@ include_directories (
     )
 
 ADD_DEFINITIONS( -D_USRDLL -DDEFTYPE_EXPORTS )
+ADD_DEFINITIONS( -fno-stack-protector )
 
 HPCC_ADD_LIBRARY( deftype SHARED ${SRCS} )
 install ( TARGETS deftype RUNTIME DESTINATION ${EXEC_DIR} LIBRARY DESTINATION ${LIB_DIR} )
