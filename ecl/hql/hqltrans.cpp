@@ -4918,6 +4918,90 @@ bool containsExternalParameter(IHqlExpression * expr, IHqlExpression * params)
 
 //------------------------------------------------------------------------------------------------
 
+static HqlTransformerInfo expressionSizeAnalyserInfo("ExpressionSizeAnalyser");
+class ExpressionSizeAnalyser : public QuickHqlTransformer
+{
+public:
+    ExpressionSizeAnalyser(bool _onlyActivities, bool _processColon, bool _processSequential) :
+        QuickHqlTransformer(expressionSizeAnalyserInfo, NULL),
+        onlyActivities(_onlyActivities), processColon(_processColon), processSequential(_processSequential)
+    {
+    }
+
+    virtual void doAnalyse(IHqlExpression * expr);
+
+    unsigned __int64 getNumExprs() const { return numExpressions; }
+
+protected:
+    HqlExprCopyArray expanded;
+    bool onlyActivities;
+    bool processColon;
+    bool processSequential;
+    unsigned __int64 numExpressions = 0;
+};
+
+void ExpressionSizeAnalyser::doAnalyse(IHqlExpression * expr)
+{
+    IHqlExpression * body = expr->queryBody();
+    switch (expr->getOperator())
+    {
+    case no_colon:
+    {
+        if (processColon)
+        {
+            if (!expanded.contains(*body))
+            {
+                expanded.append(*body);
+                TransformMutexBlock nested;
+                QuickHqlTransformer::doAnalyse(body);
+            }
+            return;
+        }
+        break;
+    }
+    case no_sequential:
+    {
+        if (processSequential)
+        {
+            if (expr->numChildren())
+            {
+                analyse(expr->queryChild(0));
+                ForEachChildFrom(i, expr, 1)
+                {
+                    TransformMutexBlock nested;
+                    analyse(expr->queryChild(i));
+                }
+            }
+            return;
+        }
+        break;
+    }
+    }
+
+    if (!onlyActivities || (body->isDataset() || body->isAction()))
+        numExpressions++;
+
+    QuickHqlTransformer::doAnalyse(body);
+}
+
+
+unsigned getExpressionSize(HqlExprArray & exprs, bool onlyActivities, bool processColon, bool processSequential)
+{
+    ExpressionSizeAnalyser analyser(onlyActivities, processColon, processSequential);
+    analyser.analyseArray(exprs);
+    return analyser.getNumExprs();
+}
+
+unsigned getExpressionSize(IHqlExpression * expr, bool onlyActivities, bool processColon, bool processSequential)
+{
+    ExpressionSizeAnalyser analyser(onlyActivities, processColon, processSequential);
+    analyser.analyse(expr);
+    return analyser.getNumExprs();
+}
+
+//------------------------------------------------------------------------------------------------
+
+
 /*
 
 Some notes on selector ambiguity.
