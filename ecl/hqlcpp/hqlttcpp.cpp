@@ -3675,6 +3675,8 @@ static IHqlExpression * convertAggregateGroupingToGroupedAggregate(IHqlExpressio
     groupArgs.append(*LINK(groupBy));
     groupArgs.append(*createAttribute(allAtom));
     unwindChildren(groupArgs, expr, 4);
+    removeAttribute(groupArgs, mergeTransformAtom);
+    removeAttribute(groupArgs, _selectorSequence_Atom);
     OwnedHqlExpr result = createDataset(no_group, groupArgs);
 
     result.setown(cloneInheritedAnnotations(expr, result));
@@ -4002,10 +4004,10 @@ IHqlExpression * ThorHqlTransformer::normalizeTableGrouping(IHqlExpression * exp
                 useHashAggregate = false;
         }
 
-        if (useHashAggregate && group->isConstant() && !translator.targetThor())
+        if (useHashAggregate && group->isConstant())
             return removeAttribute(expr, fewAtom);
 
-        if (!expr->hasAttribute(manyAtom) && !expr->hasAttribute(sortedAtom))
+        if (!expr->hasAttribute(manyAtom) && !expr->hasAttribute(sortedAtom) && !group->isConstant())
         {
             if (isSmallGrouping(group))
             {
