@@ -4420,6 +4420,8 @@ void CHqlRealExpression::updateFlagsAfterOperands()
             IAtom * name = queryName();
             if (name == _volatileId_Atom)
                 infoFlags |= (HEFnoduplicate|HEFcontextDependentException);
+            else if (name == _virtualSeq_Atom)
+                infoFlags2 |= HEF2containsVirtualSeq;
             break;
         }
     case no_newxmlparse:

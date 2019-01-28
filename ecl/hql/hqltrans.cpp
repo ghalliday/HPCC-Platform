@@ -1097,6 +1097,20 @@ IHqlExpression * quickFullReplaceExpressions(IHqlExpression * expr, const HqlExp
     return map.transform(expr);
 }
 
+
+static HqlTransformerInfo virtualSeqExpressionReplacerInfo("VirtualSeqExpressionReplacer");
+VirtualSeqExpressionReplacer::VirtualSeqExpressionReplacer()
+: QuickExpressionReplacer(virtualSeqExpressionReplacerInfo, NULL)
+{
+}
+
+IHqlExpression * VirtualSeqExpressionReplacer::createTransformed(IHqlExpression * expr)
+{
+    if (!containsVirtualSeq(expr))
+        return LINK(expr);
+    return QuickExpressionReplacer::createTransformed(expr);
+}
+
 //-------------------------------------------------------------------------------------------------
 
 static HqlTransformerInfo quickExpressionLocatorInfo("QuickExpressionLocator");

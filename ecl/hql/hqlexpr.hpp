@@ -174,9 +174,10 @@ enum
     HEF2globalAction            = 0x00000100,               // Can only be evaluated globally
     HEF2containsCall            = 0x00000200,
     HEF2containsDelayedCall     = 0x00000400,
+    HEF2containsVirtualSeq      = 0x00000800,
 
     //NB: infoFlags2 is currently 2 bytes
-    HEF2alwaysInherit           = (HEF2workflow|HEF2containsCall|HEF2containsDelayedCall),
+    HEF2alwaysInherit           = (HEF2workflow|HEF2containsCall|HEF2containsDelayedCall|HEF2containsVirtualSeq),
     HEF2intersectionFlags       = (HEF2constant),
     HEF2unionFlags              = (HEF2alwaysInherit)|(HEF2mustHoist|HEF2assertstepped|HEF2containsNonGlobalAlias|HEF2containsNewDataset|HEF2globalAction|HEF2containsSelf|HEF2containsImplicitNormalize),
     HEF2assigninheritFlags      = ~(HEF2alwaysInherit),         // An assign inherits all but this list from the rhs value 
@@ -1810,6 +1811,7 @@ inline bool containsCall(IHqlExpression * expr, bool includeOutOfLine)
     return (expr->getInfoFlags2() & mask) != 0;
 }
 inline bool containsImplicitNormalize(IHqlExpression * expr) { return (expr->getInfoFlags2() & HEF2containsImplicitNormalize) != 0; }
+inline bool containsVirtualSeq(IHqlExpression * expr)   { return (expr->getInfoFlags2() & HEF2containsVirtualSeq) != 0; }
 
 inline bool hasDynamic(IHqlExpression * expr)           { return expr->hasAttribute(dynamicAtom); }
 inline bool isAbstractDataset(IHqlExpression * expr)    

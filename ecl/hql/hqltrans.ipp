@@ -256,8 +256,18 @@ class HQL_API QuickExpressionReplacer : public QuickHqlTransformer
 {
 public:
     QuickExpressionReplacer();
+    QuickExpressionReplacer(HqlTransformerInfo & _info, IErrorReceiver * _errors) : QuickHqlTransformer(_info, _errors) {}
 
     void setMapping(IHqlExpression * oldValue, IHqlExpression * newValue);
+};
+
+
+class HQL_API VirtualSeqExpressionReplacer : public QuickExpressionReplacer
+{
+public:
+    VirtualSeqExpressionReplacer();
+
+    virtual IHqlExpression * createTransformed(IHqlExpression * expr);
 };
 
 

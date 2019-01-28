@@ -10343,7 +10343,7 @@ void HqlGram::cloneInheritedAttributes(IHqlScope * scope, const attribute & errp
             curBase->getSymbols(syms);
             syms.sort(compareSymbolsByName);
 
-            QuickExpressionReplacer virtualMapper;
+            VirtualSeqExpressionReplacer virtualMapper;
             if (baseVirtualAttr)
                 virtualMapper.setMapping(baseVirtualAttr, virtualSeqAttr);
             ForEachItemIn(iSym, syms)
