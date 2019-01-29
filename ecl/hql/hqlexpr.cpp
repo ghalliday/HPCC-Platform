@@ -13395,6 +13395,27 @@ bool canEvaluateInScope(const HqlExprCopyArray & activeScopes, IHqlExpression * 
 }
 
 
+//Does this expression introduce a new dependence on a scope that its inputs are not dependent on?
+bool isActivityDependentOnNewScope(IHqlExpression * expr)
+{
+    //Special case any expression that isn't dependent on the enclosing scope
+    if (isIndependentOfScope(expr))
+        return false;
+    unsigned numInputs = getNumActivityArguments(expr);
+    unsigned firstInput = getFirstActivityArgument(expr);
+    if (numInputs == 1)
+    {
+        //Optimize a common case where a single input is independent of the enclosing scope
+        if (expr->queryChild(firstInput)->isIndependentOfScope())
+            return true;
+    }
+
+    HqlExprCopyArray scopesUsed;
+    for (unsigned i=firstInput; i < firstInput + numInputs; i++)
+        expr->queryChild(i)->gatherTablesUsed(scopesUsed);
+    return !canEvaluateInScope(scopesUsed, expr);
+}
+
 bool exprReferencesDataset(IHqlExpression * expr, IHqlExpression * dataset)
 {
     return expr->usesSelector(dataset->queryNormalizedSelector());

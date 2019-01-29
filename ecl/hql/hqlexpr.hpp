@@ -1611,6 +1611,7 @@ extern HQL_API bool isActivityIndependentOfScope(IHqlExpression * expr);
 extern HQL_API bool exprReferencesDataset(IHqlExpression * expr, IHqlExpression * dataset);
 extern HQL_API bool canEvaluateInScope(const HqlExprCopyArray & activeScopes, IHqlExpression * expr);
 extern HQL_API bool canEvaluateInScope(const HqlExprCopyArray & activeScopes, const HqlExprCopyArray & required);
+extern HQL_API bool isActivityDependentOnNewScope(IHqlExpression * expr);
 extern HQL_API IHqlExpression * ensureDeserialized(IHqlExpression * expr, ITypeInfo * type, IAtom * serialForm);
 extern HQL_API IHqlExpression * ensureSerialized(IHqlExpression * expr, IAtom * serialForm);
 extern HQL_API bool isDummySerializeDeserialize(IHqlExpression * expr);

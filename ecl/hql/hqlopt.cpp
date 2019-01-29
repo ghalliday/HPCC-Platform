@@ -2791,7 +2791,8 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
     }
 
     bool shared = childrenAreShared(transformed);
-    if (shared)
+    bool isMoreDependent = !(options & HOOinsidecompound) && isActivityDependentOnNewScope(transformed); // shortcircuit this... if shared
+    if (shared || isMoreDependent)
     {
         bool okToContinue = false;
         switch (op)
@@ -2811,7 +2812,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                     }
                 case no_inlinetable:
                     //shared is checked within the code below....
-                    okToContinue = true;
+                    okToContinue = !isMoreDependent;
                     break;
                 }
                 break;
@@ -2822,7 +2823,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                 switch(childOp)
                 {
                 case no_inlinetable:
-                    okToContinue = true;
+                    okToContinue = !isMoreDependent;
                     break;
                 }
                 break;
