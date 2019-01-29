@@ -3189,7 +3189,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityDiskRead(BuildCtx & ctx, IHqlE
     DiskReadBuilder info(*this, tableExpr, tableExpr->queryChild(0));
     info.deduceDiskRecords();
 
-    unsigned optFlags = (options.foldOptimized ? HOOfold : 0);
+    unsigned optFlags = (options.foldOptimized ? HOOfold : 0)|HOOinsidecompound;
     if (info.newInputMapping && (modeOp != no_csv) && (modeOp != no_xml) && (modeOp != no_pipe))
     {
         //The projected disk information (which is passed to the transform) uses the in memory format IFF
@@ -3315,7 +3315,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityDiskNormalize(BuildCtx & ctx, 
     if (info.recordHasVirtualsOrDeserialize())
         transformed.setown(buildTableWithoutVirtuals(info.fieldInfo, expr));
 
-    unsigned optFlags = (options.foldOptimized ? HOOfold : 0);
+    unsigned optFlags = (options.foldOptimized ? HOOfold : 0)|HOOinsidecompound;
     OwnedHqlExpr optimized = optimizeHqlExpression(queryErrorProcessor(), transformed, optFlags);
     if (optimized != expr)
         return buildActivity(ctx, optimized, false);
@@ -4088,7 +4088,7 @@ void NewIndexReadBuilder::buildTransform(IHqlExpression * expr)
 ABoundActivity * HqlCppTranslator::doBuildActivityIndexRead(BuildCtx & ctx, IHqlExpression * expr)
 {
     OwnedHqlExpr transformed = buildIndexFromPhysical(expr);
-    OwnedHqlExpr optimized = optimizeHqlExpression(queryErrorProcessor(), transformed, HOOfold);
+    OwnedHqlExpr optimized = optimizeHqlExpression(queryErrorProcessor(), transformed, HOOfold|HOOinsidecompound);
 
     IHqlExpression *tableExpr = queryPhysicalRootTable(optimized);
     //If the filter is false, then it may get reduced to a NULL operation!
@@ -4165,7 +4165,7 @@ void IndexNormalizeBuilder::buildTransform(IHqlExpression * expr)
 ABoundActivity * HqlCppTranslator::doBuildActivityIndexNormalize(BuildCtx & ctx, IHqlExpression * expr)
 {
     OwnedHqlExpr transformed = buildIndexFromPhysical(expr);
-    OwnedHqlExpr optimized = optimizeHqlExpression(queryErrorProcessor(), transformed, HOOfold);
+    OwnedHqlExpr optimized = optimizeHqlExpression(queryErrorProcessor(), transformed, HOOfold|HOOinsidecompound);
     traceExpression("after optimize", optimized);
 
     IHqlExpression *tableExpr = queryPhysicalRootTable(optimized);
