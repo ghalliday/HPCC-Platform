@@ -16618,7 +16618,7 @@ IHqlExpression * queryAggregateFilter(IHqlExpression * expr)
 
 node_operator querySingleAggregate(IHqlExpression * expr, bool canFilterArg, bool canBeGrouped, bool canCast)
 {
-    //This needs to only matche examples suported by the function above (with canBeGrouped set to false).
+    //This needs to only match examples supported by the function above (with canBeGrouped set to false).
     switch (expr->getOperator())
     {
     case no_compound_childaggregate:

@@ -6192,7 +6192,7 @@ bool isConstantTransform(IHqlExpression * transform)
 
 
 //would be sensible to extend this to some simple expressions
-static bool isSimpleValue(IHqlExpression * expr)
+bool isSimpleExpression(IHqlExpression * expr)
 {
     for (;;)
     {
@@ -6244,7 +6244,7 @@ static bool isSimpleTransformToMergeWith(IHqlExpression * expr, int & varSizeCou
         case no_assign:
             {
                 IHqlExpression * rhs = cur->queryChild(1);
-                if (!isSimpleValue(rhs))
+                if (!isSimpleExpression(rhs))
                     return false;
 
                 //Want to take note of whether it reduces the number of variable size fields, if it makes many variable sized into fixed size then it won't be good to remove

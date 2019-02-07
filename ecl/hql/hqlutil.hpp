@@ -239,6 +239,7 @@ extern HQL_API bool isConstantDataset(IHqlExpression * expr);
 extern HQL_API bool isConstantDictionary(IHqlExpression * expr);
 extern HQL_API bool isSimpleTransformToMergeWith(IHqlExpression * expr);
 extern HQL_API bool isSimpleTransform(IHqlExpression * expr);
+extern HQL_API bool isSimpleExpression(IHqlExpression * expr);
 extern HQL_API IHqlExpression * queryUncastExpr(IHqlExpression * expr);
 extern HQL_API bool areConstant(const HqlExprArray & args);
 extern HQL_API bool getFoldedConstantText(StringBuffer& ret, IHqlExpression * expr);

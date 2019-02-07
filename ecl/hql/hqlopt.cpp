@@ -590,6 +590,15 @@ IHqlExpression * CTreeOptimizer::optimizeAggregateUnsharedDataset(IHqlExpression
     return replaced.getClear();
 }
 
+static IHqlExpression * queryAggregateArgument(IHqlExpression * transform)
+{
+    IHqlExpression * assign = transform->queryChild(0);
+    assertex(assign->getOperator() == no_assign);
+    IHqlExpression * rhs = assign->queryChild(1);
+    IHqlExpression * arg = queryRealChild(rhs, 0);
+    return arg;
+}
+
 IHqlExpression * CTreeOptimizer::optimizeAggregateDataset(IHqlExpression * transformed)
 {
     HqlExprArray children;
@@ -603,6 +612,7 @@ IHqlExpression * CTreeOptimizer::optimizeAggregateDataset(IHqlExpression * trans
     bool insideShared = false;
     bool isScalarAggregate = (aggOp != no_newaggregate) && (aggOp != no_aggregate);
     bool isSimpleCount = isSimpleCountExistsAggregate(transformed, false, true);
+    bool isSimpleAggregate = (querySimpleAggregate(transformed, false, true) != no_none);
     for (;;)
     {
         node_operator dsOp = ds->getOperator();
@@ -614,12 +624,21 @@ IHqlExpression * CTreeOptimizer::optimizeAggregateDataset(IHqlExpression * trans
             if (ds->hasAttribute(prefetchAtom))
                 break;
 
-            //MORE: If the record is empty then either remove the project if no SKIP, or convert the SKIP to a filter
+            //Don't optimize aggregate(project-with-skip) - e.g. if shared it would duplicate the filter
+            if (transformContainsSkip(queryNewColumnProvider(ds)))
+                break;
 
             //Don't remove projects for the moment because they can make counts of disk reads much less
             //efficient.  Delete the following lines once we have a count-diskread activity
-            if (!isScalarAggregate && !(options & (HOOcompoundproject|HOOinsidecompound)) && !ds->hasAttribute(_countProject_Atom) )
-                break;
+//            if (!isScalarAggregate && !(options & (HOOcompoundproject|HOOinsidecompound)) && !ds->hasAttribute(_countProject_Atom) )
+//                break;
+            if (isShared(ds))
+            {
+                if (aggOp == no_aggregate)
+                    break;
+                //Later on ensure that the argument to the aggregate does not become much more complicated as a result
+            }
+
             if (isPureActivity(ds) && !isAggregateDataset(ds))
             {
                 OwnedMapper mapper = getMapper(ds);
@@ -637,14 +656,41 @@ IHqlExpression * CTreeOptimizer::optimizeAggregateDataset(IHqlExpression * trans
                 {
                     OwnedHqlExpr mapped = expandFields(mapper, &children.item(idx), oldDs, newDs, &expandMonitor);
                     if (containsCounter(mapped))
+                    {
                         expandMonitor.setComplex();
+                        break;
+                    }
                     newChildren.append(*mapped.getClear());
                 }
                 if (!expandMonitor.isComplex())
                 {
-                    for (unsigned idx = 1; idx < num; idx++)
-                        children.replace(OLINK(newChildren.item(idx-1)), idx);
-                    next = ds->queryChild(0);
+                    bool ok = true;
+                    if (isShared(ds))
+                    {
+                        if (aggOp == no_newaggregate)
+                        {
+                            IHqlExpression & oldTransform = children.item(2);
+                            IHqlExpression & transform = newChildren.item(1); // argument (2) of the aggregate
+                            ForEachChild(i, &transform)
+                            {
+                                IHqlExpression * assign = transform.queryChild(i);
+                                IHqlExpression * rhs = assign->queryChild(1);
+                                IHqlExpression * arg = queryRealChild(rhs, 0);
+                                if (arg && !isSimpleExpression(arg))
+                                    ok = false;
+                            }
+                        }
+                        else
+                        {
+                        }
+                    }
+
+                    if (ok)
+                    {
+                        for (unsigned idx = 1; idx < num; idx++)
+                            children.replace(OLINK(newChildren.item(idx-1)), idx);
+                        next = ds->queryChild(0);
+                    }
                 }
             }
             break;
