@@ -238,6 +238,7 @@ interface IConstWUGraphMetaIterator : extends IScmIterator
 };
 
 
+constexpr int LibraryBaseSequence = 1000000000;
 //! IWUResult
 enum
 {
