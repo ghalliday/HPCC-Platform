@@ -4051,6 +4051,17 @@ IHqlExpression * CHqlRealExpression::queryProperty(ExprPropKind kind)
     return NULL;
 }
 
+IInterface * CHqlRealExpression::queryInternalProperty(ExprPropKind kind) const
+{
+    return queryExistingProperty(kind);
+}
+
+void CHqlRealExpression::setInternalProperty(ExprPropKind kind, IInterface * value)
+{
+    addProperty(kind, value);
+}
+
+
 CHqlMetaProperty * queryMetaProperty(IHqlExpression * expr)
 {
     IHqlExpression * body = expr->queryBody();
@@ -4069,4 +4080,21 @@ CHqlMetaProperty * queryMetaProperty(IHqlExpression * expr)
     calculateDatasetMeta(info->meta, body);
     CHqlExprMeta::addProperty(body, EPmeta, info);
     return info;
+}
+
+IHqlExpression * queryAliasScope(IHqlExpression * expr)
+{
+    return static_cast<IHqlExpression*>(expr->queryInternalProperty(EPIaliasScope));
+}
+
+void setAliasScope(IHqlExpression * expr, IHqlExpression * aliases)
+{
+    expr->setInternalProperty(EPIaliasScope, aliases);
+}
+
+void cloneAliasScope(IHqlExpression * expr, IHqlExpression * donor)
+{
+    IHqlExpression * aliases = queryAliasScope(donor);
+    if (aliases)
+        setAliasScope(expr, aliases);
 }

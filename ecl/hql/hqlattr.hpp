@@ -91,4 +91,8 @@ extern HQL_API IHqlExpression * queryFixedRowCount(IHqlExpression * expr);
 class CHqlMetaProperty;
 extern HQL_API CHqlMetaProperty * queryMetaProperty(IHqlExpression * expr);
 
+extern HQL_API IHqlExpression * queryAliasScope(IHqlExpression * expr);
+extern HQL_API void setAliasScope(IHqlExpression * expr, IHqlExpression * aliases);
+extern HQL_API void cloneAliasScope(IHqlExpression * expr, IHqlExpression * donor);
+
 #endif

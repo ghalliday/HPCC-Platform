@@ -970,6 +970,7 @@ public:
     void buildClear(BuildCtx & ctx, const CHqlBoundTarget & target);
     void buildFilter(BuildCtx & ctx, IHqlExpression * expr);
     void buildFilteredReturn(BuildCtx & ctx, IHqlExpression * filter, IHqlExpression * value);
+    void buildFilteredInverseReturn(BuildCtx & ctx, IHqlExpression * filter, IHqlExpression * value);
     void buildCachedExpr(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt);
     void buildReturn(BuildCtx & ctx, IHqlExpression * expr, ITypeInfo * type=NULL);
     ABoundActivity * buildActivity(BuildCtx & ctx, IHqlExpression * expr, bool isRoot);
@@ -1658,6 +1659,7 @@ public:
     void doExpandAliases(BuildCtx & ctx, IHqlExpression * expr, AliasExpansionInfo & info);
     void expandAliases(BuildCtx & ctx, IHqlExpression * expr, AliasExpansionInfo * parentInfo);
     void expandAliasScope(BuildCtx & ctx, IHqlExpression * expr);
+    void checkForChildAliases(BuildCtx & ctx, IHqlExpression * expr);
     IHqlExpression * queryExpandAliasScope(BuildCtx & ctx, IHqlExpression * expr);
 
     void addDependency(BuildCtx & ctx, ABoundActivity * element, ABoundActivity * dependent, IAtom * kind, const char * label=NULL);
@@ -1916,7 +1918,6 @@ protected:
     void doBuildExprRowDiff(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt);
 
     void doFilterAssignment(BuildCtx & ctx, TransformBuilder * builder, HqlExprArray & assigns, IHqlExpression * expr);
-    void doFilterAssignments(BuildCtx & ctx, TransformBuilder * builder, HqlExprArray & assigns, IHqlExpression * expr);
     bool extractSerializeKey(SerializeKeyInfo & info, const DatasetReference & dataset, const HqlExprArray & sorts, bool isGlobal);
     void generateSerializeAssigns(BuildCtx & ctx, IHqlExpression * record, IHqlExpression * selector, IHqlExpression * selfSelect, IHqlExpression * leftSelect, const DatasetReference & srcDataset, const DatasetReference & tgtDataset, HqlExprArray & srcSelects, HqlExprArray & tgtSelects, bool needToClear, node_operator serializeOp, IAtom * serialForm);
     void generateSerializeFunction(BuildCtx & ctx, const char * funcName, const DatasetReference & srcDataset, const DatasetReference & tgtDataset, HqlExprArray & srcSelects, HqlExprArray & tgtSelects, node_operator serializeOp, IAtom * serialForm);

@@ -90,6 +90,7 @@ extern HQL_API IAtom * activityAtom;
 extern HQL_API IAtom * afterAtom;
 extern HQL_API IAtom * algorithmAtom;
 extern HQL_API IAtom * _aliased_Atom;
+extern HQL_API IAtom * aliasesAtom;
 extern HQL_API IAtom * allAtom;
 extern HQL_API IAtom * allocatorAtom;
 extern HQL_API IAtom * _alreadyAssignedNestedTag_Atom;

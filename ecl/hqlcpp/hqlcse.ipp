@@ -94,6 +94,9 @@ public:
 };
 
 
+void setAliasScope(IHqlExpression * expr, HqlExprArray & aliases);
+void inheritAliasScopes(HqlExprArray & aliases, IHqlExpression * donor);
+
 /*
  * This class is used to track the information for a single IHqlExpression - its parent expressions and parent alises.
  * This is then used to work out the "best" place in the expression graph to evaluate the aliases.

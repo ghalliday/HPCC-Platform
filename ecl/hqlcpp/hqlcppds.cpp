@@ -462,6 +462,7 @@ IReferenceSelector * HqlCppTranslator::buildNewRow(BuildCtx & ctx, IHqlExpressio
     if (match)
         return createReferenceSelector(match, expr);
 
+    checkForChildAliases(ctx, expr);
     BoundRow * row = NULL;
     node_operator op = expr->getOperator();
     switch (op)
@@ -1308,6 +1309,7 @@ bool HqlCppTranslator::doBuildAggregateMinMaxList(BuildCtx & ctx, const CHqlBoun
 void HqlCppTranslator::doBuildAggregateList(BuildCtx & ctx, const CHqlBoundTarget * target, IHqlExpression * expr, CHqlBoundExpr * tgt)
 {
     OwnedHqlExpr list = normalizeListCasts(expr->queryChild(0));
+    checkForChildAliases(ctx, list);
 
     if (list->getOperator() == no_alias_scope)
     {
@@ -2017,6 +2019,7 @@ IHqlExpression * HqlCppTranslator::forceInlineAssignDataset(BuildCtx & ctx, IHql
 {
     for (;;)
     {
+        checkForChildAliases(ctx, expr);
         CHqlBoundExpr bound;
         if (expr->isPure() && ctx.getMatchExpr(expr, bound))
             return bound.getTranslatedExpr();
@@ -4686,6 +4689,8 @@ void HqlCppTranslator::buildRowAssign(BuildCtx & ctx, BoundRow * targetRow, IHql
 
 void HqlCppTranslator::buildRowAssign(BuildCtx & ctx, IReferenceSelector * target, IHqlExpression * expr)
 {
+    checkForChildAliases(ctx, expr);
+
     switch (expr->getOperator())
     {
     case no_temprow:

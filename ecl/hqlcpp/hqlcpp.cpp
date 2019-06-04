@@ -796,6 +796,9 @@ static IHqlExpression * querySimplifyCompareArgCast(IHqlExpression * expr)
         return expr;
     while ((expr->getOperator() == no_implicitcast) || (expr->getOperator() == no_cast))
     {
+        if (queryAliasScope(expr))
+            return expr;
+
         ITypeInfo * type = expr->queryType()->queryPromotedType();
         switch (type->getTypeCode())
         {
@@ -854,7 +857,9 @@ IHqlExpression * getSimplifyCompareArg(IHqlExpression * expr)
     HqlExprArray args;
     unwindChildren(args, cast);
     args.append(*createAttribute(quickAtom));
-    return cast->clone(args);
+    OwnedHqlExpr ret = cast->clone(args);
+    cloneAliasScope(ret, expr);
+    return ret.getClear();
 }
 
 
@@ -2433,6 +2438,7 @@ void HqlCppTranslator::buildExprAssign(BuildCtx & ctx, const CHqlBoundTarget & t
         break;
     }
     */
+    checkForChildAliases(ctx, expr);
 
     node_operator op = expr->getOperator();
     switch (op)
@@ -2915,6 +2921,7 @@ void HqlCppTranslator::buildClear(BuildCtx & ctx, const CHqlBoundTarget & target
 
 void HqlCppTranslator::buildFilter(BuildCtx & ctx, IHqlExpression * expr)
 {
+    checkForChildAliases(ctx, expr);
     node_operator op = expr->getOperator();
 
     switch (op)
@@ -3039,6 +3046,7 @@ void HqlCppTranslator::buildExpr(BuildCtx & ctx, IHqlExpression * expr, CHqlBoun
 {
     node_operator op = expr->getOperator();
 
+    checkForChildAliases(ctx, expr);
     switch (op)
     {
     case no_counter:
@@ -3389,6 +3397,7 @@ void HqlCppTranslator::buildExpr(BuildCtx & ctx, IHqlExpression * expr, CHqlBoun
     case no_not:
         {
             IHqlExpression * child = expr->queryChild(0);
+
             node_operator childOp = child->getOperator();
             if (((childOp == no_and) || (childOp == no_or)) && requiresTempAfterFirst(ctx, child))
                 buildTempExpr(ctx, expr, tgt);
@@ -3731,7 +3740,6 @@ void HqlCppTranslator::buildFilteredReturn(BuildCtx & ctx, IHqlExpression * filt
 {
     filter = queryExpandAliasScope(ctx, filter);
 
-    HqlExprArray conds;
     node_operator op = filter->getOperator();
     if (op == no_or)
     {
@@ -3742,18 +3750,15 @@ void HqlCppTranslator::buildFilteredReturn(BuildCtx & ctx, IHqlExpression * filt
     if (op == no_not)
     {
         IHqlExpression * child = filter->queryChild(0);
+        checkForChildAliases(ctx, child);
+
         node_operator childOp = child->getOperator();
         if (childOp == no_and)
         {
-            child->unwindList(conds, no_and);
-            ForEachItemIn(i, conds)
-            {
-                IHqlExpression & cur = conds.item(i);
-                OwnedHqlExpr inverse = getInverse(&cur);
-                buildFilteredReturn(ctx, inverse, value);
-            }
+            buildFilteredInverseReturn(ctx, child, value);
             return;
         }
+
         if (childOp == no_alias_scope)
         {
             expandAliasScope(ctx, child);
@@ -3771,10 +3776,27 @@ void HqlCppTranslator::buildFilteredReturn(BuildCtx & ctx, IHqlExpression * filt
         condctx.addReturn(NULL);
 }
 
+void HqlCppTranslator::buildFilteredInverseReturn(BuildCtx & ctx, IHqlExpression * filter, IHqlExpression * value)
+{
+    filter = queryExpandAliasScope(ctx, filter);
+
+    node_operator op = filter->getOperator();
+    if (op == no_and)
+    {
+        buildFilteredInverseReturn(ctx, filter->queryChild(0), value);
+        buildFilteredInverseReturn(ctx, filter->queryChild(1), value);
+        return;
+    }
+
+    OwnedHqlExpr inverse = getInverse(filter);
+    buildFilteredReturn(ctx, inverse, value);
+}
+
 void HqlCppTranslator::buildStmt(BuildCtx & _ctx, IHqlExpression * expr)
 {
     BuildCtx ctx(_ctx);
 
+    checkForChildAliases(ctx, expr);
     node_operator op = expr->getOperator();
     switch (op)
     {
@@ -4078,6 +4100,9 @@ void HqlCppTranslator::doExpandAliases(BuildCtx & ctx, IHqlExpression * expr, Al
 #else
     expr->setTransformExtraUnlinked(expr);
 
+    if (queryAliasScope(expr))
+        return;
+
     node_operator op = expr->getOperator();
     switch (op)
     {
@@ -4126,6 +4151,22 @@ void HqlCppTranslator::expandAliasScope(BuildCtx & ctx, IHqlExpression * expr)
     for (unsigned idx = 1; idx < max; idx++)
     {
         IHqlExpression * child = expr->queryChild(idx);
+        if (containsAliasLocally(child))
+            doExpandAliases(ctx, child, info);
+    }
+}
+
+void HqlCppTranslator::checkForChildAliases(BuildCtx & ctx, IHqlExpression * expr)
+{
+    IHqlExpression * aliases = queryAliasScope(expr);
+    if (!aliases)
+        return;
+
+    TransformMutexBlock block;
+    AliasExpansionInfo info;
+    ForEachChild(i, aliases)
+    {
+        IHqlExpression * child = aliases->queryChild(i);
         if (containsAliasLocally(child))
             doExpandAliases(ctx, child, info);
     }
@@ -4248,6 +4289,7 @@ void HqlCppTranslator::buildBlockCopy(BuildCtx & ctx, IHqlExpression * tgt, CHql
 
 void HqlCppTranslator::buildSimpleExpr(BuildCtx & ctx, IHqlExpression * expr, CHqlBoundExpr & tgt)
 {
+    checkForChildAliases(ctx, expr);
     node_operator op = expr->getOperator();
 
     bool simple = false;
@@ -5129,6 +5171,21 @@ void HqlCppTranslator::doBuildExprCompare(BuildCtx & ctx, IHqlExpression * expr,
 //---------------------------------------------------------------------------
 //-- no_and --
 
+static void expandScopedList(HqlExprArray & conds, IHqlExpression * expr, node_operator op)
+{
+    for(;;)
+    {
+        if ((expr->getOperator() != op) || queryAliasScope(expr))
+        {
+            conds.append(*LINK(expr));
+            return;
+        }
+        expandScopedList(conds, expr->queryChild(0), op);
+        assertex(!queryRealChild(expr, 2));
+        expr = expr->queryChild(1);
+    }
+}
+
 void HqlCppTranslator::doBuildFilterToTarget(BuildCtx & ctx, const CHqlBoundTarget & isOk, HqlExprArray & conds, bool invert)
 {
     LinkedHqlExpr test = isOk.expr;
@@ -5151,7 +5208,8 @@ void HqlCppTranslator::doBuildFilterToTarget(BuildCtx & ctx, const CHqlBoundTarg
 void HqlCppTranslator::doBuildFilterAnd(BuildCtx & ctx, IHqlExpression * expr)
 {
     HqlExprArray conds;
-    expr->unwindList(conds, no_and);
+    expandScopedList(conds, expr->queryChild(0), no_and);
+    expandScopedList(conds, expr->queryChild(1), no_and);
 
     //Estimate the depth generated by the conditions - it may be wrong because
     //aliases generated in outer levels can stop temporaries being required later.
@@ -5200,16 +5258,17 @@ void HqlCppTranslator::doBuildFilterAndRange(BuildCtx & ctx, unsigned first, uns
         HqlExprArray args;
         for (unsigned k = first; k < last; k++)
             args.append(OLINK(conds.item(k)));
-        OwnedHqlExpr test = createValue(no_and, makeBoolType(), args);
+        OwnedHqlExpr test = createRightTree(no_and, makeBoolType(), args);
         buildFilterViaExpr(ctx, test);
     }
 }
 
-
 void HqlCppTranslator::doBuildAssignAnd(BuildCtx & ctx, const CHqlBoundTarget & target, IHqlExpression * expr, bool invert)
 {
     HqlExprArray conds;
-    expr->unwindList(conds, no_and);
+    expandScopedList(conds, expr->queryChild(0), no_and);
+    expandScopedList(conds, expr->queryChild(1), no_and);
+    //expr->unwindList(conds, no_and);
 
     doBuildFilterToTarget(ctx, target, conds, invert);
 }
@@ -5218,7 +5277,9 @@ void HqlCppTranslator::doBuildAssignOr(BuildCtx & ctx, const CHqlBoundTarget & t
 {
     BuildCtx subctx(ctx);
     HqlExprArray conds;
-    expr->unwindList(conds, no_or);
+    expandScopedList(conds, expr->queryChild(0), no_or);
+    expandScopedList(conds, expr->queryChild(1), no_or);
+//    expr->unwindList(conds, no_or);
 
     unsigned first = 0;
     unsigned max = conds.ordinality();
@@ -8118,10 +8179,11 @@ IHqlExpression * HqlCppTranslator::convertOrToAnd(IHqlExpression * expr)
     }
     assertex(expr->getOperator() == no_or);
     HqlExprArray original, inverted;
-    expr->unwindList(original, no_or);
+    expandScopedList(original, expr->queryChild(0), no_or);
+    expandScopedList(original, expr->queryChild(1), no_or);
     ForEachItemIn(idx, original)
         inverted.append(*getInverse(&original.item(idx)));
-    IHqlExpression * ret = createValue(no_and, makeBoolType(), inverted);
+    IHqlExpression * ret = createRightTree(no_and, makeBoolType(), inverted);
     if (invert)
         ret = createValue(no_not, makeBoolType(), ret);
     return ret;
@@ -12687,6 +12749,20 @@ bool HqlCppTranslator::childrenRequireTemp(BuildCtx & ctx, IHqlExpression * expr
 
 bool HqlCppTranslator::requiresTemp(BuildCtx & ctx, IHqlExpression * expr, bool includeChildren)
 {
+    if (includeChildren)
+    {
+        IHqlExpression * aliases = queryAliasScope(expr);
+        if (aliases)
+        {
+            ForEachChild(i, aliases)
+            {
+                IHqlExpression * alias = aliases->queryChild(i);
+                if (!alias->isPure() || !ctx.queryMatchExpr(alias->queryChild(0)))
+                    return true;
+            }
+        }
+    }
+
     switch (expr->getOperator())
     {
     case no_attr:
@@ -12878,6 +12954,8 @@ bool HqlCppTranslator::requiresTemp(BuildCtx & ctx, IHqlExpression * expr, bool 
 
 bool HqlCppTranslator::requiresTempAfterFirst(BuildCtx & ctx, IHqlExpression * expr)
 {
+    checkForChildAliases(ctx, expr);
+
     unsigned numArgs = expr->numChildren();
     for (unsigned index = 1; index < numArgs; index++)
         if (requiresTemp(ctx, expr->queryChild(index), true))

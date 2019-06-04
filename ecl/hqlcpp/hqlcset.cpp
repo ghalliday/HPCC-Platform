@@ -1530,8 +1530,9 @@ bool CreateSetCursor::isSingleValued()
 
 IHqlCppSetCursor * HqlCppTranslator::createSetSelector(BuildCtx & ctx, IHqlExpression * expr)
 {
-    OwnedHqlExpr normalized = normalizeListCasts(expr);
+    checkForChildAliases(ctx, expr);
 
+    OwnedHqlExpr normalized = normalizeListCasts(expr);
     switch (normalized->getOperator())
     {
     case no_alias_scope:

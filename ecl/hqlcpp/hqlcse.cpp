@@ -698,6 +698,25 @@ IHqlExpression * ConjunctionTransformer::createTransformed(IHqlExpression * expr
 
 //---------------------------------------------------------------------------
 
+void setAliasScope(IHqlExpression * expr, HqlExprArray & aliases)
+{
+    if (aliases.ordinality())
+    {
+        OwnedHqlExpr attr = createExprAttribute(aliasesAtom, aliases);
+        expr->setInternalProperty(EPIaliasScope, attr);
+    }
+}
+
+void inheritAliasScopes(HqlExprArray & aliases, IHqlExpression * donor)
+{
+    IHqlExpression * donorAliases = queryAliasScope(donor);
+    if (!donorAliases)
+        return;
+    unwindChildren(aliases, donorAliases);
+}
+
+//---------------------------------------------------------------------------
+
 inline bool canInsertCodeAlias(IHqlExpression * expr)
 {
     switch (expr->getOperator())
@@ -1043,6 +1062,7 @@ void CseScopeTransformer::analyseExpr(IHqlExpression * expr)
 bool CseScopeTransformer::attachCSEs(IHqlExpression * root)
 {
     bool changed = false;
+    ICopyArrayOf<CseScopeInfo> locations;
     ForEachItemIn(idx, allCSEs)
     {
         CseScopeInfo& cur = allCSEs.item(idx);
@@ -1060,7 +1080,12 @@ bool CseScopeTransformer::attachCSEs(IHqlExpression * root)
             printf("Attach %u at %u\n", cur.seq, aliasLocation->seq);
 #endif
             aliasLocation->aliasesToDefine.append(*LINK(cur.original));
+#if 1
+            if (!locations.contains(*aliasLocation))
+                locations.append(*aliasLocation);
+#else
             changed = true;
+#endif
         }
         else
         {
@@ -1068,6 +1093,11 @@ bool CseScopeTransformer::attachCSEs(IHqlExpression * root)
             printf("Nowhere to attach %u\n", cur.seq);
 #endif
         }
+    }
+    ForEachItemIn(i, locations)
+    {
+        CseScopeInfo & cur = locations.item(i);
+        setAliasScope(cur.original, cur.aliasesToDefine);
     }
     return changed;
 }

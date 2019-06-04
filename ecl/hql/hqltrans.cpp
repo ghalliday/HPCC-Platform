@@ -30,6 +30,7 @@
 #include "hqlpmap.hpp"
 #include "hqlerrors.hpp"
 #include "hqlerror.hpp"
+#include "hqlattr.hpp"
 
 //#define VERYIFY_OPTIMIZE
 #ifdef _DEBUG
@@ -1861,6 +1862,17 @@ IHqlExpression * NewHqlTransformer::transform(IHqlExpression * expr)
     activeExprStack.append(*expr);
 #endif
     transformed = createTransformed(expr);
+
+    if (expr != transformed)
+    {
+        IHqlExpression * donorAliases = queryAliasScope(expr);
+        if (donorAliases && !queryAliasScope(transformed))
+        {
+            OwnedHqlExpr newAliases = transform(donorAliases);
+            setAliasScope(transformed, newAliases);
+        }
+    }
+
 #ifdef TRACK_ACTIVE_EXPRESSIONS
     activeExprStack.pop();
 #endif

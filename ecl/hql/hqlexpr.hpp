@@ -787,6 +787,8 @@ enum ExprPropKind
     EPlocationIndependent,
     EPmeta,
     EPlikelihood,
+
+    EPIaliasScope,
     EPmax
 };
 
@@ -1197,6 +1199,9 @@ interface IHqlExpression : public IInterface
     virtual IHqlExpression *queryAttribute(IAtom * propName) const = 0;
     virtual IHqlExpression *queryProperty(ExprPropKind kind) = 0;
 
+    virtual IInterface *queryInternalProperty(ExprPropKind kind) const = 0;
+    virtual void setInternalProperty(ExprPropKind kind, IInterface * value) = 0;
+
     virtual ITypeInfo *queryRecordType() = 0;
     virtual IHqlExpression *queryRecord() = 0;
 
@@ -1402,6 +1407,7 @@ extern HQL_API IHqlExpression * createComma(const HqlExprArray & exprs);
 extern HQL_API IHqlExpression * createBalanced(node_operator op, ITypeInfo * type, const HqlExprArray & exprs);
 extern HQL_API IHqlExpression * createBalanced(node_operator op, ITypeInfo * type, const HqlExprArray & exprs, unsigned first, unsigned last);
 extern HQL_API IHqlExpression * createUnbalanced(node_operator op, ITypeInfo * type, const HqlExprArray & exprs);
+extern HQL_API IHqlExpression * createRightTree(node_operator op, ITypeInfo * type, const HqlExprArray & exprs);
 extern HQL_API IHqlExpression * createAssign(IHqlExpression * expr1, IHqlExpression * expr2);
 extern HQL_API void ensureActions(HqlExprArray & actions);
 extern HQL_API void ensureActions(HqlExprArray & actions, unsigned first, unsigned last);

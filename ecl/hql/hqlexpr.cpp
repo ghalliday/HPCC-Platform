@@ -4554,6 +4554,9 @@ void CHqlRealExpression::updateFlagsAfterOperands()
         break;
     }
 
+    if (op == no_and)
+        assertex(!queryRealChild(this, 2));
+
 #ifdef VERIFY_EXPR_INTEGRITY
 switch (op)
     {
@@ -7236,6 +7239,16 @@ IHqlExpression * CHqlAnnotation::queryProperty(ExprPropKind kind)
 IHqlExpression * CHqlAnnotation::queryNormalizedSelector()
 {
     return body->queryNormalizedSelector();
+}
+
+IInterface * CHqlAnnotation::queryInternalProperty(ExprPropKind kind) const
+{
+    return body->queryInternalProperty(kind);
+}
+
+void CHqlAnnotation::setInternalProperty(ExprPropKind kind, IInterface * value)
+{
+    body->setInternalProperty(kind, value);
 }
 
 IHqlExpression * CHqlAnnotation::queryExternalDefinition() const 
@@ -13604,6 +13617,18 @@ extern IHqlExpression * createUnbalanced(node_operator op, ITypeInfo * type, con
     LinkedHqlExpr ret = &exprs.item(0);
     for (unsigned i=1; i < max; i++)
         ret.setown(createValue(op, LINK(type), ret.getClear(), LINK(&exprs.item(i))));
+    return ret.getClear();
+}
+
+
+extern IHqlExpression * createRightTree(node_operator op, ITypeInfo * type, const HqlExprArray & exprs)
+{
+    unsigned max = exprs.ordinality();
+    if (max == 0)
+        return NULL;
+    LinkedHqlExpr ret = &exprs.item(max-1);
+    for (unsigned i=max-1; i-- != 0; )
+        ret.setown(createValue(op, LINK(type), LINK(&exprs.item(i)), ret.getClear()));
     return ret.getClear();
 }
 

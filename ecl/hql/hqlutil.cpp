@@ -3880,12 +3880,18 @@ IHqlExpression * getInverse(IHqlExpression * op)
         IHqlExpression * value = createOpenValue(inv, op->getType());
         ForEachChild(i, op)
             value->addOperand(LINK(op->queryChild(i)));
-        return value->closeExpr();
+        OwnedHqlExpr ret = value->closeExpr();
+        cloneAliasScope(ret, op);
+        return ret.getClear();
     }
     switch (opKind)
     {
     case no_if:
-        return createBoolExpr(no_if, LINK(op->queryChild(0)), getInverse(op->queryChild(1)), getInverse(op->queryChild(2)));
+    {
+        OwnedHqlExpr ret = createBoolExpr(no_if, LINK(op->queryChild(0)), getInverse(op->queryChild(1)), getInverse(op->queryChild(2)));
+        cloneAliasScope(ret, op);
+        return ret.getClear();
+    }
     }
 
     Owned<ITypeInfo> boolType = makeBoolType();

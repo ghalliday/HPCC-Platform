@@ -33,7 +33,7 @@
 //It allocates a unique id to each expression that is created, then add the unique ids into the
 //checkSeqId() function, and add a breakpoint there
 #ifdef _DEBUG
-//#define DEBUG_TRACK_INSTANCEID
+#define DEBUG_TRACK_INSTANCEID
 #endif
 
 #include "jexcept.hpp"
@@ -348,6 +348,9 @@ public:
     virtual bool isConstant() override;
     virtual IHqlExpression *closeExpr() override; // MORE - should be in expressionBuilder interface!
     virtual bool equals(const IHqlExpression & other) const override;
+
+    virtual IInterface *queryInternalProperty(ExprPropKind kind) const override;
+    virtual void setInternalProperty(ExprPropKind kind, IInterface * value) override;
 
 protected:
     inline bool constant() const { return (infoFlags2 & HEF2constant) != 0; }
@@ -687,6 +690,8 @@ public:
 
     virtual void addProperty(ExprPropKind kind, IInterface * value) override;
     virtual IInterface * queryExistingProperty(ExprPropKind kind) const override;
+    virtual IInterface *queryInternalProperty(ExprPropKind kind) const override;
+    virtual void setInternalProperty(ExprPropKind kind, IInterface * value) override;
 };
 
 

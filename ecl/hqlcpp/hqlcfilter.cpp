@@ -955,6 +955,8 @@ void CppFilterExtractor::spotSegmentCSE(BuildCtx & ctx)
     ForEachItemIn(i, conditions)
     {
         IHqlExpression * cur = &conditions.item(i);
+        translator.checkForChildAliases(ctx, cur);
+
         switch (cur->getOperator())
         {
         case no_alias:

@@ -86,6 +86,7 @@ IAtom * activityAtom;
 IAtom * afterAtom;
 IAtom * algorithmAtom;
 IAtom * _aliased_Atom;
+IAtom * aliasesAtom;
 IAtom * allAtom;
 IAtom * allocatorAtom;
 IAtom * alreadyVisitedAtom;
@@ -561,6 +562,7 @@ MODULE_INIT(INIT_PRIORITY_HQLATOM)
     MAKEATOM(after);
     MAKEATOM(algorithm);
     MAKESYSATOM(aliased);
+    MAKEATOM(aliases);
     MAKEATOM(all);
     MAKEATOM(allocator);
     MAKEATOM(alreadyVisited);

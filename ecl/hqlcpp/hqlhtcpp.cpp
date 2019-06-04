@@ -338,6 +338,9 @@ public:
             ConditionalContextTransformer::analyseExpr(expr);
             break;
         }
+        IHqlExpression * aliases = queryAliasScope(expr);
+        if (aliases)
+            analyseExpr(aliases);
     }
 
     //MORE: This is a bit of a hack, and should be improved (share code with resource child hoist?)
@@ -625,7 +628,13 @@ protected:
         args.append(*LINK(conditionExpr->queryChild(0)));
         ForEachChildFrom(i, conditionExpr, 1)
             args.append(*extractBranches(from, to, i));
-        return createValue(conditionExpr->getOperator(), makeVoidType(), args);
+
+        HqlExprArray aliases;
+        OwnedHqlExpr combined = createValue(conditionExpr->getOperator(), makeVoidType(), args);
+        for (unsigned j=from; j < to; j++)
+            inheritAliasScopes(aliases, item(j).queryChild(1));
+        setAliasScope(combined, aliases);
+        return combined.getClear();
     }
 };
 
@@ -1312,49 +1321,53 @@ IHqlExpression * UpdateTransformBuilder::replaceUnsafeSelectors(IHqlExpression *
 
 //---------------------------------------------------------------------------
 
-void HqlCppTranslator::doFilterAssignment(BuildCtx & ctx, TransformBuilder * builder, HqlExprArray & assigns, IHqlExpression * cur)
+void HqlCppTranslator::doFilterAssignment(BuildCtx & ctx, TransformBuilder * builder, HqlExprArray & assigns, IHqlExpression * expr)
 {
-    node_operator op = cur->getOperator();
+    IHqlExpression * aliases = queryAliasScope(expr);
+    if (aliases)
+    {
+        ForEachChild(i, aliases)
+        {
+            IHqlExpression * child = aliases->queryChild(i);
+            doFilterAssignment(ctx, builder, assigns, child);
+        }
+    }
+
+    node_operator op = expr->getOperator();
     switch (op)
     {
-    case no_assignall:
-    case no_newtransform:
-    case no_transform:
     case no_alias_scope:
-        doFilterAssignments(ctx, builder, assigns, cur);
+    {
+        ForEachChildFrom(i, expr, 1)
+            doFilterAssignment(ctx, builder, assigns, expr->queryChild(i));
+        doFilterAssignment(ctx, builder, assigns, expr->queryChild(0));
         break;
+    }
     case no_assign:
-        assigns.append(*LINK(cur));
+        assigns.append(*LINK(expr));
         break;
     case no_assert:
     case no_skip:
     case no_alias:
         if (builder)
-            builder->processAlias(ctx, cur);
+            builder->processAlias(ctx, expr);
         else
-            buildStmt(ctx, cur);
+            buildStmt(ctx, expr);
         break;
     case no_attr:
     case no_attr_link:
     case no_attr_expr:
         break;
-    default:
-        UNIMPLEMENTED;
-    }
-}
-
-void HqlCppTranslator::doFilterAssignments(BuildCtx & ctx, TransformBuilder * builder, HqlExprArray & assigns, IHqlExpression * expr)
-{
-    if (expr->getOperator() == no_alias_scope)
-    {
-        ForEachChildFrom(i, expr, 1)
-            doFilterAssignment(ctx, builder, assigns, expr->queryChild(i));
-        doFilterAssignment(ctx, builder, assigns, expr->queryChild(0));
-    }
-    else
+    case no_assignall:
+    case no_newtransform:
+    case no_transform:
     {
         ForEachChild(i, expr)
             doFilterAssignment(ctx, builder, assigns, expr->queryChild(i));
+        break;
+    }
+    default:
+        UNIMPLEMENTED;
     }
 }
 
@@ -1367,7 +1380,7 @@ void HqlCppTranslator::filterExpandAssignments(BuildCtx & ctx, TransformBuilder 
     traceExpression("transform cse", expr);
 
 //  expandAliases(ctx, expr);
-    doFilterAssignments(ctx, builder, assigns, expr);
+    doFilterAssignment(ctx, builder, assigns, expr);
 }
 
 
@@ -2742,6 +2755,7 @@ void DatasetSelector::set(BuildCtx & ctx, IHqlExpression * expr)
 {
     while (expr->getOperator() == no_compound)
     {
+        translator.checkForChildAliases(ctx, expr);
         translator.buildStmt(ctx, expr->queryChild(0));
         expr = expr->queryChild(1);
     }
@@ -12980,6 +12994,7 @@ IHqlExpression * HqlCppTranslator::queryExpandAliasScope(BuildCtx & ctx, IHqlExp
 {
     for (;;)
     {
+        checkForChildAliases(ctx, expr);
         switch (expr->getOperator())
         {
         case no_alias_scope:
