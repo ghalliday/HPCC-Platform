@@ -3769,13 +3769,14 @@ unsigned HqlCppTranslator::buildRtlField(StringBuffer & instanceName, IHqlExpres
         if (isPayload || field->hasAttribute(_payload_Atom))
             fieldFlags |= RFTMispayloadfield;
 
-        StringBuffer lowerName;
-        lowerName.append(field->queryName()).toLowerCase();
+        IIdAtom * id = field->queryId();
+        const char * fieldName = str(id);
+        const char * lowerName = str(id->queryLower());
 
         if (options.debugGeneratedCpp)
         {
             name.append("rf_");
-            convertToValidLabel(name, lowerName.str(), lowerName.length());
+            convertToValidLabel(name, lowerName, strlen(lowerName));
             name.append("_").append(++nextFieldId);
         }
         else
@@ -3787,7 +3788,7 @@ unsigned HqlCppTranslator::buildRtlField(StringBuffer & instanceName, IHqlExpres
         if (xpathItem.length())
             xpathFull.append(xpathCompoundSeparatorChar).append(xpathItem);
 
-        if (strcmp(lowerName, xpathFull) != 0)
+        if (strcmp(fieldName, xpathFull) != 0)
             appendStringAsQuotedCPP(xpathCppText, xpathFull.length(), xpathFull.str(), false);
         else
             xpathCppText.append("NULL");
@@ -3832,7 +3833,7 @@ unsigned HqlCppTranslator::buildRtlField(StringBuffer & instanceName, IHqlExpres
         typeFlags |= buildRtlType(typeName, fieldType);
         typeFlags |= fieldFlags;
 
-        definition.append("const RtlFieldStrInfo ").append(name).append("(\"").append(lowerName).append("\",").append(xpathCppText).append(",&").append(typeName);
+        definition.append("const RtlFieldStrInfo ").append(name).append("(\"").append(fieldName).append("\",").append(xpathCppText).append(",&").append(typeName);
         if (fieldFlags || defaultInitializer.length())
             definition.append(',').appendf("0x%x", fieldFlags);
         if (defaultInitializer.length())

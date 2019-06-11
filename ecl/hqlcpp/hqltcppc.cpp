@@ -793,15 +793,15 @@ void CMemberInfo::checkAssignOk(HqlCppTranslator & translator, BuildCtx & ctx, I
                 return;
         }
 
-        StringBuffer fieldname;
-        fieldname.append(column->queryName()).toLowerCase();
+        const char * fieldname = str(column->queryName());
+        size_t lenFieldname = fieldname ? strlen(fieldname) : 0;
 
         if (row->queryBuilder())
         {
             HqlExprArray args2;
             args2.append(*LINK(row->queryBuilder()));
             args2.append(*LINK(bound.expr));
-            args2.append(*createConstant(unknownVarStringType->castFrom(fieldname.length(), fieldname.str())));
+            args2.append(*createConstant(unknownVarStringType->castFrom(lenFieldname, fieldname)));
             OwnedHqlExpr call = translator.bindFunctionCall(ensureCapacityId, args2);
 
             bool combined = false;
@@ -839,7 +839,7 @@ void CMemberInfo::checkAssignOk(HqlCppTranslator & translator, BuildCtx & ctx, I
             HqlExprArray args2;
             args2.append(*LINK(bound.expr));
             args2.append(*LINK(max));
-            args2.append(*createConstant(unknownVarStringType->castFrom(fieldname.length(), fieldname.str())));
+            args2.append(*createConstant(unknownVarStringType->castFrom(lenFieldname, fieldname)));
             translator.callProcedure(ctx, checkFieldOverflowId, args2);
         }
     }
@@ -959,11 +959,7 @@ void CMemberInfo::getXPath(StringBuffer & out)
         if (named)
             named->queryChild(0)->queryValue()->getStringValue(out);
         else
-        {
-            StringBuffer temp;
-            temp.append(str(column->queryName())).toLowerCase();
-            out.append(temp);
-        }
+            out.append(str(column->queryId()));
     }
 }
 
@@ -1249,7 +1245,7 @@ void CContainerInfo::getContainerXPath(StringBuffer & out)
             if (named)
                 named->queryChild(0)->queryValue()->getStringValue(temp);
             else
-                temp.append(str(column->queryName())).toLowerCase();
+                temp.append(str(column->queryId()));
         }
         unsigned len = temp.length();
         if (len && (temp.charAt(len-1) != '/'))

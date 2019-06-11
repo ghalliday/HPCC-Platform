@@ -8794,11 +8794,7 @@ void extractXmlName(StringBuffer & name, StringBuffer * itemName, StringBuffer *
 
     bool useDefaultName = (name.length() == 0);
     if (useDefaultName)
-    {
-        StringBuffer tagName;
-        tagName.append(field->queryName()).toLowerCase();
-        name.append(tagName);
-    }
+        name.append(str(field->queryId()));
 
     if (itemName && itemName->length() == 0)
     {
@@ -8974,7 +8970,7 @@ void EclXmlSchemaBuilder::extractName(StringBuffer & name, StringBuffer * itemNa
     }
     else
     {
-        name.append(field->queryName()).toLowerCase();
+        name.append(str(field->queryId()));
         if (itemName)
             itemName->append(defaultItemName);
     }
@@ -10335,9 +10331,8 @@ unsigned buildRtlRecordFields(IRtlFieldTypeDeserializer &deserializer, unsigned 
 
             const RtlTypeInfo *type = buildRtlType(deserializer, fieldType);
             typeFlags |= type->fieldType & RFTMinherited;
-            StringBuffer lowerName;
-            lowerName.append(field->queryName()).toLowerCase();
 
+            const char * fieldName = str(field->queryId());
             StringBuffer xpathName, xpathItem;
             switch (field->queryType()->getTypeCode())
             {
@@ -10364,7 +10359,7 @@ unsigned buildRtlRecordFields(IRtlFieldTypeDeserializer &deserializer, unsigned 
             if (checkXpathIsNonScalar(xpathName))
                 fieldFlags |= RFTMhasnonscalarxpath;
             const char *xpath = xpathName.str();
-            if (strcmp(lowerName, xpath)==0)
+            if (strcmp(fieldName, xpath)==0)
                 xpath = nullptr;
 
             MemoryBuffer defaultInitializer;
@@ -10395,7 +10390,7 @@ unsigned buildRtlRecordFields(IRtlFieldTypeDeserializer &deserializer, unsigned 
                     UNIMPLEMENTED;  // MORE - fail more gracefully!
                 initializer = (const char *) defaultInitializer.detach();
             }
-            fieldsArray[idx] = deserializer.addFieldInfo(lowerName, xpath, type, fieldFlags, initializer);
+            fieldsArray[idx] = deserializer.addFieldInfo(fieldName, xpath, type, fieldFlags, initializer);
             typeFlags |= fieldFlags & RFTMinherited;
             idx++;
             break;
