@@ -12964,7 +12964,8 @@ IHqlExpression * HqlTreeNormalizer::createTransformedBody(IHqlExpression * expr)
             ITypeInfo * type = expr->queryType();
             OwnedITypeInfo newType = transformType(type);
             IIdAtom * id = expr->queryId();
-            IIdAtom * newId = lowerCaseSymbolName(id);
+//            IIdAtom * newId = lowerCaseSymbolName(id);
+            IIdAtom * newId = id;//lowerCaseSymbolName(id);
             if ((type != newType) || (newId != id))
                 return createField(newId, newType.getClear(), children);
 
