@@ -9421,8 +9421,10 @@ unsigned HqlCppTranslator::doBuildThorChildSubGraph(BuildCtx & ctx, IHqlExpressi
     IPropertyTree * graphAttr = node->addPropTree("att", createPTree("att"));
     IPropertyTree * subGraph = graphAttr->addPropTree("graph", createPTree("graph"));
 
+    BuildCtx subgraphCtx(ctx);
+    subgraphCtx.addGroup();
     Owned<SubGraphInfo> graphInfo = new SubGraphInfo(subGraph, thisId, graphId, graphTag, kind);
-    ctx.associate(*graphInfo);
+    subgraphCtx.associate(*graphInfo);
 
     IHqlExpression * numResultsAttr = expr->queryAttribute(numResultsAtom);
     if (numResultsAttr)
@@ -9461,14 +9463,14 @@ unsigned HqlCppTranslator::doBuildThorChildSubGraph(BuildCtx & ctx, IHqlExpressi
         fflush(stdout);
     }
 
-    BuildCtx subctx(ctx);
+    BuildCtx subctx(subgraphCtx);
     ForEachChild(idx, expr)
     {
         IHqlExpression * cur = expr->queryChild(idx);
         switch (cur->getOperator())
         {
         case no_subgraph:
-             doBuildThorChildSubGraph(ctx, cur, SubGraphChild, 0, graphTag);
+             doBuildThorChildSubGraph(subctx, cur, SubGraphChild, 0, graphTag);
              break;
         case no_attr:
         case no_attr_expr:
@@ -9480,7 +9482,7 @@ unsigned HqlCppTranslator::doBuildThorChildSubGraph(BuildCtx & ctx, IHqlExpressi
         }
     }
 
-    ctx.removeAssociation(graphInfo);
+    subgraphCtx.removeAssociation(graphInfo);
     return thisId;
 }
 
