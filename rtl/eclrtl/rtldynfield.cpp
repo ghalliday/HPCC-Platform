@@ -540,6 +540,7 @@ public:
         }
         deleteType(base);
     }
+
     /**
      * Obtain the deserialized type information
      * <p>
@@ -662,6 +663,11 @@ public:
     {
         // MORE - we could hang onto this for cleanup, rather than assuming that we keep it via a later addType() call?
         return new RtlFieldStrInfo(keep(fieldName), keep(xpath), type, flags, init);
+    }
+
+    virtual const RtlTypeInfo * queryDeserializedType() override
+    {
+        return base;
     }
 
 private:
@@ -887,6 +893,156 @@ extern ECLRTL_API IRtlFieldTypeDeserializer *createRtlFieldTypeDeserializer()
 {
     return new CRtlFieldTypeDeserializer();
 }
+
+//-- Cached implementation of the binary representation of the serialized type info
+// Using a jlib hash table rather than std::unordered_map to avoid cloning the data to create the key when checking if the entry exists
+
+typedef std::pair<size32_t, const byte *> RtlFieldTypeSearchKey;
+byte * memdup(size_t len, const void * data)
+{
+    void * result = malloc(len);
+    memcpy(result, data, len);
+    return (byte *)result;
+}
+
+class RtlFieldTypeMapping : public CInterface
+{
+public:
+    RtlFieldTypeMapping(unsigned _hash, const RtlFieldTypeSearchKey & _key, IRtlFieldTypeDeserializer * _value)
+    : hash(_hash), key(_key.first, memdup(_key.first, _key.second)), value(_value)
+    {
+    }
+    ~RtlFieldTypeMapping() { free((byte *)key.second); }
+
+    unsigned hash;
+    RtlFieldTypeSearchKey key;
+    Linked<IRtlFieldTypeDeserializer> value;
+};
+
+class RtlFieldTypeHash
+    : public SuperHashTableOf<RtlFieldTypeMapping, const RtlFieldTypeSearchKey>
+{
+  public:
+    ~RtlFieldTypeHash() { _releaseAll(); }
+
+    void addType(RtlFieldTypeMapping * donor)
+    {
+        addNew(donor, donor->hash);
+    }
+
+  private:
+    virtual void onAdd(void * et) override
+    {
+        const RtlFieldTypeMapping * mapping = reinterpret_cast<const RtlFieldTypeMapping *>(et);
+        mapping->Link();
+    }
+
+    virtual void onRemove(void * et) override
+    {
+        const RtlFieldTypeMapping * mapping = reinterpret_cast<const RtlFieldTypeMapping *>(et);
+        mapping->Release();
+    }
+
+    unsigned getHashFromElement(const void * et) const override
+    {
+        const RtlFieldTypeMapping * mapping = reinterpret_cast<const RtlFieldTypeMapping *>(et);
+        return mapping->hash;
+    }
+    unsigned getHashFromFindParam(const void *fp) const override
+    {
+        const RtlFieldTypeSearchKey * key = reinterpret_cast<const RtlFieldTypeSearchKey *>(fp);
+        unsigned seed = key->first;
+        return hashc(key->second, key->first, seed);
+    }
+    const void * getFindParam(const void * et) const override
+    {
+        const RtlFieldTypeMapping * mapping = reinterpret_cast<const RtlFieldTypeMapping *>(et);
+        return &mapping->key;
+    }
+    bool matchesFindParam(const void * et, const void * _key, unsigned fphash) const override
+    {
+        const RtlFieldTypeSearchKey * key = reinterpret_cast<const RtlFieldTypeSearchKey *>(_key);
+        const RtlFieldTypeMapping * mapping = reinterpret_cast<const RtlFieldTypeMapping *>(et);
+        if (fphash != mapping->hash)
+            return false;
+        if (key->first != mapping->key.first)
+            return false;
+        return memcmp(key->second, mapping->key.second, key->first) == 0;
+    }
+};
+
+static RtlFieldTypeHash fieldTypeCache;
+static CriticalSection fieldTypeCs;
+
+
+static IRtlFieldTypeDeserializer * lookupTypeCache(size32_t size, const byte * data)
+{
+    RtlFieldTypeSearchKey search{size, data};
+
+    CriticalBlock block(fieldTypeCs);
+    RtlFieldTypeMapping * match = fieldTypeCache.find(&search);
+    if (match)
+    {
+        IRtlFieldTypeDeserializer * result = match->value;
+        if (result)
+            return LINK(result);
+    }
+    return nullptr;
+}
+
+static IRtlFieldTypeDeserializer * insertTypeCache(size32_t size, const byte * data,  IRtlFieldTypeDeserializer * deserializer)
+{
+    RtlFieldTypeSearchKey key{size, data};
+    unsigned hash = hashc(data, size, size);
+
+    CriticalBlock block(fieldTypeCs);
+    //Check if another thread has inserted it in the meantime - return it if it is ok:
+    RtlFieldTypeMapping * match = fieldTypeCache.find(hash, &key);
+    if (match)
+    {
+        IRtlFieldTypeDeserializer * result = match->value;
+        if (result)
+            return LINK(result);
+    }
+
+    Owned<RtlFieldTypeMapping> next = new RtlFieldTypeMapping(hash, key, deserializer);
+    fieldTypeCache.addType(next);
+    return LINK(deserializer);
+}
+
+extern ECLRTL_API IRtlFieldTypeDeserializer *getRtlFieldTypeDeserializer(MemoryBuffer &buf)
+{
+    size32_t startPos = buf.getPos();
+    int oldEndian = buf.setEndian(__LITTLE_ENDIAN);
+    try
+    {
+        byte format;
+        buf.read(format);
+        if (format != RTLTYPEINFO_FORMAT_1)
+            throw MakeStringException(0, "Invalid type info (%d) in CRtlFieldTypeDeserializer::deserialize", format);
+        hash64_t hash;
+        buf.read(hash);
+        size32_t size;
+        buf.read(size);
+
+        const byte * data = buf.readDirect(size);
+        IRtlFieldTypeDeserializer * match = lookupTypeCache(size, data);
+        if (match)
+            return match;
+
+        buf.reset(startPos);
+        Owned<IRtlFieldTypeDeserializer> deserializer(createRtlFieldTypeDeserializer());
+        deserializer->deserialize(buf);
+
+        return insertTypeCache(size, data, deserializer);
+    }
+    catch(...)
+    {
+        buf.setEndian(oldEndian);
+        throw;
+    }
+}
+
 
 extern ECLRTL_API StringBuffer &dumpTypeInfo(StringBuffer &ret, const RtlTypeInfo *t)
 {

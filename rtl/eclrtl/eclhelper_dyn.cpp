@@ -56,8 +56,8 @@ protected:
 
 CDeserializedOutputMetaData::CDeserializedOutputMetaData(MemoryBuffer &binInfo, bool isGrouped)
 {
-    deserializer.setown(createRtlFieldTypeDeserializer());
-    typeInfo = deserializer->deserialize(binInfo);
+    deserializer.setown(getRtlFieldTypeDeserializer(binInfo));
+    typeInfo = deserializer->queryDeserializedType();
     if (isGrouped)
         flags |= MDFgrouped;
 }
@@ -100,6 +100,7 @@ extern ECLRTL_API IOutputMetaData *createTypeInfoOutputMetaData(const char *json
     return new CDeserializedOutputMetaData(json, isGrouped);
 }
 //---------------------------------------------------------------------------------------------------------------------
+
 
 class ECLRTL_API CDynamicDiskReadArg : public CThorDiskReadArg, implements IDynamicIndexReadArg
 {

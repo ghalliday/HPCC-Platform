@@ -2208,3 +2208,73 @@ bool CPersistentTask::join(unsigned timeout, bool throwException)
 }
 #endif
 
+#ifdef _USE_CPPUNIT
+#include "unittests.hpp"
+
+IOutputMetaData * getTypeInfo(const char * ecl)
+{
+    MultiErrorReceiver errs;
+    Owned<IHqlExpression> expr = parseQuery(ecl, &errs);
+    assertex(expr && (errs.errCount() == 0));
+
+    MemoryBuffer layoutBin;
+    if (exportBinaryType(layoutBin, expr, false))
+        return createTypeInfoOutputMetaData(layoutBin, false);
+    return nullptr;
+}
+
+void assertNext(MemoryBuffer & buff, unsigned expected)
+{
+    unsigned next;
+    buff.read(next);
+    ASSERT_EQUAL(expected, next);
+}
+
+class RtlFieldTypeTests : public CppUnit::TestFixture
+{
+    CPPUNIT_TEST_SUITE( RtlFieldTypeTests );
+        CPPUNIT_TEST(testTypeCache);
+        CPPUNIT_TEST(testStreamReading);
+    CPPUNIT_TEST_SUITE_END();
+
+protected:
+    void testTypeCache()
+    {
+        Owned<IOutputMetaData> meta1 = getTypeInfo("{ unsigned i; unsigned j; };");
+        Owned<IOutputMetaData> meta2 = getTypeInfo("{ unsigned i; UNSIGNED j; };");
+        Owned<IOutputMetaData> meta3 = getTypeInfo("{ unsigned i; unsigned k; };");
+        //Check that requesting the meta information for the same type returns the same type pointer
+        ASSERT(meta1->queryTypeInfo() == meta2->queryTypeInfo());
+        ASSERT(meta1->queryTypeInfo() != meta3->queryTypeInfo());
+    }
+
+    void testStreamReading()
+    {
+        Owned<IOutputMetaData> meta = getTypeInfo("{ unsigned i; unsigned j; };");
+
+        //Test that cached reading from a string correctly skips the type that would have been read
+        MemoryBuffer buffer;
+        dumpTypeInfo(buffer, meta->queryTypeInfo());
+        buffer.append(0x123456U);
+        dumpTypeInfo(buffer, meta->queryTypeInfo());
+        buffer.append(0x1234567U);
+        dumpTypeInfo(buffer, meta->queryTypeInfo());
+        buffer.append(0x12345678U);
+
+        Owned<IOutputMetaData> meta1 = createTypeInfoOutputMetaData(buffer, false);
+        assertNext(buffer, 0x123456);
+        Owned<IOutputMetaData> meta2 = createTypeInfoOutputMetaData(buffer, false);
+        assertNext(buffer, 0x1234567);
+        Owned<IOutputMetaData> meta3 = createTypeInfoOutputMetaData(buffer, false);
+        assertNext(buffer, 0x12345678);
+
+        ASSERT(meta->queryTypeInfo() == meta1->queryTypeInfo());
+        ASSERT(meta->queryTypeInfo() == meta2->queryTypeInfo());
+        ASSERT(meta->queryTypeInfo() == meta3->queryTypeInfo());
+    }
+};
+
+CPPUNIT_TEST_SUITE_REGISTRATION( RtlFieldTypeTests );
+CPPUNIT_TEST_SUITE_NAMED_REGISTRATION( RtlFieldTypeTests, "RtlFieldTypeTests" );
+
+#endif

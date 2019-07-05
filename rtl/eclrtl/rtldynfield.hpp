@@ -101,6 +101,14 @@ interface IRtlFieldTypeDeserializer : public IInterface
      */
     virtual const RtlFieldInfo *addFieldInfo(const char *fieldName, const char *xpath, const RtlTypeInfo *type, unsigned flags, const char *init) = 0;
 
+    /*
+     * Return the base type that was previously deserialized.
+     *
+     * @return     Deserialized RtlTypeInfo structure
+     *
+     */
+    virtual const RtlTypeInfo * queryDeserializedType() = 0;
+
 };
 
 enum class RecordTranslationMode : byte
@@ -187,6 +195,7 @@ extern ECLRTL_API void throwTranslationError(const RtlRecord &_destRecInfo, cons
 extern ECLRTL_API const IKeyTranslator *createKeyTranslator(const RtlRecord &_destRecInfo, const RtlRecord &_srcRecInfo);
 
 extern ECLRTL_API IRtlFieldTypeDeserializer *createRtlFieldTypeDeserializer();
+extern ECLRTL_API IRtlFieldTypeDeserializer *getRtlFieldTypeDeserializer(MemoryBuffer &buf); // create type from binary, and cache duplicates
 
 extern ECLRTL_API StringBuffer &dumpTypeInfo(StringBuffer &ret, const RtlTypeInfo *t);
 
