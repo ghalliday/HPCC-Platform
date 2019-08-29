@@ -1618,6 +1618,7 @@ public:
     void setBoundCount(CHqlBoundExpr & tgt, const CHqlBoundExpr & src, node_operator aggOp);
     bool canEvaluateInContext(BuildCtx & ctx, IHqlExpression * expr);
     void gatherActiveCursors(BuildCtx & ctx, HqlExprCopyArray & activeRows);
+    unsigned getFilterDepthEstimate(BuildCtx & ctx, const HqlExprArray & conds);
 
     IHqlStmt * buildFilterViaExpr(BuildCtx & ctx, IHqlExpression * expr);
 
