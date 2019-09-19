@@ -16665,7 +16665,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityIf(BuildCtx & ctx, IHqlExpress
     bool isChild = (insideChildOrLoopGraph(ctx) || insideRemoteGraph(ctx) || insideLibrary());
     IHqlExpression * activeGraph = queryActiveSubGraph(ctx)->graphTag;
 
-    if (isChild)
+    if (isChild && !expr->isAction())
     {
         Owned<ABoundActivity> boundTrue = buildCachedActivity(ctx, trueBranch);
         Owned<ABoundActivity> boundFalse = falseBranch ? buildCachedActivity(ctx, falseBranch) : NULL;

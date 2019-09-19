@@ -1,0 +1,6 @@
+<Dataset name='msgs'>
+ <Row><myfield>a mismatches b</myfield></Row>
+ <Row><myfield>a matches</myfield></Row>
+ <Row><myfield>e matches</myfield></Row>
+ <Row><myfield>f mismatches g</myfield></Row>
+</Dataset>
