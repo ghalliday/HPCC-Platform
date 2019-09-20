@@ -365,6 +365,7 @@ static unsigned calcInlineFlags(BuildCtx * ctx, IHqlExpression * expr)
     case no_fromjson:
         return RETevaluate;
     case no_apply:
+    case no_extractresult:
         {
             unsigned childFlags = getInlineFlags(ctx, expr->queryChild(0));
             if (childFlags == 0)

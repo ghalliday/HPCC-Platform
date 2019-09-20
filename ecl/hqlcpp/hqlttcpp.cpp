@@ -10542,6 +10542,7 @@ IHqlExpression * HqlScopeTagger::createTransformed(IHqlExpression * expr)
     case no_output:
     case no_outputscalar:
     case no_setresult:
+    case no_extractresult:
     case no_buildindex:
         {
             OwnedHqlExpr transformed = Parent::createTransformed(expr);
