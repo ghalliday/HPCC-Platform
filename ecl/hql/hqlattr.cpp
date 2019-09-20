@@ -557,6 +557,7 @@ unsigned getOperatorMetaFlags(node_operator op)
     case no_notify:
     case no_setgraphresult:
     case no_extractresult:
+    case no_extractresults:
     case no_definesideeffect:
 
 // Scopes etc.
@@ -633,7 +634,7 @@ unsigned getOperatorMetaFlags(node_operator op)
 
     case no_unused6:
     case no_unused13: case no_unused14: case no_unused15:
-    case no_unused34: case no_unused35: case no_unused36: case no_unused37: case no_unused38:
+    case no_unused35: case no_unused36: case no_unused37: case no_unused38:
     case no_unused40: case no_unused41: case no_unused42: case no_unused43: case no_unused44: case no_unused45: case no_unused46: case no_unused47: case no_unused48: case no_unused49:
     case no_unused50: case no_unused52:
     case no_unused80: case no_unused81:

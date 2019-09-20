@@ -3903,6 +3903,7 @@ void HqlCppTranslator::buildStmt(BuildCtx & _ctx, IHqlExpression * expr)
             return;
         }
     case no_apply:
+    case no_extractresults: //
         doBuildStmtApply(ctx, expr);
         return;
     case no_cluster:

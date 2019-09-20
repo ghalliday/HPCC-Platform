@@ -1655,6 +1655,7 @@ const char *getOpString(node_operator op)
     case no_getresult: return "getresult";
     case no_setresult: return "setresult";
     case no_extractresult: return "extractresult";
+    case no_extractresults: return "extractresults";
 
     case no_type: return "TYPE";
     case no_position: return "no_position";
@@ -1942,10 +1943,9 @@ const char *getOpString(node_operator op)
     case no_id: return "no_id";
     case no_orderedactionlist: return "ORDERED";
     case no_unordered: return "UNORDERED";
-
     case no_unused6:
     case no_unused13: case no_unused14: case no_unused15:
-    case no_unused34: case no_unused35: case no_unused36: case no_unused37: case no_unused38:
+    case no_unused35: case no_unused36: case no_unused37: case no_unused38:
     case no_unused40: case no_unused41: case no_unused42: case no_unused43: case no_unused44: case no_unused45: case no_unused46: case no_unused47: case no_unused48: case no_unused49:
     case no_unused50: case no_unused52:
     case no_unused80: case no_unused81:
@@ -2367,6 +2367,7 @@ childDatasetType getChildDatasetType(IHqlExpression * expr)
     case no_assertgrouped:
     case no_assertdistributed:
     case no_extractresult:
+    case no_extractresults:
     case no_createdictionary:
         return childdataset_dataset;
     case no_alias_scope:
@@ -2674,6 +2675,7 @@ inline unsigned doGetNumChildTables(IHqlExpression * dataset)
     case no_loop:
     case no_graphloop:
     case no_extractresult:
+    case no_extractresults:
     case no_filtergroup:
     case no_normalizegroup:
     case no_owned_ds:
@@ -4110,6 +4112,7 @@ void CHqlRealExpression::initFlagsBeforeOperands()
     case no_output:
     case no_setresult:
     case no_extractresult:
+    case no_extractresults:
         // don't mark as impure because temporary results don't get commoned up.  Need another flag to mean has side-effects,
         // but can be commoned up because repeating it will have the same effect.
         infoFlags2 &= ~(HEF2constant);

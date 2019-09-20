@@ -8278,6 +8278,7 @@ void NewScopeMigrateTransformer::analyseExpr(IHqlExpression * expr)
     case no_createset:
     case NO_ACTION_REQUIRES_GRAPH:
     case no_extractresult:
+    case no_extractresults:
     case no_distributer:
     case no_within:
     case no_notwithin:
@@ -9523,6 +9524,7 @@ IHqlExpression * NestedSelectorNormalizer::createTransformed(IHqlExpression * ex
         case no_rowdiff:
 
         case no_extractresult:
+        case no_extractresults:
 //      case no_setresult:
         case no_blob2id:
         case no_selectnth:
@@ -11349,7 +11351,7 @@ public:
                     HqlExprArray args;
                     args.append(*LINK(ds));
                     args.append(*createAction(no_actionlist, actions));
-                    exprs.replace(*createAction(no_apply, args), i);
+                    exprs.replace(*createAction(no_ensureresults, args), i);
 
                     if (okToReorder && !otherCandidates)
                         return true;

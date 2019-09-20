@@ -291,7 +291,7 @@ const char * getOperatorIRText(node_operator op)
     EXPAND_CASE(no,unlikely);
     EXPAND_CASE(no,inline);
     EXPAND_CASE(no,nwaydistribute);
-    EXPAND_CASE(no,unused34);
+    EXPAND_CASE(no,extractresults);
     EXPAND_CASE(no,unused35);
     EXPAND_CASE(no,unused36);
     EXPAND_CASE(no,unused37);
@@ -742,6 +742,7 @@ inline type_t getRequiredTypeCode(node_operator op)
     case no_sequential:
     case no_parallel:
     case no_apply:
+    case no_extractresults:
     case no_actionlist:
     case no_orderedactionlist:
         return type_void;

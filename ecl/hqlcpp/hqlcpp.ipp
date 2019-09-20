@@ -1522,6 +1522,7 @@ public:
     ABoundActivity * doBuildActivityEmbed(BuildCtx & ctx, IHqlExpression * expr, bool isRoot);
     ABoundActivity * doBuildActivityEnth(BuildCtx & ctx, IHqlExpression * expr);
     ABoundActivity * doBuildActivityExecuteWhen(BuildCtx & ctx, IHqlExpression * expr, bool isRoot);
+    ABoundActivity * doBuildActivityExtractResults(BuildCtx & ctx, IHqlExpression * expr, bool isRoot);
     ABoundActivity * doBuildActivityForceLocal(BuildCtx & ctx, IHqlExpression * expr);
     ABoundActivity * doBuildActivityFetch(BuildCtx & ctx, IHqlExpression * expr);
     ABoundActivity * doBuildActivityFilter(BuildCtx & ctx, IHqlExpression * expr);

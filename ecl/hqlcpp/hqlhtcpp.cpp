@@ -6684,6 +6684,9 @@ ABoundActivity * HqlCppTranslator::buildActivity(BuildCtx & ctx, IHqlExpression 
             case no_setresult:
                 result = doBuildActivitySetResult(ctx, expr, isRoot);
                 break;
+            case no_extractresults:
+                result = doBuildActivityExtractResults(ctx, expr, isRoot);
+                break;
             case no_returnresult:
                 result = doBuildActivityReturnResult(ctx, expr, isRoot);
                 break;
@@ -18731,6 +18734,68 @@ ABoundActivity * HqlCppTranslator::doBuildActivitySetResult(BuildCtx & ctx, IHql
     return instance->getBoundActivity();
 }
 
+ABoundActivity * HqlCppTranslator::doBuildActivityExtractResults(BuildCtx & ctx, IHqlExpression * expr, bool isRoot)
+{
+    IHqlExpression * sequence = queryAttributeChild(expr, sequenceAtom, 0);
+    IHqlExpression * name = queryAttributeChild(expr, namedAtom, 0);
+    IHqlExpression * persist = expr->queryAttribute(_workflowPersist_Atom);
+
+    Owned<ABoundActivity> boundDataset = buildCachedActivity(ctx, row);
+    Owned<ActivityInstance> instance = new ActivityInstance(*this, ctx, TAKremoteresult, expr,  "RemoteResult");
+
+    if (false)
+    {
+        StringBuffer graphLabel;
+        graphLabel.append("Store\n");
+        getStoredDescription(graphLabel, sequence, name, true);
+        instance->graphLabel.set(graphLabel.str());
+    }
+    buildActivityFramework(instance, isRoot && !isInternalSeq(sequence));
+
+    buildInstancePrefix(instance);
+
+    if (insideChildQuery(ctx))
+    {
+        StringBuffer description;
+        getStoredDescription(description, sequence, name, true);
+        reportWarning(CategoryUnusual, SeverityError, queryLocation(expr), ECODETEXT(HQLWRN_OutputScalarInsideChildQuery), description.str());
+    }
+
+    noteResultDefined(ctx, instance, sequence, name, isRoot);
+    if (attribute->isDatarow())
+        attribute.setown(::ensureSerialized(attribute, diskAtom));
+
+    if (kind == TAKremoteresult)
+    {
+        doBuildSequenceFunc(instance->classctx, sequence, true);
+
+        MemberFunction func(*this, instance->startctx, "virtual void sendResult(const void * _self) override");
+        func.ctx.addQuotedLiteral("const unsigned char * self = (const unsigned char *)_self;");
+
+        if (dataset->isDatarow())
+        {
+            OwnedHqlExpr bound = createVariable("self", makeRowReferenceType(dataset));
+            bindRow(func.ctx, dataset, bound);
+        }
+        else
+            bindTableCursor(func.ctx, dataset, "self");
+        buildSetResultInfo(func.ctx, expr, attribute, NULL, (persist != NULL), false);
+    }
+    else
+    {
+        MemberFunction func(*this, instance->startctx, "virtual void action() override");
+        buildSetResultInfo(func.ctx, expr, attribute, NULL, (persist != NULL), false);
+    }
+
+    buildInstanceSuffix(instance);
+    if (boundDataset)
+        buildConnectInputOutput(ctx, instance, boundDataset, 0, 0);
+
+    associateRemoteResult(*instance, sequence, name);
+
+    return instance->getBoundActivity();
+}
+
 //---------------------------------------------------------------------------
 //-- no_distribution
 
@@ -19545,6 +19610,7 @@ bool HqlCppTranslator::needsRealThor(IHqlExpression *expr, unsigned flags)
     case no_selectfields:
     case no_thor:
     case no_apply:
+    case no_extractresults:
     case no_distributed:
     case no_unordered:
     case no_preservemeta:

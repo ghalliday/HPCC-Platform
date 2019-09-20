@@ -2031,6 +2031,7 @@ ProjectExprKind ImplicitProjectTransformer::getProjectExprKind(IHqlExpression * 
     case no_selectmap:
         return SourceActivity;
     case no_extractresult:
+    case no_extractresults:
     case no_apply:
         return SinkActivity;
     case no_denormalizegroup:

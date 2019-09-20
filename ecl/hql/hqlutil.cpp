@@ -2384,6 +2384,7 @@ bool isSinkActivity(IHqlExpression * expr)
     case no_keypatch:
     case no_returnresult:
     case no_extractresult:
+    case no_extractresults:
     case no_setresult:
     case no_setgraphresult:
     case no_setgraphloopresult:
