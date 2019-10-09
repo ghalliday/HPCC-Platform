@@ -1858,6 +1858,7 @@ void HqlCppTranslator::cacheOptions()
         DebugOption(options.genericDiskReads, "genericDiskReads", false),
         DebugOption(options.generateActivityFormats, "generateActivityFormats", false),
         DebugOption(options.generateDiskFormats, "generateDiskFormats", false),
+        DebugOption(options.expandFullKeyedJoin, "expandFullKeyedJoin", true),
     };
 
     //get options values from workunit

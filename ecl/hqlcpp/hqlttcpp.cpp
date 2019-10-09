@@ -9211,10 +9211,157 @@ IHqlExpression * DFSLayoutTransformer::createTransformed(IHqlExpression * expr)
 
 //==============================================================================================================
 
+class FullKeyedJoinExpander
+{
+public:
+    IHqlExpression * expandFullKeyedJoin(IHqlExpression * expr);
+
+protected:
+    void splitFilter(IHqlExpression * filter);
+
+protected:
+    IHqlExpression * file;
+    IHqlExpression * key;
+    OwnedHqlExpr keyFilter;
+    OwnedHqlExpr fileFilter;
+    OwnedHqlExpr fileRight;
+    OwnedHqlExpr keyRight;
+    TableProjectMapper keyedMapper;
+};
+
+IHqlExpression * FullKeyedJoinExpander::expandFullKeyedJoin(IHqlExpression * expr)
+{
+    //Expand
+    //    JOIN(ds1, ds2, f(LEFT, RIGHT) AND postfilter(LEFT,RIGHT), t(LEFT,RIGHT), KEYED(i), options) to
+    //to
+    //    j := JOIN(ds1, i, f(LEFT, RIGHT'), transform(LEFT + { fetchpos = RIGHT.fpos }), options);
+    //    FETCH(ds2, j, RIGHT.fetchpos, t(RIGHT', LEFT, SKIP(NOT postfilter(LEFT, RIGHT))), options) to
+    //
+    //This is only valid for a postfilter if it is a inner join???
+
+    IHqlExpression * leftDs = expr->queryChild(0);
+    IHqlExpression * rightDs = expr->queryChild(1);
+    IHqlExpression * cond = expr->queryChild(2);
+    IHqlExpression * transform = expr->queryChild(3);
+    IHqlExpression * atmostAttr = expr->queryAttribute(atmostAtom);
+    IHqlExpression * joinSeq = querySelSeq(expr);
+
+    key = queryAttributeChild(expr, keyedAtom, 0);
+    file = expr->queryChild(1);
+    if (file->getOperator() == no_keyed)
+        file = file->queryChild(0);
+
+    //MORE: Should be checking key, not right
+    if (!getBoolAttribute(file, filepositionAtom, true))
+        throwError(HQLERR_FullKeyedNeedsFileposition);
+
+    IHqlExpression * rightTable = queryPhysicalRootTable(file);
+    if (!rightTable || rightTable->queryNormalizedSelector() != file->queryNormalizedSelector())
+        throwError(HQLERR_FullKeyedNeedsFile);
+
+    keyedMapper.setDataset(key);
+    fileRight.setown(createSelector(no_right, file, joinSeq));
+    keyRight.setown(createSelector(no_right, key, joinSeq));
+
+    //-------------------------
+    AtmostLimit atmost(atmostAttr);
+    OwnedHqlExpr fuzzy, hard;
+    splitFuzzyCondition(cond, atmost.required, fuzzy, hard);
+
+    splitFilter(hard);
+    if (!keyFilter)
+    {
+        StringBuffer s;
+        getExprECL(cond, s);
+        throwError1(HQLERR_KeyAccessNoKeyField, s.str());
+    }
+    if (atmostAttr && fileFilter)
+    {
+        StringBuffer s;
+        throwError1(HQLERR_BadKeyedJoinConditionAtMost,getExprECL(fileFilter, s.append(" (")).append(")").str());
+    }
+    splitFilter(fuzzy);
+
+    IHqlExpression * leftRecord = queryRecord(leftDs);
+    OwnedHqlExpr left = createSelector(no_left, leftDs, joinSeq);
+    OwnedHqlExpr fileposField = createField(createIdAtom("__internal_fetch_filepos"), makeIntType(8, false), nullptr);
+    OwnedHqlExpr newRecord = appendOwnedOperand(leftRecord, LINK(fileposField));
+    OwnedHqlExpr selfSelector = createSelector(no_self, newRecord, nullptr);
+
+    HqlExprArray assigns;
+    NullErrorReceiver nullErrors;
+    ECLlocation where(expr);
+    createMappingAssigns(assigns, selfSelector, left, leftRecord->querySimpleScope(), leftRecord, false, nullErrors, where);
+    assigns.append(*createAssign(createSelectExpr(LINK(selfSelector), LINK(fileposField)),
+                                 createSelectExpr(LINK(keyRight), LINK(queryLastField(key->queryRecord())))
+                                ));
+    OwnedHqlExpr newTransform = createValue(no_transform, makeTransformType(newRecord->getType()), assigns);
+
+    HqlExprArray joinArgs;
+    joinArgs.append(*LINK(leftDs));
+    joinArgs.append(*LINK(key));
+    joinArgs.append(*LINK(keyFilter));
+    joinArgs.append(*LINK(newTransform));
+    unwindChildren(joinArgs, expr, 4);
+    removeAttribute(joinArgs, keyedAtom);
+    OwnedHqlExpr newJoin = expr->clone(joinArgs);
+
+    //Create the fetch activity.
+    OwnedHqlExpr fetchSeq = createUniqueSelectorSequence();
+    OwnedHqlExpr fetchLeft = createSelector(no_left, file, fetchSeq);
+    OwnedHqlExpr fetchRight = createSelector(no_right, newJoin, fetchSeq);
+    OwnedHqlExpr fetchTransform = replaceSelector(transform, left, fetchRight);
+    fetchTransform.setown(replaceSelector(fetchTransform, fileRight, fetchLeft));
+
+    //A post filter on the join criteria becomes a skip on the transform for the FETCH
+    if (fileFilter)
+    {
+        fileFilter.setown(replaceSelector(fileFilter, left, fetchRight));
+        fileFilter.setown(replaceSelector(fileFilter, fileRight, fetchLeft));
+        HqlExprArray newAssigns;
+        newAssigns.append(*createValue(no_skip, makeVoidType(), createValue(no_not, LINK(fileFilter))));
+        unwindChildren(newAssigns, fetchTransform);
+        fetchTransform.setown(fetchTransform->clone(newAssigns));
+    }
+
+    HqlExprArray fetchArgs;
+    fetchArgs.append(*LINK(file));
+    fetchArgs.append(*LINK(newJoin));
+    fetchArgs.append(*createSelectExpr(LINK(fetchRight), LINK(fileposField)));
+    fetchArgs.append(*LINK(fetchTransform));
+    fetchArgs.append(*LINK(fetchSeq));
+    unwindChildren(joinArgs, expr, 4);
+    fetchArgs.zap(*joinSeq);
+    return createDataset(no_fetch, fetchArgs);
+}
+
+
+
+
+void FullKeyedJoinExpander::splitFilter(IHqlExpression * filter)
+{
+    if (!filter) return;
+    if (filter->getOperator() == no_and)
+    {
+        splitFilter(filter->queryChild(0));
+        splitFilter(filter->queryChild(1));
+    }
+    else
+    {
+        bool doneAll = false;
+        OwnedHqlExpr mapped = keyedMapper.collapseFields(filter, fileRight, keyRight, &doneAll);
+        if (doneAll)
+            extendAndCondition(keyFilter, mapped);
+        else
+            extendAndCondition(fileFilter, filter);
+    }
+}
+
+
 
 static HqlTransformerInfo KeyedProjectTransformerInfo("KeyedProjectTransformer");
-KeyedProjectTransformer::KeyedProjectTransformer()
-: NewHqlTransformer(KeyedProjectTransformerInfo)
+KeyedProjectTransformer::KeyedProjectTransformer(bool _expandFullKeyedJoin)
+: NewHqlTransformer(KeyedProjectTransformerInfo), expandFullKeyedJoin(_expandFullKeyedJoin)
 {
 }
 
@@ -9295,10 +9442,16 @@ IHqlExpression * KeyedProjectTransformer::createTransformed(IHqlExpression * exp
                 transformed.setown(replaceOwnedAttribute(transformed, createExprAttribute(keyedAtom, index->clone(args))));
             }
         }
+
+        //Convert full keyed joins into half-keyed join followed by a fetch
+        if (op != no_keyeddistribute && queryAttributeChild(transformed, keyedAtom, 0) && expandFullKeyedJoin)
+        {
+            FullKeyedJoinExpander expander;
+            return expander.expandFullKeyedJoin(transformed);
+        }
     }
     return transformed.getClear();
 }
-
 
 //==============================================================================================================
 
@@ -13699,7 +13852,7 @@ void normalizeHqlTree(HqlCppTranslator & translator, HqlExprArray & exprs)
     }
 
     {
-        KeyedProjectTransformer transformer;
+        KeyedProjectTransformer transformer(translator.queryOptions().expandFullKeyedJoin);
         HqlExprArray transformed;
         transformer.transformRoot(exprs, transformed);
         replaceArray(exprs, transformed);

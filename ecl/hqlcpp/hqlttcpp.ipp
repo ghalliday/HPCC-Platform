@@ -844,10 +844,13 @@ protected:
 class KeyedProjectTransformer : public NewHqlTransformer
 {
 public:
-    KeyedProjectTransformer();
+    KeyedProjectTransformer(bool _expandFullKeyedJoin);
 
 protected:
     virtual IHqlExpression * createTransformed(IHqlExpression * expr) override;
+
+protected:
+    bool expandFullKeyedJoin;
 };
 
 

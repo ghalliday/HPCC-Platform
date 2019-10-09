@@ -9599,7 +9599,7 @@ void reportDroppedFields(IHqlExpression * newRecord, IHqlExpression * oldRecord,
 
 //---------------------------------------------------------------------------------------------------------------------
 
-static void createMappingAssigns(HqlExprArray & assigns, IHqlExpression * selfSelector, IHqlExpression * oldSelector, IHqlSimpleScope * oldScope, IHqlExpression * newRecord, bool replaceMissingWithDefault, IErrorReceiver &err, ECLlocation &location)
+void createMappingAssigns(HqlExprArray & assigns, IHqlExpression * selfSelector, IHqlExpression * oldSelector, IHqlSimpleScope * oldScope, IHqlExpression * newRecord, bool replaceMissingWithDefault, IErrorReceiver &err, ECLlocation &location)
 {
     ForEachChild(i, newRecord)
     {

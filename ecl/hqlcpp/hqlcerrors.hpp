@@ -225,6 +225,7 @@
 #define HQLERR_CannotInterpretRecord            4213
 #define HQLERR_NoVirtualAndAlien                4214
 #define HQLERR_CannotFilterLimitInsideActivity  4215
+#define HQLERR_FullKeyedNeedsFileposition       4216
 
 //Warnings....
 #define HQLWRN_PersistDataNotLikely             4500
@@ -533,7 +534,7 @@
 #define HQLERR_CannotInterpretRecord_Text       "This dataset contains deprecated record formats and virtual fields.  Remove the alien data types, or temporarily add __OPTION__(LEGACY) to the table definition"
 #define HQLERR_NoVirtualAndAlien_Text           "GenericDiskReads: VIRTUAL fields are not currently supported with ALIEN types"
 #define HQLERR_CannotFilterLimitInsideActivity_Text "Cannot filter a non keyed limit within a compound activity"
-
+#define HQLERR_FullKeyedNeedsFileposition_Text  "Full keyed join must have a fileposition in the index"
 //Warnings.
 #define HQLWRN_CannotRecreateDistribution_Text  "Cannot recreate the distribution for a persistent dataset"
 #define HQLWRN_RecursiveDependendencies_Text    "Recursive filename dependency %s"

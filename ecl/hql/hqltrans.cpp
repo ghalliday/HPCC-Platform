@@ -3271,8 +3271,8 @@ void NewSelectorReplacingTransformer::setNestedMapping(IHqlExpression * oldSel, 
         case no_field:
             {
                 OwnedHqlExpr oldField = oldScope->lookupSymbol(cur->queryId());
-                assertex(oldField);
-                if (cur != oldField)
+                //assertex(oldField);
+                if (oldField && (cur != oldField))
                 {
                     OwnedHqlExpr oldSelected = createSelectExpr(LINK(oldSel), LINK(oldField));
                     OwnedHqlExpr newSelected = createSelectExpr(LINK(newSel), LINK(cur));
