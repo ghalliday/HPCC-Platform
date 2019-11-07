@@ -2537,7 +2537,8 @@ void AsciiDfaBuilder::finished()
     unsigned numAccepts = accepts.ordinality();
     dfa.numAccepts = numAccepts;
     dfa.accepts = (unsigned *)malloc(sizeof(unsigned)*numAccepts);
-    memcpy(dfa.accepts, accepts.getArray(), numAccepts*sizeof(unsigned));
+    if (numAccepts)
+        memcpy(dfa.accepts, accepts.getArray(), numAccepts*sizeof(unsigned));
 }
 //---------------------------------------------------------------------------
 

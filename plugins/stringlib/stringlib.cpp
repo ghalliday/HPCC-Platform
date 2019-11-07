@@ -421,7 +421,8 @@ STRINGLIB_API void STRINGLIB_CALL slStringSubsOut(unsigned & tgtLen, char * & tg
     }
     else
     {
-        memcpy(tgt, src, srcLen);
+        if (likely(srcLen))
+            memcpy(tgt, src, srcLen);
     }
 
     tgtLen = srcLen;
@@ -452,7 +453,8 @@ STRINGLIB_API void STRINGLIB_CALL slStringSubs(unsigned & tgtLen, char * & tgt, 
     }
     else
     {
-        memcpy(tgt, src, srcLen);
+        if (likely(srcLen))
+            memcpy(tgt, src, srcLen);
     }
 
     tgtLen = srcLen;
@@ -503,7 +505,8 @@ STRINGLIB_API void STRINGLIB_CALL slStringRepad(unsigned & tgtLen, char * & tgt,
         if (!tgt)
             rtlThrowOutOfMemory(0, "In StringLib.StringRepad");
         tgtLen = tLen;
-        memcpy(tgt,base,srcLen);
+        if (likely(srcLen))
+            memcpy(tgt,base,srcLen);
         memset(tgt+srcLen,' ',tLen-srcLen);
     }
     else
@@ -610,7 +613,8 @@ STRINGLIB_API void STRINGLIB_CALL slStringExtract(unsigned & tgtLen, char * & tg
         if ( finger[len] == ',' )
             break;
     tgt = (char *)CTXMALLOC(parentCtx, len);
-    memcpy(tgt,finger,len);
+    if (likely(len))
+        memcpy(tgt,finger,len);
     tgtLen = len;
 }
 
@@ -847,7 +851,8 @@ STRINGLIB_API void STRINGLIB_CALL slStringFindReplace (unsigned & tgtLen, char *
     if ( srcLen < stokLen || stokLen == 0)
     {
         tgt = (char *) CTXMALLOC(parentCtx, srcLen);
-        memcpy(tgt, src, srcLen);
+        if (likely(srcLen))
+            memcpy(tgt, src, srcLen);
         tgtLen = srcLen;
     }
     else
@@ -1129,8 +1134,10 @@ STRINGLIB_API void STRINGLIB_CALL slStringExcludeNthWord(unsigned & tgtLen, char
     if (len)
     {
         tgt = (char *)CTXMALLOC(parentCtx, len);
-        memcpy(tgt,src,startLast);
-        memcpy(tgt+startLast,src+idx,(srcLen - idx));
+        if (likely(startLast))
+            memcpy(tgt,src,startLast);
+        if (likely(srcLen != idx))
+            memcpy(tgt+startLast,src+idx,(srcLen - idx));
     }
     else
         tgt = NULL;
@@ -1234,7 +1241,8 @@ STRINGLIB_API void STRINGLIB_CALL slSplitWords(bool & __isAllResult, size32_t & 
     if ((lenSeparator == 0) || (lenSrc < lenSeparator))
     {
         *((size32_t *)result) = lenSrc;
-        memcpy(result+sizeof(size32_t), src, lenSrc);
+        if (likely(lenSrc))
+            memcpy(result+sizeof(size32_t), src, lenSrc);
         return;
     }
 
@@ -1253,7 +1261,8 @@ STRINGLIB_API void STRINGLIB_CALL slSplitWords(bool & __isAllResult, size32_t & 
             {
                 size32_t len = startWord ? (cur - startWord) : 0;
                 memcpy(target, &len, sizeof(len));
-                memcpy(target+sizeof(size32_t), startWord, len);
+                if (likely(len))
+                    memcpy(target+sizeof(size32_t), startWord, len);
                 target += sizeof(size32_t) + len;
                 startWord = NULL;
             }
@@ -1273,7 +1282,8 @@ STRINGLIB_API void STRINGLIB_CALL slSplitWords(bool & __isAllResult, size32_t & 
             startWord = cur;
         size32_t len = (end - startWord);
         memcpy(target, &len, sizeof(len));
-        memcpy(target+sizeof(size32_t), startWord, len);
+        if (likely(len))
+            memcpy(target+sizeof(size32_t), startWord, len);
         target += sizeof(size32_t) + len;
     }
     assert(target == result + sizeRequired);
@@ -1324,7 +1334,8 @@ STRINGLIB_API void STRINGLIB_CALL slCombineWords(size32_t & __lenResult, void * 
         size32_t len;
         memcpy(&len, src+offset, sizeof(len));
         offset += sizeof(len);
-        memcpy(target, src+offset, len);
+        if (likely(len))
+            memcpy(target, src+offset, len);
         target += len;
         offset += len;
     }
@@ -1429,7 +1440,8 @@ STRINGLIB_API void STRINGLIB_CALL slFormatDate(size32_t & __lenResult, char * & 
 #endif
         len = strlen(buf);
         out = static_cast<char *>(CTXMALLOC(parentCtx, len));
-        memcpy(out, buf, len);
+        if (likely(len))
+            memcpy(out, buf, len);
     }
 
     __lenResult = len;
@@ -1454,7 +1466,8 @@ STRINGLIB_API void STRINGLIB_CALL slStringExtract50(char *tgt, unsigned srcLen, 
         memcpy(tgt,resret,50);
     else
     {
-        memcpy(tgt,resret,lenret);
+        if (likely(lenret))
+            memcpy(tgt,resret,lenret);
         memset(tgt+lenret,' ',50-lenret);
     }
     CTXFREE(parentCtx, resret);
@@ -1505,7 +1518,8 @@ STRINGLIB_API void STRINGLIB_CALL slStringFindReplace80(char * tgt, unsigned src
     {
         if (srcLen > 80)
             srcLen = 80;
-        memcpy(tgt, src, srcLen);
+        if (likely(srcLen))
+            memcpy(tgt, src, srcLen);
         if (srcLen < 80)
             memset(tgt+srcLen, ' ', 80 - srcLen);
     }
@@ -1520,7 +1534,8 @@ STRINGLIB_API void STRINGLIB_CALL slStringFindReplace80(char * tgt, unsigned src
             {
                 if (rtokLen > lim)
                     rtokLen = lim;
-                memcpy(tgt, rtok, rtokLen);
+                if (likely(rtokLen))
+                    memcpy(tgt, rtok, rtokLen);
                 tgt += rtokLen;
                 i += stokLen;
                 lim -= rtokLen;

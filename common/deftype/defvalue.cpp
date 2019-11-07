@@ -382,7 +382,8 @@ void MemoryValue::toMem(void *target)
 {
     size32_t size = getSize();
     assertThrow(val.length()>=size);
-    memcpy(target, val.get(), size);
+    if (likely(size))
+        memcpy(target, val.get(), size);
 }
 
 unsigned MemoryValue::getHash(unsigned initval)
@@ -460,7 +461,8 @@ StringValue::StringValue(const char *v, ITypeInfo *_type) : MemoryValue(_type)
     unsigned len = _type->getSize();
     assertex(len != UNKNOWN_LENGTH);
     char * temp = (char *)val.allocate(len+1);
-    memcpy(temp, v, len);
+    if (likely(len))
+        memcpy(temp, v, len);
     temp[len] = 0;
 }
 
@@ -603,7 +605,8 @@ IValue *createStringValue(const char *val, ITypeInfo *type, size32_t srcLength, 
     else if (tgtLength > srcLength)
     {
         char * extended = (char *)checked_malloc(tgtLength, DEFVALUE_MALLOC_FAILED);
-        memcpy(extended, val, srcLength);
+        if (likely(srcLength))
+            memcpy(extended, val, srcLength);
         memset(extended+srcLength, type->queryCharset()->queryFillChar(), tgtLength-srcLength);
         IValue * ret = new StringValue(extended, type);
         free(extended);
@@ -720,7 +723,8 @@ void * UnicodeValue::getUCharStringValue(unsigned len, void * out)
     size_t vallen = val.length()/2;
     if(vallen > len)
         vallen = len;
-    memcpy(out, val.get(), vallen*2);
+    if (likely(vallen))
+        memcpy(out, val.get(), vallen*2);
     if(len > vallen)
         ((UChar *)out)[vallen] = 0x0000;
     return out;
@@ -831,7 +835,8 @@ void UnicodeAttr::set(UChar const * _text, unsigned _len)
 {
     free(text);
     text = (UChar *) checked_malloc((_len+1)*2, DEFVALUE_MALLOC_FAILED);
-    memcpy(text, _text, _len*2);
+    if (likely(_len))
+        memcpy(text, _text, _len*2);
     text[_len] = 0x0000;
 }
 
@@ -850,7 +855,8 @@ VarUnicodeValue::VarUnicodeValue(unsigned len, const UChar * v, ITypeInfo * _typ
     else
     {
         UChar * temp = (UChar *)checked_malloc((typeLen+1)*2, DEFVALUE_MALLOC_FAILED);
-        memcpy(temp, v, len*2);
+        if (likely(len))
+            memcpy(temp, v, len*2);
         temp[len] = 0;
         val.set(temp, typeLen);
         free(temp);
@@ -945,7 +951,8 @@ void * VarUnicodeValue::getUCharStringValue(unsigned len, void * out)
     unsigned vallen = val.length();
     if(vallen > len)
         vallen = len;
-    memcpy(out, val.get(), vallen*2);
+    if (likely(vallen))
+        memcpy(out, val.get(), vallen*2);
     if(len > vallen)
         ((UChar *)out)[vallen] = 0x0000;
     return out;
@@ -1255,7 +1262,8 @@ IValue *DataValue::castTo(ITypeInfo *t)
         else
         {
             char *newstr = (char *) checked_malloc(nsize, DEFVALUE_MALLOC_FAILED);
-            memcpy(newstr, val.get(), osize);
+            if (likely(osize))
+                memcpy(newstr, val.get(), osize);
             memset(newstr+osize, 0, nsize-osize);
             IValue * ret = new DataValue(newstr, LINK(t));
             free(newstr);
@@ -1275,7 +1283,8 @@ IValue *DataValue::castTo(ITypeInfo *t)
         else
         {
             char *newstr = (char *) checked_malloc(nsize, DEFVALUE_MALLOC_FAILED);
-            memcpy(newstr, val.get(), osize);
+            if (likely(osize))
+                memcpy(newstr, val.get(), osize);
             memset(newstr+osize, t->queryCharset()->queryFillChar(), nsize-osize);
             IValue * ret = new StringValue(newstr, t);
             free(newstr);
@@ -1359,7 +1368,8 @@ QStringValue::QStringValue(const char *v, ITypeInfo *_type) : MemoryValue(_type)
 {
     unsigned newSize = _type->getSize();
     char * temp = (char *)val.allocate(newSize);
-    memcpy(temp, v, newSize);
+    if (likely(newSize))
+        memcpy(temp, v, newSize);
 }
 
 const char *QStringValue::generateECL(StringBuffer &out)
@@ -1678,7 +1688,7 @@ void IntValue::toMem(void *target)
     
     if (type->isSwappedEndian())
         _cpyrevn(target, data, size);
-    else
+    else if (likely(size))
         memcpy(target, data, size);
 }
 
@@ -2530,7 +2540,7 @@ IValue * addValues(IValue * left, IValue * right)
     case type_int:
     case type_swapint:
     case type_packedint:
-        ret = createTruncIntValue(left->getIntValue() + right->getIntValue(), pnt);
+        ret = createTruncIntValue((__int64)((__uint64)left->getIntValue() + (__uint64)right->getIntValue()), pnt);
         break;
     case type_real:
         ret = createRealValue(left->getRealValue() + right->getRealValue(), pnt);
@@ -2572,7 +2582,7 @@ IValue * subtractValues(IValue * left, IValue * right)
     case type_int:
     case type_swapint:
     case type_packedint:
-        ret = createTruncIntValue(left->getIntValue() - right->getIntValue(), pnt);
+        ret = createTruncIntValue((__int64)((__uint64)left->getIntValue() - (__uint64)right->getIntValue()), pnt);
         break;
     case type_real:
         ret = createRealValue(left->getRealValue() - right->getRealValue(), pnt);
@@ -2782,7 +2792,10 @@ IValue * negateValue(IValue * v)
     case type_int:
     case type_swapint:
     case type_packedint:
-        return createTruncIntValue(-(v->getIntValue()), v->getType());
+        {
+            __uint64 value = - (__uint64)v->getIntValue(); // avoid undefined behaviour if value = int_min
+            return createTruncIntValue((__int64)value, v->getType());
+        }
     case type_real:     
         return createRealValue(-(v->getRealValue()), v->getSize());
     case type_decimal:
@@ -3354,7 +3367,10 @@ IValue * shiftLeftValues(IValue * left, IValue * right)
     case type_int:
     case type_swapint:
     case type_packedint:
-        return createTruncIntValue(left->getIntValue() << right->getIntValue(), retType);
+        {
+            __uint64 value = (__uint64)left->getIntValue() << (__uint64)right->getIntValue();
+            return createTruncIntValue((__int64)value, retType);
+        }
     default:
         UNIMPLEMENTED;
     }
