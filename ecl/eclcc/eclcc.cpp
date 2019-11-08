@@ -417,6 +417,7 @@ protected:
     bool optIgnoreCache = false;
     bool optIgnoreSimplified = false;
     bool optExtraStats = false;
+    bool optProjectFunctionAttributes = true;
 
     mutable bool daliConnected = false;
     mutable bool disconnectReported = false;
@@ -1243,6 +1244,7 @@ void EclCC::processSingleQuery(EclCompileInstance & instance,
             parseCtx.setIgnoreSimplified();
         if (neverSimplifyRegEx)
             parseCtx.setNeverSimplify(neverSimplifyRegEx.str());
+        parseCtx.projectFunctionAttributes = optProjectFunctionAttributes;
 
         if (optFastSyntax)
             parseCtx.setFastSyntax();
@@ -2766,6 +2768,9 @@ int EclCC::parseCommandLineOptions(int argc, const char* argv[])
         {
         }
         else if (iter.matchFlag(optExtraStats, "--internalextrastats"))
+        {
+        }
+        else if (iter.matchFlag(optProjectFunctionAttributes, "--projectfunctionattributes"))
         {
         }
         else if (iter.matchFlag(logVerbose, "-v") || iter.matchFlag(logVerbose, "--verbose"))

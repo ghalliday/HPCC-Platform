@@ -3491,6 +3491,34 @@ IHqlExpression * HqlGram::createSymbolFromValue(IHqlExpression * primaryExpr, IH
     return primaryExpr->cloneAllAnnotations(value);
 }
 
+IHqlExpression * HqlGram::findDefinitionInModule(IHqlExpression * scopeExpr, IIdAtom * id)
+{
+    IHqlScope * scope = scopeExpr->queryScope();
+    if (!scope)
+        return nullptr;
+    OwnedHqlExpr match = scope->lookupSymbol(id, LSFignoreBase|LSFsharedOK, lookupCtx);
+    if (match)
+        return match.getClear();
+    ForEachChild(i, scopeExpr)
+    {
+        IHqlExpression * baseMatch = findDefinitionInModule(scopeExpr->queryChild(i), id);
+        if (baseMatch)
+            return baseMatch;
+    }
+    return nullptr;
+}
+
+void HqlGram::checkNotOverridden(const attribute & modpos, IHqlExpression * base, IHqlExpression * source, IIdAtom * id)
+{
+    //First walk down the module hierarchy to check the function has not been overridden
+    //I think this only really work if the project of the scope is also delayed until the parameter has been fully expanded.
+    OwnedHqlExpr projectedMatch = findDefinitionInModule(base, id);
+    OwnedHqlExpr baseMatch = findDefinitionInModule(source, id);
+    if (projectedMatch != baseMatch)
+        reportError(ERR_EXPECTED_ATTRIBUTE, modpos, "Module has overridden function attribute %s", str(id));
+}
+
+
 IHqlExpression * HqlGram::implementInterfaceFromModule(const attribute & modpos, const attribute & ipos, IHqlExpression * implementModule, IHqlExpression * _projectInterface, IHqlExpression * flags)
 {
     //MORE: What about multiple base interfaces?  Shouldn't really be needed, but would probably be easy enough to implement.
@@ -3557,9 +3585,15 @@ IHqlExpression * HqlGram::implementInterfaceFromModule(const attribute & modpos,
             {
                 HqlExprArray parameters;
                 bool isParametered = extractSymbolParameters(parameters, &baseSym);
-
-                checkDerivedCompatible(id, newScopeExpr, match, isParametered, parameters, modpos);
-                newScope->defineSymbol(LINK(match));
+                if (lookupCtx.projectFunctionAttributes() || !isParametered)
+                {
+                    checkDerivedCompatible(id, newScopeExpr, match, isParametered, parameters, modpos);
+                    newScope->defineSymbol(LINK(match));
+                }
+                else
+                {
+                    checkNotOverridden(modpos, projectInterface, concreteModule, id);
+                }
             }
             else if (!optional)
                 reportError(ERR_EXPECTED_ATTRIBUTE, modpos, "Module does not define %s", str(id));

@@ -692,6 +692,8 @@ public:
     void doCheckAssignedNormalizeTransform(HqlExprArray * assigns, IHqlExpression* select, IHqlExpression* targetSelect, IHqlExpression * original, IHqlExpression * unadorned, const attribute& errpos, bool & modified);
 
     bool checkValidBaseModule(const attribute & attr, SharedHqlExpr & expr);
+    void checkNotOverridden(const attribute & modpos, IHqlExpression * base, IHqlExpression * source, IIdAtom * id);
+    IHqlExpression * findDefinitionInModule(IHqlExpression * scopeExpr, IIdAtom * id);
     IHqlExpression * implementInterfaceFromModule(attribute & iAttr, attribute & mAttr, IHqlExpression * flags);
     IHqlExpression * implementInterfaceFromModule(const attribute & modpos, const attribute & ipos, IHqlExpression * implementModule, IHqlExpression * projectInterface, IHqlExpression * flags);
 

@@ -945,6 +945,7 @@ public:
     bool regenerateCache = false;
     bool ignoreCache = false;
     bool ignoreSimplified = false;
+    bool projectFunctionAttributes = true;
     Linked<ICodegenContextCallback> codegenCtx;
     CIArrayOf<FileParseMeta> metaStack;
     IEclCachedDefinitionCollection * cache = nullptr;
@@ -1027,6 +1028,7 @@ public:
     void reportTiming(const char * name);
     inline void incrementAttribsProcessed() { ++parseCtx.numAttribsProcessed; }
     inline bool neverSimplify(const char *fullname) { return parseCtx.neverSimplify(fullname); }
+    inline bool projectFunctionAttributes() const { return parseCtx.projectFunctionAttributes; }
 protected:
 
     inline IPropertyTree * queryArchive() const { return parseCtx.archive; }
