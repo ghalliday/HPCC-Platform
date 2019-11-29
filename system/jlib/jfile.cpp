@@ -5159,9 +5159,32 @@ StringBuffer &makePathUniversal(const char *path, StringBuffer &out)
     return out;
 }
 
+bool isAbsolutePath(const char *path)
+{
+    if (!path||!*path)
+        return false;
+    if (isPathSepChar(path[0]))
+        return true;
+    const char * cur = path;
+    for (;;)
+    {
+        switch (*cur++)
+        {
+        case '/':
+        case '\\':
+            return false;
+        case ':':
+            //Windows c: and protocol:...
+            //if we disallow colons in relative filenames and always treat them as absolute filenames
+            //this could be replaced with a strchr()
+            return true;
+        }
+    }
+}
+
 StringBuffer &makeAbsolutePath(const char *relpath,StringBuffer &out, bool mustExist)
 {
-    if (isPathSepChar(relpath[0])&&(relpath[0]==relpath[1]))
+    if (isAbsolutePath(relpath))
     {
         if (mustExist)
         {
@@ -5171,6 +5194,7 @@ StringBuffer &makeAbsolutePath(const char *relpath,StringBuffer &out, bool mustE
         }
         return out.append(relpath); // if remote then already should be absolute
     }
+
 #ifdef _WIN32
     char rPath[MAX_PATH];
     char *filepart;
@@ -5187,6 +5211,7 @@ StringBuffer &makeAbsolutePath(const char *relpath,StringBuffer &out, bool mustE
     }
     out.append(rPath);
 #else
+
     StringBuffer expanded;
     //Expand ~ on the front of a filename - useful for paths not passed on the command line
     //Note, it does not support the ~user/ version of the syntax

@@ -17,16 +17,20 @@ if(SQS)
         SOURCE_DIR ${AWS_SDK_CPP_SOURCE_DIR}
         BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp
         CMAKE_ARGS -DCUSTOM_MEMORY_MANAGEMENT:string=0 -DCMAKE_CXX_FLAGS=${EXTERNAL_SQS_CXX_FLAGS}
-        BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} LDFLAGS=-Wl,-rpath-link,${LIB_PATH} aws-cpp-sdk-sqs
+        BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} LDFLAGS=-Wl,-rpath-link,${LIB_PATH} aws-cpp-sdk-sqs aws-cpp-sdk-s3
         INSTALL_COMMAND "")
     add_library(aws-cpp-sdk-core SHARED IMPORTED)
     add_library(aws-cpp-sdk-sqs SHARED IMPORTED)
+    add_library(aws-cpp-sdk-s3 SHARED IMPORTED)
     set_property(TARGET aws-cpp-sdk-core
         PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp/aws-cpp-sdk-core/libaws-cpp-sdk-core.so)
     set_property(TARGET aws-cpp-sdk-sqs
         PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp/aws-cpp-sdk-sqs/libaws-cpp-sdk-sqs.so)
+    set_property(TARGET aws-cpp-sdk-s3
+        PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp/aws-cpp-sdk-s3/libaws-cpp-sdk-s3.so)
     add_dependencies(aws-cpp-sdk-core aws-sdk-cpp)
     add_dependencies(aws-cpp-sdk-sqs aws-sdk-cpp)
+    add_dependencies(aws-cpp-sdk-s3 aws-sdk-cpp)
 
     add_definitions(-DUSE_IMPORT_EXPORT)
 

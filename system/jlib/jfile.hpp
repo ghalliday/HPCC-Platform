@@ -41,6 +41,8 @@ enum IFSHmode { IFSHnone, IFSHread=0x8, IFSHfull=0x10};   // sharing modes
 enum IFSmode { IFScurrent = FILE_CURRENT, IFSend = FILE_END, IFSbegin = FILE_BEGIN };    // seek mode
 enum CFPmode { CFPcontinue, CFPcancel, CFPstop };    // modes for ICopyFileProgress::onProgress return
 enum IFEflags { IFEnone=0x0, IFEnocache=0x1, IFEcache=0x2 };    // mask
+constexpr offset_t unknownFileSize = -1;
+
 class CDateTime;
 
 interface IDirectoryIterator : extends IIteratorOf<IFile> 
@@ -550,13 +552,7 @@ inline const char *splitDirTail(const char *path,StringBuffer &dir)
     return tail;        
 }
 
-inline bool isAbsolutePath(const char *path)
-{   
-    if (!path||!*path)
-        return false;
-    return isPathSepChar(path[0])||((path[1]==':')&&(isPathSepChar(path[2])));
-}
-
+extern jlib_decl bool isAbsolutePath(const char *path);
 extern jlib_decl StringBuffer &makeAbsolutePath(const char *relpath,StringBuffer &out,bool mustExist=false);
 extern jlib_decl StringBuffer &makeAbsolutePath(StringBuffer &relpath,bool mustExist=false);
 extern jlib_decl StringBuffer &makeAbsolutePath(const char *relpath, const char *basedir, StringBuffer &out);
