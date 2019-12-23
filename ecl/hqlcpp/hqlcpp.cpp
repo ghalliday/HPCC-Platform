@@ -1856,7 +1856,7 @@ void HqlCppTranslator::cacheOptions()
         DebugOption(options.checkDuplicateThreshold, "checkDuplicateThreshold", 0), // If non zero, create a warning if duplicates > this percentage increase
         DebugOption(options.checkDuplicateMinActivities, "checkDuplicateMinActivities", 100),
         DebugOption(options.diskReadsAreSimple, "diskReadsAreSimple", false), // Not yet enabled - needs filters to default to generating keyed info first
-        DebugOption(options.genericDiskReads, "genericDiskReads", false),
+        DebugOption(options.genericDiskReads, "genericDiskReads", targetHThor()),
         DebugOption(options.generateActivityFormats, "generateActivityFormats", false),
         DebugOption(options.generateDiskFormats, "generateDiskFormats", false),
         DebugOption(options.maxOptimizeSize, "maxOptimizeSize", 5),             // Remove the overhead from very small functions e.g. function prolog

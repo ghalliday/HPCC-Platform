@@ -54,6 +54,8 @@
 #include "ftbase.ipp"
 #include "rtldynfield.hpp"
 #include "rtlnewkey.hpp"
+
+#include "thormeta.hpp"
 #include "thorread.hpp"
 
 #define EMPTY_LOOP_LIMIT 1000
@@ -11270,6 +11272,555 @@ const void *CHThorNewDiskReadActivity::nextRow()
 
 //=====================================================================================================
 
+bool RemoteReadChecker::onlyReadLocally(const CLogicalFileSlice & slice, unsigned copy)
+{
+    //Allow all operations to be forced to be executed locally.
+    if (forceRemoteDisabled.getValue(false))
+        return true;
+
+    if (!slice.onAttachedStorage(copy))
+        return true;
+
+    //If the file is remote attached storagenot local then execute it remotely
+    if (!slice.isLocal(copy))
+        return false;
+
+    StringBuffer localPath;
+    slice.getURL(localPath, copy);
+    if (forceRemoteRead.getValue(testForceRemote(localPath)))
+        return false;
+    return true;
+}
+
+
+CHThorRadicalDiskReadBaseActivity::CHThorRadicalDiskReadBaseActivity(IAgentContext &_agent, unsigned _activityId, unsigned _subgraphId, IHThorNewDiskReadBaseArg &_arg, IHThorCompoundBaseArg & _segHelper, ThorActivityKind _kind, EclGraph & _graph, IPropertyTree *_node)
+: CHThorActivityBase(_agent, _activityId, _subgraphId, _arg, _kind, _graph), helper(_arg), segHelper(_segHelper), files(queryGlobalStorageSystems(), _agent.queryWuid()), remoteReadChecker(_agent.queryWorkUnit())
+{
+    helper.setCallback(this);
+    expectedDiskMeta = helper.queryDiskRecordSize();
+    projectedDiskMeta = helper.queryProjectedDiskRecordSize();
+    formatOptions.setown(createPTree());
+    isCodeSigned = false;
+    if (_node)
+    {
+        const char *recordTranslationModeHintText = _node->queryProp("hint[@name='layoutTranslation']/@value");
+        if (recordTranslationModeHintText)
+            recordTranslationModeHint = getTranslationMode(recordTranslationModeHintText, true);
+        isCodeSigned = isActivityCodeSigned(*_node);
+    }
+
+    CPropertyTreeWriter writer(formatOptions);
+    helper.getFormatOptions(writer);
+
+    grouped = ((helper.getFlags() & TDXgrouped) != 0);
+    inputOptions.setown(createPTree());
+    inputOptions->setPropBool("grouped", grouped);
+    inputOptions->setPropBool("forceCompressed", (helper.getFlags() & TDXcompress) != 0);
+    if (helper.getFlags() & TDRoptional)
+        inputOptions->setPropBool("optional", true);
+
+    outputGrouped = helper.queryOutputMeta()->isGrouped();  // It is possible for input to be incorrectly marked as grouped, and input not or vice-versa
+}
+
+CHThorRadicalDiskReadBaseActivity::~CHThorRadicalDiskReadBaseActivity()
+{
+    close();
+}
+
+void CHThorRadicalDiskReadBaseActivity::ready()
+{
+    CHThorActivityBase::ready();
+
+    opened = false;
+    curSlice = NotFound;
+
+    resolveFile();
+
+    fieldFilters.kill();
+    segHelper.createSegmentMonitors(this);
+}
+
+void CHThorRadicalDiskReadBaseActivity::stop()
+{
+    close();
+    CHThorActivityBase::stop();
+}
+
+unsigned __int64 CHThorRadicalDiskReadBaseActivity::getFilePosition(const void * row)
+{
+    //Ideally these functions would not need to be implemented - they should always be implemented by the translation layer
+    throwUnexpected();
+}
+
+unsigned __int64 CHThorRadicalDiskReadBaseActivity::getLocalFilePosition(const void * row)
+{
+    throwUnexpected();
+}
+
+const char * CHThorRadicalDiskReadBaseActivity::queryLogicalFilename(const void * row)
+{
+    throwUnexpected();
+}
+
+void CHThorRadicalDiskReadBaseActivity::resolveFile()
+{
+    //If in a child query, and the filenames haven't changed, the information about the resolved filenames will also not have changed
+    //Assume that is also true for format properties - require dynamic if they are to be recalculated.
+    if (resolved && !(helper.getFlags() & (TDXvarfilename|TDRdynformatoptions)))
+        return;
+    resolved = true;
+
+    //Update the inputOptions and formatOptions if they depend on the current context
+    curInputOptions.set(inputOptions);
+    //Check for encryption key
+    void *k;
+    size32_t kl;
+    helper.getEncryptKey(kl,k);
+    if (kl)
+    {
+        curInputOptions.setown(createPTreeFromIPT(inputOptions));
+        curInputOptions->setPropBin("encryptionKey", kl, k);
+        curInputOptions->setPropBool("blockcompressed", true);
+        curInputOptions->setPropBool("compressed", true);
+    }
+
+    curFormatOptions.set(formatOptions);
+    if (helper.getFlags() & TDRdynformatoptions)
+    {
+        curFormatOptions.setown(createPTreeFromIPT(formatOptions));
+        CPropertyTreeWriter writer(curFormatOptions);
+        helper.getFormatDynOptions(writer);
+    }
+    else
+        curFormatOptions.set(formatOptions);
+
+    //Extract meta information from the helper.  Another (possibly more efficient) alternative to an IPropertyTree would be a class.
+    bool isTemporary = (helper.getFlags() & (TDXtemporary | TDXjobtemp)) != 0;
+
+    OwnedRoxieString fileName(helper.getFileName());
+    bool resolveFilesLocally = false; // MORE
+    if (isTemporary)
+    {
+        StringBuffer mangledFilename;
+        mangleLocalTempFilename(mangledFilename, fileName, agent.queryWuid());    // should this occur inside setEclFilename?
+        const char * resolved = agent.queryTemporaryFile(mangledFilename.str());
+        files.setEclFilename(resolved, isTemporary, isCodeSigned, agent.queryCodeContext()->queryUserDescriptor(), expectedDiskMeta, curInputOptions, curFormatOptions);
+    }
+    else
+    {
+        StringBuffer lfn;
+        expandLogicalFilename(lfn, fileName, agent.queryWorkUnit(), resolveFilesLocally, false);
+        files.setEclFilename(lfn, false, isCodeSigned, agent.queryCodeContext()->queryUserDescriptor(), expectedDiskMeta, curInputOptions, curFormatOptions);
+    }
+    files.calcPartition(slices, 1, 0, false);
+    curSlice = 0;
+}
+
+void CHThorRadicalDiskReadBaseActivity::gatherInfo(IFileDescriptor * fileDesc)
+{
+    if (fileDesc)
+    {
+        if (!agent.queryResolveFilesLocally())
+        {
+        }
+        else
+            grouped = ((helper.getFlags() & TDXgrouped) != 0);
+    }
+    else
+    {
+        grouped = ((helper.getFlags() & TDXgrouped) != 0);
+    }
+}
+
+void CHThorRadicalDiskReadBaseActivity::close()
+{
+    closepart();
+    if (activeSlice)
+        activeSlice->setAccessed();
+}
+
+void CHThorRadicalDiskReadBaseActivity::closepart()
+{
+    if (activeReader)
+    {
+        activeReader->clearInput();
+        activeReader = nullptr;
+        activeSlice = nullptr;
+    }
+}
+
+bool CHThorRadicalDiskReadBaseActivity::openFirstPart()
+{
+    if (openFilePart(0U))
+        return true;
+    setEmptyStream();
+    return false;
+}
+
+bool CHThorRadicalDiskReadBaseActivity::openNextPart()
+{
+    if (curSlice == NotFound)
+        return false;
+
+    if (activeSlice)
+        closepart();
+
+    if (openFilePart(curSlice+1))
+        return true;
+    setEmptyStream();
+    return false;
+}
+
+void CHThorRadicalDiskReadBaseActivity::initStream(CLogicalFileSlice * slice, IDiskRowReader * reader)
+{
+    activeSlice = slice;
+    activeReader = reader;
+    inputRowStream = reader->queryAllocatedRowStream(rowAllocator);
+
+    StringBuffer report("Reading file ");
+    report.append(activeSlice->queryTracingFilename());
+    agent.reportProgress(report.str());
+}
+
+void CHThorRadicalDiskReadBaseActivity::setEmptyStream()
+{
+    inputRowStream = queryNullDiskRowStream();
+    finishedParts = true;
+}
+
+IDiskRowReader * CHThorRadicalDiskReadBaseActivity::ensureRowReader(const char * format, bool streamRemote, unsigned expectedCrc, IOutputMetaData & expected, unsigned projectedCrc, IOutputMetaData & projected, unsigned actualCrc, IOutputMetaData & actual, CLogicalFileSlice * slice)
+{
+    Owned<IDiskReadMapping> mapping;
+    //If the actual and expected file formats do not translate from the actual file format - use the expected format instead
+    if (strsame(format, slice->queryFormat()))
+        mapping.setown(createDiskReadMapping(getLayoutTranslationMode(), format, actualCrc, actual, expectedCrc, expected, projectedCrc, projected, slice->queryFormatOptions()));
+    else
+        mapping.setown(createDiskReadMapping(getLayoutTranslationMode(), format, expectedCrc, expected, expectedCrc, expected, projectedCrc, projected, slice->queryFormatOptions()));
+
+    ForEachItemIn(i, readers)
+    {
+        IDiskRowReader & cur = readers.item(i);
+        if (cur.matches(format, streamRemote, mapping))
+            return &cur;
+    }
+    IDiskRowReader * reader = createDiskReader(format, streamRemote, mapping);
+    readers.append(*reader);
+    return reader;
+}
+
+bool CHThorRadicalDiskReadBaseActivity::openFilePart(unsigned whichSlice)
+{
+    const char * format = helper.queryFormat();   // more - should extract from the current file (could even mix flat and csv...)
+    unsigned expectedCrc = helper.getDiskFormatCrc();
+    unsigned projectedCrc = helper.getProjectedFormatCrc();
+    for (;;)
+    {
+        if (whichSlice >= slices.size())
+        {
+            curSlice = NotFound;
+            return false;
+        }
+
+        if (openFilePart(&slices[whichSlice]))
+        {
+            curSlice = whichSlice;
+            activeSlice = &slices[whichSlice];
+            return true;
+        }
+
+        whichSlice++;
+    }
+}
+
+bool CHThorRadicalDiskReadBaseActivity::openFilePart(CLogicalFileSlice * nextSlice)
+{
+    unsigned expectedCrc = helper.getDiskFormatCrc();
+    unsigned projectedCrc = helper.getProjectedFormatCrc();
+    unsigned actualCrc = nextSlice->queryFile()->queryActualCrc();
+    offset_t offsetOfPart = nextSlice->queryOffsetOfPart();
+    IOutputMetaData * actualDiskMeta = nextSlice->queryFile()->queryActualMeta();
+    const char * tracingName = nextSlice->queryTracingFilename();
+
+    bool tryRemoteStream = actualDiskMeta->queryTypeInfo()->canInterpret() && actualDiskMeta->queryTypeInfo()->canSerialize() &&
+                           projectedDiskMeta->queryTypeInfo()->canInterpret() && projectedDiskMeta->queryTypeInfo()->canSerialize();
+
+
+    /*
+     * If a file part can be accessed local, then read it locally
+     * If a file part supports a remote stream, then use that
+     * Otherwise failover to the legacy remote access.
+     */
+    const char * format = helper.queryFormat();
+    // If format is not specified in the ECL then it is deduced from the file.  It must be the same for all copies of a file part
+    if (!format)
+        format = nextSlice->queryFormat();
+
+    Owned<IException> saveOpenExc;
+    StringBuffer filename, filenamelist;
+    std::vector<unsigned> remoteCandidates;
+
+    // scan for local part 1st
+    //MORE: Order of copies should be optimized at this point....
+    unsigned numCopies = nextSlice->queryNumCopies();
+    for (unsigned copy=0; copy<numCopies; copy++)
+    {
+        if (remoteReadChecker.onlyReadLocally(*nextSlice, copy))
+        {
+            IDiskRowReader * reader = ensureRowReader(format, false, expectedCrc, *expectedDiskMeta, projectedCrc, *projectedDiskMeta, actualCrc, *actualDiskMeta, nextSlice);
+            if (reader->setInputFile(*nextSlice, fieldFilters, copy))
+            {
+                initStream(nextSlice, reader);
+                return true;
+            }
+        }
+        else
+            remoteCandidates.push_back(copy);
+    }
+
+    //First try remote streaming, and if that does not succeed, fall back to remote reading.
+    bool allowFallbackToNonStreaming = true;
+    for (;;)
+    {
+        for (unsigned copy: remoteCandidates)
+        {
+            StringBuffer filename;
+            nextSlice->getURL(filename, copy);
+            filenamelist.append('\n').append(filename);
+            try
+            {
+                IDiskRowReader * reader = ensureRowReader(format, tryRemoteStream, expectedCrc, *expectedDiskMeta, projectedCrc, *projectedDiskMeta, actualCrc, *actualDiskMeta, nextSlice);
+                if (reader->setInputFile(*nextSlice, fieldFilters, copy))
+                {
+                    initStream(nextSlice, reader);
+                    return true;
+                }
+            }
+            catch (IException *E)
+            {
+                saveOrRelease(saveOpenExc, E);
+            }
+        }
+
+        if (!tryRemoteStream || !allowFallbackToNonStreaming)
+            break;
+        tryRemoteStream = false;
+    }
+
+    if (!(helper.getFlags() & TDRoptional))
+    {
+        StringBuffer s;
+        if (filenamelist)
+        {
+            if (saveOpenExc.get())
+            {
+                if (!nextSlice->isLogicalFile())
+                    saveOpenExc->errorMessage(s);
+                else
+                {
+                    s.append("Could not open logical file ").append(tracingName).append(" in any of these locations:").append(filenamelist).append(" (");
+                    saveOpenExc->errorMessage(s).append(")");
+                }
+            }
+            else
+                s.append("Could not open logical file ").append(tracingName).append(" in any of these locations:").append(filenamelist).append(" (").append((unsigned)GetLastError()).append(")");
+        }
+        else
+            s.append("Could not open local physical file ").append(filename).append(" (").append((unsigned)GetLastError()).append(")");
+        agent.fail(1, s.str());
+    }
+    return false;
+}
+
+
+bool CHThorRadicalDiskReadBaseActivity::openNext()
+{
+    return openNextPart();
+}
+
+void CHThorRadicalDiskReadBaseActivity::open()
+{
+    assertex(!opened);
+    opened = true;
+    if (!segHelper.canMatchAny())
+    {
+        setEmptyStream();
+    }
+    else
+    {
+        if (!openFirstPart())
+            setEmptyStream();
+    }
+}
+
+void CHThorRadicalDiskReadBaseActivity::append(FFoption option, const IFieldFilter * filter)
+{
+    if (filter->isWild())
+        filter->Release();
+    else
+        fieldFilters.append(*filter);
+}
+
+//=====================================================================================================
+
+CHThorRadicalDiskReadActivity::CHThorRadicalDiskReadActivity(IAgentContext &_agent, unsigned _activityId, unsigned _subgraphId, IHThorNewDiskReadArg &_arg, ThorActivityKind _kind, EclGraph & _graph, IPropertyTree *_node)
+: CHThorRadicalDiskReadBaseActivity(_agent, _activityId, _subgraphId, _arg, _arg, _kind, _graph, _node), helper(_arg), outBuilder(NULL)
+{
+    lastGroupProcessed = 0;
+    hasMatchFilter = helper.hasMatchFilter();
+    useRawStream = hasMatchFilter || helper.needTransform();
+}
+
+void CHThorRadicalDiskReadActivity::ready()
+{
+    PARENT::ready();
+    outBuilder.setAllocator(rowAllocator);
+    lastGroupProcessed = processed;
+    needTransform = helper.needTransform() || fieldFilters.length();
+    limit = helper.getRowLimit();
+    if (helper.getFlags() & TDRlimitskips)
+        limit = (unsigned __int64) -1;
+    stopAfter = helper.getChooseNLimit();
+    assertex(stopAfter != 0);
+    if (!helper.transformMayFilter() && !helper.hasMatchFilter())
+        remoteLimit = stopAfter;
+    finishedParts = false;
+}
+
+
+void CHThorRadicalDiskReadActivity::stop()
+{
+    outBuilder.clear();
+    PARENT::stop();
+}
+
+
+void CHThorRadicalDiskReadActivity::onLimitExceeded()
+{
+    if ( agent.queryCodeContext()->queryDebugContext())
+        agent.queryCodeContext()->queryDebugContext()->checkBreakpoint(DebugStateLimit, NULL, static_cast<IActivityBase *>(this));
+    helper.onLimitExceeded();
+}
+
+const void *CHThorRadicalDiskReadActivity::nextRow()
+{
+    //Avoid this check on each row- e.g., initialising streams with a null stream, which returns eof, and falls through to eof processing
+    if (!opened) open();
+
+    // Only check once per row returned.  Potentially means that heavily filtered datasets may wait a long time to check for abort
+    queryUpdateProgress();
+
+    //Avoid this test...  Combine the limit checking with choosen, and have choosen/limit triggering set the
+    //stream to a special no more rows stream so that subsequent calls do not read records.
+    if ((processed - initialProcessed) >= stopAfter)
+        return nullptr;
+
+    try
+    {
+        if (useRawStream)
+        {
+            for (;;)
+            {
+                //Returns a row in the serialized form of the projected format
+                size32_t nextSize;
+                const byte * next = (const byte *)inputRowStream->nextRow(nextSize);
+                if (!isSpecialRow(next))
+                {
+                    size32_t thisSize = 0;
+                    if (likely(!hasMatchFilter || helper.canMatch(next)))
+                    {
+                        size32_t thisSize = helper.transform(outBuilder.ensureRow(), next);
+                        if (thisSize != 0)
+                        {
+                            if (unlikely((processed - initialProcessed) >= limit))
+                            {
+                                outBuilder.clear();
+                                onLimitExceeded();
+                                return nullptr;
+                            }
+                            processed++;
+                            return outBuilder.finalizeRowClear(thisSize);
+                        }
+                    }
+                }
+                else
+                {
+                    switch (getSpecialRowType(next))
+                    {
+                    case SpecialRow::eof:
+                        if (!openNext())
+                            return next; // i.e. eof
+                        //rawStream will have changed, but it cannot change into a rowStream
+                        break;
+                    case SpecialRow::eos:
+                        return next;
+                    case SpecialRow::eog:
+                        if (outputGrouped && (processed != lastGroupProcessed))
+                        {
+                            lastGroupProcessed = processed;
+                            //MORE: Change to return next - i.e. an eog marker
+                            return nullptr;
+                        }
+                        break;
+                    default:
+                        throwUnexpected();
+                    }
+                }
+            }
+        }
+        else
+        {
+            //This branch avoids a memcpy from actual to projected followed by a deserialize - since it can map directly
+            //May be more efficient to use this branch if serialized==deserialized and there is a filter, but no transform.
+            //It would be possibel to have two (or more) different implementations, which were created based on
+            //whether there was a limit, a transform etc., but unlikely to save more than a couple of boolean tests.
+            for (;;)
+            {
+                const byte * next = (const byte *)inputRowStream->nextRow();
+                if (!isSpecialRow(next))
+                {
+                    if (unlikely((processed - initialProcessed) >= limit))
+                    {
+                        ReleaseRoxieRow(next);
+                        onLimitExceeded();
+                        return nullptr;
+                    }
+                    processed++;
+                    return next;
+                }
+                else
+                {
+                    switch (getSpecialRowType(next))
+                    {
+                    case SpecialRow::eof:
+                        if (!openNext())
+                            return next;
+                        //rowStream will have changed
+                        break;
+                    case SpecialRow::eos:
+                        return next;
+                    case SpecialRow::eog:
+                        if (processed != lastGroupProcessed)
+                        {
+                            lastGroupProcessed = processed;
+                            return nullptr;
+                        }
+                        break;
+                    default:
+                        throwUnexpected();
+                    }
+                }
+            }
+        }
+    }
+    catch(IException * e)
+    {
+        throw makeWrappedException(e);
+    }
+    return NULL;
+}
+
+//=====================================================================================================
+
 MAKEFACTORY(DiskWrite);
 MAKEFACTORY(Iterate);
 MAKEFACTORY(Filter);
@@ -11328,6 +11879,11 @@ extern HTHOR_API IHThorActivity *createChildIfActivity(IAgentContext &_agent, un
 extern HTHOR_API IHThorActivity *createHashAggregateActivity(IAgentContext &_agent, unsigned _activityId, unsigned _subgraphId, IHThorHashAggregateArg &arg, ThorActivityKind kind, EclGraph & _graph, bool _isGroupedAggregate)
 {
     return new CHThorHashAggregateActivity(_agent, _activityId, _subgraphId, arg, kind, _graph, _isGroupedAggregate);
+}
+
+extern HTHOR_API IHThorActivity *createRadicalDiskReadActivity(IAgentContext &_agent, unsigned _activityId, unsigned _subgraphId, IHThorNewDiskReadArg &arg, ThorActivityKind kind, EclGraph & _graph, IPropertyTree * node)
+{
+    return new CHThorRadicalDiskReadActivity(_agent, _activityId, _subgraphId, arg, kind, _graph, node);
 }
 
 MAKEFACTORY(Null);

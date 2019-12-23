@@ -1218,6 +1218,9 @@ void HqlCppTranslator::buildKeyedJoinExtra(ActivityInstance & instance, IHqlExpr
 
 void HqlCppTranslator::buildKeyJoinIndexReadHelper(ActivityInstance & instance, IHqlExpression * expr, KeyedJoinInfo * info)
 {
+    if (instance.activityId == 1811)
+        expr->numChildren();
+
     //virtual size32_t extractIndexReadFields(ARowBuilder & crSelf, const void * _input) = 0;
     //virtual IOutputMetaData * queryIndexReadInputRecordSize() = 0;
     info->buildExtractIndexReadFields(instance.startctx);

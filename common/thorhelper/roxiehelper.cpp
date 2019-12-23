@@ -2673,7 +2673,9 @@ StringBuffer & mangleHelperFileName(StringBuffer & out, const char * in, const c
     return out;
 }
 
-StringBuffer & mangleLocalTempFilename(StringBuffer & out, char const * in)
+
+//Replace any occurrences of :: in the logical name with __scope__, and optionally append with the wuid
+StringBuffer & mangleLocalTempFilename(StringBuffer & out, char const * in, const char * wuid)
 {
     char const * start = in;
     while(true)
@@ -2690,6 +2692,8 @@ StringBuffer & mangleLocalTempFilename(StringBuffer & out, char const * in)
             break;
         }
     }
+    if (wuid)
+        out.append("__").append(wuid);
     return out;
 }
 
@@ -2734,6 +2738,10 @@ StringBuffer & expandLogicalFilename(StringBuffer & logicalName, const char * fn
         StringBuffer sb(fname);
         sb.replaceString("::",PATHSEPSTR);
         makeAbsolutePath(sb.str(), logicalName.clear());
+    }
+    else if (strchr(fname, PATHSEPCHAR))
+    {
+        logicalName.append(fname);
     }
     else
     {

@@ -1653,6 +1653,13 @@ StringBuffer & appendUtf8AsECL(StringBuffer &out, unsigned len, const char * src
     return appendStringExpandControl(out, len, src, false, false, true);
 }
 
+StringBuffer & appendStringAsUtf8(StringBuffer &out, unsigned len, const char * src)
+{
+    for (unsigned i=0; i < len; i++)
+        appendUtf8(out, (byte)src[i]);
+    return out;
+}
+
 
 StringBuffer & appendStringAsQuotedCPP(StringBuffer &out, unsigned len, const char * src, bool addBreak)
 {
