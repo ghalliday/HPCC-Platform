@@ -4400,6 +4400,9 @@ void EclResourcer::markAsUnconditional(IHqlExpression * expr, ResourceGraphInfo 
             {
                 OwnedHqlExpr tag = createAttribute(instanceAtom, LINK(expr), getSizetConstant(idx), LINK(condition));
                 IHqlExpression * child = expr->queryChild(idx);
+                if (child->isAttribute())
+                    continue;
+
                 markAsUnconditional(child, queryResourceInfo(child)->graph, tag);
 
                 queryResourceInfo(child)->setConditionSource(tag, !wasConditional);
@@ -6610,6 +6613,7 @@ void EclResourcer::resourceGraph(IHqlExpression * expr, HqlExprArray & transform
     HqlExprArray exprs;
     node_operator expandOp = options.isChildQuery ? no_any : no_parallel;
     expandLists(expandOp, exprs, expr);
+    removeAttribute(exprs, _uid_Atom);
 
     //NB: This only resources a single level of queries.  SubQueries should be resourced in a separate
     //pass so that commonality between different activities/subgraphs isn't introduced/messed up.
@@ -6667,6 +6671,23 @@ void EclResourcer::resourceRemoteGraph(IHqlExpression * expr, HqlExprArray & tra
 
 //---------------------------------------------------------------------------
 
+IHqlExpression * ensureRootActionsUnique(IHqlExpression * expr)
+{
+    if (!expr->isAction())
+        return LINK(expr);
+
+    //If this is an action then append a unique id.  If contains other actions append unique ids to them
+    //This code could special case the actions that can contain other actions, but the naive implementation works well.
+    HqlExprArray args;
+    args.ensure(expr->numChildren() + 1);
+    ForEachChild(i, expr)
+        args.append(*ensureRootActionsUnique(expr->queryChild(i)));
+    args.append(*createUniqueId());
+    return expr->clone(args);
+}
+
+//---------------------------------------------------------------------------
+
 IHqlExpression * resourceThorGraph(HqlCppTranslator & translator, IHqlExpression * _expr, ClusterType targetClusterType, unsigned clusterSize, IHqlExpression * graphIdExpr)
 {
     CResourceOptions options(targetClusterType, clusterSize, translator.queryOptions(), translator.querySpillSequence());
@@ -6680,6 +6701,8 @@ IHqlExpression * resourceThorGraph(HqlCppTranslator & translator, IHqlExpression
         expr.setown(hoister.transformRoot(expr));
         translator.traceExpression("AfterInvariant Child", expr);
     }
+
+    expr.setown(ensureRootActionsUnique(expr));
 
     HqlExprArray transformed;
     {
