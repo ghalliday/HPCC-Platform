@@ -507,8 +507,8 @@ void CDeploymentEngine::checkInstance(IPropertyTree& node) const
 {
     // Check for valid net address
     StringAttr sAttr;
-    if (m_envDepEngine.lookupNetAddress(sAttr, node.queryProp("@computer")).length()==0)
-        throw MakeStringException(0, "Process %s has invalid computer net address", m_name.get());
+   // if (m_envDepEngine.lookupNetAddress(sAttr, node.queryProp("@computer")).length()==0)
+     //   throw MakeStringException(0, "Process %s has invalid computer net address", m_name.get());
 
     // Check for valid directory
     StringBuffer directory;
@@ -1295,7 +1295,7 @@ void CDeploymentEngine::ensurePath(const char* filespec) const
     StringBuffer dir;
     splitDirTail(filespec, dir);
     bool flag = true;
-    EnvMachineOS os = MachineOsW2K;
+    EnvMachineOS os = MachineOsLinux;
 
     if (m_curInstance && m_curSSHUser.length() && m_curSSHKeyFile.length())
     {
