@@ -1,0 +1,1 @@
+sudo docker image build -t testhpcc:latest -f Dockerfile /home/gavin/dev/hpcc

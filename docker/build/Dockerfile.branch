@@ -1,0 +1,14 @@
+FROM hpccdev:base
+ARG BRANCH=master
+ARG REPO=hpcc-systems
+
+WORKDIR /git/hpcc
+RUN git remote add active https://github.com/${REPO}/HPCC-Platform.git
+RUN git fetch active
+RUN git checkout active/${BRANCH}
+RUN git submodule update --recursive --init
+
+WORKDIR /testing/build
+
+RUN cmake /git/hpcc -DUSE_GIT_DESCRIBE=0 -DUSE_CPPUNIT=1 -DUSE_OPENLDAP=1 -DMAKE_V8EMBED=1 -DMAKE_JAVAEMBED=1 -DMAKE_REMBED=1 -DMAKE_DOCS=0 -DUSE_APR=0 -DINCLUDE_PLUGINS=1 -DMAKE_JAVAEMBED=1 -DSUPPRESS_SQS=0 -DCMAKE_BUILD_TYPE=Debug -DINCLUDE_PLUGINS=1 -DRUNTIME_USER=gavin -DDESTDIR=/testing/hpcc -DSUPPRESS_SPARK=1 -DSUPPRESS_SQS=1
+RUN make -j16

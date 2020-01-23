@@ -1,0 +1,1 @@
+sudo docker run -a stdout --name esphost -a stderr -i --rm --network hpccnet --expose 8010 hpccrun:esp

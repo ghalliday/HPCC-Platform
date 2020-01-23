@@ -1,0 +1,21 @@
+#!/bin/bash
+#defaults
+branch=docker
+repo=ghalliday
+
+#Allow them to be overriden on the command line
+if [[ -n "$1" ]]; then
+   branch=$1
+fi;
+if [[ -n "$2" ]]; then
+   repo=$2
+fi;
+
+if [[ -n "${branch}" ]]; then
+   branch_opt="--build-arg BRANCH=${branch}"
+fi;
+if [[ -n "${repo}" ]]; then
+   repo_opt="--build-arg REPO=${repo}"
+fi;
+
+sudo docker build --no-cache -t hpccdev:latest -f Dockerfile.branch ${branch_opt} ${repo_opt} .

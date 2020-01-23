@@ -1,0 +1,8 @@
+#!/bin/bash
+
+if [[ -z "$1" ]]; then
+   echo Image name must be supplied
+   exit
+fi;
+
+sudo docker run -a stdout --name shtest -t -i --rm --network hpccnet $1 /bin/bash

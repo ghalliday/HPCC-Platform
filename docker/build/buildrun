@@ -1,0 +1,2 @@
+#!/bin/bash
+sudo docker image build -t hpccrun:base -f Dockerfile.run .

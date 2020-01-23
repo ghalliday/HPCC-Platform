@@ -1,0 +1,1 @@
+sudo docker run -a stdout --name dalihost -a stderr -i --rm --network hpccnet hpccrun:dali

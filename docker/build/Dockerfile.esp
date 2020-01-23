@@ -1,0 +1,15 @@
+FROM hpccrun:base
+ARG COMPONENT=mydali
+ARG SERVICE=daserver
+
+RUN mkdir /testing/hpcc/var/lib/HPCCSystems/${COMPONENT}
+RUN mkdir /testing/hpcc/var/log/HPCCSystems/${COMPONENT}
+RUN mkdir /testing/hpcc/var/lock/HPCCSystems/${COMPONENT}
+
+RUN /testing/hpcc/opt/HPCCSystems/sbin/configgen -env /testing/hpcc/etc/HPCCSystems/environment.xml -od /testing/hpcc/var/lib/HPCCSystems -id /testing/hpcc/opt/HPCCSystems/componentfiles/configxml -c ${COMPONENT}
+
+WORKDIR /testing/hpcc/var/lib/HPCCSystems/${COMPONENT}
+
+# ARGS don't seem to be substituted within CMD - even though they could be
+#CMD [ "/testing/hpcc/opt/HPCCSystems/bin/esp", "${COMPONENT}" ]
+CMD /testing/hpcc/opt/HPCCSystems/bin/esp

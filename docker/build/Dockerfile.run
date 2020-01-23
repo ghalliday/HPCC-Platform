@@ -1,0 +1,10 @@
+FROM hpccdev:latest
+
+WORKDIR /testing/build
+
+RUN make -j16 install
+
+RUN apt-get install -y vim
+RUN apt-get install -y iputils-ping
+
+COPY env/environment.xml /testing/hpcc/etc/HPCCSystems
