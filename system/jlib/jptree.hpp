@@ -288,4 +288,6 @@ inline static bool isValidXPathChr(char c)
     return ('\0' != c && (isalnum(c) || strchr(validChrs, c)));
 }
 
+jlib_decl IPropertyTree * loadConfiguration(std::initializer_list<const char *> configs, const char * legacyName, IPropertyTree * (mapper)(IPropertyTree *));
+
 #endif

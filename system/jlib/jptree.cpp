@@ -7526,3 +7526,183 @@ IPropertyTree *createPTreeFromHttpParameters(const char *nameWithAttrs, IPropert
 
     return createPTreeFromHttpPath(nameWithAttrs, content.getClear(), nestedRoot, flags);
 }
+
+
+IPropertyTree *createPTreeFromJSONFile(const char *filename, byte flags, PTreeReaderOptions readFlags, IPTreeMaker *iMaker)
+{
+    Owned<IFile> in = createIFile(filename);
+    if (!in->exists())
+        return nullptr;
+
+    StringBuffer contents;
+    try
+    {
+        contents.loadFile(in);
+    }
+    catch (IException * e)
+    {
+        EXCLOG(e);
+        e->Release();
+        return nullptr;
+    }
+
+    return createPTreeFromJSONString(contents.length(), contents.str(), flags, readFlags, iMaker);
+}
+
+
+
+static IPropertyTree * loadConfiguration(const char * config)
+{
+    StringBuffer filename;
+
+    filename.clear().append(config).append(".yaml");
+    if (checkFileExists(filename))
+    {
+        Owned<IPropertyTree> yaml = nullptr;
+        if (yaml)
+            return yaml.getClear();
+    }
+
+    filename.clear().append(config).append(".json");
+    if (checkFileExists(filename))
+    {
+        Owned<IPropertyTree> json = createPTreeFromJSONFile(filename, 0, ptr_ignoreWhiteSpace, nullptr);
+        if (json)
+            return json.getClear();
+    }
+
+    filename.clear().append(config).append(".xml");
+    if (checkFileExists(filename))
+    {
+        Owned<IPropertyTree> xml = createPTreeFromXMLFile(filename, 0, ptr_ignoreWhiteSpace, nullptr);
+        if (xml)
+            return xml.getClear();
+    }
+
+    return nullptr;
+}
+
+void mergeConfiguration(IPropertyTree & target, IPropertyTree & source)
+{
+    Owned<IAttributeIterator> aiter = source.getAttributes();
+    ForEach(*aiter)
+        target.addProp(aiter->queryName(), aiter->queryValue());
+
+    StringBuffer tempPath;
+    Owned<IPropertyTreeIterator> iter = source.getElements("*");
+    ForEach(*iter)
+    {
+        IPropertyTree & child = iter->query();
+        const char * tag = child.queryName();
+        const char * name = child.queryProp("@name");
+        const char * path = tag;
+        if (name)
+        {
+            tempPath.clear().append(path).append("[@name=\'").append(name).append("']");
+            path = tempPath;
+        }
+        if (child.queryProp("@__remove__"))
+        {
+            target.removeProp(path);
+        }
+        else
+        {
+            IPropertyTree * match = target.queryPropTree(path);
+            if (!match)
+            {
+                match = target.addPropTree(tag);
+                if (name)
+                    match->setProp("@name", name);
+            }
+            mergeConfiguration(*match, child);
+        }
+    }
+
+    const char * sourceValue = source.queryProp("");
+    if (sourceValue)
+        target.setProp("", sourceValue);
+}
+
+static IPropertyTree * loadConfiguration(const char * dir, const char * base)
+{
+    Owned<IFile> file = createIFile(dir);
+    Owned<IDirectoryIterator> iter = file->directoryFiles(nullptr, false, true);
+    StringArray subDirs;
+    ForEach(*iter)
+    {
+        if (iter->isDir())
+        {
+            StringBuffer name;
+            subDirs.append(iter->getName(name));
+        }
+    }
+    subDirs.sortAscii(true);
+
+    Owned<IPropertyTree> root;
+    ForEachItemIn(i, subDirs)
+    {
+        StringBuffer basename;
+        basename.append(dir).append(PATHSEPCHAR).append(subDirs.item(i)).append(PATHSEPCHAR).append(base);
+        Owned<IPropertyTree> config = loadConfiguration(basename);
+        if (config)
+        {
+            if (root)
+                mergeConfiguration(*root, *config);
+            else
+                root.set(config);
+        }
+    }
+
+    return root.getClear();
+}
+
+static constexpr const char * envPrefix = "HPCC_CONFIG_";
+static void applyEnvironmentConfig(IPropertyTree & target, const char * value)
+{
+    if (!startsWith(value, envPrefix))
+        return;
+
+    StringBuffer propName;
+    const char * name = value + strlen(envPrefix);
+    if (startsWith(name, "PROP_"))
+    {
+        propName.append("@");
+        name += 5;
+    }
+    const char * eq = strchr(value, '=');
+    if (eq)
+    {
+        propName.append(eq - name, name);
+        target.setProp(propName, eq + 1);
+    }
+    else
+    {
+        propName.append(name);
+        target.setProp(propName, nullptr);
+    }
+}
+
+jlib_decl IPropertyTree * loadConfiguration(std::initializer_list<const char *> configs, const char * legacyName, IPropertyTree * (mapper)(IPropertyTree * ))
+{
+    const char * rootDir = "config";
+    Owned<IPropertyTree> config = createPTree();
+    for (auto & curConfig : configs)
+    {
+        Owned<IPropertyTree> next = loadConfiguration(rootDir, curConfig);
+        if (next)
+            mergeConfiguration(*config, *next);
+    }
+
+    Owned <IPropertyTree> legacy = loadConfiguration(legacyName);
+    if (legacy && mapper)
+        legacy.setown(mapper(legacy));
+    if (legacy)
+        mergeConfiguration(*config, *legacy);
+
+    const char * * environment = const_cast<const char * *>(environ);
+    for (const char * * cur = environment; *cur; cur++)
+    {
+        applyEnvironmentConfig(*config, *cur);
+    }
+    return config.getClear();
+}

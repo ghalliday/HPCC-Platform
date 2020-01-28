@@ -461,8 +461,45 @@ static int doSelfTest(int argc, const char *argv[])
 #endif
 }
 
+IPropertyTree * transformer(IPropertyTree * original)
+{
+    Owned<IPropertyTree> transformed = createPTreeFromIPT(original); // Could create empty if better
+    const char * main = original->queryProp("Main");
+    if (main)
+    {
+        IPropertyTree * options = transformed->setPropTree("Options", createPTree());
+        IPropertyTree * option = options->addPropTree("Option");
+        option->setProp("@name", "main");
+        option->setProp("@value", main);
+        transformed->removeProp("Main");
+    }
+    const char * legacy = original->queryProp("@legacyOption");
+    if (legacy)
+    {
+        transformed->setProp("@newMagicOption", legacy);
+        transformed->removeProp("@legacyOption");
+    }
+
+    return transformed.getClear();
+}
+
+
 static int doMain(int argc, const char *argv[])
 {
+    try
+    {
+        Owned<IPropertyTree> config = loadConfiguration({ "system", "eclccserver" }, "eclserver", transformer);
+        printXML(config);
+    }
+    catch (IException * e)
+    {
+        StringBuffer msg;
+        e->errorMessage(msg);
+        printf("%s", msg.str());
+        e->Release();
+    }
+    return 0;
+
     if (argc>=2 && stricmp(argv[1], "-selftest")==0)
         return doSelfTest(argc, argv);
 
