@@ -7607,8 +7607,54 @@ IPropertyTree * mapJsonToXml(IPropertyTree * source)
     return target.getClear();
 }
 
-//---------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------
 
+static void mapXmlToJson(IPropertyTree & target, IPropertyTree & source)
+{
+    Owned<IAttributeIterator> aiter = source.getAttributes();
+    ForEach(*aiter)
+    {
+        const char * name = aiter->queryName();
+        if (islower(*name))
+            target.addProp(name + 1, aiter->queryValue());
+        else
+        {
+            StringBuffer propName;
+            propName.append("-").append(name + 1);
+            target.addProp(propName, aiter->queryValue());
+        }
+    }
+
+    StringBuffer tempPath;
+    Owned<IPropertyTreeIterator> iter = source.getElements("*");
+    ForEach(*iter)
+    {
+        IPropertyTree & child = iter->query();
+        const char * tag = child.queryName();
+        const char * value = child.queryProp("");
+        if (islower(*tag))
+        {
+            //MORE: Is this an error?
+            target.setProp(tag, value);
+        }
+        else
+        {
+            IPropertyTree * targetChild = target.addPropTree(tag);
+            mapXmlToJson(*targetChild, child);
+            if (value)
+                targetChild->setProp("#text", value);
+        }
+    }
+}
+
+IPropertyTree * mapXmlToJson(IPropertyTree * source)
+{
+    Owned<IPropertyTree> target = createPTree(source->queryName());
+    mapXmlToJson(*target, *source);
+    return target.getClear();
+}
+
+//---------------------------------------------------------------------------------------------------------------------
 /*
  * Use source to overwrite any changes in target
  *   Attributes are replaced
@@ -7738,31 +7784,143 @@ static void applyEnvironmentConfig(IPropertyTree & target, const char * cptPrefi
     }
 }
 
-jlib_decl IPropertyTree * loadConfiguration(const char * configDir, const char * configFile, const char * componentTag, const char * legacyFilename, const char * envPrefix, IPropertyTree * (mapper)(IPropertyTree *))
+IPropertyTree * createPTreeFromYAML(const char * yaml)
 {
-    StringBuffer fullpath;
-    if (configDir)
-        fullpath.append(configDir);
-    else
-        appendCurrentDirectory(fullpath, false);
-    addNonEmptyPathSepChar(fullpath);
-    fullpath.append(configFile);
+    if (*yaml == '{')
+        return createPTreeFromJSONString(yaml, 0, ptr_ignoreWhiteSpace, nullptr);
 
-    Owned<IPropertyTree> config = loadConfiguration(fullpath, componentTag);
+    throw makeStringExceptionV(99, "Someone needs to implement a YAML parser");
+}
 
-    if (legacyFilename)
+static const char * extractOption(const char * option, const char * * & args)
+{
+    const char * cur = *args;
+    if (startsWith(cur, option))
     {
-        Owned <IPropertyTree> legacy = createPTreeFromXMLFile(legacyFilename, ipt_caseInsensitive);
-        if (legacy && mapper)
-            legacy.setown(mapper(legacy));
-        if (legacy)
-            mergeConfiguration(*config, *legacy);
+        cur += strlen(option);
+        if (*cur == '=')
+            return cur + 1;
+        if (*cur)
+            return nullptr;
+        const char * next = args[1];
+        if (next)
+        {
+            args++;
+            return next;
+        }
+        throw makeStringExceptionV(99, "No value supplied for option %s", option);
     }
+    return nullptr;
+}
+
+static void applyCommandLineOption(IPropertyTree * config, const char * option, const char * value)
+{
+    StringBuffer path;
+    if (islower(*option))
+    {
+        path.append('@').append(option);
+        config->setProp(path, value);
+    }
+    else
+    {
+        //MORE: Some magic syntax to select nested options and set them
+        config->setProp(option, value);
+    }
+}
+
+static void applyCommandLineOption(IPropertyTree * config, const char * option, const char * * & args)
+{
+    const char * eq = strchr(option, '=');
+    if (eq)
+    {
+        StringBuffer name;
+        name.append(eq - option, option);
+        applyCommandLineOption(config, name, eq + 1);
+    }
+    else
+    {
+        const char * value = args[1];
+        if (!value)
+            throw makeStringExceptionV(99, "No value supplied for option --%s", option);
+        applyCommandLineOption(config, option, value);
+        args++;
+    }
+}
+
+jlib_decl IPropertyTree * loadConfiguration(const char * defaultYaml, const char * * argv, const char * componentTag, const char * envPrefix, const char * legacyFilename, IPropertyTree * (mapper)(IPropertyTree *))
+{
+    Owned<IPropertyTree> config = createPTreeFromYAML(defaultYaml);
+    config.setown(mapJsonToXml(config));
+
+    const char * optLegacy = nullptr;
+    const char * optConfig = nullptr;
+    for (const char * * pArg = argv; *pArg; pArg++)
+    {
+        const char * cur = *pArg;
+        const char * matchConfig = extractOption("--config", pArg);
+        const char * matchTopology = extractOption("--topology", pArg);
+        if (matchConfig)
+            optConfig = matchConfig;
+        else if (matchTopology)
+            optLegacy = matchTopology;
+        else if (strsame(cur, "--help"))
+        {
+            //displayHelp(config);
+            printf("%s <options>", argv[0]);
+            exit(0);
+        }
+        else if (strsame(cur, "--init"))
+        {
+            StringBuffer json;
+            toJSON(config, json);
+            printf("%s\n", json.str());
+            exit(0);
+        }
+    }
+
+    if (optLegacy && optConfig)
+        throw makeStringException(99, "Cannot supply a value for --config and --topology");
+
+    Owned<IPropertyTree> delta;
+    if (optConfig)
+    {
+        if (!isAbsolutePath(optConfig))
+        {
+            StringBuffer fullpath;
+            appendCurrentDirectory(fullpath, false);
+            addNonEmptyPathSepChar(fullpath);
+            fullpath.append(optConfig);
+            delta.setown(loadConfiguration(fullpath, componentTag));
+        }
+        else
+            delta.setown(loadConfiguration(optConfig, componentTag));
+    }
+    else
+    {
+        if (optLegacy)
+            delta.setown(createPTreeFromXMLFile(optLegacy, ipt_caseInsensitive));
+        else if (checkFileExists(legacyFilename))
+            delta.setown(createPTreeFromXMLFile(legacyFilename, ipt_caseInsensitive));
+
+        if (delta && mapper)
+            delta.setown(mapper(delta));
+    }
+
+    if (delta)
+        mergeConfiguration(*config, *delta);
 
     const char * * environment = const_cast<const char * *>(environ);
     for (const char * * cur = environment; *cur; cur++)
     {
         applyEnvironmentConfig(*config, envPrefix, *cur);
     }
+
+    for (const char * * pArg = argv; *pArg; pArg++)
+    {
+        const char * cur = *pArg;
+        if (startsWith(cur, "--"))
+            applyCommandLineOption(config, cur + 2, pArg);
+    }
+
     return config.getClear();
 }

@@ -461,8 +461,31 @@ static int doSelfTest(int argc, const char *argv[])
 #endif
 }
 
+static constexpr const char * defaultJson = R"!!({
+ "name": "Gavin",
+ "Option": {
+     "name": "fast",
+     "value": true
+  }
+})!!";
+
 static int doMain(int argc, const char *argv[])
 {
+    try
+    {
+        Owned<IPropertyTree> config = loadConfiguration(defaultJson, argv, "EclCCServer", "ECLCCSERVER", "eclserver.xml", nullptr);
+        printf("Final config:\n");
+        printXML(config);
+    }
+    catch (IException * e)
+    {
+        StringBuffer msg;
+        e->errorMessage(msg);
+        printf("ERROR: %s\n", msg.str());
+        e->Release();
+    }
+    return 0;
+
     if (argc>=2 && stricmp(argv[1], "-selftest")==0)
         return doSelfTest(argc, argv);
 
