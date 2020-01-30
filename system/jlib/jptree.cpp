@@ -7557,7 +7557,7 @@ IPropertyTree *createPTreeFromJSONFile(const char *filename, byte flags, PTreeRe
  * the special tag "#text# is used to set the text of an element
  * otherwise the key creates an element, and is not expected to have a value
 */
-static void mapJsonToXml(IPropertyTree & target, IPropertyTree & source)
+static void mapJsonToXmlConfig(IPropertyTree & target, IPropertyTree & source)
 {
     Owned<IAttributeIterator> aiter = source.getAttributes();
     ForEach(*aiter)
@@ -7595,33 +7595,33 @@ static void mapJsonToXml(IPropertyTree & target, IPropertyTree & source)
         else
         {
             IPropertyTree * targetChild = target.addPropTree(tag);
-            mapJsonToXml(*targetChild, child);
+            mapJsonToXmlConfig(*targetChild, child);
         }
     }
 }
 
-IPropertyTree * mapJsonToXml(IPropertyTree * source)
+IPropertyTree * mapJsonToXmlConfig(IPropertyTree * source)
 {
     Owned<IPropertyTree> target = createPTree(source->queryName());
-    mapJsonToXml(*target, *source);
+    mapJsonToXmlConfig(*target, *source);
     return target.getClear();
 }
 
 //----------------------------------------------------
 
-static void mapXmlToJson(IPropertyTree & target, IPropertyTree & source)
+static void mapXmlConfigToJson(IPropertyTree & target, IPropertyTree & source)
 {
     Owned<IAttributeIterator> aiter = source.getAttributes();
     ForEach(*aiter)
     {
         const char * name = aiter->queryName();
-        if (islower(*name))
+        if (islower(name[1]))
             target.addProp(name + 1, aiter->queryValue());
         else
         {
-            StringBuffer propName;
-            propName.append("-").append(name + 1);
-            target.addProp(propName, aiter->queryValue());
+            //StringBuffer propName;
+            //  propName.append("-").append(name + 1);
+            target.setProp(name, aiter->queryValue());
         }
     }
 
@@ -7640,17 +7640,17 @@ static void mapXmlToJson(IPropertyTree & target, IPropertyTree & source)
         else
         {
             IPropertyTree * targetChild = target.addPropTree(tag);
-            mapXmlToJson(*targetChild, child);
+            mapXmlConfigToJson(*targetChild, child);
             if (value)
                 targetChild->setProp("#text", value);
         }
     }
 }
 
-IPropertyTree * mapXmlToJson(IPropertyTree * source)
+IPropertyTree * mapXmlConfigToJson(IPropertyTree * source)
 {
     Owned<IPropertyTree> target = createPTree(source->queryName());
-    mapXmlToJson(*target, *source);
+    mapXmlConfigToJson(*target, *source);
     return target.getClear();
 }
 
@@ -7724,7 +7724,7 @@ static IPropertyTree * loadConfiguration(const char * filename, const char * com
     else if (strieq(ext, ".json"))
     {
         configTree.setown(createPTreeFromJSONFile(filename, 0, ptr_ignoreWhiteSpace, nullptr));
-        configTree.setown(mapJsonToXml(configTree));
+        configTree.setown(mapJsonToXmlConfig(configTree));
     }
     else
         throw makeStringExceptionV(99, "Unrecognised file extension %s", ext);
@@ -7850,7 +7850,7 @@ static void applyCommandLineOption(IPropertyTree * config, const char * option, 
 jlib_decl IPropertyTree * loadConfiguration(const char * defaultYaml, const char * * argv, const char * componentTag, const char * envPrefix, const char * legacyFilename, IPropertyTree * (mapper)(IPropertyTree *))
 {
     Owned<IPropertyTree> config = createPTreeFromYAML(defaultYaml);
-    config.setown(mapJsonToXml(config));
+    config.setown(mapJsonToXmlConfig(config));
 
     const char * optLegacy = nullptr;
     const char * optConfig = nullptr;

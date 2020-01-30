@@ -471,11 +471,15 @@ static constexpr const char * defaultJson = R"!!({
 
 static int doMain(int argc, const char *argv[])
 {
+#if 0
     try
     {
         Owned<IPropertyTree> config = loadConfiguration(defaultJson, argv, "EclCCServer", "ECLCCSERVER", "eclserver.xml", nullptr);
+        Owned<IPropertyTree> json = mapXmlConfigToJson(config);
         printf("Final config:\n");
-        printXML(config);
+        StringBuffer jsonText;
+        toJSON(json, jsonText);
+        printf("%s\n", jsonText.str());
     }
     catch (IException * e)
     {
@@ -485,6 +489,7 @@ static int doMain(int argc, const char *argv[])
         e->Release();
     }
     return 0;
+#endif
 
     if (argc>=2 && stricmp(argv[1], "-selftest")==0)
         return doSelfTest(argc, argv);
