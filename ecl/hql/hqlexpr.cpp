@@ -7964,6 +7964,14 @@ CFileContents::CFileContents(const char *query, ISourcePath * _sourcePath, bool 
     delayedRead = false;
 }
 
+CFileContents::CFileContents(StringBuffer & ownedContents, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature, timestamp_type _ts)
+: implicitlySigned(_isSigned), ts(_ts), sourcePath(_sourcePath), gpgSignature(_gpgSignature)
+{
+    setContentsOwn(ownedContents);
+
+    delayedRead = false;
+}
+
 CFileContents::CFileContents(unsigned len, const char *query, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature, timestamp_type _ts)
 : implicitlySigned(_isSigned), ts(_ts), sourcePath(_sourcePath), gpgSignature(_gpgSignature)
 {
@@ -8078,6 +8086,12 @@ void CFileContents::setContents(unsigned len, const char * query)
     ((byte *)buffer)[len] = '\0';
 }
 
+void CFileContents::setContentsOwn(StringBuffer & buffer)
+{
+    size32_t len = buffer.length();
+    fileContents.setOwn(len+1, buffer.detach());
+}
+
 void CFileContents::setContentsOwn(MemoryBuffer & buffer)
 {
     buffer.append((byte)0);
@@ -8090,6 +8104,12 @@ IFileContents * createFileContentsFromText(unsigned len, const char * text, ISou
 {
     return new CFileContents(len, text, sourcePath, isSigned, gpgSignature, ts);
 }
+
+IFileContents * createFileContentsFromText(StringBuffer & ownedContents, ISourcePath * sourcePath, bool isSigned, IHqlExpression * gpgSignature, timestamp_type ts)
+{
+    return new CFileContents(ownedContents, sourcePath, isSigned, gpgSignature, ts);
+}
+
 
 IFileContents * createFileContentsFromText(const char * text, ISourcePath * sourcePath, bool isSigned, IHqlExpression * gpgSignature, timestamp_type ts)
 {

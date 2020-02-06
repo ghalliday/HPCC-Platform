@@ -523,6 +523,7 @@ private:
 public:
     CFileContents(IFile * _file, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature);
     CFileContents(const char *query, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature, timestamp_type _ts);
+    CFileContents(StringBuffer & ownedContents, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature, timestamp_type _ts);
     CFileContents(unsigned len, const char *query, ISourcePath * _sourcePath, bool _isSigned, IHqlExpression * _gpgSignature, timestamp_type _ts);
 
     virtual IFile * queryFile() override { return file; }
@@ -590,6 +591,7 @@ private:
     void ensureLoaded();
     void ensureUtf8(MemoryBuffer & contents);
     void setContents(size32_t len, const char * query);
+    void setContentsOwn(StringBuffer & buffer);
     void setContentsOwn(MemoryBuffer & contents);
 };
 

@@ -340,13 +340,20 @@ void HqlLex::pushText(const char *s)
     MTIME_SECTION(timer, "HqlLex::pushText");
 #endif
     Owned<IFileContents> macroContents = createFileContentsFromText(s, sourcePath, yyParser->inSignedModule, yyParser->gpgSignature, 0);
-    bool useLegacyImport = hasLegacyImportSemantics();
-    bool useLegacyWhen = hasLegacyWhenSemantics();
-    inmacro = new HqlLex(yyParser, macroContents, NULL, NULL);
-    inmacro->setLegacyImport(useLegacyImport);
-    inmacro->setLegacyWhen(useLegacyWhen);
-    inmacro->set_yyLineNo(yyLineNo);
-    inmacro->set_yyColumn(yyColumn);
+    pushText(macroContents, yyLineNo, yyColumn);
+
+#if defined (TRACE_MACRO)
+    DBGLOG("MACRO>> inmacro %p created for \"%s\" for macro parameters.\n",inmacro,s);
+#endif
+}
+
+void HqlLex::pushText(StringBuffer & ownedText)
+{
+#ifdef TIMING_DEBUG
+    MTIME_SECTION(timer, "HqlLex::pushText");
+#endif
+    Owned<IFileContents> macroContents = createFileContentsFromText(ownedText, sourcePath, yyParser->inSignedModule, yyParser->gpgSignature, 0);
+    pushText(macroContents, yyLineNo, yyColumn);
 
 #if defined (TRACE_MACRO)
     DBGLOG("MACRO>> inmacro %p created for \"%s\" for macro parameters.\n",inmacro,s);
@@ -913,7 +920,7 @@ void HqlLex::doExpand(attribute & returnToken)
         StringBuffer buf;
         value->getUTF8Value(buf);
         if (buf.length())
-            pushText(buf.str());
+            pushText(buf);
     }
 }
 
@@ -1145,7 +1152,7 @@ void HqlLex::doExport(attribute & returnToken, bool toXml)
         try
         {
             HqlLookupContext ctx(yyParser->lookupCtx);
-            Owned<IFileContents> exportContents = createFileContentsFromText(curParam.str(), sourcePath, yyParser->inSignedModule, yyParser->gpgSignature, 0);
+            Owned<IFileContents> exportContents = createFileContentsFromText(curParam, sourcePath, yyParser->inSignedModule, yyParser->gpgSignature, 0);
             expr.setown(parseQuery(scope, exportContents, ctx, xmlScope, NULL, true, false));
 
             if (expr && (expr->getOperator() == no_sizeof))
@@ -1359,7 +1366,7 @@ void HqlLex::doGetDataType(attribute & returnToken)
 
     StringBuffer type;
     doGetDataType(type, curParam.str(), returnToken.pos.lineno, returnToken.pos.column);
-    pushText(type.str());
+    pushText(type);
 }
 
 StringBuffer& HqlLex::doGetDataType(StringBuffer & type, const char * text, int lineno, int column)
@@ -1577,7 +1584,7 @@ void HqlLex::doIsValid(attribute & returnToken)
     {
         HqlLookupContext ctx(yyParser->lookupCtx);
         ctx.errs.clear();   //Deliberately ignore any errors
-        Owned<IFileContents> contents = createFileContentsFromText(curParam.str(), sourcePath, yyParser->inSignedModule, yyParser->gpgSignature, 0);
+        Owned<IFileContents> contents = createFileContentsFromText(curParam, sourcePath, yyParser->inSignedModule, yyParser->gpgSignature, 0);
         expr = parseQuery(scope, contents, ctx, xmlScope, NULL, true, false);
 
         if(expr)
@@ -1637,59 +1644,103 @@ void HqlLex::checkNextLoop(const attribute & errpos, bool first, int startLine, 
     forLoop = NULL;
 }
 
+static void expandControlCharacters(StringBuffer & text)
+{
+    //Expand control characters in a quoted string, ignore the leading and trailing quotes
+    const char * head = text;
+    size_t len = text.length();
+    size_t max = len-1;
+    unsigned extra = 0;
+
+    for (unsigned i=1; i < max; i++)
+    {
+        char c = head[i];
+
+        switch (c)
+        {
+        case '\r':
+        case '\n':
+        case '\\':
+        case '\'':
+            extra++;
+            break;
+        }
+    }
+
+    if (extra == 0)
+        return;
+
+    StringBuffer temp;
+    char * target = temp.reserve(len + extra);
+    size_t prevIn = 0;
+    size_t prevOut = 0;
+
+    for (unsigned i=1; i < max; i++)
+    {
+        char c = head[i];
+        char special = 0;
+        switch (c)
+        {
+        case '\r':
+            special = 'r';
+            break;
+        case '\n':
+            special = 'n';
+            break;
+        case '\\':
+        case '\'':
+            special = c;
+            break;
+        }
+
+        if (special)
+        {
+            if (i != prevIn)
+                memcpy(target+prevOut, head+prevIn, i - prevIn);
+            prevOut += (i-prevIn);
+            target[prevOut] = '\\';
+            target[prevOut+1] = special;
+            prevOut += 2;
+            prevIn = i+1;
+        }
+    }
+
+    memcpy(target+prevOut, head+prevIn, len - prevIn);
+    assertex(prevOut - prevIn == extra);
+    text.swapWith(temp);
+}
+
+
 
 void HqlLex::doPreprocessorLookup(const attribute & errpos, bool stringify, int extra)
 {
-    StringBuffer out;
-
-    char *text = get_yyText() + 1;
+    const char *text = get_yyText() + 1;
     unsigned len = (size32_t)strlen(text) - 1;
     text += extra;
     len -= (extra+extra);
 
     StringBuffer in;
     in.append(len, text);
-    bool matched = lookupXmlSymbol(errpos, in.str(), out);
+
+    StringBuffer out;
     if (stringify)
     {
-        char *expanded = (char *) malloc(out.length()*2 + 3); // maximum it could be (might be a bit big for alloca)
-        char *s = expanded;
-        *s++='\'';
-        const char *finger = out.str();
-        for (;;)
-        {
-            char c = *finger++;
-            if (!c)
-                break;
-            switch(c)
-            {
-            case '\r':
-                *s++='\\'; *s++ ='r';
-                break;
-            case '\n':
-                *s++='\\'; *s++ ='n';
-                break;
-            case '\\':
-            case '\'':
-                *s++='\\';
-                // fallthrough
-            default:
-                *s++=c;
-            }
-        }
-        *s++ = '\'';
-        *s = '\0';
-        pushText(expanded);
-        free(expanded);
+        out.append('\'');
+        lookupXmlSymbol(errpos, in.str(), out); // does not matter if not matched, so ignore result
+        out.append('\'');
+
+        expandControlCharacters(out);
+        pushText(out);
     }
     else
     {
         // a space is needed sometimes, e.g, #IF(true or %x%=2)
-        out.trim();
-        if (out.length())
+        out.append(" ");
+        bool matched = lookupXmlSymbol(errpos, in.str(), out);
+
+        if (out.length() != 1)
         {
-            out.insert(0," ");
-            pushText(out.str());
+            pushText(out);
         }
         else
         {
@@ -1974,7 +2025,7 @@ void HqlLex::doMangle(attribute & returnToken, bool de)
 
         StringBuffer mangled;
         mangle(yyParser->errorHandler,str,mangled,de);
-        pushText(mangled.str());
+        pushText(mangled);
     }
     else
         reportError(returnToken, ERR_EXPECTED_CONST, "Constant expression expected");
@@ -2025,12 +2076,13 @@ static StringBuffer& mangle(IErrorReceiver* errReceiver,const char* src, StringB
     return mangled;
 }
 
-int HqlLex::processStringLiteral(attribute & returnToken, char *CUR_TOKEN_TEXT, unsigned CUR_TOKEN_LENGTH, int oldColumn, int oldPosition)
+int HqlLex::processStringLiteral(attribute & returnToken, const char *CUR_TOKEN_TEXT, unsigned CUR_TOKEN_LENGTH, int oldColumn, int oldPosition)
 {
     MemoryAttr tempBuff;
     char *b = (char *)tempBuff.allocate(CUR_TOKEN_LENGTH); // Escape sequence can only make is shorter...
     char *bf = b;
     const char *finger = CUR_TOKEN_TEXT;
+    const char * end = finger + CUR_TOKEN_LENGTH-1;
     type_t tc = type_string;
     if (*finger != '\'')
     {
@@ -2046,10 +2098,10 @@ int HqlLex::processStringLiteral(attribute & returnToken, char *CUR_TOKEN_TEXT, 
     if (finger[1]=='\'' && finger[2]=='\'')
     {
         isMultiline = true;
-        CUR_TOKEN_TEXT[CUR_TOKEN_LENGTH-2] = '\0';
         finger += 2;
+        end -= 2; // 3 quotes end the string
     }
-    for (finger++; finger[1]; finger++)
+    for (finger++; finger < end; finger++)
     {
         unsigned char next = *finger;
         size32_t delta = (size32_t)(finger-CUR_TOKEN_TEXT);

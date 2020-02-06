@@ -1194,6 +1194,7 @@ class HqlLex
         }
 
         StringBuffer& doGetDataType(StringBuffer & type, const char * text, int lineno, int column);
+        void pushText(StringBuffer & ownedText);
         void pushText(const char *);
         bool hasLegacyImportSemantics() const;
         bool hasLegacyWhenSemantics() const;
@@ -1286,7 +1287,7 @@ class HqlLex
 
         bool getDefinedParameter(StringBuffer &curParam, attribute & returnToken, const char* for_what, SharedHqlExpr & resolved);
 
-        int processStringLiteral(attribute & returnToken, char *CUR_TOKEN_TEXT, unsigned CUR_TOKEN_LENGTH, int oldColumn, int oldPosition);
+        int processStringLiteral(attribute & returnToken, const char *CUR_TOKEN_TEXT, unsigned CUR_TOKEN_LENGTH, int oldColumn, int oldPosition);
 
 private:
         HqlGram *yyParser;
