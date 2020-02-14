@@ -3083,3 +3083,34 @@ bool EclCC::printKeywordsToXml()
     ::printKeywordsToXml();
     return true;
 }
+
+__attribute__(( always_inline )) void f1();
+__attribute__(( always_inline )) void g1()
+{
+}
+class a1
+{
+    __attribute__(( always_inline )) void f();
+    __attribute__(( always_inline )) void g()
+    {
+    }
+    __attribute__(( always_inline )) virtual void h()
+    {
+    }
+};
+
+
+void f2() __attribute__(( always_inline ));
+void g2() __attribute__(( always_inline ))
+{
+}
+class a2
+{
+    void f() __attribute__(( always_inline ));
+    void g() __attribute__(( always_inline ))
+    {
+    }
+    virtual void h() __attribute__(( always_inline ))
+    {
+    }
+};
