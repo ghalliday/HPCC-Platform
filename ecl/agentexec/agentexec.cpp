@@ -261,7 +261,7 @@ int main(int argc, const char *argv[])
     try
     {
         DBGLOG("AgentExec: Loading config file 'agentexec.xml'");
-        config.setown(loadConfiguration(eclagentDefaultJson, argv, "EclAgent", "ECLAGENT", "agentexec.xml", nullptr));
+        config.setown(loadConfiguration(eclagentDefaultYaml, argv, "EclAgent", "ECLAGENT", "agentexec.xml", nullptr));
     }
     catch (IException *e) 
     {

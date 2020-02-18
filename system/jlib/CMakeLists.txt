@@ -30,6 +30,9 @@ CHECK_LIBRARY_EXISTS(dl dlopen "" HAVE_LIBDL)
 CHECK_LIBRARY_EXISTS(crypt crypt "" HAVE_LIBCRYPT) 
 endif ()
 
+set(BUILD_SHARED_LIBS ON)
+add_subdirectory(${HPCC_SOURCE_DIR}/system/libyaml ${CMAKE_BINARY_DIR}/system/libyaml)
+
 if(NOT TARGET lzma)
   add_subdirectory(${HPCC_SOURCE_DIR}/system/lzma ${CMAKE_BINARY_DIR}/system/lzma)
 endif(NOT TARGET lzma)
@@ -193,6 +196,7 @@ include_directories (
          ${HPCC_SOURCE_DIR}/system/lz4_sm/lz4/lib
          ${HPCC_SOURCE_DIR}/system/globalid
          ${HPCC_SOURCE_DIR}/system/security/cryptohelper
+         ${HPCC_SOURCE_DIR}/system/libyaml/include
          ${CMAKE_CURRENT_BINARY_DIR}  # for generated jelog.h file 
          ${CMAKE_BINARY_DIR}
          ${CMAKE_BINARY_DIR}/oss
@@ -205,6 +209,7 @@ target_link_libraries ( jlib
         lzma
         lz4
         libbase58
+        yaml
        )
 
 if ( ${HAVE_LIBDL} )
