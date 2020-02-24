@@ -7885,7 +7885,7 @@ jlib_decl IPropertyTree * loadConfiguration(const char * defaultYaml, const char
     else
         componentDefault.setown(createPTree(componentTag));
 
-    Owned<IPropertyTree> config(componentDefault);
+    Linked<IPropertyTree> config(componentDefault);
     const char * optConfig = nullptr;
     bool outputConfig = false;
     for (const char * * pArg = argv; *pArg; pArg++)

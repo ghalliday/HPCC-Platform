@@ -61,6 +61,7 @@ public:
 #endif
     inline ~Shared()                             { ::Release(ptr); }
     inline Shared<CLASS> & operator = (const Shared<CLASS> & other) { this->set(other.get()); return *this;  }
+//    inline Shared<CLASS> & operator = (CLASS * other) { this->set(other); return *this;  }
 
     inline CLASS * operator -> () const         { return ptr; } 
     inline operator CLASS *() const             { return ptr; } 
@@ -88,12 +89,19 @@ protected:
 
 private:
     inline void setown(const Shared<CLASS> &other); // illegal - going to cause a -ve leak
-    inline Shared<CLASS> & operator = (const CLASS * other);
+    inline Shared<CLASS> & operator = (const CLASS * other) = delete;
 
 private:
     CLASS * ptr;
 };
 
+//I think this is how Owned should have been implemented - all Owned/Linked replaced with Shared, and
+//Shared<X> x = OWNED(a);
+//or
+//Shared<X> x(OWNED(a));
+//to initialize a shared pointer
+template <class CLASS>
+Shared<CLASS> OWNED(CLASS * _ptr) { return Shared<CLASS>(_ptr, true); }
 
 //An Owned Shared object takes ownership of the pointer that is passed in the constructor.
 template <class CLASS> class Owned : public Shared<CLASS>
@@ -101,12 +109,12 @@ template <class CLASS> class Owned : public Shared<CLASS>
 public:
     inline Owned()                              { }
     inline Owned(CLASS * _ptr) : Shared<CLASS>(_ptr)   { }
-
-    inline Shared<CLASS> & operator = (const Shared<CLASS> & other) { this->set(other.get()); return *this;  }
+    inline Owned(const Shared<CLASS> & other) : Shared<CLASS>(other) { }
+    inline Owned(const Owned<CLASS> & other) = default;
+    inline Owned(Owned<CLASS> && other) = default;
 
 private:
-    inline Owned(const Shared<CLASS> & other); // Almost certainly a bug
-    inline Owned<CLASS> & operator = (const CLASS * other);
+    inline Owned<CLASS> & operator = (const CLASS * other) = delete;
 };
 
 
@@ -117,11 +125,11 @@ public:
     inline Linked()                         { }
     inline Linked(CLASS * _ptr) : Shared<CLASS>(LINK(_ptr)) { }
     inline Linked(const Shared<CLASS> & other) : Shared<CLASS>(other) { }
+    inline Linked(const Linked<CLASS> & other) = default;
+    inline Linked(Linked<CLASS> && other) = default;
 
-    inline Shared<CLASS> & operator = (const Shared<CLASS> & other) { this->set(other.get()); return *this;  }
-
-private:
-    inline Linked<CLASS> & operator = (const CLASS * other);
+    inline Linked<CLASS> & operator = (const Linked<CLASS> & other) = default;
+    //inline Linked<CLASS> & operator = (CLASS * other) { this->set(other); return *this;  }
 };
 
 // IStringVal manages returning of arbitrary null-terminated string data between systems that may not share heap managers

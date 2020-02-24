@@ -1120,7 +1120,7 @@ IPropertyTree *CClientRemoteTree::collateData()
     private:
         StringAttr name;
         IPropertyTree *ptree;
-    } ct(changes?changes->tree:NULL);
+    } ct(changes?changes->tree.get():NULL);
     if (changes) changes->tree.clear();
 
     if (0 == serverId)

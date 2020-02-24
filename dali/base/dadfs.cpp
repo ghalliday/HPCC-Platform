@@ -681,7 +681,7 @@ public:
 
     IRemoteConnection *conn()
     {
-        return lock?lock->conn:NULL;
+        return lock?lock->conn.get():NULL;
     }
 
     IPropertyTree *queryRoot()
@@ -9523,7 +9523,7 @@ class CInitGroups
         if (dir)
             cluster->setProp("@dir",dir);
 
-        auto addHostsToIPTFunc = [cluster, &hosts]()
+        auto addHostsToIPTFunc = [&cluster, &hosts]()
         {
             for (auto &host: hosts)
             {

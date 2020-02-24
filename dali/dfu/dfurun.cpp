@@ -1423,7 +1423,7 @@ public:
                         if (diffNameSrc.get()||diffNameDst.get())
                         {
                             Owned<IFileDescriptor> oldf;
-                            oldf.setown(queryDistributedFileDirectory().getFileDescriptor(diffNameSrc,foreigncopy?foreignuserdesc:userdesc,foreigncopy?foreigndalinode:NULL));
+                            oldf.setown(queryDistributedFileDirectory().getFileDescriptor(diffNameSrc,foreigncopy?foreignuserdesc.get():userdesc.get(),foreigncopy?foreigndalinode.get():NULL));
                             if (!oldf.get())
                             {
                                 StringBuffer s;

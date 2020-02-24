@@ -4409,11 +4409,11 @@ void CSDSTransactionServer::processMessage(CMessageBuffer &mb)
                 catch (IException *)
                 {
                     if (disconnect)
-                        manager.disconnect(connectionId, deleteRoot, (data || deleteRoot)?nullptr:lockBlock);
+                        manager.disconnect(connectionId, deleteRoot, (data || deleteRoot)?nullptr:lockBlock.get());
                     throw;
                 }
                 if (disconnect)
-                    manager.disconnect(connectionId, deleteRoot, (data || deleteRoot)?nullptr:lockBlock);
+                    manager.disconnect(connectionId, deleteRoot, (data || deleteRoot)?nullptr:lockBlock.get());
 
                 break;
             }

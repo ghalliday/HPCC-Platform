@@ -3436,7 +3436,7 @@ public:
 
         if (!result)
         {
-            Owned<CassMultiIterator> merger = new CassMultiIterator(needsPostSort ? NULL : cached, 0, 0, sortDescending); // We always merge by wuid (except when we merge by thor time... we turn the compare off then to make it an appender)
+            Owned<CassMultiIterator> merger = new CassMultiIterator(needsPostSort ? NULL : cached.get(), 0, 0, sortDescending); // We always merge by wuid (except when we merge by thor time... we turn the compare off then to make it an appender)
             if (startOffset)
             {
                 StringBuffer startWuid;

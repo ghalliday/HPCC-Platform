@@ -1404,7 +1404,7 @@ public:
 };
 
 static CriticalSection  mpaCrit;
-static __int64 getMaxPwdAge(Owned<ILdapConnectionPool> _conns, const char * _baseDN, int _timeout)
+static __int64 getMaxPwdAge(ILdapConnectionPool * _conns, const char * _baseDN, int _timeout)
 {
     static time_t   lastPwdAgeCheck = 0;
     static __int64  maxPwdAge = PWD_NEVER_EXPIRES;

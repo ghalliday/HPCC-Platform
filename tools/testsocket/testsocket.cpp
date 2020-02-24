@@ -563,7 +563,7 @@ int doSendQuery(const char * ip, unsigned port, const char * base)
 #endif
                 }
             }
-            socket = persistSocket;
+            socket.set(persistSocket);
         }
         else
         {

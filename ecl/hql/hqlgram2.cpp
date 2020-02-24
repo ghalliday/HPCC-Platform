@@ -1263,7 +1263,7 @@ void HqlGram::processLoadXML(attribute & a1, attribute * a2)
 
 IHqlExpression * HqlGram::processModuleDefinition(const attribute & errpos)
 {
-    Owned<IHqlScope> scope = defineScopes.tos().localScope;
+    Linked<IHqlScope> scope = defineScopes.tos().localScope;
     if (!scope)
         scope.setown(createScope());
     leaveScope(errpos);
