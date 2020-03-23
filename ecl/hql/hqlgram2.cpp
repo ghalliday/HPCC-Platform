@@ -2537,7 +2537,7 @@ ITypeInfo * HqlGram::mapAlienType(IHqlSimpleScope * scope, ITypeInfo * type, con
 }
 
 /* In parm e: not linked */
-void HqlGram::addFields(const attribute &errpos, IHqlExpression *e, IHqlExpression * dataset, bool clone)
+void HqlGram::addFields(const attribute &errpos, IHqlExpression *e, IHqlExpression * dataset, bool insideNamedRecord, bool clone)
 {
     if (e->getOperator() != no_record)
     {
@@ -2555,78 +2555,73 @@ void HqlGram::addFields(const attribute &errpos, IHqlExpression *e, IHqlExpressi
     ForEachChild(nkid, e)
     {
         IHqlExpression *field = e->queryChild(nkid);
-        if (field->isAttribute())
+        //MORE: Fields that are referenced in user defined types need to be resolved to the new cloned field names.  No idea how to fix it...
+        switch (field->getOperator())
         {
+        case no_attr:
+        case no_attr_expr:
+        case no_attr_link:
             if (!clone)
                 addToActiveRecord(LINK(field));
-            continue;
-        }
-
-        IIdAtom * id = field->queryId();
-        OwnedHqlExpr match = topScope->lookupSymbol(id);
-        if (match)
+            break;
+        case no_field:
         {
-            if (!clone)
-                reportWarning(CategorySyntax, ERR_REC_DUPFIELD, errpos.pos, "A field called %s is already defined in this record",str(id));
-            continue;
-        }
-
-        if (!clone)
-            addToActiveRecord(LINK(field));
-        else
-        {
-            //MORE: Fields that are referenced in user defined types need to be resolved to the new cloned field names.  No idea how to fix it...
-            switch (field->getOperator())
+            IIdAtom * id = field->queryId();
+            OwnedHqlExpr match = topScope->lookupSymbol(id);
+            if (match)
             {
-            case no_attr:
-            case no_attr_expr:
-            case no_attr_link:
-                break;
-            case no_field:
-                {
-                    IHqlExpression * attrs = extractFieldAttrs(field);
-                    Owned<ITypeInfo> type = field->getType();
-                    IIdAtom * fieldId = field->queryId();
-                    if (type->getTypeCode() == type_alien)
-                        type.setown(mapAlienType(activeRecords.tos().querySimpleScope(), type, errpos));
-                    if (dataset)
-                    {
-                        OwnedHqlExpr value = createSelectExpr(LINK(dataset), LINK(field));
-                        OwnedHqlExpr match = activeRecords.tos().querySimpleScope()->lookupSymbol(fieldId);
-                        //Ignore identical fields that are already present, so ds can be used to mean all fields not already added.
-                        bool ignore = false;
-                        if (match)
-                        {
-                            IHqlExpression * matchValue = match->queryChild(0);
-                            if (matchValue && matchValue->queryNormalizedSelector() == value->queryNormalizedSelector())
-                                ignore = true;
-                        }
-                        if (!ignore)
-                            addField(errpos, fieldId, type.getClear(), createSelectExpr(LINK(dataset), LINK(field)), attrs);
-                    }
-                    else
-                        //We either cope with fields being able to be shared between records in folder etc.,
-                        //or we have to create a new field at this point...
-                        //addToActiveRecord(LINK(field));
-                        addField(errpos, fieldId, type.getClear(), LINK(queryRealChild(field, 0)), attrs);
-                    break;
-                }
-            case no_ifblock:
-                {
-                    beginIfBlock();
-                    addFields(errpos, field->queryChild(1), dataset, clone);
-                    IHqlExpression * record = endIfBlock();
+                if (!clone && !insideNamedRecord)
+                    reportWarning(CategorySyntax, ERR_REC_DUPFIELD, errpos.pos, "A field called %s is already defined in this record", str(id));
+                continue;
+            }
 
-                    //The condition in the if block needs translating to the new fields....
-                    IHqlExpression * cond = translateFieldsToNewScope(field->queryChild(0), activeRecords.tos().querySimpleScope(), errpos);
-                    IHqlExpression * expr = createValue(no_ifblock, makeNullType(), cond, record);
-                    activeRecords.tos().addOperand(expr);
-                    break;
+            if (!clone)
+                addToActiveRecord(LINK(field));
+            else
+            {
+                IHqlExpression * attrs = extractFieldAttrs(field);
+                Owned<ITypeInfo> type = field->getType();
+                IIdAtom * fieldId = field->queryId();
+                if (type->getTypeCode() == type_alien)
+                    type.setown(mapAlienType(activeRecords.tos().querySimpleScope(), type, errpos));
+                if (dataset)
+                {
+                    OwnedHqlExpr value = createSelectExpr(LINK(dataset), LINK(field));
+                    OwnedHqlExpr match = activeRecords.tos().querySimpleScope()->lookupSymbol(fieldId);
+                    //Ignore identical fields that are already present, so ds can be used to mean all fields not already added.
+                    bool ignore = false;
+                    if (match)
+                    {
+                        IHqlExpression * matchValue = match->queryChild(0);
+                        if (matchValue && matchValue->queryNormalizedSelector() == value->queryNormalizedSelector())
+                            ignore = true;
+                    }
+                    if (!ignore)
+                        addField(errpos, fieldId, type.getClear(), createSelectExpr(LINK(dataset), LINK(field)), attrs);
                 }
-            case no_record:
-                addFields(errpos, field, dataset, clone);
+                else
+                    //We either cope with fields being able to be shared between records in folder etc.,
+                    //or we have to create a new field at this point...
+                    //addToActiveRecord(LINK(field));
+                    addField(errpos, fieldId, type.getClear(), LINK(queryRealChild(field, 0)), attrs);
+            }
+            break;
+        }
+        case no_ifblock:
+            {
+                beginIfBlock();
+                addFields(errpos, field->queryChild(1), dataset, insideNamedRecord, clone);
+                IHqlExpression * record = endIfBlock();
+
+                //The condition in the if block needs translating to the new fields....
+                IHqlExpression * cond = translateFieldsToNewScope(field->queryChild(0), activeRecords.tos().querySimpleScope(), errpos);
+                IHqlExpression * expr = createValue(no_ifblock, makeNullType(), cond, record);
+                activeRecords.tos().addOperand(expr);
                 break;
             }
+        case no_record:
+            addFields(errpos, field, dataset, insideNamedRecord, clone);
+            break;
         }
     }
 }                                       

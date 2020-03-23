@@ -4819,7 +4819,7 @@ fieldDef
                             //This distinguish between an inline record definition, and an out-of-line definition
                             //The inline shouldn't clone, but should just add the fields from the record.
                             OwnedHqlExpr e = $1.getExpr();
-                            parser->addFields($1, e, NULL, hasNamedSymbol(e));
+                            parser->addFields($1, e, NULL, hasNamedSymbol(e), false);
                             $$.clear();
                         }
     | dictionary        {
@@ -4828,7 +4828,7 @@ fieldDef
                         }
     | dataSet               {
                             OwnedHqlExpr e = $1.getExpr();
-                            parser->addFields($1, e->queryRecord(), e, true);
+                            parser->addFields($1, e->queryRecord(), e, true, true);
                             $$.clear();
                         }
     | dataRow           {
