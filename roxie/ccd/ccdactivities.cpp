@@ -1248,14 +1248,13 @@ public:
 
 //================================================================================================
 
-class RecordProcessor : implements IInMemoryFileProcessor, public CInterface
+class RecordProcessor : public CInterfaceOf<IInMemoryFileProcessor>
 {
 protected:
     bool aborted = false;
     IDirectReader *reader;
 
 public:
-    IMPLEMENT_IINTERFACE
     RecordProcessor(IDirectReader *_reader) : reader(_reader) {}
     virtual void abort() 
     {
@@ -1440,7 +1439,8 @@ public:
 class XmlRecordProcessor : public RecordProcessor, implements IXMLSelect, implements IThorDiskCallback
 {
 public:
-    IMPLEMENT_IINTERFACE;
+    IMPLEMENT_IINTERFACE_USING(RecordProcessor)
+
     XmlRecordProcessor(CRoxieXmlReadActivity &_owner, IDirectReader *_reader)
         : RecordProcessor(_reader), owner(_owner), streamReader(_reader->queryDirectStreamReader()), fileposition(0)
     {
@@ -2341,7 +2341,8 @@ public:
 class GroupAggregateRecordProcessor : public RecordProcessor, implements IHThorGroupAggregateCallback
 {
 public:
-    IMPLEMENT_IINTERFACE;
+    IMPLEMENT_IINTERFACE_USING(RecordProcessor)
+
     GroupAggregateRecordProcessor(RowAggregator &_results, IHThorDiskGroupAggregateArg &_helper, IDirectReader *_reader)
     : RecordProcessor(_reader), results(_results), helper(_helper)
     {

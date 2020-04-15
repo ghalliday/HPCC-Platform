@@ -66,10 +66,9 @@ const char * querySeverityString(ErrorSeverity errorSeverity)
         return errorSeverityString[SeverityUnknown];
 }
 
-class jlib_thrown_decl StringException: public IException, public CInterface
+class jlib_thrown_decl StringException: public CInterfaceOf<IException>
 {
 public:
-    IMPLEMENT_IINTERFACE;
     StringException(int code, const char *str, MessageAudience aud = MSGAUD_user) : errcode(code), msg(str), audience(aud) {};
     
     int             errorCode() const { return errcode; }
@@ -169,10 +168,9 @@ void jlib_decl throwStringExceptionV(int code,const char *format, ...)
     throw ret;
 }
 
-class jlib_thrown_decl OsException: public IOSException, public CInterface
+class jlib_thrown_decl OsException: public CInterfaceOf<IOSException>
 {
 public:
-    IMPLEMENT_IINTERFACE;
     OsException(int code) : errcode(code) {};
     OsException(int code, const char *_msg) : msg(_msg), errcode(code) {};
     ~OsException() {}
@@ -212,10 +210,9 @@ IOSException *makeOsExceptionV(int code, const char *msg, ...)
     return new OsException(code, eStr.str());
 }
 
-class jlib_thrown_decl ErrnoException: public IErrnoException, public CInterface
+class jlib_thrown_decl ErrnoException: public CInterfaceOf<IErrnoException>
 {
 public:
-    IMPLEMENT_IINTERFACE;
     ErrnoException(int errn) : audience(MSGAUD_user) { errcode = errn==-1?errno:errn; }
     ErrnoException(int errn, const char *_msg, MessageAudience aud = MSGAUD_user) : msg(_msg), audience(aud) { errcode = errn==-1?errno:errn; }
     ~ErrnoException() { }
@@ -325,11 +322,9 @@ MessageAudience deserializeMessageAudience(const char* text)
     return ma;
 }
 
-class jlib_thrown_decl CMultiException : implements IMultiException, public CInterface
+class jlib_thrown_decl CMultiException : public CInterfaceOf<IMultiException>
 {
 public:
-    IMPLEMENT_IINTERFACE
-        
     CMultiException(const char* source=NULL) 
     { 
         if (source)

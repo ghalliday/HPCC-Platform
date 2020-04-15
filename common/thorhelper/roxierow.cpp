@@ -119,7 +119,7 @@ bool isRowCheckValid(unsigned allocatorId, const void * row)
 //More: Function to calculate the total size of a row - requires access to a rowallocator.
 
 //--------------------------------------------------------------------------------------------------------------------
-class RoxieEngineRowAllocatorBase : implements IEngineRowAllocator, public CInterface
+class RoxieEngineRowAllocatorBase : public CInterfaceOf<IEngineRowAllocator>
 {
 public:
     RoxieEngineRowAllocatorBase(IRowAllocatorMetaActIdCache * _cache, roxiemem::IRowManager & _rowManager, IOutputMetaData * _meta, unsigned _activityId, unsigned _allocatorId, roxiemem::RoxieHeapFlags _createFlags)
@@ -128,8 +128,6 @@ public:
         activityId = _activityId;
         allocatorId = _allocatorId;
     }
-
-    IMPLEMENT_IINTERFACE
 
 //interface IEngineRowsetAllocator
     virtual const byte * * createRowset(unsigned count) override
@@ -650,11 +648,10 @@ protected:
         mutable unsigned numFailures;
     };
 
-    class DummyOutputMeta : public IOutputMetaData, public CInterface
+    class DummyOutputMeta : public CInterfaceOf<IOutputMetaData>
     {
     public:
         DummyOutputMeta(size32_t _minSize, size32_t _fixedSize) : minSize(_minSize), fixedSize(_fixedSize) {}
-        IMPLEMENT_IINTERFACE
 
         virtual size32_t getRecordSize(const void *rec) { return minSize; }
         virtual size32_t getFixedSize() const { return fixedSize; }

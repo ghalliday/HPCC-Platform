@@ -30,12 +30,11 @@
 #endif
 
 
-class jlib_decl CFile : implements IFile, public CInterface
+class jlib_decl CFile : public CInterfaceOf<IFile>
 {
     HANDLE openHandle(IFOmode mode, IFSHmode share, bool async, int stdh=-1);
 public:
     CFile(const char * _filename);
-    IMPLEMENT_IINTERFACE
 
     virtual bool exists();
     virtual bool getTime(CDateTime * createTime, CDateTime * modifiedTime, CDateTime * accessedTime);
@@ -88,12 +87,11 @@ protected:
 };
 
 
-class jlib_decl CFileIO : implements IFileIO, public CInterface
+class jlib_decl CFileIO : public CInterfaceOf<IFileIO>
 {
 public:
     CFileIO(HANDLE,IFOmode _openmode,IFSHmode _sharemode,IFEflags _extraFlags);
     ~CFileIO();
-    IMPLEMENT_IINTERFACE
 
     virtual size32_t read(offset_t pos, size32_t len, void * data);
     virtual offset_t size();

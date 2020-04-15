@@ -106,11 +106,11 @@ private:
     Owned<IPropertyTreeIterator> iter;
 };
 
-class CWorkflowEvent : public CInterface, implements IWorkflowEvent
+class CWorkflowEvent : public CInterfaceOf<IWorkflowEvent>
 {
 public:
     CWorkflowEvent(char const * _name, char const * _text) : name(_name), text(_text) {}
-    IMPLEMENT_IINTERFACE;
+
     virtual char const * queryName() const { return name.get(); }
     virtual char const * queryText() const { return text.get(); }
     virtual bool matches(char const * trialName, char const * trialText) const { return((strcmp(trialName, name.get()) == 0) && WildMatch(trialText, text.get(), true)); }
@@ -119,7 +119,7 @@ private:
     StringAttr text;
 };
 
-class CWorkflowItem : implements IWorkflowItem, public CInterface
+class CWorkflowItem : public CInterfaceOf<IWorkflowItem>
 {
 public:
     CWorkflowItem(IPropertyTree & _tree) { tree.setown(&_tree); }
@@ -141,7 +141,6 @@ public:
         reset();
     }
 
-    IMPLEMENT_IINTERFACE;
     //info set at compile time
     virtual unsigned     queryWfid() const { return tree->getPropInt("@wfid"); }
     virtual bool         isScheduled() const { return tree->hasProp("Schedule"); }

@@ -218,7 +218,7 @@ class THORHELPER_API RowAggregator : private SuperHashTable
 public:
     RowAggregator(IHThorHashAggregateExtra &_extra, IHThorRowAggregator & _helper);
     ~RowAggregator();
-    IMPLEMENT_IINTERFACE
+    IMPLEMENT_IINTERFACE    // Ensure Link() and Release() are public
 
     void reset();
     void start(IEngineRowAllocator *rowAllocator, ICodeContext *ctx, unsigned activityId);

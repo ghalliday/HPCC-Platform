@@ -27,12 +27,11 @@
 #define WUID_VERSION 2 // recorded in each wuid created, useful for bkwd compat. checks
 #define GLOBAL_WORKUNIT "global"
 
-class WORKUNIT_API CLocalWUAppValue : implements IConstWUAppValue, public CInterface
+class WORKUNIT_API CLocalWUAppValue : public CInterfaceOf<IConstWUAppValue>
 {
     Owned<IPropertyTree> p;
     StringAttr prop;
 public:
-    IMPLEMENT_IINTERFACE;
     CLocalWUAppValue(IPropertyTree *p,unsigned child);
 
     virtual const char *queryApplication() const;
@@ -41,12 +40,10 @@ public:
 };
 
 
-class WORKUNIT_API CLocalWUStatistic : implements IConstWUStatistic, public CInterface
+class WORKUNIT_API CLocalWUStatistic : public CInterfaceOf<IConstWUStatistic>
 {
     Owned<IPropertyTree> p;
 public:
-    IMPLEMENT_IINTERFACE;
-
     CLocalWUStatistic(IPropertyTree *p);
 
     virtual IStringVal & getCreator(IStringVal & str) const override;
@@ -225,7 +222,7 @@ protected:
 protected:
     
 public:
-    IMPLEMENT_IINTERFACE;
+    IMPLEMENT_IINTERFACE
 
     CLocalWorkUnit(ISecManager *secmgr, ISecUser *secuser);
     void loadPTree(IPropertyTree *ptree);
@@ -664,7 +661,7 @@ protected:
     virtual bool _restoreWorkUnit(IPTree *pt, const char *wuid) = 0;
 };
 
-class WORKUNIT_API CLocalWUGraph : implements IConstWUGraph, public CInterface
+class WORKUNIT_API CLocalWUGraph : public CInterfaceOf<IConstWUGraph>
 {
     const CLocalWorkUnit &owner;
     Owned<IPropertyTree> p;
@@ -674,7 +671,6 @@ class WORKUNIT_API CLocalWUGraph : implements IConstWUGraph, public CInterface
     void mergeProgress(IPropertyTree &tree, IPropertyTree &progressTree, const unsigned &progressV) const;
 
 public:
-    IMPLEMENT_IINTERFACE;
     CLocalWUGraph(const CLocalWorkUnit &owner, IPropertyTree *p);
 
     virtual IStringVal & getXGMML(IStringVal & ret, bool mergeProgress) const override;

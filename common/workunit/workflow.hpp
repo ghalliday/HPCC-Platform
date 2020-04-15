@@ -23,13 +23,13 @@
 #include "jlog.hpp"
 #include "eclhelper.hpp"
 
-class WORKUNIT_API WorkflowException : public IException, public CInterface
+class WORKUNIT_API WorkflowException : public CInterfaceOf<IException>
 {
 public:
     typedef enum { SYSTEM, USER, ABORT } Type;
     WorkflowException(int _code, char const * _msg, unsigned _wfid, Type _type, MessageAudience _audience) : code(_code), msg(_msg), wfid(_wfid), type(_type), audience(_audience) {}
     virtual ~WorkflowException() {}
-    IMPLEMENT_IINTERFACE;
+
     virtual int errorCode() const { return code; }
     virtual StringBuffer & errorMessage(StringBuffer & buff) const { return buff.append(msg.get()); }
     virtual MessageAudience errorAudience() const { return audience; }

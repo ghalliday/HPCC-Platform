@@ -55,7 +55,7 @@ JobQueues
 
 
 
-class CJobQueueItem: implements IJobQueueItem, public CInterface
+class CJobQueueItem: public CInterfaceOf<IJobQueueItem>
 {
     int priority;
     StringAttr wu;
@@ -65,8 +65,6 @@ class CJobQueueItem: implements IJobQueueItem, public CInterface
     unsigned port;
     CDateTime enqueuedt;
 public:
-    IMPLEMENT_IINTERFACE;
-
     CJobQueueItem(MemoryBuffer &src)
     {
         deserialize(src);

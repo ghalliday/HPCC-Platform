@@ -227,10 +227,9 @@ IStatisticGatherer & CWuGraphStats::queryStatsBuilder()
     return *collector;
 }
 
-class CConstGraphProgress : public CInterface, implements IConstWUGraphProgress
+class CConstGraphProgress : public CInterfaceOf<IConstWUGraphProgress>
 {
 public:
-    IMPLEMENT_IINTERFACE;
     CConstGraphProgress(const char *_wuid, const char *_graphName, IPropertyTree *_progress) : wuid(_wuid), graphName(_graphName), progress(_progress)
     {
         if (!progress)
@@ -4292,15 +4291,12 @@ public:
     virtual void        removeAssociatedFile(WUFileType type, const char * name, const char * desc);
 };
 
-class CLocalWUWebServicesInfo : implements IWUWebServicesInfo, public CInterface
+class CLocalWUWebServicesInfo : public CInterfaceOf<IWUWebServicesInfo>
 {
     Owned<IPropertyTree> p;
     mutable CriticalSection crit;
 
-private:
-    
 public:
-    IMPLEMENT_IINTERFACE;
     CLocalWUWebServicesInfo(IPropertyTree *p);
 
     virtual IStringVal& getModuleName(IStringVal &str) const;
@@ -4318,7 +4314,7 @@ public:
     virtual void        setWebServicesCRC(unsigned);
 };
 
-class CLocalWUResult : implements IWUResult, public CInterface
+class CLocalWUResult : public CInterfaceOf<IWUResult>
 {
     friend class CLocalWorkUnit;
 
@@ -4327,7 +4323,6 @@ class CLocalWUResult : implements IWUResult, public CInterface
     Owned<IProperties> xmlns;
 
 public:
-    IMPLEMENT_IINTERFACE;
     CLocalWUResult(IPropertyTree *props);
     ~CLocalWUResult() { try { p.clear(); } catch (IException *E) {E->Release();}}
 
@@ -4404,12 +4399,11 @@ public:
     virtual IPropertyTree *queryPTree() { return p; }
 };
 
-class CLocalWUPlugin : implements IWUPlugin, public CInterface
+class CLocalWUPlugin : public CInterfaceOf<IWUPlugin>
 {
     Owned<IPropertyTree> p;
 
 public:
-    IMPLEMENT_IINTERFACE;
     CLocalWUPlugin(IPropertyTree *p);
 
     virtual IStringVal& getPluginName(IStringVal &str) const;
@@ -4431,12 +4425,11 @@ public:
     virtual void setName(const char * str);
 };
 
-class CLocalWUException : implements IWUException, public CInterface
+class CLocalWUException : public CInterfaceOf<IWUException>
 {
     Owned<IPropertyTree> p;
 
 public:
-    IMPLEMENT_IINTERFACE;
     CLocalWUException(IPropertyTree *p);
 
     virtual IStringVal& getExceptionSource(IStringVal &str) const override;
@@ -4483,7 +4476,7 @@ extern WORKUNIT_API bool isSpecialResultSequence(unsigned sequence)
     }
 }
 
-class CConstWUArrayIterator : implements IConstWorkUnitIterator, public CInterface
+class CConstWUArrayIterator : public CInterfaceOf<IConstWorkUnitIterator>
 {
     unsigned curTreeNum;
     IArrayOf<IPropertyTree> trees;
@@ -4494,7 +4487,6 @@ class CConstWUArrayIterator : implements IConstWorkUnitIterator, public CInterfa
         cur.setown(new CLightweightWorkunitInfo(trees.item(curTreeNum)));
     }
 public:
-    IMPLEMENT_IINTERFACE;
     CConstWUArrayIterator(IArrayOf<IPropertyTree> &_trees)
     {
         ForEachItemIn(t, _trees)
@@ -4525,20 +4517,18 @@ public:
 };
 
 
-class CLocalWUFieldUsage : public CInterface, implements IConstWUFieldUsage
+class CLocalWUFieldUsage : public CInterfaceOf<IConstWUFieldUsage>
 {
     Owned<IPropertyTree> p;
 public:
-    IMPLEMENT_IINTERFACE;
     CLocalWUFieldUsage(IPropertyTree& _p) { p.setown(&_p); }
 
     virtual const char * queryName() const { return p->queryProp("@name"); }
 };
 
-class CConstWUFieldUsageIterator : public CInterface, implements IConstWUFieldUsageIterator
+class CConstWUFieldUsageIterator : public CInterfaceOf<IConstWUFieldUsageIterator>
 {
 public:
-   IMPLEMENT_IINTERFACE;
    CConstWUFieldUsageIterator(IPropertyTreeIterator * tree) { iter.setown(tree); }
    bool                  first() override { return iter->first(); }
    bool                  isValid() override { return iter->isValid(); }
@@ -4548,11 +4538,10 @@ private:
    Owned<IPropertyTreeIterator> iter;
 };
 
-class CLocalWUFileUsage : public CInterface, implements IConstWUFileUsage
+class CLocalWUFileUsage : public CInterfaceOf<IConstWUFileUsage>
 {
     Owned<IPropertyTree> p;
 public:
-    IMPLEMENT_IINTERFACE;
     CLocalWUFileUsage(IPropertyTree& _p) { p.setown(&_p); }
 
     virtual const char * queryName() const { return p->queryProp("@name"); }
@@ -4642,12 +4631,10 @@ EnumMapping querySortFields[] =
    { WUQSFterm, NULL }
 };
 
-class asyncRemoveDllWorkItem: public CInterface, implements IWorkQueueItem // class only used in asyncRemoveDll
+class asyncRemoveDllWorkItem: public CInterfaceOf<IWorkQueueItem> // class only used in asyncRemoveDll
 {
     StringAttr name;
 public:
-    IMPLEMENT_IINTERFACE;
-
     asyncRemoveDllWorkItem(const char * _name) : name(_name)
     {
     }
@@ -4658,12 +4645,10 @@ public:
     }
 };      
 
-class asyncRemoveRemoteFileWorkItem: public CInterface, implements IWorkQueueItem // class only used in asyncRemoveFile
+class asyncRemoveRemoteFileWorkItem: public CInterfaceOf<IWorkQueueItem> // class only used in asyncRemoveFile
 {
     RemoteFilename name;
 public:
-    IMPLEMENT_IINTERFACE;
-
     asyncRemoveRemoteFileWorkItem(const char * _ip, const char * _name)
     {
         SocketEndpoint ep(_ip);
@@ -6153,11 +6138,10 @@ extern WORKUNIT_API IWorkUnitFactory * getWorkUnitFactory(ISecManager *secmgr, I
 
 //==========================================================================================
 
-class CStringPTreeIterator : implements IStringIterator, public CInterface
+class CStringPTreeIterator : public CInterfaceOf<IStringIterator>
 {
     Owned<IPropertyTreeIterator> it;
 public:
-    IMPLEMENT_IINTERFACE;
     CStringPTreeIterator(IPropertyTreeIterator *p) : it(p) {};
     virtual bool first() { return it->first(); }
     virtual bool next() { return it->next(); }
@@ -6165,11 +6149,10 @@ public:
     virtual IStringVal & str(IStringVal &s) { s.set(it->query().queryProp(NULL)); return s; }
 };
 
-class CStringPTreeTagIterator : implements IStringIterator, public CInterface
+class CStringPTreeTagIterator : public CInterfaceOf<IStringIterator>
 {
     Owned<IPropertyTreeIterator> it;
 public:
-    IMPLEMENT_IINTERFACE;
     CStringPTreeTagIterator(IPropertyTreeIterator *p) : it(p) {};
     virtual bool first() { return it->first(); }
     virtual bool next() { return it->next(); }
@@ -6177,12 +6160,11 @@ public:
     virtual IStringVal & str(IStringVal &s) { s.set(it->query().queryName()); return s; }
 };
 
-class CStringPTreeAttrIterator : implements IStringIterator, public CInterface
+class CStringPTreeAttrIterator : public CInterfaceOf<IStringIterator>
 {
     Owned<IPropertyTreeIterator> it;
     StringAttr name;
 public:
-    IMPLEMENT_IINTERFACE;
     CStringPTreeAttrIterator(IPropertyTreeIterator *p, const char *_name) : it(p), name(_name) {};
     virtual bool first() { return it->first(); }
     virtual bool next() { return it->next(); }
