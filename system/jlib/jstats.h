@@ -419,6 +419,7 @@ protected:
     void createMappings();
 
 protected:
+    unsigned __int64 hash = I64C(0xcbf29ce484222325); // Used to uniquely identify a mapping to improve deserialization
     UnsignedArray kindToIndex;
     UnsignedArray indexToKind;
 };

@@ -1203,6 +1203,7 @@ void StatisticsMapping::createMappings()
     {
         unsigned kind = indexToKind.item(i2);
         kindToIndex.replace(i2, kind);
+        hash = (hash ^ (unsigned)kind) * I64C(0x100000001b3U);
     }
 }
 
