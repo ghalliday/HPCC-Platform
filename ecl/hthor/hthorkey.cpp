@@ -270,7 +270,7 @@ protected:
     void initManager(IKeyManager *manager, bool isTlk);
     bool firstPart();
     virtual bool nextPart();
-    virtual void initPart();
+    virtual void initPart(unsigned whichPart);
 
 private:
     bool firstMultiPart();
@@ -518,7 +518,7 @@ bool CHThorIndexReadActivityBase::firstPart()
             //part is cached and not reloaded - for efficiency in subqueries.
             if (!keyIndex)
                 return setCurrentPart(0);
-            initPart();
+            initPart(0);
             return true;
         }
 
@@ -549,8 +549,8 @@ bool CHThorIndexReadActivityBase::nextPart()
             layoutTrans.set(layoutTransArray.item(superIndex));
             keySize = keyIndex->keySize();
         }
+        initPart(keyIndexCacheIdx);
         ++keyIndexCacheIdx;
-        initPart();
         return true;
     }
 
@@ -579,10 +579,11 @@ void CHThorIndexReadActivityBase::initManager(IKeyManager *manager, bool isTlk)
     manager->reset();
 }
 
-void CHThorIndexReadActivityBase::initPart()                                    
+void CHThorIndexReadActivityBase::initPart(unsigned whichPart)
 { 
     assertex(!keyIndex->isTopLevelKey());
-    klManager.setown(createLocalKeyManager(eclKeySize.queryRecordAccessor(true), keyIndex, NULL, helper.hasNewSegmentMonitors(), false));
+    IOutputMetaData * keyFormat = actualLayouts.isItem(whichPart) ? actualLayouts.item(whichPart) : eclKeySize.queryOriginal();
+    klManager.setown(createLocalKeyManager(keyFormat->queryRecordAccessor(true), keyIndex, NULL, helper.hasNewSegmentMonitors(), false));
     initManager(klManager, false);
     callback.setManager(klManager);
 }
@@ -603,7 +604,7 @@ bool CHThorIndexReadActivityBase::setCurrentPart(unsigned whichPart)
     keyIndex.setown(openKeyFile(df->queryPart(whichPart)));
     if(df->numParts() == 1)
         verifyIndex(keyIndex);
-    initPart();
+    initPart(whichPart);
     return true;
 }
 
@@ -755,15 +756,15 @@ public:
     ~CHThorIndexReadActivity();
 
     //interface IHThorInput
-    virtual void ready();
-    virtual const void *nextRow();
-    virtual const void *nextRowGE(const void * seek, unsigned numFields, bool &wasCompleteMatch, const SmartStepExtra &stepExtra);
+    virtual void ready() override;
+    virtual const void *nextRow() override;
+    virtual const void *nextRowGE(const void * seek, unsigned numFields, bool &wasCompleteMatch, const SmartStepExtra &stepExtra) override;
 
-    virtual IInputSteppingMeta * querySteppingMeta();
+    virtual IInputSteppingMeta * querySteppingMeta() override;
 
 protected:
-    virtual bool nextPart();
-    virtual void initPart();
+    virtual bool nextPart() override;
+    virtual void initPart(unsigned whichPart) override;
 
 protected:
     IHThorIndexReadArg &helper;
@@ -868,9 +869,9 @@ bool CHThorIndexReadActivity::nextPart()
         return CHThorIndexReadActivityBase::nextPart();
 }
 
-void CHThorIndexReadActivity::initPart()
+void CHThorIndexReadActivity::initPart(unsigned whichPart)
 { 
-    CHThorIndexReadActivityBase::initPart();
+    CHThorIndexReadActivityBase::initPart(whichPart);
 }
 
 const void *CHThorIndexReadActivity::nextRow()
