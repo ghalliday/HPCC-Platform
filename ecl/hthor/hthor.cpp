@@ -1131,7 +1131,7 @@ void CHThorIndexWriteActivity::execute()
             io.setown(file->open(IFOcreate));
         }
         incomplete = true;
-        Owned<IFileIOStream> out = createIOStream(io);
+        Owned<IFileIOStream> out = createBufferedIOStream(io, 0x10000);
         bool isVariable = helper.queryDiskRecordSize()->isVariableSize();
         unsigned flags = COL_PREFIX | HTREE_FULLSORT_KEY;
         if (helper.getFlags() & TIWrowcompress)

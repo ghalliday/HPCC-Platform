@@ -12348,7 +12348,7 @@ public:
             if(!io)
                 throw MakeStringException(errno, "Failed to create file %s for writing", filename.str());
 
-            Owned<IFileIOStream> out = createIOStream(io);
+            Owned<IFileIOStream> out = createBufferedIOStream(io);
             unsigned flags = COL_PREFIX | HTREE_FULLSORT_KEY;
             if (helper.getFlags() & TIWrowcompress)
                 flags |= HTREE_COMPRESSED_KEY|HTREE_QUICK_COMPRESSED_KEY;

@@ -156,7 +156,7 @@ public:
         getPartFilename(partDesc, 0, partFname);
         bool compress=false;
         OwnedIFileIO iFileIO = createMultipleWrite(this, partDesc, 0, TW_RenameToPrimary, compress, NULL, this, &abortSoon);
-        Owned<IFileIOStream> out = createBufferedIOStream(iFileIO);
+        Owned<IFileIOStream> out = createBufferedIOStream(iFileIO, 0x10000);
         ActPrintLog("INDEXWRITE: created fixed output stream %s", partFname.str());
         unsigned flags = COL_PREFIX;
         if (TIWrowcompress & helper->getFlags())
