@@ -27,6 +27,7 @@ FOREACH ( iFILES
     ${CMAKE_CURRENT_SOURCE_DIR}/lib_entityscore.ecllib
     ${CMAKE_CURRENT_SOURCE_DIR}/lib_fingerprintlib.ecllib
     ${CMAKE_CURRENT_SOURCE_DIR}/lib_hktlib.ecllib
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib_metaphone3.ecllib
     ${CMAKE_CURRENT_SOURCE_DIR}/lib_namelib.ecllib
     ${CMAKE_CURRENT_SOURCE_DIR}/lib_ofac.ecllib
     ${CMAKE_CURRENT_SOURCE_DIR}/lib_ziplib.ecllib
