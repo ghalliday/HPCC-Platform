@@ -1128,6 +1128,10 @@ void UpdateTransformBuilder::optimizeSpecialAssignments(IHqlExpression * expr, I
             //check for SELF.x := RIGHT.x <add-file> f(LEFT)
             node_operator newOp = no_none;
             OwnedHqlExpr previous = createSelectExpr(LINK(prevSelector), LINK(expr));
+
+            if (isUnsafeSelector(previous))
+                break;
+
             OwnedHqlExpr match;
             if (expr->isDataset())
             {
@@ -1266,9 +1270,9 @@ void UpdateTransformBuilder::protectRecordAgainstLeaks(IHqlExpression * record)
 void UpdateTransformBuilder::optimizeAssigns()
 {
     expectedIndex = 0;
-    optimizeRecordSpecialAssignments(record, self->querySelector());
-    expectedIndex = 0;
     optimizeRecordAssigns(record, self->querySelector());
+    expectedIndex = 0;
+    optimizeRecordSpecialAssignments(record, self->querySelector());
     protectRecordAgainstLeaks(record);
 }
 
