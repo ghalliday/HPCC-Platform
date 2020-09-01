@@ -13854,6 +13854,22 @@ static IHqlExpression * processPseudoWorkflow(SharedHqlExpr & expr, HqlExprArray
 
 IHqlExpression * attachWorkflowOwn(HqlExprArray & meta, IHqlExpression * _value, IHqlExpression * workflow, const HqlExprCopyArray * allActiveParameters)
 {
+    OwnedHqlExpr tempWorkflow;
+    if (!workflow && _value->isDataset())
+    {
+        switch (_value->getOperator())
+        {
+        case no_keyindex:
+        case no_newkeyindex:
+        case no_delayedselect:
+        case no_table:
+            break;
+        default:
+            tempWorkflow.setown(createValue(no_independent, makeNullType()));
+            workflow = tempWorkflow;
+            break;
+        }
+    }
     if (!workflow)
         return _value;
 
