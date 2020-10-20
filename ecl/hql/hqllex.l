@@ -748,6 +748,7 @@ FETCH               { RETURNSYM(FETCH); }
 FEW                 { RETURNSYM(FEW); }
 FILEPOSITION        { RETURNSYM(FILEPOSITION); }
 FILTERED            { RETURNSYM(FILTERED); }
+FINAL               { RETURNSYM(FINAL); }
 FIRST               { RETURNSYM(FIRST); }
 FIXED               { RETURNSYM(TOK_FIXED); }
 FLAT                { RETURNSYM(FLAT); }
@@ -875,6 +876,7 @@ OUTPUT              {
                             return lookupIdentifierToken(returnToken, lexer, lookupFlags, activeState, CUR_TOKEN_TEXT);
                         return(OUTPUT);
                     }
+OVERRIDE            { RETURNSYM(OVERRIDE); }
 OVERWRITE           { RETURNSYM(OVERWRITE); }
 __OWNED__           { RETURNSYM(__OWNED__); }
 PACKED              { RETURNSYM(PACKED); }

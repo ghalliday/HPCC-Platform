@@ -34,6 +34,8 @@
 #define EXPORT_FLAG 1
 #define VIRTUAL_FLAG 2
 #define SHARED_FLAG 4
+#define FINAL_FLAG 8
+#define OVERRIDE_FLAG 16
 
 #define REC_FLD_ERR_STR "Need to supply a value for field '%s'"
 #define ERR_WRONGSCOPING_ERR_STR "Value for field '%s' cannot be computed in this scope"

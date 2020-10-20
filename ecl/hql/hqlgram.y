@@ -225,6 +225,7 @@ static void eclsyntaxerror(HqlGram * parser, const char * s, short yystate, int 
   FEW
   FILEPOSITION
   FILTERED
+  FINAL
   FIRST
   TOK_FIXED
   FLAT
@@ -353,6 +354,7 @@ static void eclsyntaxerror(HqlGram * parser, const char * s, short yystate, int 
   OUTER
   OUTPUT
   TOK_OUT
+  OVERRIDE
   OVERWRITE
   __OWNED__
   PACKED
@@ -1376,11 +1378,24 @@ knownFunction1
 
 
 scopeFlag
+    : exportFlag optVirtualFlag            {   $$.setInt($1.getInt()|$2.getInt()); $$.setPosition($1); }
+    ;
+
+exportFlag
     : EXPORT            {   $$.setInt(EXPORT_FLAG); $$.setPosition($1); }
     | SHARED            {   $$.setInt(SHARED_FLAG); $$.setPosition($1); }
     | LOCAL             {   $$.setInt(0); $$.setPosition($1); }
-    | EXPORT VIRTUAL    {   $$.setInt(EXPORT_FLAG|VIRTUAL_FLAG); $$.setPosition($1); }
-    | SHARED VIRTUAL    {   $$.setInt(SHARED_FLAG|VIRTUAL_FLAG); $$.setPosition($1); }
+    ;
+
+optVirtualFlag
+    :                                       {   $$.setInt(0); }
+    | VIRTUAL virtualModifier               {   $$.setInt(VIRTUAL_FLAG|$2.getInt());}
+    ;
+
+virtualModifier
+    :                                       {   $$.setInt(0); }
+    | virtualModifier FINAL                 {   $$.setInt($1.getInt()|FINAL_FLAG);}
+    | virtualModifier OVERRIDE              {   $$.setInt($1.getInt()|OVERRIDE_FLAG);}
     ;
 
 // scopeflags needs to be explicitly included, rather than using an optScopeFlags production, otherwise you get shift reduce errors - since it is the first item on a line.

@@ -11375,6 +11375,7 @@ static void getTokenText(StringBuffer & msg, int token)
     case FIELDS_REF: msg.append("<\?\?>"); break;
     case FILEPOSITION: msg.append("FILEPOSITION"); break;
     case FILTERED: msg.append("FILTERED"); break;
+    case FINAL: msg.append("FINAL"); break;
     case FIRST: msg.append("FIRST"); break;
     case TOK_FIXED: msg.append("FIXED"); break;
     case FLAT: msg.append("FLAT"); break;
@@ -11503,6 +11504,7 @@ static void getTokenText(StringBuffer & msg, int token)
     case OUTER: msg.append("OUTER"); break;
     case OUTPUT: msg.append("OUTPUT"); break;
     case TOK_OUT: msg.append("OUT"); break;
+    case OVERRIDE: msg.append("OVERRIDE"); break;
     case OVERWRITE: msg.append("OVERWRITE"); break;
     case __OWNED__: msg.append("__OWNED__"); break;
     case PACKED: msg.append("PACKED"); break;
