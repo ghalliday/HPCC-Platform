@@ -72,6 +72,7 @@ set (    SRCS
          jlzw.cpp 
          jmd5.cpp 
          jmemleak.cpp 
+         jmetrics.cpp
          jmisc.cpp 
          jmutex.cpp 
          jobserve.cpp 
@@ -138,6 +139,7 @@ set (    INCLUDES
         jlzw.hpp
         jlzw.ipp
         jmd5.hpp
+        jmetrics.h
         jmisc.hpp
         jmutex.hpp
         jobserve.hpp
