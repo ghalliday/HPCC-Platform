@@ -109,32 +109,41 @@ private:
     CLASS * ptr;
 };
 
-// Similar to class Shared<X>, but thread safe versions of the functions (avoid the need for critical sectiions)
+// Similar to class Shared<X>, but thread safe versions of the functions (avoid the need for critical sections)
 template <class CLASS> class AtomicShared
 {
 public:
     inline AtomicShared()                              { ptr.store(nullptr, std::memory_order_relaxed); }
     inline AtomicShared(CLASS * _ptr, bool owned)      { ptr.store(_ptr, std::memory_order_relaxed); if (!owned && _ptr) _ptr->Link(); }
-    inline AtomicShared(const AtomicShared & other)    { ptr.store(other.getLink(), std::memory_order_relaxed); }
+    inline AtomicShared(const AtomicShared & other)    { ptr.store(other.getLinkNonAtomic(), std::memory_order_relaxed); }
 #if defined(__cplusplus) && __cplusplus >= 201100
-    inline AtomicShared(AtomicShared && other)         { ptr.store(other.getLink(), std::memory_order_relaxed); }
+    inline AtomicShared(AtomicShared && other)         { ptr.store(other.getClear(), std::memory_order_relaxed); }
 #endif
     inline ~AtomicShared()                             { ::Release(ptr.load(std::memory_order_relaxed)); }
-    inline AtomicShared<CLASS> & operator = (const AtomicShared<CLASS> & other) { this->setown(other.getLink()); return *this;  }
+    inline AtomicShared<CLASS> & operator = (const AtomicShared<CLASS> & other) { this->setown(other.getLinkNonAtomic()); return *this;  }
 
     inline void clear()                                { ::Release(getClear()); }
     inline CLASS * getClear()
     {
         return ptr.exchange(nullptr);
     }
-    //Slightly dubious whether this should be included - not valid if clear() could be called concurrently
-    inline CLASS * getLink() const
+    inline CLASS * getClearNonAtomic()
+    {
+        CLASS * result = ptr.load();
+        ptr.store(nullptr);
+        return result;
+    }
+
+    //The getLink() function cannot be implemented in a thread safe way - e.g. if clear is called concurrently
+    //then temp will point to a freed object.  (Might be possible with support for transactional memory...)
+    inline CLASS * getLinkNonAtomic() const
     {
         CLASS * temp = ptr;
         if (temp)
             temp->Link();
         return temp;
     }
+    inline bool isSet() const                 { return ptr != nullptr; }
     inline void set(CLASS * _ptr)
     {
         if (ptr != _ptr)
@@ -150,10 +159,6 @@ public:
             return true;
         ::Release(_ptr);
         return false;
-    }
-    inline void set(const AtomicShared<CLASS> &other)
-    {
-        this->setown(other.getLink());
     }
     inline void setown(CLASS * _ptr)
     {
