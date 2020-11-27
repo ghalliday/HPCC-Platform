@@ -826,8 +826,12 @@ processedProgress:
                 continue;
             }
 
+            const RemoteFilename & outputFilename = curPartition.outputName;
             RemoteFilename localTempFilename;
-            getDfuTempName(localTempFilename, curPartition.outputName);
+            if (outputFilename.isUrl())
+                localTempFilename.set(outputFilename);
+            else
+                getDfuTempName(localTempFilename, outputFilename);
 
             StringBuffer localFilename;
             localTempFilename.getPath(localFilename);
@@ -852,7 +856,7 @@ processedProgress:
             LOG(MCdebugProgress, unknownJob, "Start pulling to file: %s", localFilename.str());
 
             //Find the last partition entry that refers to the same file.
-            if (!compressOutput)
+            if (!compressOutput && !curPartition.outputName.isUrl())
             {
                 PartitionPoint & lastChunk = partition.item(queryLastOutput(curOutput));
                 if (lastChunk.outputLength)
@@ -897,38 +901,41 @@ processedProgress:
             {
                 if (curProgress.status != OutputProgress::StatusRenamed)
                 {
-                    //rename the files..
-                    renameDfuTempToFinal(curPartition.outputName);
-
-                    OwnedIFile output = createIFile(curPartition.outputName);
-
-                    if (fileUmask != -1)
-                        output->setFilePermissions(~fileUmask&0666);
-
-                    if (mirror || copySourceTimeStamp)
+                    if (!curPartition.outputName.isUrl())
                     {
-                        OwnedIFile input = createIFile(curPartition.inputName);
-                        CDateTime modifiedTime;
-                        CDateTime createTime;
-                        if (input->getTime(&createTime, &modifiedTime, NULL))
-                            output->setTime(&createTime, &modifiedTime, NULL);
-                    }
-                    else if (!curPartition.modifiedTime.isNull())
-                    {
+                        //rename the files..
+                        renameDfuTempToFinal(curPartition.outputName);
+
                         OwnedIFile output = createIFile(curPartition.outputName);
-                        output->setTime(&curPartition.modifiedTime, &curPartition.modifiedTime, NULL);
+
+                        if (fileUmask != -1)
+                            output->setFilePermissions(~fileUmask&0666);
+
+                        if (mirror || copySourceTimeStamp)
+                        {
+                            OwnedIFile input = createIFile(curPartition.inputName);
+                            CDateTime modifiedTime;
+                            CDateTime createTime;
+                            if (input->getTime(&createTime, &modifiedTime, NULL))
+                                output->setTime(&createTime, &modifiedTime, NULL);
+                        }
+                        else if (!curPartition.modifiedTime.isNull())
+                        {
+                            output->setTime(&curPartition.modifiedTime, &curPartition.modifiedTime, NULL);
+                        }
+                        else
+                            output->getTime(NULL, &curProgress.resultTime, NULL);
+
+                        if (compressOutput)
+                        {
+                            curProgress.compressedPartSize = output->size();
+                            curProgress.hasCompressed = true;
+                        }
                     }
-                    else
-                        output->getTime(NULL, &curProgress.resultTime, NULL);
 
                     //Notify the master that the file has been renamed - and send the modified time.
                     msg.setEndian(__BIG_ENDIAN);
                     curProgress.status = OutputProgress::StatusRenamed;
-                    if (compressOutput)
-                    {
-                        curProgress.compressedPartSize = output->size();
-                        curProgress.hasCompressed = true;
-                    }
                     curProgress.serializeCore(msg.clear().append(false));
                     curProgress.serializeExtra(msg, 1);
                     if (!catchWriteBuffer(masterSocket, msg))

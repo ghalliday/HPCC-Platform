@@ -778,7 +778,7 @@ void FileSprayer::afterTransfer()
         }
     }
 
-    if (isSafeMode || !usePullOperation())
+    if ((isSafeMode || !usePullOperation()) && !targetIsUrl())
     {
         unsigned numTargets = targets.ordinality();
         AsyncAfterTransfer async(*this);
@@ -852,7 +852,7 @@ void FileSprayer::beforeTransfer()
         checker.For(targets.ordinality(), 25, true, true);
     }
 
-    if (!isRecovering && !usePullOperation())
+    if (!isRecovering && !usePullOperation() && !targetIsUrl())
     {
         try {
             //Should this be on an option.  Shouldn't be too inefficient since push is seldom used.
@@ -894,8 +894,15 @@ void FileSprayer::beforeTransfer()
                     file->remove();
                 }
 
+                unsigned firstPartition = curPartition;
                 while (partition.isItem(curPartition+1) && partition.item(curPartition+1).whichOutput == idxTarget)
                     curPartition++;
+
+                //If 1:N mapping then don't extend to the maximum length - it is a waste of time, and messes up
+                //And should generate the file header on the push machine - would always be more efficient
+                if (curPartition == firstPartition)
+                    continue;
+
                 PartitionPoint & lastPartition = partition.item(curPartition);
                 offset_t lastOutputOffset = lastPartition.outputOffset + lastPartition.outputLength;
 
@@ -1414,11 +1421,16 @@ void FileSprayer::cleanupRecovery()
 }
 
 
+bool FileSprayer::targetIsUrl() const
+{
+    return targets.item(0).filename.isUrl();
+}
+
 //Several files being pulled to the same machine - only run ftslave once...
 void FileSprayer::commonUpSlaves()
 {
     unsigned max = partition.ordinality();
-    bool pull = usePullOperation();
+    bool pull = usePullOperation() || targetIsUrl();      // One slave per target if a url
     for (unsigned idx = 0; idx < max; idx++)
     {
         PartitionPoint & cur = partition.item(idx);
@@ -1427,7 +1439,7 @@ void FileSprayer::commonUpSlaves()
             cur.whichSlave = 0;
     }
 
-    if (options->getPropBool(ANnocommon, true))
+    if (options->getPropBool(ANnocommon, true) || targetIsUrl())
         return;
 
     //First work out which are the same slaves, and then map the partition.
@@ -2422,6 +2434,40 @@ void FileSprayer::pullParts()
 }
 
 
+//Execute a parallel write to a remote part, but each slave writes the entire contents of the file
+void FileSprayer::pushWholeParts()
+{
+    bool needCalcCRC = calcCRC();
+    LOG(MCdebugInfoDetail, job, "Calculate CRC = %d", needCalcCRC);
+    //Create a slave for each of the target files, but execute it on the node corresponding to the first source file
+    ForEachItemIn(idx, targets)
+    {
+        TargetLocation & cur = targets.item(idx);
+        SocketEndpoint ep;
+        ForEachItemIn(idx3, partition)
+        {
+            PartitionPoint & cur = partition.item(idx3);
+            if (cur.whichOutput == idx)
+            {
+                ep = sources.item(cur.whichInput).filename.queryEndpoint();
+                break;
+            }
+        }
+        FileTransferThread & next = * new FileTransferThread(*this, FTactionpull, ep, needCalcCRC, wuid);
+        transferSlaves.append(next);
+    }
+
+    ForEachItemIn(idx3, partition)
+    {
+        PartitionPoint & cur = partition.item(idx3);
+        if (!filter || filter->includePart(cur.whichOutput))
+            transferSlaves.item(cur.whichSlave).addPartition(cur, progress.item(idx3));
+    }
+
+    performTransfer();
+}
+
+
 void FileSprayer::pushParts()
 {
     bool needCalcCRC = calcCRC();
@@ -2994,7 +3040,9 @@ void FileSprayer::spray()
     throwExceptionIfAborting();
 
     beforeTransfer();
-    if (usePullOperation())
+    if (targetIsUrl())
+        pushWholeParts();
+    else if (usePullOperation())
         pullParts();
     else
         pushParts();

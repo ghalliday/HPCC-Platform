@@ -374,6 +374,7 @@ public:
     
     bool isLocal() const;                                   // on calling node
     bool isUnixPath() const;                                // a unix filename
+    bool isUrl() const;
     char getPathSeparator() const;                          // separator for this path
     const SocketEndpoint & queryEndpoint() const            { return ep; } // node containing file
     const IpAddress      & queryIP() const                  { return ep; }

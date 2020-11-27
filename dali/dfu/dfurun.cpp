@@ -445,9 +445,6 @@ class CDFUengine: public CInterface, implements IDFUengine
         filename.getLocalPath(filePath);
         const char * pfilePath = filePath.str();
 
-        if (filename.queryIP().isLoopBack())
-            throwError1(DFTERR_LocalhostAddressUsed, pfilePath);
-
     #ifdef _DEBUG
         LOG(MCdebugInfo, unknownJob, "File path is '%s'", filePath.str());
     #endif
@@ -463,6 +460,14 @@ class CDFUengine: public CInterface, implements IDFUengine
 
         Owned<IEnvironmentFactory> factory = getEnvironmentFactory(true);
         Owned<IConstEnvironment> env = factory->openEnvironment();
+
+        if (filename.queryIP().isLoopBack())
+        {
+            if (env->isDropZoneRestrictionEnabled())
+                throwError1(DFTERR_LocalhostAddressUsed, pfilePath);
+            return;
+        }
+
         StringBuffer netaddress;
         filename.queryIP().getIpText(netaddress);
 

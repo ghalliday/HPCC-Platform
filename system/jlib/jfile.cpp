@@ -4467,6 +4467,12 @@ bool RemoteFilename::isUnixPath() const // bit arbitrary
 #endif
 }
 
+bool RemoteFilename::isUrl() const
+{
+    return ::isUrl(tailpath);
+}
+
+
 char RemoteFilename::getPathSeparator() const
 {
     return isUnixPath()?'/':'\\';
@@ -4488,7 +4494,7 @@ StringBuffer & RemoteFilename::getRemotePath(StringBuffer & out) const
 {   // this creates a name that can be used by windows or linux
 
     // Any filenames in the format protocol:// should not be converted to //ip:....
-    if (isUrl(tailpath))
+    if (isUrl())
         return getLocalPath(out);
 
     char c=getPathSeparator();

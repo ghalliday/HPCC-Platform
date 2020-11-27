@@ -251,6 +251,7 @@ protected:
     unsigned numParallelConnections(unsigned limit);
     void performTransfer();
     void pullParts();
+    void pushWholeParts();
     void pushParts();
     const char * queryFixedSlave();
     const char * querySlaveExecutable(const IpAddress &ip, StringBuffer &ret);
@@ -269,6 +270,7 @@ protected:
     void storeCsvRecordStructure(IFormatPartitioner &partitioner);
     void examineCsvStructure();
     IFormatPartitioner * createPartitioner(aindex_t index, bool calcOutput, unsigned numParts);
+    bool targetIsUrl() const;
 
     class CAbortRequestCallback : implements IAbortRequestCallback
     {
