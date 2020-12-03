@@ -62,7 +62,6 @@ const unsigned AWUS_CACHE_MIN_DEFAULT = 15;
 const unsigned WUDEFAULT_ZAPEMAILSERVER_PORT = 25;
 
 inline bool notEmpty(const char *val){return (val && *val);}
-inline bool isEmpty(const char *val){return (!val || !*val);}
 
 const char *getWuAccessType(IConstWorkUnit& cw, const char *user);
 

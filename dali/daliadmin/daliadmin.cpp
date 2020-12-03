@@ -44,6 +44,7 @@
 #include "dautils.hpp"
 #include "daaudit.hpp"
 #include "daft.hpp"
+#include "dameta.hpp"
 
 #include "rmtfile.hpp"
 
@@ -84,6 +85,7 @@ void usage(const char *exe)
   printf("\n");
   printf("Logical File meta information commands:\n");
   printf("  dfsfile <logicalname>          -- get meta information for file\n");
+  printf("  dfsmeta <logicalname> <storage> <sign> -- get new meta information for file\n");
   printf("  setdfspartattr <logicalname> <part> <attribute> [<value>] -- set attribute of a file part to value, or delete the attribute if not provided\n");
   printf("  dfspart <logicalname> <part>   -- get meta information for part num\n");
   printf("  dfscheck                       -- verify dfs file information is valid\n");
@@ -582,6 +584,20 @@ static void dfspart(const char *lname,IUserDescriptor *userDesc, unsigned partnu
     UnsignedArray partslist;
     partslist.append(partnum);
     dfsfile(lname,userDesc,&partslist);
+}
+
+//=============================================================================
+
+static void dfsmeta(const char *filename,IUserDescriptor *userDesc, bool includeStorage, bool sign)
+{
+    initializeStorageGroups(true);
+    ResolveOptions options = ROpartinfo;
+    if (includeStorage)
+        options = options | ROincludeLocation;
+    if (sign)
+        options = options | ROsign;
+    Owned<IPropertyTree> meta = resolveLogicalFilename(filename, userDesc, options);
+    printYAML(meta);
 }
 
 //=============================================================================
@@ -3359,9 +3375,17 @@ void removeOrphanedGlobalVariables(bool dryrun, bool reconstruct)
 #define CHECKPARAMS(mn,mx) { if ((np<mn)||(np>mx)) throw MakeStringException(-1,"%s: incorrect number of parameters",cmd); }
 
 
+static constexpr const char * defaultYaml = R"!!(
+version: "1.0"
+daliadmin:
+  name: myeclccserver
+)!!";
 
 
-int main(int argc, char* argv[])
+
+
+
+int main(int argc, const char* argv[])
 {
     int ret = 0;
     InitModuleObjects();
@@ -3372,6 +3396,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+    Owned<IPropertyTree> globals = loadConfiguration(defaultYaml, argv, "daliadmin", "DALIADMIN", "daliadmin.xml", nullptr);
     Owned<IProperties> props = createProperties("daliadmin.ini");
     StringArray params;
     SocketEndpoint ep;
@@ -3547,6 +3572,12 @@ int main(int argc, char* argv[])
                     else if (strieq(cmd,"dfsfile")) {
                         CHECKPARAMS(1,1);
                         dfsfile(params.item(1),userDesc);
+                    }
+                    else if (strieq(cmd,"dfsmeta")) {
+                        CHECKPARAMS(1,3);
+                        bool includeStorage = (np < 2) || strToBool(params.item(2));
+                        bool sign = (np >= 3) && strToBool(params.item(3));
+                        dfsmeta(params.item(1),userDesc,includeStorage,sign);
                     }
                     else if (strieq(cmd,"dfspart")) {
                         CHECKPARAMS(2,2);
