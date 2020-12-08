@@ -28,6 +28,25 @@
 
 #include "thorstore.hpp"
 
+
+CStorageHostGroup::CStorageHostGroup(const IPropertyTree * _xml)
+: xml(_xml)
+{
+}
+
+bool CStorageHostGroup::isLocal(unsigned device) const
+{
+    VStringBuffer xpath("part[%u]", device);
+    const char * hostname = xml->queryProp(xpath);
+    if (xpath)
+    {
+        //MORE: Likely to be inefficient - should search differently?
+        IpAddress ip(hostname);
+        return ip.isLocal();
+    }
+    return false;
+}
+
 /*
  * A StoragePlane represents a set of storage devices that are used together to store a distributed file.  Each
  * storage plane has a fixed number of logical devices.  If there are > 1 then the storage plane index can be include
@@ -51,22 +70,19 @@
  */
 
 
-CStoragePlane::CStoragePlane(const IPropertyTree * in)
+CStoragePlane::CStoragePlane(const IPropertyTree * _xml, const CStorageHostGroup * _host)
+ : xml(_xml), host(_host)
 {
-    load(in);
+    name = xml->queryProp("@name");
+    numDevices = xml->getPropInt("@numDevices", 1);
 }
 
-void CStoragePlane::serialize(MemoryBuffer & out) const
+bool CStoragePlane::containsHost(const char * host) const
 {
-    //MORE: Serialize to an IPropertyTree
-    UNIMPLEMENTED;
-}
-
-bool CStoragePlane::containsHost(const char * host)
-{
-    ForEachItemIn(i, logicalNodes)
+    Owned<IPropertyTreeIterator> iter = xml->getElements("hosts");
+    ForEach(*iter)
     {
-        if (streq(logicalNodes.item(i), host))
+        if (streq(iter->query().queryProp(""), host))
             return true;
     }
     return false;
@@ -79,7 +95,7 @@ bool CStoragePlane::containsPath(const char * path)
 
 bool CStoragePlane::matchesHost(const char * host)
 {
-    return (logicalNodes.ordinality() == 1) && streq(logicalNodes.item(0), host);
+    return (xml->getCount("hosts") == 1) && containsHost(host);
 }
 
 StringBuffer & CStoragePlane::getURL(StringBuffer & target, unsigned device, unsigned drive) const
@@ -88,6 +104,7 @@ StringBuffer & CStoragePlane::getURL(StringBuffer & target, unsigned device, uns
     if (!strsame(protocol, "thor"))
         target.append(protocol).append(":").append(protocolExtra);
 
+#if 0
     //include some form of the ip if it is required (not required for s3)
     if (includeIpInPath)
     {
@@ -110,21 +127,20 @@ StringBuffer & CStoragePlane::getURL(StringBuffer & target, unsigned device, uns
         target.append(queryScopeSeparator()).append(name);
     if (includeDeviceInPath)
         target.append(queryScopeSeparator()).append(device);
+#endif
     return target;
 }
 
 
 unsigned CStoragePlane::getWidth() const
 {
-    if (logicalNodes)
-        return logicalNodes.ordinality();
-    if (!resolvedNodes.empty())
-        return resolvedNodes.size();
     return numDevices;  // Could subdivide even if not done by ip
 }
 
 unsigned CStoragePlane::getCost(unsigned device, const IpAddress & accessIp, PhysicalGroup & peerIPs) const
 {
+    return 0;
+    #if 0
     if (resolvedNodes.size())
     {
         unsigned compareIndex = (resolvedNodes.size() == 1) ? 0 : device;
@@ -139,17 +155,13 @@ unsigned CStoragePlane::getCost(unsigned device, const IpAddress & accessIp, Phy
     if (logicalNodes.ordinality())
         throwUnexpectedX("Should have resolved ips before calculating best location");
     return remoteCost;
+    #endif
 }
 
 bool CStoragePlane::isLocal(unsigned device) const
 {
-    if (resolvedNodes.size() > device)
-        return resolvedNodes[device].isLocal();
-    if (logicalNodes.ordinality() > device)
-    {
-        IpAddress ip(logicalNodes.item(device));
-        return ip.isLocal();
-    }
+    if (host)
+        return host->isLocal(device);
     return false;
 }
 
@@ -157,125 +169,6 @@ bool CStoragePlane::onAttachedStorage() const
 {
     return !protocol || strsame(protocol, "thor");
 }
-
-void CStoragePlane::load(const IPropertyTree * xml)
-{
-    name.set(xml->queryProp("@name"));
-    protocol.set(xml->queryProp("@protocol"));
-    protocolExtra.set(xml->queryProp("@protocolExtra"));
-    //logicalNodes;    // textual representation stored in dali.  Either nodes for storage, or nodes that it is mounted on.
-
-    const char * host = xml->queryProp("@host");
-    if (host)
-        logicalNodes.append(host);
-
-    Owned<IPropertyTreeIterator> hostIter = xml->getElements("host");
-    ForEach(*hostIter)
-    {
-        const char * host = hostIter->query().queryProp("");
-        assertex(host && *host);
-        logicalNodes.append(host);
-    }
-
-    // Is the ip the only interesting item, or does this more structure?
-    Owned<IPropertyTreeIterator> ipIter = xml->getElements("ip");
-    ForEach(*ipIter)
-    {
-        IpAddress ip(ipIter->query().queryProp(""));
-        resolvedNodes.push_back(ip);
-    }
-
-    options.set(xml->queryPropTree("options"));
-    directCost = xml->getPropInt("@directCost");
-    localCost = xml->getPropInt("@localCost");
-    remoteCost = xml->getPropInt("@remoteCost");
-    rootPaths.append(xml->queryProp("@path"));      // more could allow multiple mounts to multiple local disk drives
-    scopeSeparator.set(xml->queryProp("@separator"));
-    numDevices = logicalNodes.ordinality();
-    if (numDevices == 0)
-        numDevices = xml->getPropInt("@numDevices", 1);
-    defaultCopies = xml->getPropInt("@numReplicas", 1);
-    interleave = xml->getPropInt("@interleave", 0);     // set to size/2 for most roxie clusters
-    canReadRemote = xml->getPropBool("@canReadRemote", false);
-    includeIpInPath = xml->getPropBool("@includeIpInPath", strsame(protocol, "thor"));
-    includeNameInPath = xml->getPropBool("@includeNameInPath", false);
-    includeDeviceInPath = xml->getPropBool("@includeDeviceInPath", (numDevices != 1));
-}
-
-void CStoragePlane::save(IPropertyTree * xml)
-{
-    xml->setProp("@name", name);
-    xml->setProp("@protocol", protocol);
-    xml->setProp("@protocolExtra", protocolExtra);
-
-    ForEachItemIn(i, logicalNodes)
-        xml->addProp("host", logicalNodes.item(i));
-
-    for (auto & node : resolvedNodes)
-    {
-        StringBuffer ipText;
-        node.getIpText(ipText);
-        xml->addProp("ip", ipText);
-    }
-
-    options.set(xml->queryPropTree("options"));
-    if (directCost)
-        xml->setPropInt("@directCost", directCost);
-    if (localCost)
-        xml->setPropInt("@localCost", localCost);
-    if (remoteCost)
-        xml->setPropInt("@remoteCost", remoteCost);
-
-    //MORE: Do we allow more than one?
-    xml->setProp("@path", rootPaths.item(0));
-
-    xml->setProp("@separator", scopeSeparator);
-    if (numDevices != logicalNodes.ordinality())
-        xml->setPropInt("@numDevices", numDevices);
-
-    if (defaultCopies != 1)
-        xml->setPropInt("@numReplicas", defaultCopies);
-    if (interleave != 0)
-        xml->setPropInt("@interleave", interleave);
-    xml->setPropBool("@canReadRemote", canReadRemote);
-    xml->setPropBool("@includeIpInPath", includeIpInPath);
-    xml->setPropBool("@includeNameInPath", includeNameInPath);
-    xml->setPropBool("@includeDeviceInPath", includeDeviceInPath);
-}
-
-constexpr const char * demoStoragePlanes =
-  "<Config>"
-    "<StoragePlanes>"
-        "<StoragePlane name='mys3' protocol='s3' protocolExtra='@eu-west-2' remoteCost='100' path='/myBucket'/>"
-        "<StoragePlane name='myazure' protocol='azure' remoteCost='100' path='/myBlob' includeNameInPath='false' includeDeviceInPagth='false' separator='__scope__'/>"
-        "<StoragePlane name='mynas' protocol='nas' directCost='5' localCost='10' remoteCost='100' path='/dev/mnt/mynas' numDevices='4'>"
-        "  <Mount name='mythorgroup1' canReadRemote='true'/>"
-        "  <Mount name='mythorgroup2'/>"
-        "  <Mount name='myhthor'/>"
-        // Should they be mounted on all nodes??  If not, how does it work with dynamic ips.
-        "</StoragePlane>"
-        "<StoragePlane name='win' protocol='thor' host='.' directCost='5' localCost='10' remoteCost='30' canReadRemote='true' path='c:\\HPCCSystems\\data' numReplicas='2' includeNameInPath='true' separator='\\'/>"
-
-        "<StoragePlane name='_local_spill_' protocol='thor' host='.' directCost='5' canReadRemote='false' path='/var/lib/HPCCSystems/data' includeNameInPath='false' separator='__scope__'/>"
-        "<StoragePlane name='_local_' protocol='thor' host='.' directCost='5' canReadRemote='false' path='/'/>"    // For the moment allow access to any files.
-    "</StoragePlanes>"
-    "<StorageLocations>"
-      "<StorageLocation name='mythor20_0' plane='mythor' offset='0' size='20'/>"
-      //"<StorageLocation name='mythor20_0.1' plane='mythor' offset='0' size='20'/>" // Automatically create locations for the replicas of subsets
-      "<StorageLocation name='mythor20_1' plane='mythor' offset='20' size='20'/>"
-      "<StorageLocation name='mythor:20+20' plane='mythor' offset='20' size='20'/>"   //Should this be the name instead i.e. offset and size included in the name???
-      "<StorageLocation name='mythor20_2' plane='mythor' offset='40' size='20'/>"
-      "<StorageLocation name='mythor20_3' plane='mythor' offset='60' size='20'/>"
-      "<StorageLocation name='mythor20_4' plane='mythor' offset='80' size='20'/>"
-
-      //"<StorageLocation name='myroxie' plane='myroxie' offset='0' size='50'/>"
-      //"<StorageLocation name='myroxie.1' plane='myroxie' offset='50' size='50'/ copy='1' delta='0'/>"   //See code to calculate this automatically from "interleave" - should have a better name
-    "</StorageLocations>"
-  "</Config>";
-
-//How do nas planes work - need to specify which machines they are accessible through - it is different from the multiple planes since the same file can be accessed through any of the nodes
-//Do they need to be mounted on all nodes?  That makes most sense (managed by the container manager from the configuration).  Is that a potential security flaw?
-//How about fusion thor where the plane is local to the machines, but is mounted on several machines.  very similar to nas, except that dafilesrv is supported.  Maybe identical.
 
 //---------------------------------------------------------------------------------------------------------------------
 
@@ -354,79 +247,50 @@ void CStorageLocation::save(IPropertyTree * xml)
 
 //---------------------------------------------------------------------------------------------------------------------
 
-void CStorageSystems::populateFromEnvironment(IPropertyTree * xml)
+CStorageHostGroup * CStorageSystems::queryHostGroup(const char * search)
 {
-    INamedGroupStore & groups = queryNamedGroupStore();
-    Owned<INamedGroupIterator> iter = groups.getIterator();
-    ForEach(*iter)
+    if (!search)
+        return nullptr;
+
+    ForEachItemIn(i, hostsGroups)
     {
-        StringBuffer groupName;
-        StringBuffer directory;
-        GroupType groupType;
-        Owned<IGroup> group = groups.lookup(iter->get(groupName).str(), directory, groupType);
-        const char * tailSep = strrchr(directory, '/');
-        assertex(tailSep && tailSep != directory);
-        StringBuffer tail(tailSep+1);
-        directory.setLength(tailSep - directory.str());
-
-        Owned<IPropertyTree> info = createPTree();
-        info->setProp("@name", groupName);
-        info->setProp("@protocol", "thor");
-
-        unsigned numNodes = group->ordinality();
-        for (unsigned i=0; i < numNodes; i++)
-        {
-            StringBuffer ipText;
-            group->queryNode(i).endpoint().getIpText(ipText);
-            info->addProp("ip", ipText);
-        }
-
-        info->setPropInt("@directCost", 5);
-        info->setPropInt("@localCost", 10);
-        info->setPropInt("@remoteCost", 30);
-
-        info->setPropBool("@canReadRemote", true);
-        info->setProp("@path", directory);
-
-        if (groupType == grp_thor)
-            info->setPropInt("@numReplicas", 2);
-
-        info->setPropBool("@includeNameInPath", false);
-
-        Owned<CStoragePlane> next = new CStoragePlane(info);
-        assertex(!queryPlane(next->queryName()));
-        planes.append(*LINK(next));
-        addDefaultLocations(next, tail);
+        CStorageHostGroup & cur = hostGroups.item(i);
+        if (strsame(search, cur.queryName()))
+            return &cur;
     }
-
-    Owned<IPropertyTreeIterator> planeIter = xml->getElements("StoragePlanes/StoragePlane");
-    ForEach(*planeIter)
-    {
-        CStoragePlane * next = new CStoragePlane(&planeIter->query());
-        assertex(!queryPlane(next->queryName()));
-        planes.append(*LINK(next));
-        //MORE: implicit locations could be created on demand, which is best?
-        addDefaultLocations(next, nullptr);
-    }
-
-    Owned<IPropertyTreeIterator> locationIter = xml->getElements("StorageLocations/StorageLocation");
-    ForEach(*locationIter)
-    {
-        CStorageLocation * next = new CStorageLocation(*this, &locationIter->query());
-        locations.append(*next);
-        //MORE: implicit copy locations could be created on demand
-        addCopyLocations(next);
-    }
-
-    numEnvPlanes = planes.ordinality();
-    numEnvLocations = locations.ordinality();
-
-    Owned<IPropertyTree> saved = createPTree("Storage");
-    save(saved, true);
-    printXML(saved);
-
+    return nullptr;
 }
 
+CStoragePlane * CStorageSystems::queryPlane(const char * search)
+{
+    if (!search)
+        return nullptr;
+
+    ForEachItemIn(i, planes)
+    {
+        CStoragePlane & cur = planes.item(i);
+        if (strsame(search, cur.queryName()))
+            return &cur;
+    }
+    return nullptr;
+}
+
+void CStorageSystems::setFromMeta(IPropertyTree * xml)
+{
+    Owned<IPropertyTreeIterator> hostIter = xml->getElements("hostGroups");
+    ForEach(*hostIter)
+        hostGroups.append(*new CStorageHostGroup(hostIter->query()));
+
+    Owned<IPropertyTreeIterator> planeIter = xml->getElements("storage/planes");
+    ForEach(*planeIter)
+    {
+        IPropertyTree * cur = planeIter->query();
+        CStorageHostGroup * hosts = queryHostGroup(cur->queryProp("@hosts"));
+        planes.append(*new CStoragePlane(cur, hosts));
+    }
+}
+
+#if  0
 void CStorageSystems::addDefaultLocations(CStoragePlane * plane, const char * subDir)
 {
     unsigned width = plane->interleave ? plane->interleave : plane->getWidth();
@@ -531,17 +395,6 @@ CStorageLocation * CStorageSystems::queryLocalLocation(const char * path) const
     return queryHostLocation(".", path);
 }
 
-CStoragePlane * CStorageSystems::queryPlane(const char * name) const
-{
-    ForEachItemIn(i, planes)
-    {
-        if (planes.item(i).matches(name))
-            return &planes.item(i);
-    }
-
-    return nullptr;
-}
-
 CStorageLocation * CStorageSystems::queryProtocolLocation(const char * protocol, const char * protocolExtra) const
 {
     ForEachItemIn(i, planes)
@@ -552,36 +405,4 @@ CStorageLocation * CStorageSystems::queryProtocolLocation(const char * protocol,
     }
     return nullptr;
 }
-
-
-void CStorageSystems::save(IPropertyTree * xml, bool includeEnvironment) const
-{
-    unsigned firstPlane = includeEnvironment ? 0 : numEnvPlanes;
-    for (unsigned i=firstPlane; i < planes.ordinality(); i++)
-    {
-        planes.item(i).save(xml->addPropTree("StoragePlane"));
-    }
-
-    unsigned firstLocation  = includeEnvironment ? 0 : numEnvLocations;
-    for (unsigned i2=firstLocation; i2 < locations.ordinality(); i2++)
-    {
-        locations.item(i2).save(xml->addPropTree("StorageLocation"));
-    }
-}
-
-//---------------------------------------------------------------------------------------------------------------------
-
-static CStorageSystems globalStorageSystems;
-bool initialized = false;
-extern THORHELPER_API CStorageSystems & queryGlobalStorageSystems()
-{
-    if (!initialized)
-    {
-        Owned<IPropertyTree> env = createPTreeFromXMLString(demoStoragePlanes);
-        globalStorageSystems.populateFromEnvironment(env);
-        initialized = true;
-        DBGLOG("Using new GlobalStorageSystems");
-    }
-    //MORE: This needs to be initialized from the environment, for the moment using the Thor groups, but then extend it
-    return globalStorageSystems;
-}
+#endif

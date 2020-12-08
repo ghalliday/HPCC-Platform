@@ -2712,7 +2712,7 @@ unsigned PTree::numChildren()
     return children->numChildren();
 }
 
-unsigned PTree::getCount(const char *xpath)
+unsigned PTree::getCount(const char *xpath) const
 {
     unsigned c=0;
     Owned<IPropertyTreeIterator> iter = getElements(xpath);

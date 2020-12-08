@@ -100,8 +100,7 @@ public://should be private
 class THORHELPER_API CLogicalFile : public CInterface
 {
 public:
-    CLogicalFile(IDistributedFile * file, IOutputMetaData * expectedMeta, IPropertyTree * inputOptions, IPropertyTree * formatOptions, offset_t previousSize, CStorageSystems & storageSystems);
-    CLogicalFile(const char * path, bool isLogicalName, CStorageLocation * location, IOutputMetaData * expectedMeta, IPropertyTree * inputOptions, IPropertyTree * formatOptions, offset_t previousSize);
+    CLogicalFile(const CStorageSystems & storage, const IPropertyTree * xml, offset_t previousSize);
     CLogicalFile(MemoryBuffer & in);
 
     void getPhysicalFile(unsigned part, unsigned copy) const;
@@ -116,16 +115,15 @@ public:
     bool isLocal(unsigned part, unsigned copy) const;
     bool onAttachedStorage(unsigned copy) const;
 
-    unsigned queryActualCrc() const { return actualCrc; }
+//    unsigned queryActualCrc() const { return actualCrc; }
     IOutputMetaData * queryActualMeta() const;
-    offset_t queryExpandedFileSize() const { return fileSize; }
+//    offset_t queryExpandedFileSize() const { return fileSize; }
     const char * queryFormat();
-    IPropertyTree * queryFormatOptions() const { return formatOptions; }
-    IPropertyTree * queryInputOptions() const { return inputOptions; }
+    IPropertyTree * queryFormatOptions() const;
+    IPropertyTree * queryInputOptions() const;
     const char * queryLogicalFilename() const;
-    unsigned queryNumCopies() const; // includes backup locations and alternative locations
-    offset_t queryOffsetOfPart(unsigned part) const { return fileBaseOffset + queryPart(part).baseOffset; }
-    const CLogicalFilePart & queryPart(unsigned part) const { return parts[part]; }
+    offset_t queryOffsetOfPart(unsigned part) const;
+//    const CLogicalFilePart & queryPart(unsigned part) const { return parts[part]; }
     const char * queryTracingFilename(unsigned part) const;
     void serialize(MemoryBuffer & out) const;
 
@@ -134,22 +132,25 @@ protected:
     StringBuffer & expandPath(StringBuffer & target, unsigned part, unsigned copy) const;
 
 private:
+    const IPropertyTree * xml = nullptr;
+    //All of the following is derive from the xml
+    const char * name = nullptr;
     unsigned numParts = 0;
+    offset_t fileSize = 0;
+    offset_t fileBaseOffset = 0;
     std::vector<CLogicalFilePart> parts;
-    Owned<CPartitionTable> partitions;    //Do partitions live here, or in the file part?  What are the requirements for HDFS?
+    CIArrayOf<CStoragePlane> planes; // An array of locations the file is stored.  I think it simplifies everything for replicas to be expanded out.
+    /*
+
     //only one of the following should be filled in
     StringAttr name; // logical file name
     StringAttr path; // local path to the resource
     StringAttr format;  // combines type and format - a key is represented with a format of "key"
     Owned<IOutputMetaData> actualMeta;
     unsigned actualCrc = 0;
-    bool addPartSuffix = false;
-    offset_t fileSize = 0;
-    offset_t fileBaseOffset = 0;
-    CIArrayOf<CStorageLocation> locations; // An array of locations the file is stored.  I think it simplifies everything for replicas to be expanded out.
     Linked<IPropertyTree> formatOptions; // from CLogicalFileCollection
     Linked<IPropertyTree> inputOptions;        // from helper and logical properties
-    StringAttr accessToken; // ?? not sure how this would work.
+    */
 };
 
 class THORHELPER_API CLogicalFileSlice
@@ -172,7 +173,6 @@ public:
     IPropertyTree * queryFormatOptions() const { return file->queryFormatOptions(); }
     IPropertyTree * queryInputOptions() const { return file->queryInputOptions(); }
     offset_t queryLength() const { return length; }
-    unsigned queryNumCopies() const { return file->queryNumCopies(); }
     unsigned queryPartNumber() const { return part; }
     offset_t queryOffsetOfPart() const { return file->queryOffsetOfPart(part); }
     offset_t queryStartOffset() const { return startOffset; }
@@ -198,12 +198,13 @@ class CDfsLogicalFileName;
 class THORHELPER_API CLogicalFileCollection
 {
 public:
-    CLogicalFileCollection(CStorageSystems & _storageSystems, const char * _wuid) : storageSystems(_storageSystems), wuid(_wuid) { }
+    CLogicalFileCollection() = default;
     CLogicalFileCollection(MemoryBuffer & in);
 
+    void init(const char * _wuid,  bool _isTemporary,  bool _isCodeSigned, IUserDescriptor * _user, IOutputMetaData * _expectedMeta); // called once
     void calcPartition(std::vector<CLogicalFileSlice> & slices, unsigned numChannels, unsigned channel, bool preserveDistribution);
     void serialize(MemoryBuffer & out) const;
-    void setEclFilename(const char * filename, bool isTemporary,  bool isCodeSigned, IUserDescriptor *user, IOutputMetaData * expectedMeta, IPropertyTree * inputOptions, IPropertyTree * formatOptions);
+    void setEclFilename(const char * filename, IPropertyTree * inputOptions, IPropertyTree * formatOptions);
 
 protected:
     void appendFile(CLogicalFile & file);
@@ -215,11 +216,20 @@ protected:
     void reset();
 
 private:
-    CStorageSystems & storageSystems;
-    CIArrayOf<CLogicalFile> files;
-    Owned<IPropertyTree> eclOptions;      // explicitly defined in the ecl helpers.
-    Owned<IPropertyTree> formatOptions;   // defined by the format properties in ecl
+    //Options that are constant for the lifetime of the class
     StringAttr wuid;
+    IUserDescriptor * user = nullptr;
+    IOutputMetaData * expectedMeta = nullptr;
+    bool isTemporary = false;
+    bool isCodeSigned = false;
+    //The following may be reset e.g. if used within a child query
+    StringAttr filename;
+    Owned<IPropertyTree> inputOptions;
+    Owned<IPropertyTree> formatOptions;   // defined by the format properties in ecl
+    //derived information
+    Owned<IPropertyTree> resolved;
+    CStorageSystems storageSystems;
+    CIArrayOf<CLogicalFile> files;
     offset_t totalSize = 0;
 };
 

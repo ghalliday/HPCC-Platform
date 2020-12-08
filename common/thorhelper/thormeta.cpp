@@ -25,6 +25,7 @@
 
 #include "dautils.hpp"
 #include "dadfs.hpp"
+#include "dameta.hpp"
 
 #include "thormeta.hpp"
 #include "rtlcommon.hpp"
@@ -69,33 +70,37 @@ static void queryInheritSeparatorProp(IPropertyTree & target, const char * targe
 }
 
 
-CLogicalFile::CLogicalFile(IDistributedFile * file, IOutputMetaData * expectedMeta, IPropertyTree * _inputOptions, IPropertyTree * _formatOptions, offset_t previousSize, CStorageSystems & storageSystems) : inputOptions(_inputOptions)
+CLogicalFile::CLogicalFile(const CStorageSystems & storage, const IPropertyTree * _xml, offset_t previousSize) : xml(_xml)
 {
-    numParts = file->numParts();
+    name = xml->queryProp("@name");
+    numParts = xml->getPropInt("@numParts");
     fileBaseOffset = previousSize;
+    fileSize = xml->getPropInt64("@size");
 
+    Owned<IPropertyTreeIterator> partIter = xml->getElements("parts");
+    bool hasXml = partIter->first();
     offset_t baseOffset = 0;
     offset_t baseRow = 0;
     for (unsigned part=0; part < numParts; part++)
     {
-        IDistributedFilePart & cur = file->queryPart(part);
-        offset_t partSize = cur.getFileSize(true, false);
-        offset_t numRows = 0; // MORE: This should be stored in the meta and extracted at this point.
+        offset_t partSize = hasXml ? partIter->query().getPropInt("@size") : 0;
+        offset_t numRows = hasXml ? partIter->query().getPropInt("@numRows") : 0;
         parts.emplace_back(numRows, partSize, baseRow, baseOffset);
         baseOffset += partSize;
         baseRow += numRows;
+        if (hasXml)
+            hasXml = partIter->next();
     }
-    name.set(file->queryLogicalName());
     fileSize = baseOffset;
-    addPartSuffix = true;
 
-    IPropertyTree & fileProperties = file->queryAttributes();
-    const char * kind = fileProperties.queryProp("@kind");
-    if (kind && (stricmp(kind, "key") == 0))
-        format.set("key");
-    else
-        format.set(fileProperties.queryProp("@format"));
+    Owned<IPropertyTreeIterator> planeIter = xml->getElements("planes");
+    ForEach(*planeIter)
+    {
+        const char * planeName = planeIter->query()->queryProp("");
+        planes.append(*LINK(storage.queryPlane(planeName)));
+    }
 
+#if 0
     actualMeta.setown(getDaliLayoutInfo(fileProperties));
     actualCrc = fileProperties.getPropInt("@formatCrc");
 
@@ -114,36 +119,19 @@ CLogicalFile::CLogicalFile(IDistributedFile * file, IOutputMetaData * expectedMe
         file->getClusterGroupName(cluster, clusterName);
         unsigned numCopies = file->numCopies(0); // This should depend on the storage subsystem, not the part number
         for (unsigned copy=0; copy < numCopies; copy++)
-            locations.append(*LINK(storageSystems.resolveLocation(clusterName, copy)));
+            planes.append(*LINK(storageSystems.resolveLocation(clusterName, copy)));
     }
 
-    accessToken.clear();
-
-    bool blockcompressed = false;
-    bool compressed = file->isCompressed(&blockcompressed); //try new decompression, fall back to old unless marked as block
-    if (compressed || blockcompressed)
-    {
-        inputOptions.setown(createPTreeFromIPT(_inputOptions));
-        inputOptions->setPropBool("compressed", compressed);
-        inputOptions->setPropBool("blockCompressed", blockcompressed);
-    }
     size32_t dfsSize = fileProperties.getPropInt("@recordSize");
     if (dfsSize != 0)
     {
         ensureCloned(inputOptions, _inputOptions);
         inputOptions->setPropInt("dfsRecordSize", dfsSize);
     }
-
-
-    formatOptions.setown(createPTreeFromIPT(_formatOptions));
-    queryInheritProp(*formatOptions, "quote", fileProperties, "@csvQuote");
-    queryInheritSeparatorProp(*formatOptions, "separator", fileProperties, "@csvSeparate");
-    queryInheritProp(*formatOptions, "terminator", fileProperties, "@csvTerminate");
-    queryInheritProp(*formatOptions, "escape", fileProperties, "@csvEscape");
-    if (areMatchingPTrees(formatOptions, _formatOptions))
-        formatOptions.set(_formatOptions);
+#endif
 }
 
+#if 0
 //Create an entry for a physical file (or explicitly using a protocol)
 CLogicalFile::CLogicalFile(const char * _path, bool isLogicalName, CStorageLocation * location, IOutputMetaData * expectedMeta, IPropertyTree * _inputOptions, IPropertyTree * _formatOptions, offset_t previousSize)
 : inputOptions(_inputOptions), formatOptions(_formatOptions)
@@ -161,12 +149,29 @@ CLogicalFile::CLogicalFile(const char * _path, bool isLogicalName, CStorageLocat
     //MORE: For accurate filepositions need to know the filesize, but that may be expensive for non local files
     //may need a flag to indicate whether the virtual fileposition is actually used.
 }
+#endif
 
 CLogicalFile::CLogicalFile(MemoryBuffer & in)
 {
     UNIMPLEMENTED;
 }
 
+
+const IPropertyTree * CLogicalFile::queryFormatOptions() const
+{
+    return xml->queryPropTree("formatOptions");
+}
+const IPropertyTree * CLogicalFile::queryInputOptions() const
+{
+    return xml->queryPropTree("inputOptions");
+}
+
+offset_t CLogicalFile::queryOffsetOfPart(unsigned part) const
+{
+    return fileBaseOffset + queryPart(part).baseOffset;
+}
+
+#if 0
 offset_t CLogicalFile::getPartSize(unsigned part) const
 {
     if (parts.size() > part)
@@ -287,6 +292,7 @@ const char * CLogicalFile::queryTracingFilename(unsigned part) const
     //MORE: Include the part number and assign to a string buffer...
     return path;
 }
+#endif
 
 //---------------------------------------------------------------------------------------------------------------------
 
@@ -537,27 +543,32 @@ void CLogicalFileCollection::reset()
     files.kill();
 }
 
-void CLogicalFileCollection::setEclFilename(const char * filename, bool isTemporary, bool isCodeSigned, IUserDescriptor * user, IOutputMetaData * expectedMeta, IPropertyTree * inputOptions, IPropertyTree * formatOptions)
+void CLogicalFileCollection::init(const char * _wuid,  bool _isTemporary,  bool _isCodeSigned, IUserDescriptor * _user, IOutputMetaData * _expectedMeta)
 {
+    wuid.set(_wuid);
+    isTemporary = _isTemporary;
+    isCodeSigned = _isCodeSigned;
+    user = _user;
+    expectedMeta = _expectedMeta;
+}
+
+void CLogicalFileCollection::setEclFilename(const char * _filename, IPropertyTree * _inputOptions, IPropertyTree * _formatOptions)
+{
+    //Check if the same parameters have been passed, and if so avoid rebuilding the information
+    if (strieq(filename, _filename) && areMatchingPTrees(inputOptions, _inputOptions) && areMatchingPTrees(formatOptions, _formatOptions))
+        return;
+
     reset();
+    filename.set(_filename);
+    inputOptions.set(_inputOptions);
+    formatOptions.set(_formatOptions);
 
-    //Walk the contents of the filename.
-    //   Add entries for logical files.
-    //   Expand super files (both explicit and implicit)
-    //   Add entries for (wild-carded) external or hooked data files.
-    //This should allow more flexibility e.g. physical/external files within super files.
-    if (strchr(filename, PATHSEPCHAR))
-    {
-        processPhysicalFilename(filename, expectedMeta, inputOptions, formatOptions);
-    }
-    else
-    {
-        CDfsLogicalFileName logicalFilename;
-        logicalFilename.set(filename);
-        processFilename(logicalFilename, user, isTemporary, expectedMeta, inputOptions, formatOptions);
-    }
+    //Partinfo only need if a count operation, or if virtual(fileposition)
+    ResolveOptions options = ROincludeLocation|ROpartinfo;
+    resolved.setown(resolveLogicalFilename(filename, user, options));
 
-    //MORE: Check that the grouping of the resolved files match the grouping specified in the helper.
-    //Take into account isTemporary as well.  Where does the code for scope mangling live, and how does it connect with creating output filenames?
-    //Should at least be some common global functions.  Once you have deployed queries the same spill might be written by multiple workunits.
+    storageSystems.setFromMeta(resolved);
+    Owned<IPropertyTreeIterator> fileIter = resolved->getElements("file");
+    ForEach(*fileIter)
+        files.append(* new CLogicalFile(fileIter->query()));
 }

@@ -675,7 +675,7 @@ public:
     virtual unsigned numUniq() override { return checkChildren()?children->count():0; }
     virtual unsigned numChildren() override;
     virtual bool isCaseInsensitive() const override { return isnocase(); }
-    virtual unsigned getCount(const char *xpath) override;
+    virtual unsigned getCount(const char *xpath) const override;
     virtual IPropertyTree *addPropTreeArrayItem(const char *xpath, IPropertyTree *val) override;
     virtual bool isArray(const char *xpath=NULL) const override;
     virtual unsigned getAttributeCount() const override;

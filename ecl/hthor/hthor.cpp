@@ -11294,7 +11294,7 @@ bool RemoteReadChecker::onlyReadLocally(const CLogicalFileSlice & slice, unsigne
 
 
 CHThorRadicalDiskReadBaseActivity::CHThorRadicalDiskReadBaseActivity(IAgentContext &_agent, unsigned _activityId, unsigned _subgraphId, IHThorNewDiskReadBaseArg &_arg, IHThorCompoundBaseArg & _segHelper, ThorActivityKind _kind, EclGraph & _graph, IPropertyTree *_node)
-: CHThorActivityBase(_agent, _activityId, _subgraphId, _arg, _kind, _graph), helper(_arg), segHelper(_segHelper), files(queryGlobalStorageSystems(), _agent.queryWuid()), remoteReadChecker(_agent.queryWorkUnit())
+: CHThorActivityBase(_agent, _activityId, _subgraphId, _arg, _kind, _graph), helper(_arg), segHelper(_segHelper), files(queryGlobalStorageSystems()), remoteReadChecker(_agent.queryWorkUnit())
 {
     helper.setCallback(this);
     expectedDiskMeta = helper.queryDiskRecordSize();
@@ -11320,6 +11320,8 @@ CHThorRadicalDiskReadBaseActivity::CHThorRadicalDiskReadBaseActivity(IAgentConte
         inputOptions->setPropBool("optional", true);
 
     outputGrouped = helper.queryOutputMeta()->isGrouped();  // It is possible for input to be incorrectly marked as grouped, and input not or vice-versa
+    bool isTemporary = (helper.getFlags() & (TDXtemporary | TDXjobtemp)) != 0;
+    files.init(agent.queryWuid(), isTemporary, isCodeSigned, agent.queryCodeContext()->queryUserDescriptor(), expectedDiskMeta);
 }
 
 CHThorRadicalDiskReadBaseActivity::~CHThorRadicalDiskReadBaseActivity()
@@ -11404,13 +11406,13 @@ void CHThorRadicalDiskReadBaseActivity::resolveFile()
         StringBuffer mangledFilename;
         mangleLocalTempFilename(mangledFilename, fileName, agent.queryWuid());    // should this occur inside setEclFilename?
         const char * resolved = agent.queryTemporaryFile(mangledFilename.str());
-        files.setEclFilename(resolved, isTemporary, isCodeSigned, agent.queryCodeContext()->queryUserDescriptor(), expectedDiskMeta, curInputOptions, curFormatOptions);
+        files.setEclFilename(resolved, curInputOptions, curFormatOptions);
     }
     else
     {
         StringBuffer lfn;
         expandLogicalFilename(lfn, fileName, agent.queryWorkUnit(), resolveFilesLocally, false);
-        files.setEclFilename(lfn, false, isCodeSigned, agent.queryCodeContext()->queryUserDescriptor(), expectedDiskMeta, curInputOptions, curFormatOptions);
+        files.setEclFilename(lfn, curInputOptions, curFormatOptions);
     }
     files.calcPartition(slices, 1, 0, false);
     curSlice = 0;

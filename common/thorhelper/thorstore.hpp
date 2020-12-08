@@ -113,62 +113,65 @@ typedef std::vector<IpAddress> PhysicalGroup;
 
 //This describes the a set of disks that can be used to store a logical file.
 //  "device" is used to represent the index within the storage plane
+class THORHELPER_API CStorageHostGroup : public CInterface
+{
+public:
+    CStorageHostGroup(const IPropertyTree * _xml);
+
+    bool isLocal(unsigned device) const;
+
+private:
+    const IPropertyTree * xml;
+};
+
+
+//This describes the a set of disks that can be used to store a logical file.
+//  "device" is used to represent the index within the storage plane
 class THORHELPER_API CStoragePlane : public CInterface
 {
     friend class CStorageSystems;
 
 public:
     CStoragePlane() = default;
-    CStoragePlane(const IPropertyTree * xml);
-    void serialize(MemoryBuffer & out) const;
+    CStoragePlane(const IPropertyTree * _xml, const CStorageHostGroup * _host);
 
-    bool containsHost(const char * host);
+    bool containsHost(const char * host) const;
     bool containsPath(const char * path);
     bool matches(const char * search) const { return strsame(name, search); }
     bool matchesHost(const char * host);
 
     unsigned getCost(unsigned device, const IpAddress & accessIp, PhysicalGroup & peerIPs) const;
-    unsigned getInterleave() const { return interleave; }
-    unsigned getNumDefaultCopies() const { return defaultCopies; }
-    unsigned getNumDrives() const { return rootPaths.ordinality(); }
+//    unsigned getInterleave() const { return interleave; }
     StringBuffer & getURL(StringBuffer & target, unsigned device, unsigned drive) const;
     unsigned getWidth() const;
     bool isLocal(unsigned device) const;
     bool onAttachedStorage() const;
     const char * queryName() const { return name; }
-    const char * queryScopeSeparator() const { return scopeSeparator ? scopeSeparator.str() : PATHSEPSTR; }
 
 protected:
     void load(const IPropertyTree * xml);
     void save(IPropertyTree * xml);
 
 private:
+    const IPropertyTree * xml;
+    const char * name;
+    const CStorageHostGroup * host = nullptr;
     unsigned numDevices = 0;
-    StringAttr name; // must be a unique identifier over all environments...
     StringAttr protocol;          // thor/nas/s3/azure
     StringAttr protocolExtra;
     StringArray rootPaths;
-    StringAttr scopeSeparator;    // Could also be __scope__ or other text for azure/local spill files.  Use queryScopeSeparator() to access.
-    LogicalGroup logicalNodes;    // textual representation stored in dali.  Either nodes for storage, or nodes that it is mounted on.
-    PhysicalGroup resolvedNodes;  // resolved ips.  Once resolved the logicalNodes are not used.
     Owned<IPropertyTree> options;
-    unsigned directCost = 1;      // If the data is stored on a particular ip, cost of accessing from that ip
-    unsigned localCost = 10;      // If the data is stored on a particular ip, cost of accessing from an ip in the cluster
-    unsigned remoteCost = 100;    // General cost of accessing the data
-    unsigned defaultCopies = 1; // default replication level
 //    bool isLocallyMounted = false; // a remote drive which is locally mounted
 //    bool isLocalStorage = false; // is this storage tied to the compute nodes?  This should possibly be stored or calculated elsewhere
     unsigned interleave = 1;
     bool canReadRemote = false;         // has dafilesrv running on the nodes.
-    bool includeIpInPath = false;       // is the name of the ip address included in the path?
-    bool includeNameInPath = false;     // is the name of the storage array included in the name.  Is this a worthwhile option?
-    bool includeDeviceInPath = true;    // true for new attached storage to allow striped disks
 /*
  * NOTES:
  * Storage array information may not need to be serialized if the target already has the information
  */
 };
 
+#if 0
 //Represents a subset of a StorageArray e.g. when writing to a subset of the nodes in a thor group, or a single part distributed to a random node
 //A subgroup can be represented as name[:size][@offset] when stored in dali.
 class CStorageLocation : public CInterface
@@ -203,11 +206,17 @@ private:
     unsigned startDelta = 0;  // allows different replication to be represented 0|1|width|....  Can be > size if plane has multiple drives
     unsigned startDrive = 0;
 };
+#endif
 
 class CStorageSystems
 {
 public:
-    void populateFromEnvironment(IPropertyTree * xml);
+    void setFromMeta(IPropertyTree * _meta);
+
+    const CStorageHostGroup * queryHostGroup(const char * search) const;
+    const CStoragePlane * queryPlane(const char * search) const;
+
+/*
     CStorageLocation * queryHostLocation(const char * host, const char * path) const;
     CStorageLocation * queryLocalLocation(const char * path) const;
     CStorageLocation * queryLocalSpillLocation() const;
@@ -216,19 +225,10 @@ public:
     const char * queryTempfilePath();
     CStorageLocation * resolveLocation(const char * name, unsigned copy);
     CStoragePlane * queryPlane(const char * name) const;
-
-    void addRemoteLocation(IPropertyTree * def);
-    void save(IPropertyTree * xml, bool includeEnvironment) const;
-
-private:
-    void addDefaultLocations(CStoragePlane * plane, const char * subDir);
-    void addCopyLocations(CStorageLocation * primary);
-
+*/
 protected:
-    CIArrayOf<CStorageLocation> locations;
+    CIArrayOf<CStorageHostGroup> hostGroups;
     CIArrayOf<CStoragePlane> planes;
-    unsigned numEnvLocations = 0;   // Don't serialize if the items are in the environment?
-    unsigned numEnvPlanes = 0;
 };
 
 extern THORHELPER_API CStorageSystems & queryGlobalStorageSystems();
