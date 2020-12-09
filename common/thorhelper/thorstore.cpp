@@ -29,16 +29,50 @@
 #include "thorstore.hpp"
 
 
+
+StringBuffer & expandPlanePath(StringBuffer & target, const char * path, unsigned device)
+{
+    for (;;)
+    {
+        const char * hash = strchr(path, '#');
+        if (!hash)
+            break;
+
+        target.append(hash-path, path);
+        unsigned width = 1;
+        while (hash[1] == '#')
+        {
+            hash++;
+            width++;
+        }
+
+        target.appendf("%0*u", width, device);
+        path = hash+1;
+    }
+    target.append(path);
+    return target;
+}
+
 CStorageHostGroup::CStorageHostGroup(const IPropertyTree * _xml)
 : xml(_xml)
 {
 }
 
+const char * CStorageHostGroup::queryName() const
+{
+    return xml->queryProp("@name");
+}
+
+const char * CStorageHostGroup::queryHost(unsigned idx) const
+{
+    VStringBuffer xpath("part[%u]", idx);
+    return xml->queryProp(xpath);
+}
+
 bool CStorageHostGroup::isLocal(unsigned device) const
 {
-    VStringBuffer xpath("part[%u]", device);
-    const char * hostname = xml->queryProp(xpath);
-    if (xpath)
+    const char * hostname = queryHost(device);
+    if (hostname)
     {
         //MORE: Likely to be inefficient - should search differently?
         IpAddress ip(hostname);
@@ -71,10 +105,14 @@ bool CStorageHostGroup::isLocal(unsigned device) const
 
 
 CStoragePlane::CStoragePlane(const IPropertyTree * _xml, const CStorageHostGroup * _host)
- : xml(_xml), host(_host)
+ : xml(_xml), hostGroup(_host)
 {
     name = xml->queryProp("@name");
     numDevices = xml->getPropInt("@numDevices", 1);
+    size = xml->getPropInt("@size", numDevices);
+    offset = xml->getPropInt("@size", 0);
+    startDelta = xml->getPropInt("@offset", 0);
+    startDrive = 0; // Not sure if we really want to support multiple drives..
 }
 
 bool CStoragePlane::containsHost(const char * host) const
@@ -90,7 +128,7 @@ bool CStoragePlane::containsHost(const char * host) const
 
 bool CStoragePlane::containsPath(const char * path)
 {
-    return startsWith(path, rootPaths.item(0));
+    return startsWith(path, queryPath());
 }
 
 bool CStoragePlane::matchesHost(const char * host)
@@ -98,36 +136,25 @@ bool CStoragePlane::matchesHost(const char * host)
     return (xml->getCount("hosts") == 1) && containsHost(host);
 }
 
-StringBuffer & CStoragePlane::getURL(StringBuffer & target, unsigned device, unsigned drive) const
+const char * CStoragePlane::queryPath() const
 {
-    // protocol:<extra>//[ip/]path
-    if (!strsame(protocol, "thor"))
-        target.append(protocol).append(":").append(protocolExtra);
+    const char * path = xml->queryProp("@prefix");
+    return path ? path : "/";
+}
 
-#if 0
-    //include some form of the ip if it is required (not required for s3)
-    if (includeIpInPath)
+StringBuffer & CStoragePlane::getURL(StringBuffer & target, unsigned part) const
+{
+    unsigned device = getDevice(part);
+    unsigned drive = getDrive(part);
+
+    if (hostGroup)
     {
-        if (!resolvedNodes.empty())
-        {
-            unsigned node = (resolvedNodes.size() != 1) ? device : 0;
-            target.append("//");
-            resolvedNodes[node].getIpText(target);
-        }
-        else if (logicalNodes.ordinality())
-        {
-            unsigned node = (logicalNodes.ordinality() != 1) ? device : 0;
-            target.append("//");
-            target.append(logicalNodes.item(node));
-        }
+        target.append("//");
+        target.append(hostGroup->queryHost(device));
     }
 
-    target.append(rootPaths.item(drive));
-    if (includeNameInPath)
-        target.append(queryScopeSeparator()).append(name);
-    if (includeDeviceInPath)
-        target.append(queryScopeSeparator()).append(device);
-#endif
+    //MORE: Should this allow drive to modify and use $D<n>$ syntax instead?  I think that functionality  can be lost.
+    expandPlanePath(target, queryPath(), device);
     return target;
 }
 
@@ -137,122 +164,56 @@ unsigned CStoragePlane::getWidth() const
     return numDevices;  // Could subdivide even if not done by ip
 }
 
-unsigned CStoragePlane::getCost(unsigned device, const IpAddress & accessIp, PhysicalGroup & peerIPs) const
+#if 0
+//What is the cost of accessing part "part" from host "accessIp"
+unsigned CStoragePlane::getCost(unsigned part, const const char * accessIp) const
 {
-    return 0;
-    #if 0
-    if (resolvedNodes.size())
-    {
-        unsigned compareIndex = (resolvedNodes.size() == 1) ? 0 : device;
-        if (resolvedNodes[compareIndex].ipequals(accessIp))
-            return directCost;
-
-        //Slight concern that this is O(#ips)
-        for (auto & cur : peerIPs)
-            if (resolvedNodes[compareIndex].ipequals(cur))
-                return localCost;
-    }
-    if (logicalNodes.ordinality())
-        throwUnexpectedX("Should have resolved ips before calculating best location");
+    if (!hostGroup)
+        return xml->getPropInt("@accessCost", remoteCost);
+    unsigned device = getDevice(part);
+    if (hosts->isLocal(device, accessIp))
+        return directCost;
+    if (hostGroup->isSameNetwork(device, accessIp))
+        return localDCost;
     return remoteCost;
-    #endif
 }
+#endif
 
-bool CStoragePlane::isLocal(unsigned device) const
-{
-    if (host)
-        return host->isLocal(device);
-    return false;
-}
-
-bool CStoragePlane::onAttachedStorage() const
-{
-    return !protocol || strsame(protocol, "thor");
-}
-
-//---------------------------------------------------------------------------------------------------------------------
-
-CStorageLocation::CStorageLocation(const char * _name, CStoragePlane * _plane, unsigned _offset, unsigned _size, unsigned _copy, unsigned _startDelta, const char * _subDir)
-: name(_name), plane(_plane), offset(_offset), size(_size), copy(_copy), startDelta(_startDelta), subDir(_subDir)
-{
-}
-
-CStorageLocation::CStorageLocation(CStorageSystems & systems, IPropertyTree * xml)
-{
-    load(systems, xml);
-}
-
-unsigned CStorageLocation::getDevice(unsigned part) const
+unsigned CStoragePlane::getDevice(unsigned part) const
 {
     unsigned nodeDelta = (part + startDelta) % size;
     unsigned device = (nodeDelta + offset);
-    assertex(device < plane->getWidth());
+    assertex(device < getWidth());
     return device;
 }
 
-unsigned CStorageLocation::getDrive(unsigned part) const
+unsigned CStoragePlane::getDrive(unsigned part) const
 {
     unsigned driveDelta = (part + startDelta) / size;
-    unsigned drive = (startDrive + driveDelta) % plane->getNumDrives();
+    unsigned drive = (startDrive + driveDelta) % getNumDrives();
     return drive;
 }
 
-StringBuffer & CStorageLocation::getURL(StringBuffer & target, unsigned part) const
+bool CStoragePlane::isLocal(unsigned part) const
 {
-    plane->getURL(target, getDevice(part), getDrive(part));
-    if (subDir)
-        target.append(PATHSEPCHAR).append(subDir);
-    return target;
+    if (hostGroup)
+        return hostGroup->isLocal(getDevice(part));
+    return false;
 }
 
-
-bool CStorageLocation::isLocal(unsigned part) const
+bool CStoragePlane::isAttachedStorage() const
 {
-    return plane->isLocal(getDrive(part));
-}
-
-bool CStorageLocation::onAttachedStorage() const
-{
-    return plane->onAttachedStorage();
-}
-
-
-void CStorageLocation::load(CStorageSystems & systems, IPropertyTree * xml)
-{
-    name.set(xml->queryProp("@name"));
-    StringAttr planeName(xml->queryProp("@plane"));// need to resolve this in the list of planes
-    plane.set(systems.queryPlane(planeName));
-    assertex(plane);
-    offset = xml->getPropInt("@offset", 0);
-    size = xml->getPropInt("@size", plane->getWidth());
-    copy = xml->getPropInt("@copy", 0);
-    startDelta = xml->getPropInt("@delta", copy);
-    startDrive = xml->getPropInt("@drive", 0);
-    subDir.set(xml->queryProp("@subDir"));
-}
-
-void CStorageLocation::save(IPropertyTree * xml)
-{
-    xml->setProp("@name", name);
-    xml->setProp("@plane", plane->queryName());
-    xml->setPropInt("@offset", offset);
-    xml->setPropInt("@size", size);
-    xml->setPropInt("@copy", copy);
-    if (startDelta)
-        xml->setPropInt("@delta", startDelta);
-    if (startDrive)
-        xml->setPropInt("@drive", startDrive);
-    xml->setProp("@subDir", subDir);
+    return (hostGroup != nullptr);
 }
 
 //---------------------------------------------------------------------------------------------------------------------
 
-CStorageHostGroup * CStorageSystems::queryHostGroup(const char * search)
+const CStorageHostGroup * CStorageSystems::queryHostGroup(const char * search) const
 {
     if (!search)
         return nullptr;
 
-    ForEachItemIn(i, hostsGroups)
+    ForEachItemIn(i, hostGroups)
     {
         CStorageHostGroup & cur = hostGroups.item(i);
         if (strsame(search, cur.queryName()))
@@ -261,7 +222,7 @@ CStorageHostGroup * CStorageSystems::queryHostGroup(const char * search)
     return nullptr;
 }
 
-CStoragePlane * CStorageSystems::queryPlane(const char * search)
+const CStoragePlane * CStorageSystems::queryPlane(const char * search) const
 {
     if (!search)
         return nullptr;
@@ -277,132 +238,19 @@ CStoragePlane * CStorageSystems::queryPlane(const char * search)
 
 void CStorageSystems::setFromMeta(IPropertyTree * xml)
 {
+    //MORE: I want to check if the hostGroups and storageplanes are the same as last time.  That doesn't really work unless
+    //hostGroups is moved to storage, so you can then use queryPropTree("storage");
+    //if areMatchingPTrees(storage, savedStorage) return;
+
     Owned<IPropertyTreeIterator> hostIter = xml->getElements("hostGroups");
     ForEach(*hostIter)
-        hostGroups.append(*new CStorageHostGroup(hostIter->query()));
+        hostGroups.append(*new CStorageHostGroup(&hostIter->query()));
 
     Owned<IPropertyTreeIterator> planeIter = xml->getElements("storage/planes");
     ForEach(*planeIter)
     {
-        IPropertyTree * cur = planeIter->query();
-        CStorageHostGroup * hosts = queryHostGroup(cur->queryProp("@hosts"));
+        IPropertyTree * cur = &planeIter->query();
+        const CStorageHostGroup * hosts = queryHostGroup(cur->queryProp("@hosts"));
         planes.append(*new CStoragePlane(cur, hosts));
     }
 }
-
-#if  0
-void CStorageSystems::addDefaultLocations(CStoragePlane * plane, const char * subDir)
-{
-    unsigned width = plane->interleave ? plane->interleave : plane->getWidth();
-
-    CStorageLocation * primary = new CStorageLocation(plane->queryName(), plane, 0, width, 0, 0, subDir);
-    locations.append(*primary);
-    addCopyLocations(primary);
-}
-
-void CStorageSystems::addCopyLocations(CStorageLocation * primary)
-{
-    CStoragePlane * plane = primary->plane;
-    unsigned copies = plane->getNumDefaultCopies();
-    unsigned interleave = plane->getInterleave();
-    unsigned offset = primary->offset;
-    unsigned delta = interleave ? 0 : 1;
-    for (unsigned copy=1; copy < copies; copy++)
-    {
-        if (interleave)
-            offset = (offset + interleave) % plane->getWidth();
-        StringBuffer name;
-        name.append(primary->name).append(".").append(copy);
-        locations.append(* new CStorageLocation(name, plane, primary->offset, primary->size, copy, copy*delta, primary->subDir));
-    }
-}
-
-CStorageLocation * CStorageSystems::queryLocation(const char * name) const
-{
-    ForEachItemIn(i, locations)
-    {
-        if (locations.item(i).matches(name))
-            return &locations.item(i);
-    }
-    return nullptr;
-}
-
-CStorageLocation * CStorageSystems::resolveLocation(const char * name, unsigned copy)
-{
-    ForEachItemIn(i, locations)
-    {
-        if (locations.item(i).matches(name))
-            return &locations.item(i);
-    }
-
-    //Allow system[:size[@offset]] to create a subset
-    const char * colon = strchr(name, ':');
-    CStoragePlane * plane;
-    if (colon)
-    {
-        StringBuffer systemName(colon-name, name);
-        plane = queryPlane(systemName);
-    }
-    else
-        plane = queryPlane(name);
-
-    unsigned offset = 0;
-    unsigned width = plane->getWidth();
-    unsigned size = width;
-    if (colon)
-    {
-        char * end = nullptr;
-        size = strtoul(colon+1, &end, 10);
-        assertex(size <= width);
-
-        if (end && *end == '@')
-        {
-            offset = strtoul(end+1, nullptr, 10);
-            assertex(offset + size <= width);
-        }
-    }
-
-    unsigned startDelta = copy;
-    //MORE: Include information from ClusterPartDiskMapSpec::calcPartLocation so can easily map (part,copy) to a node.
-    locations.append(* new CStorageLocation(name, plane, offset, size, copy, startDelta, nullptr));
-    return &locations.tos();
-}
-
-CStorageLocation * CStorageSystems::queryHostLocation(const char * host, const char * path) const
-{
-    //Should possibly loop through the planes, and then find a location that matches the name of the plane
-    ForEachItemIn(i, locations)
-    {
-        CStorageLocation & cur = locations.item(i);
-        CStoragePlane * plane = cur.queryPlane();
-        if (plane->matchesHost(host))
-        {
-            //Ensure that the path is a subset of the path supported by the plane - as a security check
-            if (plane->containsPath(path))
-                return &cur;
-        }
-    }
-    return nullptr;
-}
-
-CStorageLocation * CStorageSystems::queryLocalSpillLocation() const
-{
-    return queryLocation("_local_spill_");
-}
-
-CStorageLocation * CStorageSystems::queryLocalLocation(const char * path) const
-{
-    return queryHostLocation(".", path);
-}
-
-CStorageLocation * CStorageSystems::queryProtocolLocation(const char * protocol, const char * protocolExtra) const
-{
-    ForEachItemIn(i, planes)
-    {
-        CStoragePlane & cur = planes.item(i);
-        if (strsame(cur.protocol, protocol) && strsame(cur.protocolExtra, protocolExtra))
-            return queryLocation(cur.queryName());
-    }
-    return nullptr;
-}
-#endif

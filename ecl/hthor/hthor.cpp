@@ -11294,7 +11294,7 @@ bool RemoteReadChecker::onlyReadLocally(const CLogicalFileSlice & slice, unsigne
 
 
 CHThorRadicalDiskReadBaseActivity::CHThorRadicalDiskReadBaseActivity(IAgentContext &_agent, unsigned _activityId, unsigned _subgraphId, IHThorNewDiskReadBaseArg &_arg, IHThorCompoundBaseArg & _segHelper, ThorActivityKind _kind, EclGraph & _graph, IPropertyTree *_node)
-: CHThorActivityBase(_agent, _activityId, _subgraphId, _arg, _kind, _graph), helper(_arg), segHelper(_segHelper), files(queryGlobalStorageSystems()), remoteReadChecker(_agent.queryWorkUnit())
+: CHThorActivityBase(_agent, _activityId, _subgraphId, _arg, _kind, _graph), helper(_arg), segHelper(_segHelper), remoteReadChecker(_agent.queryWorkUnit())
 {
     helper.setCallback(this);
     expectedDiskMeta = helper.queryDiskRecordSize();
@@ -11563,7 +11563,7 @@ bool CHThorRadicalDiskReadBaseActivity::openFilePart(CLogicalFileSlice * nextSli
 
     // scan for local part 1st
     //MORE: Order of copies should be optimized at this point....
-    unsigned numCopies = nextSlice->queryNumCopies();
+    unsigned numCopies = nextSlice->getNumCopies();
     for (unsigned copy=0; copy<numCopies; copy++)
     {
         if (remoteReadChecker.onlyReadLocally(*nextSlice, copy))

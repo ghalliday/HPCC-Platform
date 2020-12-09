@@ -43,6 +43,12 @@ static void ensureCloned(Shared<IPropertyTree> option, IPropertyTree * original)
         option.setown(createPTreeFromIPT(original));
 }
 
+IPropertyTree * resolveLogicalFilename(const char * filename, IUserDescriptor * user, ResolveOptions options)
+{
+    //This may go via esp instead at some point....
+    return resolveLogicalFilenameFromDali(filename, user, options);
+}
+
 //---------------------------------------------------------------------------------------------------------------------
 
 //Cloned for now -
@@ -70,7 +76,8 @@ static void queryInheritSeparatorProp(IPropertyTree & target, const char * targe
 }
 
 
-CLogicalFile::CLogicalFile(const CStorageSystems & storage, const IPropertyTree * _xml, offset_t previousSize) : xml(_xml)
+CLogicalFile::CLogicalFile(const CStorageSystems & storage, const IPropertyTree * _xml, offset_t previousSize, IOutputMetaData * _expectedMeta)
+: xml(_xml), expectedMeta(_expectedMeta)
 {
     name = xml->queryProp("@name");
     numParts = xml->getPropInt("@numParts");
@@ -96,32 +103,12 @@ CLogicalFile::CLogicalFile(const CStorageSystems & storage, const IPropertyTree 
     Owned<IPropertyTreeIterator> planeIter = xml->getElements("planes");
     ForEach(*planeIter)
     {
-        const char * planeName = planeIter->query()->queryProp("");
-        planes.append(*LINK(storage.queryPlane(planeName)));
+        const char * planeName = planeIter->query().queryProp("");
+        planes.append(storage.queryPlane(planeName));
     }
 
+    actualCrc = xml->getPropInt("@metaCrc");
 #if 0
-    actualMeta.setown(getDaliLayoutInfo(fileProperties));
-    actualCrc = fileProperties.getPropInt("@formatCrc");
-
-    if (!actualMeta)
-    {
-        //MORE: Old files do not have the serialized file format, some new files cannot create them
-        //we should possibly have away of distinguishing between the two
-        actualMeta.set(expectedMeta);
-        actualCrc = 0;
-    }
-
-    unsigned numClusters = file->numClusters();
-    for (unsigned cluster=0; cluster < numClusters; cluster++)
-    {
-        StringBuffer clusterName;
-        file->getClusterGroupName(cluster, clusterName);
-        unsigned numCopies = file->numCopies(0); // This should depend on the storage subsystem, not the part number
-        for (unsigned copy=0; copy < numCopies; copy++)
-            planes.append(*LINK(storageSystems.resolveLocation(clusterName, copy)));
-    }
-
     size32_t dfsSize = fileProperties.getPropInt("@recordSize");
     if (dfsSize != 0)
     {
@@ -171,7 +158,6 @@ offset_t CLogicalFile::queryOffsetOfPart(unsigned part) const
     return fileBaseOffset + queryPart(part).baseOffset;
 }
 
-#if 0
 offset_t CLogicalFile::getPartSize(unsigned part) const
 {
     if (parts.size() > part)
@@ -181,18 +167,14 @@ offset_t CLogicalFile::getPartSize(unsigned part) const
 
 bool CLogicalFile::isLocal(unsigned part, unsigned copy) const
 {
-    return locations.item(copy).isLocal(part);
+    return queryPlane(copy)->isLocal(part);
 }
 
 bool CLogicalFile::onAttachedStorage(unsigned copy) const
 {
-    return locations.item(copy).onAttachedStorage();
+    return queryPlane(copy)->isAttachedStorage();
 }
 
-void CLogicalFile::serialize(MemoryBuffer & out) const
-{
-    UNIMPLEMENTED;
-}
 
 /*
 IFile * CLogicalFile::createFile(unsigned part, unsigned copy) const
@@ -224,7 +206,7 @@ StringBuffer & CLogicalFile::expandLogicalAsPhysical(StringBuffer & target, unsi
 
         //MORE: Process special characters?
         target.append(colon - cur, cur);
-        target.append(locations.item(copy).queryScopeSeparator());
+        target.append(planes.item(copy)->queryScopeSeparator());
         cur = colon + 2;
     }
 
@@ -239,12 +221,12 @@ StringBuffer & CLogicalFile::expandPath(StringBuffer & target, unsigned part, un
     }
     else
     {
-        assertex(path);
-        target.append(path);
+        assertex(queryPhysicalPath());
+        target.append(queryPhysicalPath());
     }
 
     //Add part number suffix
-    if ((numParts > 1) || addPartSuffix)
+    if (includePartSuffix())
     {
         target.append("._").append(part+1).append("_of_").append(numParts);
     }
@@ -254,45 +236,52 @@ StringBuffer & CLogicalFile::expandPath(StringBuffer & target, unsigned part, un
 
 StringBuffer & CLogicalFile::getURL(StringBuffer & target, unsigned part, unsigned copy) const
 {
-    locations.item(copy).getURL(target, part);
-    target.append(locations.item(copy).queryScopeSeparator());
+    planes.item(copy)->getURL(target, part);
+    target.append(planes.item(copy)->queryScopeSeparator());
     return expandPath(target, part, copy);
 }
 
 
 IOutputMetaData * CLogicalFile::queryActualMeta() const
 {
+    if (!actualMeta)
+    {
+        actualMeta.setown(getDaliLayoutInfo(*xml));
+        if (!actualMeta)
+        {
+            //MORE: Old files do not have the serialized file format, some new files cannot create them
+            //we should possibly have away of distinguishing between the two
+            actualMeta.set(expectedMeta);
+            actualCrc = 0;
+        }
+    }
     return actualMeta;
 }
 
 const char * CLogicalFile::queryFormat()
 {
-    if (format)
-        return format;
-    return defaultFileFormat;
+    return xml->queryProp("@format");
 }
 
-unsigned CLogicalFile::queryNumCopies() const
+unsigned CLogicalFile::getNumCopies() const
 {
-    if (path)
-        return 1;
-    return locations.ordinality();
+    return planes.ordinality();
 }
 
-
-const char * CLogicalFile::queryLogicalFilename() const
-{
-    return name ? name.str() : "";
-}
 
 const char * CLogicalFile::queryTracingFilename(unsigned part) const
 {
     if (name)
         return name;
     //MORE: Include the part number and assign to a string buffer...
-    return path;
+    return queryPhysicalPath();
 }
-#endif
+
+const char * CLogicalFile::queryLogicalFilename() const
+{
+    return name ? name : "";
+}
+
 
 //---------------------------------------------------------------------------------------------------------------------
 
@@ -316,7 +305,7 @@ bool CLogicalFileSlice::isWholeFile() const
 void CLogicalFileCollection::appendFile(CLogicalFile & file)
 {
     files.append(file);
-    totalSize += file.queryExpandedFileSize();
+    totalSize += file.getFileSize();
 }
 
 
@@ -377,166 +366,6 @@ void CLogicalFileCollection::calcPartition(std::vector<CLogicalFileSlice> & slic
 }
 
 
-void CLogicalFileCollection::processFile(IDistributedFile * file, IOutputMetaData * expectedMeta, IPropertyTree * inputOptions, IPropertyTree * formatOptions)
-{
-    IDistributedSuperFile * super = file->querySuperFile();
-    if (super)
-    {
-        unsigned max = super->numSubFiles(false);
-        for (unsigned i=0; i < max; i++)
-        {
-            Owned<IDistributedFile> child = super->getSubFile(i, false);
-            processFile(child, expectedMeta, inputOptions, formatOptions);
-        }
-        return;
-    }
-
-    //MORE:
-    //Option for resolving filenames in dali, or resolving them as local filenames
-    //Check for existence of files and complain if missing.  Complain about empty keys?
-    //Pass isCodeSigned and other options down to this class/function
-    //Log read access to the file
-    bool isCodeSigned = false;
-    bool isGrouped = false; // initialize both of these when class instance is created;
-    //bool wasGrouped = file->isGrouped(); // MORE: This should be implemented
-    bool wasGrouped = false;
-    if (wasGrouped != isGrouped)
-    {
-        StringBuffer msg;
-        msg.append("DFS and code generated group info. differs: DFS(").append(wasGrouped ? "grouped" : "ungrouped").append("), CodeGen(").append(isGrouped ? "ungrouped" : "grouped").append("), using DFS info");
-        //throw agent.addWuExceptionEx(msg.str(), WRN_MismatchGroupInfo, SeverityError, MSGAUD_user, "hthor");
-        throwUnexpected();
-    }
-
-    appendFile(* new CLogicalFile(file, expectedMeta, inputOptions, formatOptions, totalSize, storageSystems));
-}
-
-void CLogicalFileCollection::processFilename(CDfsLogicalFileName & logicalFilename, IUserDescriptor *user, bool isTemporary, IOutputMetaData * expectedMeta, IPropertyTree * inputOptions, IPropertyTree * formatOptions)
-{
-    if (logicalFilename.isMulti())
-    {
-        assertex(!isTemporary);
-        if (!logicalFilename.isExpanded())
-            logicalFilename.expand(user); //expand wild-cards
-
-        unsigned max = logicalFilename.multiOrdinality();
-        for (unsigned child=0; child < max; child++)
-            processFilename(const_cast<CDfsLogicalFileName &>(logicalFilename.multiItem(child)), user, false, expectedMeta, inputOptions, formatOptions);
-        return;
-    }
-
-    const char * raw = logicalFilename.get(false);
-    if (logicalFilename.isExternal())
-    {
-    }
-    else
-    {
-        //Following could be implemented as logicalFilename.isPhysical()
-        const char * slash = strchr(raw, '/');
-        if (slash)
-        {
-            //If the filename contains a slash then treat it as a physical filename
-            processPhysicalFilename(raw, expectedMeta, inputOptions, formatOptions);
-        }
-        else
-        {
-            if (isTemporary)
-            {
-                UNIMPLEMENTED;
-                CStorageLocation * location = storageSystems.queryLocalSpillLocation();
-                appendFile(* new CLogicalFile(raw, true, location, expectedMeta, inputOptions, formatOptions, totalSize));
-            }
-            else
-            {
-                Owned<IDistributedFile> f = queryDistributedFileDirectory().lookup(logicalFilename, user, true, false, false, nullptr, defaultNonPrivilegedUser);
-                if (f)
-                    processFile(f, expectedMeta, inputOptions, formatOptions);
-                else
-                    processMissing(raw, inputOptions);
-            }
-        }
-    }
-}
-
-void CLogicalFileCollection::processMissing(const char * filename, IPropertyTree * inputOptions)
-{
-    if (!inputOptions->getPropBool("optional", false))
-    {
-        StringBuffer errorMsg("");
-        throw makeStringException(0, errorMsg.append(": Logical file name '").append(filename).append("' could not be resolved").str());
-    }
-    else
-    {
-        StringBuffer buff;
-        buff.appendf("Input file '%s' was missing but declared optional", filename);
-        //agent.addWuExceptionEx(buff.str(), WRN_SkipMissingOptFile, SeverityInformation, MSGAUD_user, "hthor");
-    }
-}
-
-void CLogicalFileCollection::processPhysicalFilename(const char * path, IOutputMetaData * expectedMeta, IPropertyTree * inputOptions, IPropertyTree * formatOptions)
-{
-    const char * slash = strchr(path, '/');
-    assertex(slash);
-
-    //If the filename contains a ':' before the slash then assume format is protocol:/path
-    //Could possibly support windows style c:, but may be cleaner to require soft links
-    const char * colon = strchr(path, ':');
-    if (colon && colon < slash)
-    {
-        processProtocolFilename(path, colon, slash, expectedMeta, inputOptions, formatOptions);
-        return;
-    }
-
-    /*
-     * The filename is either in the form
-     *
-     * //ip/path or /path or relative-path
-     */
-    StringBuffer absolutePath;
-    if (path[0] != '/')
-    {
-        makeAbsolutePath(path, absolutePath, false);
-        path = absolutePath;
-    }
-
-    //MORE: Security risk..... what kind of checking should be done?
-    CStorageLocation * location = nullptr;
-    if (path[1] == '/')
-    {
-        const char * start = path+2;
-        const char * slash = strchr(start, '/');
-        assertex(slash);
-
-        StringBuffer ip(slash-start, start);
-        location = storageSystems.queryHostLocation(ip, slash);
-        path = slash;
-    }
-    else
-    {
-        location = storageSystems.queryHostLocation(".", path);
-    }
-
-    if (location)
-    {
-        //MORE: Update totalSize member
-        appendFile(* new CLogicalFile(path, false, location, expectedMeta, inputOptions, formatOptions, totalSize));
-    }
-    else
-    {
-        throw makeStringExceptionV(99, "No permission to access file %s", path);
-    }
-
-}
-
-void CLogicalFileCollection::processProtocolFilename(const char * name, const char * colon, const char * slash, IOutputMetaData * expectedMeta, IPropertyTree * inputOptions, IPropertyTree * formatOptions)
-{
-    StringBuffer protocol(colon-name, name);
-    StringBuffer protocolExtra(slash-(colon+1), colon+1);
-
-    CStorageLocation * location = storageSystems.queryProtocolLocation(protocol, protocolExtra);
-    appendFile(* new CLogicalFile(slash, false, location, expectedMeta, inputOptions, formatOptions, totalSize));
-}
-
 void CLogicalFileCollection::reset()
 {
     totalSize = 0;
@@ -570,5 +399,37 @@ void CLogicalFileCollection::setEclFilename(const char * _filename, IPropertyTre
     storageSystems.setFromMeta(resolved);
     Owned<IPropertyTreeIterator> fileIter = resolved->getElements("file");
     ForEach(*fileIter)
-        files.append(* new CLogicalFile(fileIter->query()));
+    {
+        IPropertyTree & cur = fileIter->query();
+        if (cur.getPropBool("@missing"))
+        {
+            const char * filename = cur.queryProp("@name");
+            if (!inputOptions->getPropBool("optional", false))
+            {
+                StringBuffer errorMsg("");
+                throw makeStringException(0, errorMsg.append(": Logical file name '").append(filename).append("' could not be resolved").str());
+            }
+            else
+            {
+                StringBuffer buff;
+                buff.appendf("Input file '%s' was missing but declared optional", filename);
+                //agent.addWuExceptionEx(buff.str(), WRN_SkipMissingOptFile, SeverityInformation, MSGAUD_user, "hthor");
+            }
+        }
+        else
+        {
+            CLogicalFile * file = new CLogicalFile(storageSystems, &cur, totalSize, expectedMeta);
+            appendFile(*file);
+
+            bool expectedGrouped = false; // should pass in to init()
+            bool isGrouped = false && file->isGrouped();
+            if (isGrouped != expectedGrouped)
+            {
+                StringBuffer msg;
+                msg.append("DFS and code generated group info. differs: DFS(").append(isGrouped ? "grouped" : "ungrouped").append("), CodeGen(").append(expectedGrouped ? "ungrouped" : "grouped").append("), using DFS info");
+                //throw agent.addWuExceptionEx(msg.str(), WRN_MismatchGroupInfo, SeverityError, MSGAUD_user, "hthor");
+                throwUnexpected();
+            }
+        }
+    }
 }

@@ -34,52 +34,55 @@ interface IDistributedFile;
 
 //--------------------------------------------------------------------------------------------------------------------
 
-struct CPartition
+#if 0
+//SplitPoints are not currently supported the following classes sketch out what they would look like
+struct CSplitPoint
 {
     offset_t    id;
     offset_t    offset;
 };
 
-class CPartitionTable : public CInterface
+class CSplitPointTable : public CInterface
 {
 public:
-    virtual CPartition queryPartition(unsigned numSplits, unsigned split) = 0;
+    virtual CSplitPoint querySplitPoint(unsigned numSplits, unsigned split) = 0;
 };
 
-class CNoPartition : public CPartitionTable
+class CNoSplitPoint : public CSplitPointTable
 {
 public:
-    virtual CPartition queryPartition(unsigned numSplits, unsigned split) override
+    virtual CSplitPoint querySplitPoint(unsigned numSplits, unsigned split) override
     {
         if (split == 0)
-            return CPartition{0, 0};
+            return CSplitPoint{0, 0};
         else
-            return CPartition{numRows, size};
+            return CSplitPoint{numRows, size};
     }
 private:
     offset_t numRows = 0;
     offset_t size = 0;
 };
 
-class CPartitionByOffset : public CPartitionTable
+class CSplitPointByOffset : public CSplitPointTable
 {
 public:
-    virtual CPartition queryPartition(unsigned numSplits, unsigned split) override;
+    virtual CSplitPoint querySplitPoint(unsigned numSplits, unsigned split) override;
 private:
     offset_t recordStep = 0;
     std::vector<offset_t> offsets; // offsets of record[n * recordStep] is offsets[n];
 };
 
-class CPartitionByRecord : public CPartitionTable
+class CSplitPointByRecord : public CSplitPointTable
 {
 public:
-    virtual CPartition queryPartition(unsigned numSplits, unsigned split) override;
+    virtual CSplitPoint querySplitPoint(unsigned numSplits, unsigned split) override;
 private:
     offset_t offsetStep;
     std::vector<offset_t> recordNums; // the record at offset [n * offsetStep] is recordNums[n];
 };
+#endif
 
-// Could have partition point that
+
 class CLogicalFilePart
 {
 public:
@@ -94,38 +97,43 @@ public://should be private
     offset_t fileSize = 0;
     offset_t baseRow = 0; // sum of previous numRows
     offset_t baseOffset = 0; // sum of previous file sizes
-    Owned<CPartitionTable> partition;
+//  Owned<CSplitPointTable> splits;   // This is where split points would be saved and accessed
 };
 
 class THORHELPER_API CLogicalFile : public CInterface
 {
 public:
-    CLogicalFile(const CStorageSystems & storage, const IPropertyTree * xml, offset_t previousSize);
+    CLogicalFile(const CStorageSystems & storage, const IPropertyTree * xml, offset_t previousSize, IOutputMetaData * _expectedMeta);
     CLogicalFile(MemoryBuffer & in);
 
     void getPhysicalFile(unsigned part, unsigned copy) const;
     //IFile * createFile(unsigned part, unsigned copy) const;
 
     StringBuffer & getURL(StringBuffer & target, unsigned part, unsigned copy) const;
+    offset_t getFileSize() const { return fileSize; }
+    unsigned getNumCopies() const;
     unsigned getNumParts() const { return numParts; }
     offset_t getPartSize(unsigned part) const;
-
-    inline bool isDistributed() const { return numParts > 1; }  // MORE: Only if originally a logical file...
-    inline bool isLogicalFile() const { return name != nullptr; }
+    bool isDistributed() const { return numParts > 1; }  // MORE: Only if originally a logical file...
+    bool isGrouped() const { return xml->getPropBool("@grouped"); }
+    bool isLogicalFile() const { return name != nullptr; }
     bool isLocal(unsigned part, unsigned copy) const;
     bool onAttachedStorage(unsigned copy) const;
+    const CStoragePlane * queryPlane(unsigned idx) const { return planes.item(idx); }
 
-//    unsigned queryActualCrc() const { return actualCrc; }
+    unsigned queryActualCrc() const { return actualCrc; }
     IOutputMetaData * queryActualMeta() const;
-//    offset_t queryExpandedFileSize() const { return fileSize; }
     const char * queryFormat();
-    IPropertyTree * queryFormatOptions() const;
-    IPropertyTree * queryInputOptions() const;
+    const IPropertyTree * queryFormatOptions() const;
+    const IPropertyTree * queryInputOptions() const;
     const char * queryLogicalFilename() const;
     offset_t queryOffsetOfPart(unsigned part) const;
-//    const CLogicalFilePart & queryPart(unsigned part) const { return parts[part]; }
+    const CLogicalFilePart & queryPart(unsigned part) const { return parts[part]; }
     const char * queryTracingFilename(unsigned part) const;
     void serialize(MemoryBuffer & out) const;
+
+    const char * queryPhysicalPath() const { UNIMPLEMENTED; }    // MORE!!!
+    bool includePartSuffix() const { return true; }
 
 protected:
     StringBuffer & expandLogicalAsPhysical(StringBuffer & target, unsigned copy) const;
@@ -133,24 +141,16 @@ protected:
 
 private:
     const IPropertyTree * xml = nullptr;
-    //All of the following is derive from the xml
+    offset_t fileBaseOffset = 0;                // calculated from size of previous files
+    IOutputMetaData * expectedMeta;             // same as CLogicalFileCollection::expectedMeta
+    //All of the following are derived from the xml
     const char * name = nullptr;
     unsigned numParts = 0;
     offset_t fileSize = 0;
-    offset_t fileBaseOffset = 0;
     std::vector<CLogicalFilePart> parts;
-    CIArrayOf<CStoragePlane> planes; // An array of locations the file is stored.  I think it simplifies everything for replicas to be expanded out.
-    /*
-
-    //only one of the following should be filled in
-    StringAttr name; // logical file name
-    StringAttr path; // local path to the resource
-    StringAttr format;  // combines type and format - a key is represented with a format of "key"
-    Owned<IOutputMetaData> actualMeta;
-    unsigned actualCrc = 0;
-    Linked<IPropertyTree> formatOptions; // from CLogicalFileCollection
-    Linked<IPropertyTree> inputOptions;        // from helper and logical properties
-    */
+    ConstPointerArrayOf<CStoragePlane> planes; // An array of locations the file is stored.  I think it simplifies everything for replicas to be expanded out.
+    mutable Owned<IOutputMetaData> actualMeta;
+    mutable unsigned actualCrc = 0;
 };
 
 class THORHELPER_API CLogicalFileSlice
@@ -161,6 +161,7 @@ public:
 
     StringBuffer & getURL(StringBuffer & url, unsigned copy) const { return file->getURL(url, part, copy); }
 
+    unsigned getNumCopies() const { return file->getNumCopies(); }
     bool isEmpty() const { return !file || length == 0; }
     bool isLogicalFile() const { return file->isLogicalFile(); }
     bool isRemoteReadCandidate(unsigned copy) const;
@@ -170,8 +171,8 @@ public:
 
     CLogicalFile * queryFile() const { return file; }
     const char * queryFormat() { return file->queryFormat(); }
-    IPropertyTree * queryFormatOptions() const { return file->queryFormatOptions(); }
-    IPropertyTree * queryInputOptions() const { return file->queryInputOptions(); }
+    const IPropertyTree * queryFormatOptions() const { return file->queryFormatOptions(); }
+    const IPropertyTree * queryInputOptions() const { return file->queryInputOptions(); }
     offset_t queryLength() const { return length; }
     unsigned queryPartNumber() const { return part; }
     offset_t queryOffsetOfPart() const { return file->queryOffsetOfPart(part); }
@@ -224,7 +225,7 @@ private:
     bool isCodeSigned = false;
     //The following may be reset e.g. if used within a child query
     StringAttr filename;
-    Owned<IPropertyTree> inputOptions;
+    Owned<IPropertyTree> inputOptions;    // defined by the helper functions
     Owned<IPropertyTree> formatOptions;   // defined by the format properties in ecl
     //derived information
     Owned<IPropertyTree> resolved;

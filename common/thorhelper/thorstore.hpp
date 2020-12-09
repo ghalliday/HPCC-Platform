@@ -26,24 +26,6 @@
 
 #include <vector>
 
-//Drop direct support for windows shares?   Or should we require them to be locally mounted using symlinks so they fit in with other OSs.
-//a) windows 10 now supports non admin symlink creation, b) we don't currently run on windows c) they make everything complicated.
-class THORHELPER_API LogicalUrl
-{
-    // Expanded as a URL in the form <protocol>:<protocol-extra>//<path> or  //<protocolExtra>/path if no protocol?
-public:
-    StringAttr protocol;
-    StringAttr protocolExtra;  // host for thor protocol?
-    StringAttr path;
-};
-
-static LogicalUrl examples[] = {
-        { "s3", "east-coast",  "/bucket/x/y/z.1_of_1" },
-        { "azure", nullptr, "/blob/x__y__z.1_of_1" },
-        { "nas", nullptr, "/mnt/nas/cdrive/<sid>/x/y/z.1_of_1" },
-        { "thor", "mynode", "/var/lib/HpccSystems/hpcc/<sid>/<cluster>/x/y/z.1_of_1" },
-};
-
 //All of the following will move to a different location (?dali) once the proof of concept is completed.
 
 //=====================================================================================================================
@@ -105,8 +87,6 @@ static LogicalUrl examples[] = {
  */
 
 class CStorageSystems;
-typedef StringArray LogicalGroup;
-typedef std::vector<IpAddress> PhysicalGroup;
 
 //What is a good term for a collection of drives
 //storage array/system/
@@ -118,6 +98,8 @@ class THORHELPER_API CStorageHostGroup : public CInterface
 public:
     CStorageHostGroup(const IPropertyTree * _xml);
 
+    const char * queryName() const;
+    const char * queryHost(unsigned idx) const;
     bool isLocal(unsigned device) const;
 
 private:
@@ -140,73 +122,30 @@ public:
     bool matches(const char * search) const { return strsame(name, search); }
     bool matchesHost(const char * host);
 
-    unsigned getCost(unsigned device, const IpAddress & accessIp, PhysicalGroup & peerIPs) const;
-//    unsigned getInterleave() const { return interleave; }
-    StringBuffer & getURL(StringBuffer & target, unsigned device, unsigned drive) const;
+//    unsigned getCost(unsigned device, const IpAddress & accessIp, PhysicalGroup & peerIPs) const;
+    StringBuffer & getURL(StringBuffer & target, unsigned part) const;
     unsigned getWidth() const;
-    bool isLocal(unsigned device) const;
-    bool onAttachedStorage() const;
+    bool isLocal(unsigned part) const;
+    bool isAttachedStorage() const;
     const char * queryName() const { return name; }
+    const char * queryPath() const;
+    const char * queryScopeSeparator() const { return "/"; }    // Could make it match the path
 
 protected:
-    void load(const IPropertyTree * xml);
-    void save(IPropertyTree * xml);
+    unsigned getNumDrives() const { return 1; }
+    unsigned getDevice(unsigned part) const;
+    unsigned getDrive(unsigned part) const;
 
 private:
     const IPropertyTree * xml;
     const char * name;
-    const CStorageHostGroup * host = nullptr;
+    const CStorageHostGroup * hostGroup = nullptr;
     unsigned numDevices = 0;
-    StringAttr protocol;          // thor/nas/s3/azure
-    StringAttr protocolExtra;
-    StringArray rootPaths;
-    Owned<IPropertyTree> options;
-//    bool isLocallyMounted = false; // a remote drive which is locally mounted
-//    bool isLocalStorage = false; // is this storage tied to the compute nodes?  This should possibly be stored or calculated elsewhere
-    unsigned interleave = 1;
-    bool canReadRemote = false;         // has dafilesrv running on the nodes.
-/*
- * NOTES:
- * Storage array information may not need to be serialized if the target already has the information
- */
-};
-
-#if 0
-//Represents a subset of a StorageArray e.g. when writing to a subset of the nodes in a thor group, or a single part distributed to a random node
-//A subgroup can be represented as name[:size][@offset] when stored in dali.
-class CStorageLocation : public CInterface
-{
-    friend class CStorageSystems;  // could create accessor functions instead
-
-public:
-    CStorageLocation(const char * _name, CStoragePlane * _plane, unsigned _offset, unsigned _size, unsigned _copy, unsigned _startDelta, const char * _subDir);
-    CStorageLocation(CStorageSystems & systems, IPropertyTree * xml);
-
-    StringBuffer & getURL(StringBuffer & target, unsigned part) const;
-    bool isLocal(unsigned part) const;
-    bool onAttachedStorage() const;
-
-    bool matches(const char * search) const { return strsame(name, search); }
-    CStoragePlane * queryPlane() const { return plane; }
-    const char * queryScopeSeparator() const { return plane->queryScopeSeparator(); }
-
-protected:
-    unsigned getDevice(unsigned part) const;
-    unsigned getDrive(unsigned part) const;
-    void load(CStorageSystems & systems, IPropertyTree * xml);
-    void save(IPropertyTree * xml);
-
-private:
-    StringAttr name;
-    StringAttr subDir;
-    Linked<CStoragePlane> plane;
     unsigned offset = 0;  // offset + size <= plane->getWidth();
     unsigned size = 0;  // size <= plane->getWidth();
-    unsigned copy = 0;  // Each copy creates a different location entry (with a different startDelta)
     unsigned startDelta = 0;  // allows different replication to be represented 0|1|width|....  Can be > size if plane has multiple drives
     unsigned startDrive = 0;
 };
-#endif
 
 class CStorageSystems
 {
@@ -216,21 +155,12 @@ public:
     const CStorageHostGroup * queryHostGroup(const char * search) const;
     const CStoragePlane * queryPlane(const char * search) const;
 
-/*
-    CStorageLocation * queryHostLocation(const char * host, const char * path) const;
-    CStorageLocation * queryLocalLocation(const char * path) const;
-    CStorageLocation * queryLocalSpillLocation() const;
-    CStorageLocation * queryLocation(const char * name) const;
-    CStorageLocation * queryProtocolLocation(const char * protocol, const char * protocolExtra) const;
-    const char * queryTempfilePath();
-    CStorageLocation * resolveLocation(const char * name, unsigned copy);
-    CStoragePlane * queryPlane(const char * name) const;
-*/
 protected:
     CIArrayOf<CStorageHostGroup> hostGroups;
     CIArrayOf<CStoragePlane> planes;
 };
 
-extern THORHELPER_API CStorageSystems & queryGlobalStorageSystems();
+//Exapand the a string, substituting hashes for the device number.  Default number of digits matches the number of hashes
+extern THORHELPER_API StringBuffer & expandPlanePath(StringBuffer & target, const char * path, unsigned device);
 
 #endif
