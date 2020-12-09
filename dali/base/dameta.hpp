@@ -30,7 +30,6 @@
 enum ResolveOptions : unsigned {
     ROnone              = 0x00000000,
     ROincludeLocation   = 0x00000001,
-    ROsign              = 0x00000002,
     ROpartinfo          = 0x00000004,
     ROtimestamps        = 0x00000008,
     ROsecrets           = 0x00000010,       // Needs careful thought to ensure they can't leak to the outside world.
@@ -40,6 +39,22 @@ enum ResolveOptions : unsigned {
 constexpr ResolveOptions operator |(ResolveOptions l, ResolveOptions r) { return (ResolveOptions)((unsigned)l | (unsigned)r); }
 constexpr ResolveOptions operator &(ResolveOptions l, ResolveOptions r) { return (ResolveOptions)((unsigned)l & (unsigned)r); }
 
-extern da_decl IPropertyTree * resolveLogicalFilename(const char * filename, IUserDescriptor * user, ResolveOptions options);
+/*
+ * Gather information about the logical filename from dali, checking that the user has access to the files.
+ * Note, this will be serialized as a binary structure, and if signing is required that binary blob will then be signed.
+ *
+ * @param filename      The logical name of the file.  This can be
+ *                        an implicit superfile {a,b,c}
+ *                        a superfile
+ *                        a logical filename
+ *                        an external file:: file
+ *                        an external plane:: file
+ * @param user          Which user is requesting access to the file
+ * @param options       A bitfield that controls which pieces of information are returned
+ * @return              A property tree that can be used to generate the YAML to represent the file
+ *
+ */
+
+extern da_decl IPropertyTree * resolveLogicalFilenameFromDali(const char * filename, IUserDescriptor * user, ResolveOptions options);
 
 #endif

@@ -7,11 +7,11 @@ Storage planes
 ==============
 This is already covered in the deployed helm charts.  It has been extended and rationalized slightly.
 
-hostGroups:
-- name: <required>
-  hosts: [ .... ]
-
 storage:
+  hostGroups:
+  - name: <required>
+    hosts: [ .... ]
+
   planes:
     name: <required>
     prefix: <path>              # Root directory for accessing the plane (if pvc defined), or url to access plane.
@@ -58,6 +58,11 @@ file:
   - numRows: <count>            # number of rows in the file part
     size: <size>                # uncompressed size of the file part
     #compressedSize: <size>     # not sure this is useful...
+
+#  extra fields that are used to return information from the file lookup service
+
+  missing: <boolean>            # true if the file could not be found
+  external: <boolean>           # filename of the form external:: or plane::
 
 
 Functions

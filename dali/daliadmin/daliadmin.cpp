@@ -85,7 +85,7 @@ void usage(const char *exe)
   printf("\n");
   printf("Logical File meta information commands:\n");
   printf("  dfsfile <logicalname>          -- get meta information for file\n");
-  printf("  dfsmeta <logicalname> <storage> <sign> -- get new meta information for file\n");
+  printf("  dfsmeta <logicalname> <storage> -- get new meta information for file\n");
   printf("  setdfspartattr <logicalname> <part> <attribute> [<value>] -- set attribute of a file part to value, or delete the attribute if not provided\n");
   printf("  dfspart <logicalname> <part>   -- get meta information for part num\n");
   printf("  dfscheck                       -- verify dfs file information is valid\n");
@@ -588,15 +588,14 @@ static void dfspart(const char *lname,IUserDescriptor *userDesc, unsigned partnu
 
 //=============================================================================
 
-static void dfsmeta(const char *filename,IUserDescriptor *userDesc, bool includeStorage, bool sign)
+static void dfsmeta(const char *filename,IUserDescriptor *userDesc, bool includeStorage)
 {
+    //This function isn't going to work on a container system because it won't have access to the storage planes
     initializeStorageGroups(true);
     ResolveOptions options = ROpartinfo;
     if (includeStorage)
         options = options | ROincludeLocation;
-    if (sign)
-        options = options | ROsign;
-    Owned<IPropertyTree> meta = resolveLogicalFilename(filename, userDesc, options);
+    Owned<IPropertyTree> meta = resolveLogicalFilenameFromDali(filename, userDesc, options);
     printYAML(meta);
 }
 
@@ -3378,7 +3377,7 @@ void removeOrphanedGlobalVariables(bool dryrun, bool reconstruct)
 static constexpr const char * defaultYaml = R"!!(
 version: "1.0"
 daliadmin:
-  name: myeclccserver
+  name: daliadmin
 )!!";
 
 
@@ -3576,8 +3575,7 @@ int main(int argc, const char* argv[])
                     else if (strieq(cmd,"dfsmeta")) {
                         CHECKPARAMS(1,3);
                         bool includeStorage = (np < 2) || strToBool(params.item(2));
-                        bool sign = (np >= 3) && strToBool(params.item(3));
-                        dfsmeta(params.item(1),userDesc,includeStorage,sign);
+                        dfsmeta(params.item(1),userDesc,includeStorage);
                     }
                     else if (strieq(cmd,"dfspart")) {
                         CHECKPARAMS(2,2);

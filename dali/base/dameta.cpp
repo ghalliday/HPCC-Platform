@@ -111,15 +111,16 @@ void LogicalFileResolver::ensureHostGroup(const char * name)
     if (isEmpty(name))
         return;
 
+    IPropertyTree * storage = ensurePTree(meta, "storage");
     VStringBuffer xpath("hostGroups[@name='%s']", name);
-    if (meta->hasProp(xpath))
+    if (storage->hasProp(xpath))
         return;
 
     IPropertyTree * hosts = queryHostGroup(name);
     if (!hosts)
         throw makeStringExceptionV(0, "No entry found for hostGroup: '%s'", name);
 
-    meta->addPropTreeArrayItem("hostGroups", LINK(hosts));
+    storage->addPropTreeArrayItem("hostGroups", LINK(hosts));
 }
 
 void LogicalFileResolver::ensurePlane(const char * name)
@@ -171,12 +172,6 @@ void LogicalFileResolver::processFilename(const char * filename)
     CDfsLogicalFileName logicalFilename;
     logicalFilename.set(filename);
     processFilename(logicalFilename);
-
-    //Probably has to sign the entire response, not just each individual file.
-    if (options & ROsign)
-    {
-        //accessToken.clear();
-    }
 }
 
 void LogicalFileResolver::processFilename(CDfsLogicalFileName & logicalFilename)
@@ -194,6 +189,8 @@ void LogicalFileResolver::processFilename(CDfsLogicalFileName & logicalFilename)
 
     if (logicalFilename.isExternal())
     {
+        //MORE: There should be some scope checking for these - it seems backwards to call lookup() just to check it has access
+        checkLogicalName(logicalFilename.get(), user, true, false, true, nullptr);
         if (logicalFilename.isExternalPlane())
             processExternalPlane(logicalFilename);
         else
@@ -340,10 +337,10 @@ void LogicalFileResolver::processMissing(const char * filename)
  * Resolve a logical filename, and return the information in a property tree suitable for generating to a YAML file.
  * The logical filename might be an implicit or explicti superfile, or contain references to external files etc.
  *
- * The defintion of the format of the YAML file is defined in devdoc/NewFileProcessing.rst
+ * The definition of the format of the YAML file is defined in devdoc/NewFileProcessing.rst
  */
 
-IPropertyTree * resolveLogicalFilename(const char * filename, IUserDescriptor * user, ResolveOptions options)
+IPropertyTree * resolveLogicalFilenameFromDali(const char * filename, IUserDescriptor * user, ResolveOptions options)
 {
     LogicalFileResolver resolver(user, options);
     resolver.processFilename(filename);
