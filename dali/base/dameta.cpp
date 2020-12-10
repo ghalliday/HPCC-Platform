@@ -238,12 +238,18 @@ void LogicalFileResolver::processFile(IDistributedFile & file)
         for (unsigned part=0; part < numParts; part++)
         {
             IDistributedFilePart & cur = file.queryPart(part);
+            IPropertyTree & partProperties = cur.queryAttributes();
+
             IPropertyTree * partMeta = fileMeta->addPropTree("part");
             offset_t partSize = cur.getFileSize(true, false);
-            partMeta->setPropInt64("@partSize", partSize);
-            //I don't think this is currently stored, but it should be!
-            if (partMeta->hasProp("@recordCount"))
-                partMeta->setPropInt64("@numRows", partMeta->hasProp("@recordCount"));
+            partMeta->setPropInt64("@rawSize", partSize);
+            //I don't think this is currently stored, but it probably should be!
+            queryInheritProp(*partMeta, "@numRows", partProperties, "@numRows");
+            if (options & ROdiskinfo)
+            {
+                queryInheritProp(*partMeta, "@diskSize", partProperties, "@compressedSize");
+                queryInheritProp(*partMeta, "@diskSize", *partMeta, "@rawSize"); // set if not set above?  Not sure about this?
+            }
             totalSize += partSize;
         }
 
@@ -251,8 +257,12 @@ void LogicalFileResolver::processFile(IDistributedFile & file)
             throw makeStringExceptionV(0, "Inconsistent file size: %" I64F "u v %" I64F "u", fileSize, totalSize);
     }
 
-    fileMeta->setPropInt64("@size", fileSize);
-    queryInheritProp(*fileMeta, "@compressedSize", fileProperties, "@compressedSize");
+    fileMeta->setPropInt64("@rawSize", fileSize);
+    if (options & ROdiskinfo)
+    {
+        queryInheritProp(*fileMeta, "@diskSize", fileProperties, "@compressedSize");
+        queryInheritProp(*fileMeta, "@diskSize", *fileMeta, "@rawSize");
+    }
 
     const char * format;
     if (kind && (stricmp(kind, "key") == 0))
@@ -298,15 +308,12 @@ void LogicalFileResolver::processFile(IDistributedFile & file)
         }
     }
 
-    IPropertyTree * inputOptions = fileMeta->addPropTree("inputOptions");
     bool blockcompressed = false;
     bool compressed = file.isCompressed(&blockcompressed); //try new decompression, fall back to old unless marked as block
     if (compressed)
-        inputOptions->setPropBool("@compressed", true);
+        fileMeta->setPropBool("@compressed", true);
     if (blockcompressed)
-        inputOptions->setPropBool("@blockCompressed", blockcompressed);
-    if (isEmptyPTree(inputOptions))
-        fileMeta->removeTree(inputOptions);
+        fileMeta->setPropBool("@blockCompressed", blockcompressed);
 
     size32_t dfsSize = fileProperties.getPropInt("@recordSize");
     if (dfsSize != 0)

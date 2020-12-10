@@ -592,7 +592,7 @@ static void dfsmeta(const char *filename,IUserDescriptor *userDesc, bool include
 {
     //This function isn't going to work on a container system because it won't have access to the storage planes
     initializeStorageGroups(true);
-    ResolveOptions options = ROpartinfo;
+    ResolveOptions options = ROpartinfo|ROdiskinfo;
     if (includeStorage)
         options = options | ROincludeLocation;
     Owned<IPropertyTree> meta = resolveLogicalFilenameFromDali(filename, userDesc, options);

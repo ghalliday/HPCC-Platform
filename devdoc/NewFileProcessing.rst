@@ -42,28 +42,30 @@ file:
   numParts                      # How many file parts.
   singlePartNoSuffix: <boolean> # Does a single part file include .part_1_of_1?
   numRows:                      # total number of rows in the file (if known)
-  size:                         # total uncompressed size
-  compressedSize                # size
-  grouped: <boolean>            # is the file grouped?
+  rawSize:                      # total uncompressed size
+  diskSize                      # is this useful?  when binary copying?
   planes: []                    # list of storage planes that the file is stored on.
-  signedMeta:                   # A signed copy of the entire meta information - to be passed to dafilesrv.  (Dafilesrv should only serve a single storage plane?)
   tlk:                          # ???Should the tlk be stored in the meta and returned?
-  splitType: <boolean>          # Are there associated split points, and if so what format? (And if so what variant?)
-  inputOptions:                 # Any options related to the input file
-     compressed:
-     blockCompressed:
-  formatOptions:                # Any options that relate to the file format e.g. csvTerminator
+  splitType: <split-format>     # Are there associated split points, and if so what format? (And if so what variant?)
 
-  part:                        # optional information about each of the file parts  (Cannot implement virtual file position without this)
-  - numRows: <count>            # number of rows in the file part
-    size: <size>                # uncompressed size of the file part
-    #compressedSize: <size>     # not sure this is useful...
+#options relating to the format of the input file:
+  grouped: <boolean>            # is the file grouped?
+  compressed: <boolean>
+  blockCompressed: <boolean>
+  formatOptions:                # Any options that relate to the file format e.g. csvTerminator.  These are nested because they can be completely free format
+
+  part:                         # optional information about each of the file parts  (Cannot implement virtual file position without this)
+  - numRows: <count>              # number of rows in the file part
+    rawSize: <size>               # uncompressed size of the file part
+    diskSize: <size>              # size of the part on disk
 
 #  extra fields that are used to return information from the file lookup service
 
   missing: <boolean>            # true if the file could not be found
   external: <boolean>           # filename of the form external:: or plane::
 
+
+If the information needs to be signed to be passed to dafilesrv for example, the entire structure of (storage, files) is serialized, and compressed, and that then signed.
 
 Functions
 =========

@@ -30,6 +30,7 @@
 enum ResolveOptions : unsigned {
     ROnone              = 0x00000000,
     ROincludeLocation   = 0x00000001,
+    ROdiskinfo          = 0x00000002,       // disk sizes etc.
     ROpartinfo          = 0x00000004,
     ROtimestamps        = 0x00000008,
     ROsecrets           = 0x00000010,       // Needs careful thought to ensure they can't leak to the outside world.
