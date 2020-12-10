@@ -398,7 +398,7 @@ bool LocalDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFi
 
     if (isBinary())
     {
-        size32_t dfsRecordSize = inputOptions->getPropInt("dfsRecordSize");
+        size32_t dfsRecordSize = inputOptions->getPropInt("@dfsRecordSize");
         size32_t fixedDiskRecordSize = actualDiskMeta->getFixedSize();
         if (dfsRecordSize)
         {

@@ -238,15 +238,21 @@ const CStoragePlane * CStorageSystems::queryPlane(const char * search) const
 
 void CStorageSystems::setFromMeta(IPropertyTree * xml)
 {
-    //MORE: I want to check if the hostGroups and storageplanes are the same as last time.  That doesn't really work unless
-    //hostGroups is moved to storage, so you can then use queryPropTree("storage");
-    //if areMatchingPTrees(storage, savedStorage) return;
+    IPropertyTree * storage = xml->queryPropTree("storage");
 
-    Owned<IPropertyTreeIterator> hostIter = xml->getElements("hostGroups");
+    //MORE: Is it worth checking if the hostGroups and storageplanes are the same as last time?
+    //if areMatchingPTrees(storage, savedStorage) return;
+    hostGroups.kill();
+    planes.kill();
+
+    if (!storage)
+        return;
+
+    Owned<IPropertyTreeIterator> hostIter = storage->getElements("hostGroups");
     ForEach(*hostIter)
         hostGroups.append(*new CStorageHostGroup(&hostIter->query()));
 
-    Owned<IPropertyTreeIterator> planeIter = xml->getElements("storage/planes");
+    Owned<IPropertyTreeIterator> planeIter = storage->getElements("planes");
     ForEach(*planeIter)
     {
         IPropertyTree * cur = &planeIter->query();

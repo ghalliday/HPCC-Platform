@@ -113,7 +113,7 @@ CLogicalFile::CLogicalFile(const CStorageSystems & storage, const IPropertyTree 
     if (dfsSize != 0)
     {
         ensureCloned(inputOptions, _inputOptions);
-        inputOptions->setPropInt("dfsRecordSize", dfsSize);
+        inputOptions->setPropInt("@dfsRecordSize", dfsSize);
     }
 #endif
 }

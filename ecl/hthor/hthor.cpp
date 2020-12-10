@@ -10758,7 +10758,7 @@ CHThorNewDiskReadBaseActivity::InputFileInfo * CHThorNewDiskReadBaseActivity::ex
 
             size32_t dfsSize = props.getPropInt("@recordSize");
             if (dfsSize != 0)
-                meta->setPropInt("dfsRecordSize", dfsSize);
+                meta->setPropInt("@dfsRecordSize", dfsSize);
         }
         compressed = distributedFile->isCompressed(&blockcompressed); //try new decompression, fall back to old unless marked as block
 
