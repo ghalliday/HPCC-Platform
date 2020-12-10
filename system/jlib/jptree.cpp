@@ -234,7 +234,7 @@ unsigned ChildMap::getHashFromElement(const void *e) const
     return elem.queryHash();
 }
 
-unsigned ChildMap::numChildren()
+unsigned ChildMap::numChildren() const
 {
     SuperHashIteratorOf<IPropertyTree> iter(*this);
     if (!iter.first()) return 0;
@@ -2706,7 +2706,7 @@ void PTree::localizeElements(const char *xpath, bool allTail)
     // null action for local ptree
 }
 
-unsigned PTree::numChildren()
+unsigned PTree::numChildren() const
 {
     if (!checkChildren()) return 0;
     return children->numChildren();
@@ -3857,7 +3857,7 @@ bool CAtomPTree::removeAttribute(const char *key)
 ///////////////////
 
 
-bool isEmptyPTree(IPropertyTree *t)
+bool isEmptyPTree(const IPropertyTree *t)
 {
     if (!t)
         return true;
@@ -4273,12 +4273,15 @@ void mergePTree(IPropertyTree *target, IPropertyTree *toMerge)
     }
 }
 
-void _synchronizePTree(IPropertyTree *target, IPropertyTree *source, bool removeTargetsNotInSource)
+void _synchronizePTree(IPropertyTree *target, const IPropertyTree *source, bool removeTargetsNotInSource)
 {
     Owned<IAttributeIterator> aiter = target->getAttributes();
     StringArray targetAttrs;
-    ForEach (*aiter)
-        targetAttrs.append(aiter->queryName());
+    if (removeTargetsNotInSource)
+    {
+        ForEach (*aiter)
+            targetAttrs.append(aiter->queryName());
+    }
 
     aiter.setown(source->getAttributes());
     ForEach (*aiter)
@@ -4298,7 +4301,8 @@ void _synchronizePTree(IPropertyTree *target, IPropertyTree *source, bool remove
             else if (NULL == tValue ||0 != strcmp(sValue, tValue))
                 target->setProp(attr, sValue);
 
-            targetAttrs.zap(attr);
+            if (removeTargetsNotInSource)
+                targetAttrs.zap(attr);
         }
     }
 
@@ -4409,7 +4413,7 @@ void _synchronizePTree(IPropertyTree *target, IPropertyTree *source, bool remove
  * presevers ordering of matching elements.
  * If removeTargetsNotInSource = true (default) elements in the target not present in the source will be removed
  */
-void synchronizePTree(IPropertyTree *target, IPropertyTree *source, bool removeTargetsNotInSource, bool rootsMustMatch)
+void synchronizePTree(IPropertyTree *target, const IPropertyTree *source, bool removeTargetsNotInSource, bool rootsMustMatch)
 {
     if (rootsMustMatch)
     {
@@ -6956,7 +6960,7 @@ class COrderedPTree : public BASE_PTREE
         COrderedChildMap<BASECHILDMAP>() : BASECHILDMAP() { }
         ~COrderedChildMap<BASECHILDMAP>() { SELF::kill(); }
 
-        virtual unsigned numChildren() override { return order.ordinality(); }
+        virtual unsigned numChildren() const override { return order.ordinality(); }
         virtual IPropertyTreeIterator *getIterator(bool sort) override
         {
             class CPTArrayIterator : public ArrayIIteratorOf<IArrayOf<IPropertyTree>, IPropertyTree, IPropertyTreeIterator>
@@ -9195,4 +9199,36 @@ void saveYAML(IIOStream &stream, const IPropertyTree *tree, unsigned indent, uns
 jlib_decl IPropertyTree * queryCostsConfiguration()
 {
     return queryComponentConfig().queryPropTree("costs");
+}
+
+bool getPropBool(const std::initializer_list<const IPropertyTree *> & trees, const char *xpath, bool dft)
+{
+    for (const IPropertyTree * tree : trees)
+    {
+        if (tree->hasProp(xpath))
+            return tree->getPropBool(xpath);
+    }
+    return dft;
+}
+
+const char * queryProp(const std::initializer_list<const IPropertyTree *> & trees, const char *xpath, const char * dft)
+{
+    for (const IPropertyTree * tree : trees)
+    {
+        const char * match = tree->queryProp(xpath);
+        if (match)
+            return match;
+    }
+    return dft;
+}
+
+IPropertyTree * queryPropTree(const std::initializer_list<const IPropertyTree *> & trees, const char *xpath, IPropertyTree * dft)
+{
+    for (const IPropertyTree * tree : trees)
+    {
+        IPropertyTree * match = tree->queryPropTree(xpath);
+        if (match)
+            return match;
+    }
+    return dft;
 }

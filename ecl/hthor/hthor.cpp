@@ -10758,7 +10758,7 @@ CHThorNewDiskReadBaseActivity::InputFileInfo * CHThorNewDiskReadBaseActivity::ex
 
             size32_t dfsSize = props.getPropInt("@recordSize");
             if (dfsSize != 0)
-                meta->setPropInt("@dfsRecordSize", dfsSize);
+                meta->setPropInt("@recordSize", dfsSize);
         }
         compressed = distributedFile->isCompressed(&blockcompressed); //try new decompression, fall back to old unless marked as block
 
@@ -10786,10 +10786,10 @@ CHThorNewDiskReadBaseActivity::InputFileInfo * CHThorNewDiskReadBaseActivity::ex
             fileFormatOptions.setown(tempOptions.getClear());
     }
 
-    meta->setPropBool("grouped", grouped);
-    meta->setPropBool("compressed", compressed);
-    meta->setPropBool("blockCompressed", blockcompressed);
-    meta->setPropBool("forceCompressed", (helper.getFlags() & TDXcompress) != 0);
+    meta->setPropBool("@grouped", grouped);
+    meta->setPropBool("@compressed", compressed);
+    meta->setPropBool("@blockCompressed", blockcompressed);
+    meta->setPropBool("@forceCompressed", (helper.getFlags() & TDXcompress) != 0);
 
     InputFileInfo & target = * new InputFileInfo;
     target.file = distributedFile;
@@ -11299,7 +11299,6 @@ CHThorRadicalDiskReadBaseActivity::CHThorRadicalDiskReadBaseActivity(IAgentConte
     helper.setCallback(this);
     expectedDiskMeta = helper.queryDiskRecordSize();
     projectedDiskMeta = helper.queryProjectedDiskRecordSize();
-    formatOptions.setown(createPTree());
     isCodeSigned = false;
     if (_node)
     {
@@ -11309,15 +11308,15 @@ CHThorRadicalDiskReadBaseActivity::CHThorRadicalDiskReadBaseActivity(IAgentConte
         isCodeSigned = isActivityCodeSigned(*_node);
     }
 
-    CPropertyTreeWriter writer(formatOptions);
-    helper.getFormatOptions(writer);
-
     grouped = ((helper.getFlags() & TDXgrouped) != 0);
     inputOptions.setown(createPTree());
-    inputOptions->setPropBool("grouped", grouped);
-    inputOptions->setPropBool("forceCompressed", (helper.getFlags() & TDXcompress) != 0);
+    inputOptions->setPropBool("@grouped", grouped);
+    inputOptions->setPropBool("@forceCompressed", (helper.getFlags() & TDXcompress) != 0);
     if (helper.getFlags() & TDRoptional)
-        inputOptions->setPropBool("optional", true);
+        inputOptions->setPropBool("@optional", true);
+
+    CPropertyTreeWriter writer(ensurePTree(inputOptions, "formatOptions"));
+    helper.getFormatOptions(writer);
 
     outputGrouped = helper.queryOutputMeta()->isGrouped();  // It is possible for input to be incorrectly marked as grouped, and input not or vice-versa
     bool isTemporary = (helper.getFlags() & (TDXtemporary | TDXjobtemp)) != 0;
@@ -11378,23 +11377,23 @@ void CHThorRadicalDiskReadBaseActivity::resolveFile()
     void *k;
     size32_t kl;
     helper.getEncryptKey(kl,k);
-    if (kl)
+    if (kl || (helper.getFlags() & TDRdynformatoptions))
     {
         curInputOptions.setown(createPTreeFromIPT(inputOptions));
-        curInputOptions->setPropBin("encryptionKey", kl, k);
-        curInputOptions->setPropBool("blockcompressed", true);
-        curInputOptions->setPropBool("compressed", true);
-    }
+        if (kl)
+        {
+            curInputOptions->setPropBin("encryptionKey", kl, k);
+            curInputOptions->setPropBool("blockcompressed", true);
+            curInputOptions->setPropBool("compressed", true);
+        }
 
-    curFormatOptions.set(formatOptions);
-    if (helper.getFlags() & TDRdynformatoptions)
-    {
-        curFormatOptions.setown(createPTreeFromIPT(formatOptions));
-        CPropertyTreeWriter writer(curFormatOptions);
-        helper.getFormatDynOptions(writer);
+        if (helper.getFlags() & TDRdynformatoptions)
+        {
+            IPropertyTree * curFormatOptions = ensurePTree(curInputOptions, "formatOptions");
+            CPropertyTreeWriter writer(curFormatOptions);
+            helper.getFormatDynOptions(writer);
+        }
     }
-    else
-        curFormatOptions.set(formatOptions);
 
     //Extract meta information from the helper.  Another (possibly more efficient) alternative to an IPropertyTree would be a class.
     bool isTemporary = (helper.getFlags() & (TDXtemporary | TDXjobtemp)) != 0;
@@ -11406,13 +11405,13 @@ void CHThorRadicalDiskReadBaseActivity::resolveFile()
         StringBuffer mangledFilename;
         mangleLocalTempFilename(mangledFilename, fileName, agent.queryWuid());    // should this occur inside setEclFilename?
         const char * resolved = agent.queryTemporaryFile(mangledFilename.str());
-        files.setEclFilename(resolved, curInputOptions, curFormatOptions);
+        files.setEclFilename(resolved, curInputOptions);
     }
     else
     {
         StringBuffer lfn;
         expandLogicalFilename(lfn, fileName, agent.queryWorkUnit(), resolveFilesLocally, false);
-        files.setEclFilename(lfn, curInputOptions, curFormatOptions);
+        files.setEclFilename(lfn, curInputOptions);
     }
     files.calcPartition(slices, 1, 0, false);
     curSlice = 0;

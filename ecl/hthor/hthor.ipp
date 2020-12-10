@@ -3117,9 +3117,7 @@ protected:
     IOutputMetaData *expectedDiskMeta = nullptr;
     IOutputMetaData *projectedDiskMeta = nullptr;
     IConstArrayOf<IFieldFilter> fieldFilters;  // These refer to the expected layout
-    Owned<IPropertyTree> formatOptions;
     Owned<IPropertyTree> inputOptions;
-    Owned<IPropertyTree> curFormatOptions;
     Owned<IPropertyTree> curInputOptions;
     CLogicalFileSlice * activeSlice = nullptr;
     unsigned curSlice = 0;

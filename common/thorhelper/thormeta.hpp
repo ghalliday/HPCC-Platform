@@ -104,7 +104,6 @@ class THORHELPER_API CLogicalFile : public CInterface
 {
 public:
     CLogicalFile(const CStorageSystems & storage, const IPropertyTree * xml, offset_t previousSize, IOutputMetaData * _expectedMeta);
-    CLogicalFile(MemoryBuffer & in);
 
     void getPhysicalFile(unsigned part, unsigned copy) const;
     //IFile * createFile(unsigned part, unsigned copy) const;
@@ -124,16 +123,16 @@ public:
     unsigned queryActualCrc() const { return actualCrc; }
     IOutputMetaData * queryActualMeta() const;
     const char * queryFormat();
-    const IPropertyTree * queryFormatOptions() const;
-    const IPropertyTree * queryInputOptions() const;
+    const IPropertyTree * queryFileMeta() const;
     const char * queryLogicalFilename() const;
     offset_t queryOffsetOfPart(unsigned part) const;
     const CLogicalFilePart & queryPart(unsigned part) const { return parts[part]; }
     const char * queryTracingFilename(unsigned part) const;
-    void serialize(MemoryBuffer & out) const;
 
     const char * queryPhysicalPath() const { UNIMPLEMENTED; }    // MORE!!!
     bool includePartSuffix() const { return true; }
+
+    void applyHelperOptions(const IPropertyTree * helperOptions);
 
 protected:
     StringBuffer & expandLogicalAsPhysical(StringBuffer & target, unsigned copy) const;
@@ -141,6 +140,7 @@ protected:
 
 private:
     const IPropertyTree * xml = nullptr;
+    Owned<const IPropertyTree> mergedMeta;
     offset_t fileBaseOffset = 0;                // calculated from size of previous files
     IOutputMetaData * expectedMeta;             // same as CLogicalFileCollection::expectedMeta
     //All of the following are derived from the xml
@@ -171,8 +171,7 @@ public:
 
     CLogicalFile * queryFile() const { return file; }
     const char * queryFormat() { return file->queryFormat(); }
-    const IPropertyTree * queryFormatOptions() const { return file->queryFormatOptions(); }
-    const IPropertyTree * queryInputOptions() const { return file->queryInputOptions(); }
+    const IPropertyTree * queryFileMeta() const { return file->queryFileMeta(); }
     offset_t queryLength() const { return length; }
     unsigned queryPartNumber() const { return part; }
     offset_t queryOffsetOfPart() const { return file->queryOffsetOfPart(part); }
@@ -205,10 +204,11 @@ public:
     void init(const char * _wuid,  bool _isTemporary,  bool _isCodeSigned, IUserDescriptor * _user, IOutputMetaData * _expectedMeta); // called once
     void calcPartition(std::vector<CLogicalFileSlice> & slices, unsigned numChannels, unsigned channel, bool preserveDistribution);
     void serialize(MemoryBuffer & out) const;
-    void setEclFilename(const char * filename, IPropertyTree * inputOptions, IPropertyTree * formatOptions);
+    void setEclFilename(const char * filename, IPropertyTree * helperOptions);
 
 protected:
     void appendFile(CLogicalFile & file);
+    void applyHelperOptions();
     void processFile(IDistributedFile * file, IOutputMetaData * expectedMeta, IPropertyTree * inputOptions, IPropertyTree * formatOptions);
     void processFilename(CDfsLogicalFileName & logicalFilename, IUserDescriptor *user, bool isTemporary, IOutputMetaData * expectedMeta, IPropertyTree * inputOptions, IPropertyTree * formatOptions);
     void processMissing(const char * filename, IPropertyTree * inputOptions);
@@ -225,8 +225,7 @@ private:
     bool isCodeSigned = false;
     //The following may be reset e.g. if used within a child query
     StringAttr filename;
-    Owned<IPropertyTree> inputOptions;    // defined by the helper functions
-    Owned<IPropertyTree> formatOptions;   // defined by the format properties in ecl
+    Owned<IPropertyTree> helperOptions;    // defined by the helper functions
     //derived information
     Owned<IPropertyTree> resolved;
     CStorageSystems storageSystems;

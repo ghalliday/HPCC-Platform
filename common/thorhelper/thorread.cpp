@@ -372,13 +372,13 @@ bool LocalDiskRowReader::matches(const char * format, bool streamRemote, IDiskRe
 }
 
 
-bool LocalDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & _expectedFilter)
+bool LocalDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputMeta, const FieldFilterArray & _expectedFilter)
 {
-    assertex(inputOptions);
-    grouped = inputOptions->getPropBool("grouped");
-    compressed = inputOptions->getPropBool("compressed", false);
-    blockcompressed = inputOptions->getPropBool("blockCompressed", false);
-    bool forceCompressed = inputOptions->getPropBool("forceCompressed", false);
+    assertex(inputMeta);
+    grouped = inputMeta->getPropBool("@grouped");
+    compressed = inputMeta->getPropBool("@compressed", false);
+    blockcompressed = inputMeta->getPropBool("@blockCompressed", false);
+    bool forceCompressed = inputMeta->getPropBool("@forceCompressed", false);
 
     logicalFilename.set(_logicalFilename);
     filePart = _partNumber;
@@ -398,7 +398,7 @@ bool LocalDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFi
 
     if (isBinary())
     {
-        size32_t dfsRecordSize = inputOptions->getPropInt("@dfsRecordSize");
+        size32_t dfsRecordSize = inputMeta->getPropInt("@recordSize");
         size32_t fixedDiskRecordSize = actualDiskMeta->getFixedSize();
         if (dfsRecordSize)
         {
@@ -489,7 +489,7 @@ bool LocalDiskRowReader::setInputFile(const CLogicalFileSlice & slice, const Fie
     //MORE: These need to be passed on to the input reader
     offset_t startOffset = slice.queryStartOffset();
     offset_t length = slice.queryLength();
-    return setInputFile(inputFile, logicalFilename, slice.queryPartNumber(), baseOffset, startOffset, length, slice.queryInputOptions(), expectedFilter);
+    return setInputFile(inputFile, logicalFilename, slice.queryPartNumber(), baseOffset, startOffset, length, slice.queryFileMeta(), expectedFilter);
 }
 
 

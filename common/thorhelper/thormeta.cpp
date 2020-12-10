@@ -108,14 +108,6 @@ CLogicalFile::CLogicalFile(const CStorageSystems & storage, const IPropertyTree 
     }
 
     actualCrc = xml->getPropInt("@metaCrc");
-#if 0
-    size32_t dfsSize = fileProperties.getPropInt("@recordSize");
-    if (dfsSize != 0)
-    {
-        ensureCloned(inputOptions, _inputOptions);
-        inputOptions->setPropInt("@dfsRecordSize", dfsSize);
-    }
-#endif
 }
 
 #if 0
@@ -138,19 +130,25 @@ CLogicalFile::CLogicalFile(const char * _path, bool isLogicalName, CStorageLocat
 }
 #endif
 
-CLogicalFile::CLogicalFile(MemoryBuffer & in)
+void CLogicalFile::applyHelperOptions(const IPropertyTree * helperOptions)
 {
-    UNIMPLEMENTED;
+    if (isEmptyPTree(helperOptions))
+    {
+        mergedMeta.set(xml);
+    }
+    else
+    {
+        Owned<IPropertyTree> merged = createPTreeFromIPT(helperOptions);
+        //MORE: This needs to merge attributes, combine single elements, append lists?
+        synchronizePTree(merged, xml, false, false);
+        mergedMeta.setown(merged.getClear());
+    }
 }
 
 
-const IPropertyTree * CLogicalFile::queryFormatOptions() const
+const IPropertyTree * CLogicalFile::queryFileMeta() const
 {
-    return xml->queryPropTree("formatOptions");
-}
-const IPropertyTree * CLogicalFile::queryInputOptions() const
-{
-    return xml->queryPropTree("inputOptions");
+    return mergedMeta;
 }
 
 offset_t CLogicalFile::queryOffsetOfPart(unsigned part) const
@@ -381,55 +379,69 @@ void CLogicalFileCollection::init(const char * _wuid,  bool _isTemporary,  bool 
     expectedMeta = _expectedMeta;
 }
 
-void CLogicalFileCollection::setEclFilename(const char * _filename, IPropertyTree * _inputOptions, IPropertyTree * _formatOptions)
+void CLogicalFileCollection::setEclFilename(const char * _filename, IPropertyTree * _helperOptions)
 {
     //Check if the same parameters have been passed, and if so avoid rebuilding the information
-    if (strieq(filename, _filename) && areMatchingPTrees(inputOptions, _inputOptions) && areMatchingPTrees(formatOptions, _formatOptions))
-        return;
-
-    reset();
-    filename.set(_filename);
-    inputOptions.set(_inputOptions);
-    formatOptions.set(_formatOptions);
-
-    //Partinfo only need if a count operation, or if virtual(fileposition)
-    ResolveOptions options = ROincludeLocation|ROpartinfo;
-    resolved.setown(resolveLogicalFilename(filename, user, options));
-
-    storageSystems.setFromMeta(resolved);
-    Owned<IPropertyTreeIterator> fileIter = resolved->getElements("file");
-    ForEach(*fileIter)
+    if (strieq(filename, _filename))
     {
-        IPropertyTree & cur = fileIter->query();
-        if (cur.getPropBool("@missing"))
+        if (areMatchingPTrees(helperOptions, _helperOptions))
+            return;
+
+        helperOptions.set(_helperOptions);
+    }
+    else
+    {
+        reset();
+        filename.set(_filename);
+        helperOptions.set(_helperOptions);
+
+        //Partinfo only need if a count operation, or if virtual(fileposition)
+        ResolveOptions options = ROincludeLocation|ROpartinfo;
+        resolved.setown(resolveLogicalFilename(filename, user, options));
+
+        storageSystems.setFromMeta(resolved);
+        Owned<IPropertyTreeIterator> fileIter = resolved->getElements("file");
+        ForEach(*fileIter)
         {
-            const char * filename = cur.queryProp("@name");
-            if (!inputOptions->getPropBool("optional", false))
+            IPropertyTree & cur = fileIter->query();
+            if (cur.getPropBool("@missing"))
             {
-                StringBuffer errorMsg("");
-                throw makeStringException(0, errorMsg.append(": Logical file name '").append(filename).append("' could not be resolved").str());
+                const char * filename = cur.queryProp("@name");
+                if (!helperOptions->getPropBool("optional", false))
+                {
+                    StringBuffer errorMsg("");
+                    throw makeStringException(0, errorMsg.append(": Logical file name '").append(filename).append("' could not be resolved").str());
+                }
+                else
+                {
+                    StringBuffer buff;
+                    buff.appendf("Input file '%s' was missing but declared optional", filename);
+                    //agent.addWuExceptionEx(buff.str(), WRN_SkipMissingOptFile, SeverityInformation, MSGAUD_user, "hthor");
+                }
             }
             else
             {
-                StringBuffer buff;
-                buff.appendf("Input file '%s' was missing but declared optional", filename);
-                //agent.addWuExceptionEx(buff.str(), WRN_SkipMissingOptFile, SeverityInformation, MSGAUD_user, "hthor");
-            }
-        }
-        else
-        {
-            CLogicalFile * file = new CLogicalFile(storageSystems, &cur, totalSize, expectedMeta);
-            appendFile(*file);
+                CLogicalFile * file = new CLogicalFile(storageSystems, &cur, totalSize, expectedMeta);
+                appendFile(*file);
 
-            bool expectedGrouped = false; // should pass in to init()
-            bool isGrouped = false && file->isGrouped();
-            if (isGrouped != expectedGrouped)
-            {
-                StringBuffer msg;
-                msg.append("DFS and code generated group info. differs: DFS(").append(isGrouped ? "grouped" : "ungrouped").append("), CodeGen(").append(expectedGrouped ? "ungrouped" : "grouped").append("), using DFS info");
-                //throw agent.addWuExceptionEx(msg.str(), WRN_MismatchGroupInfo, SeverityError, MSGAUD_user, "hthor");
-                throwUnexpected();
+                bool expectedGrouped = false; // should pass in to init()
+                bool isGrouped = false && file->isGrouped();
+                if (isGrouped != expectedGrouped)
+                {
+                    StringBuffer msg;
+                    msg.append("DFS and code generated group info. differs: DFS(").append(isGrouped ? "grouped" : "ungrouped").append("), CodeGen(").append(expectedGrouped ? "ungrouped" : "grouped").append("), using DFS info");
+                    //throw agent.addWuExceptionEx(msg.str(), WRN_MismatchGroupInfo, SeverityError, MSGAUD_user, "hthor");
+                    throwUnexpected();
+                }
             }
         }
     }
+
+    applyHelperOptions();
+}
+
+void CLogicalFileCollection::applyHelperOptions()
+{
+    ForEachItemIn(i, files)
+        files.item(i).applyHelperOptions(helperOptions);
 }

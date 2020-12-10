@@ -81,7 +81,7 @@ public:
     { 
         _releaseAll();
     }
-    virtual unsigned numChildren();
+    virtual unsigned numChildren() const;
     virtual IPropertyTreeIterator *getIterator(bool sort);
     virtual bool set(const char *key, IPropertyTree *tree)
     {
@@ -672,8 +672,8 @@ public:
     virtual IPropertyTreeIterator *getElements(const char *xpath, IPTIteratorCodes flags = iptiter_null) const override;
     virtual void localizeElements(const char *xpath, bool allTail=false) override;
     virtual bool hasChildren() const override { return children && children->count()?true:false; }
-    virtual unsigned numUniq() override { return checkChildren()?children->count():0; }
-    virtual unsigned numChildren() override;
+    virtual unsigned numUniq() const override { return checkChildren()?children->count():0; }
+    virtual unsigned numChildren() const override;
     virtual bool isCaseInsensitive() const override { return isnocase(); }
     virtual unsigned getCount(const char *xpath) const override;
     virtual IPropertyTree *addPropTreeArrayItem(const char *xpath, IPropertyTree *val) override;
@@ -1027,6 +1027,74 @@ public:
         return nodeCreator->create(tag);
     }
 };
+
+
+#if 0
+//Experimental
+interface jlib_decl CUnionProperyTree : public CInterfaceOf<IPropertyTree>
+{
+    virtual bool hasProp(const char *xpath) const = 0;
+    virtual bool isBinary(const char *xpath=NULL) const = 0;
+    virtual bool isCompressed(const char *xpath=NULL) const = 0; // needed for external/internal efficiency e.g. for clone
+    virtual bool getProp(const char *xpath, StringBuffer &ret) const = 0;
+    virtual const char *queryProp(const char * xpath) const = 0;
+    virtual bool getPropBool(const char *xpath, bool dft=false) const = 0;
+    virtual int  getPropInt(const char *xpath, int dft=0) const = 0;
+    virtual __int64 getPropInt64(const char *xpath, __int64 dft=0) const = 0;
+    virtual double getPropReal(const char *xpath, double dft=0.0) const = 0;
+    virtual bool getPropBin(const char *xpath, MemoryBuffer &ret) const = 0;
+    virtual IPropertyTree *getPropTree(const char *xpath) const = 0;
+    virtual IPropertyTree *queryPropTree(const char *xpath) const = 0;
+    virtual StringBuffer &getName(StringBuffer &) const = 0;
+    virtual const char *queryName() const = 0;
+    virtual IPropertyTree *getBranch(const char *xpath) const override { return LINK(queryBranch(xpath)); }
+    virtual IPropertyTree *queryBranch(const char *xpath) const override { return queryPropTree(xpath); }
+    virtual bool hasChildren() const = 0;
+    virtual bool isArray(const char *xpath=NULL) const = 0;
+
+
+    virtual bool renameProp(const char *xpath, const char *newName) override { UNIMPLEMENTED; }
+    virtual bool renameTree(IPropertyTree *tree, const char *newName) override { UNIMPLEMENTED; }
+    virtual void setProp(const char *xpath, const char *val) override { UNIMPLEMENTED; }
+    virtual void addProp(const char *xpath, const char *val) override { UNIMPLEMENTED; }
+    virtual void appendProp(const char *xpath, const char *val) override { UNIMPLEMENTED; }
+
+    virtual void setPropBool(const char *xpath, bool val) override { UNIMPLEMENTED; }
+    virtual void addPropBool(const char *xpath, bool val) override { UNIMPLEMENTED; }
+
+    virtual void setPropInt(const char *xpath, int val) override { UNIMPLEMENTED; }
+    virtual void addPropInt(const char *xpath, int val) override { UNIMPLEMENTED; }
+
+    virtual void setPropInt64(const char *xpath, __int64 val) override { UNIMPLEMENTED; }
+    virtual void addPropInt64(const char *xpath, __int64 val) override { UNIMPLEMENTED; }
+
+    virtual void setPropBin(const char *xpath, size32_t size, const void *data) override { UNIMPLEMENTED; }
+    virtual void addPropBin(const char *xpath, size32_t size, const void *data) override { UNIMPLEMENTED; }
+    virtual void appendPropBin(const char *xpath, size32_t size, const void *data) override { UNIMPLEMENTED; }
+
+    virtual IPropertyTree *setPropTree(const char *xpath, IPropertyTree *val) override { UNIMPLEMENTED; }
+    virtual IPropertyTree *addPropTree(const char *xpath, IPropertyTree *val) override { UNIMPLEMENTED; }
+
+    virtual IPropertyTree *setPropTree(const char *xpath) override { UNIMPLEMENTED; }
+    virtual IPropertyTree *addPropTree(const char *xpath) override { UNIMPLEMENTED; }
+
+    virtual bool removeProp(const char *xpath) override { UNIMPLEMENTED; }
+    virtual bool removeTree(IPropertyTree *child) override { UNIMPLEMENTED; }
+    virtual aindex_t queryChildIndex(IPropertyTree *child) override { UNIMPLEMENTED; }
+
+    virtual IPropertyTreeIterator *getElements(const char *xpath, IPTIteratorCodes flags = iptiter_null) const override { UNIMPLEMENTED; }
+    virtual IAttributeIterator *getAttributes(bool sorted=false) const override { UNIMPLEMENTED; }
+
+    virtual unsigned numUniq() const override { UNIMPLEMENTED; }
+    virtual unsigned numChildren() const override { UNIMPLEMENTED; }
+    virtual bool isCaseInsensitive() const override { UNIMPLEMENTED; }
+    virtual bool IsShared() const override { UNIMPLEMENTED; }
+    virtual void localizeElements(const char *xpath, bool allTail=false) override { UNIMPLEMENTED; }
+    virtual unsigned getCount(const char *xpath) const override { UNIMPLEMENTED; }
+    virtual IPropertyTree *addPropTreeArrayItem(const char *xpath, IPropertyTree *val) override { UNIMPLEMENTED; }
+    virtual unsigned getAttributeCount() const override { UNIMPLEMENTED; }
+};
+#endif
 
 
 #endif

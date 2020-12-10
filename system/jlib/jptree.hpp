@@ -122,8 +122,8 @@ interface jlib_decl IPropertyTree : extends serializable
     virtual IPropertyTree *getBranch(const char *xpath) const = 0;
     virtual IPropertyTree *queryBranch(const char *xpath) const = 0;
     virtual bool hasChildren() const = 0;
-    virtual unsigned numUniq() = 0;
-    virtual unsigned numChildren() = 0;
+    virtual unsigned numUniq() const = 0;
+    virtual unsigned numChildren() const = 0;
     virtual bool isCaseInsensitive() const = 0;
     virtual bool IsShared() const = 0;
     virtual void localizeElements(const char *xpath, bool allTail=false) = 0;
@@ -214,7 +214,7 @@ jlib_decl IPullPTreeReader *createPullJSONStringReader(const char *json, IPTreeN
 jlib_decl IPullPTreeReader *createPullJSONBufferReader(const void *buf, size32_t bufLength, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions=ptr_ignoreWhiteSpace);
 
 jlib_decl void mergePTree(IPropertyTree *target, IPropertyTree *toMerge);
-jlib_decl void synchronizePTree(IPropertyTree *target, IPropertyTree *source, bool removeTargetsNotInSource=true, bool rootsMustMatch=true);
+jlib_decl void synchronizePTree(IPropertyTree *target, const IPropertyTree *source, bool removeTargetsNotInSource=true, bool rootsMustMatch=true);
 jlib_decl IPropertyTree *ensurePTree(IPropertyTree *root, const char *xpath);
 jlib_decl bool areMatchingPTrees(const IPropertyTree * left, const IPropertyTree * right);
 
@@ -277,7 +277,7 @@ jlib_decl bool validateXPathSyntax(const char *xpath, StringBuffer *error=NULL);
 jlib_decl bool validateXMLParseXPath(const char *xpath, StringBuffer *error=NULL);
 jlib_decl IPropertyTree *getXPathMatchTree(IPropertyTree &parent, const char *xpath);
 jlib_decl IPropertyTreeIterator *createNullPTreeIterator();
-jlib_decl bool isEmptyPTree(IPropertyTree *t);
+jlib_decl bool isEmptyPTree(const IPropertyTree *t);
 
 jlib_decl void extractJavadoc(IPropertyTree * result, const char * text);       // Pass in a javadoc style comment (without head/tail) and extract information into a property tree.
 
@@ -360,5 +360,9 @@ jlib_decl void dbglogYAML(const IPropertyTree *tree, unsigned indent = 0, unsign
 
 // Defines the threshold where attribute value maps are created for sibling ptrees for fast lookups
 jlib_decl void setPTreeMappingThreshold(unsigned threshold);
+
+jlib_decl bool getPropBool(const std::initializer_list<const IPropertyTree *> & trees, const char *xpath, bool dft=false);
+jlib_decl const char * queryProp(const std::initializer_list<const IPropertyTree *> & trees, const char *xpath, const char * dft=nullptr);
+jlib_decl IPropertyTree * queryPropTree(const std::initializer_list<const IPropertyTree *> & trees, const char *xpath, IPropertyTree * dft=nullptr);
 
 #endif

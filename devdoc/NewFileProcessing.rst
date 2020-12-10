@@ -53,6 +53,7 @@ file:
   compressed: <boolean>
   blockCompressed: <boolean>
   formatOptions:                # Any options that relate to the file format e.g. csvTerminator.  These are nested because they can be completely free format
+  recordSize:                   # if a fixed size record.  Not really sure it is useful
 
   part:                         # optional information about each of the file parts  (Cannot implement virtual file position without this)
   - numRows: <count>              # number of rows in the file part
@@ -245,6 +246,21 @@ Buffer sizes:
 - parallel disk reading may want to read a big chunk, but then process in sections.  groan.
 
 Look at lambda functions to create split points for a file.  Can we use the java classes to implement it on binary files (and csv/xml)?
+
+
+******************** Reading classes and meta information ********************
+meta comes from a combination of the information in dfs and the helper
+
+The main meta information uses the same structure that is return by the function that returns file infromation from dali.
+The format specific options are contained in a nested attribute so they can be completely arbitrary
+
+The helper class also generates a meta structure.  Some options fill in root elements - e.g. compressed.  Some fill in a new section (hints: @x=y).  The format options are generated from the paramaters to the dataset format.
+
+note normally there is only a single (or very few) files, so merging isn't too painful.
+queryMeta()
+queryOptions()
+rename meta to format?
+???
 
 DFU server
 ==========
