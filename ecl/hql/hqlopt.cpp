@@ -2390,6 +2390,61 @@ IHqlExpression * CTreeOptimizer::queryMoveKeyedExpr(IHqlExpression * transformed
     return NULL;
 }
 
+static bool maybeCompoundSource(IHqlExpression * expr)
+{
+    for (;;)
+    {
+        switch (expr->getOperator())
+        {
+        case no_newkeyindex:
+        case no_table:
+        case no_compound_diskread:
+        case no_compound_disknormalize:
+        case no_compound_diskaggregate:
+        case no_compound_diskcount:
+        case no_compound_diskgroupaggregate:
+        case no_compound_indexread:
+        case no_compound_indexnormalize:
+        case no_compound_indexaggregate:
+        case no_compound_indexcount:
+        case no_compound_indexgroupaggregate:
+        case no_compound_childread:
+        case no_compound_childnormalize:
+        case no_compound_childaggregate:
+        case no_compound_childcount:
+        case no_compound_childgroupaggregate:
+        case no_compound_selectnew:
+        case no_compound_inline:
+            return true;
+        case no_select:
+            //MORE? how common is normalize in a child query
+            return false;
+        case no_hqlproject:
+        case no_keyedlimit:
+        case no_choosen:
+        case no_limit:
+        case no_aggregate:
+        case no_newusertable:
+        case no_newaggregate:
+        case no_filter:
+        case no_preload:
+        case no_sorted:
+        case no_preservemeta:
+        case no_distributed:
+        case no_unordered:
+        case no_grouped:
+        case no_stepped:
+        case no_section:
+        case no_sectioninput:
+        case no_dataset_alias:
+            break;
+        default:
+            return false;
+        }
+        expr = expr->queryChild(0);
+    }
+}
+
 IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transformed, IHqlExpression * _expr)
 {
     OwnedHqlExpr folded = foldNullDataset(transformed);
@@ -2867,6 +2922,23 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
         //if (queryBodyExtra(transformed)->useCount == 1)
         //    return removeParentNode(transformed);
         break;
+    }
+
+    if (!maybeCompoundSource(transformed))
+    {
+        HqlExprCopyArray inScope;
+        transformed->gatherTablesUsed(inScope);
+        unsigned numChildren = getNumChildTables(transformed);
+        ForEachItemIn(iUsed, inScope)
+        {
+            IHqlExpression * selector = &inScope.item(iUsed);
+            for (unsigned i=0; i < numChildren; i++)
+            {
+                IHqlExpression * cur = transformed->queryChild(i);
+                if (!cur->usesSelector(selector))
+                    return LINK(transformed);
+            }
+        }
     }
 
     bool shared = childrenAreShared(transformed);
