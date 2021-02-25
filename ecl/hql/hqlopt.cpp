@@ -611,41 +611,50 @@ IHqlExpression * CTreeOptimizer::optimizeAggregateDataset(IHqlExpression * trans
         {
         case no_hqlproject:
         case no_newusertable:
-            if (ds->hasAttribute(prefetchAtom))
-                break;
-
-            //MORE: If the record is empty then either remove the project if no SKIP, or convert the SKIP to a filter
-
-            //Don't remove projects for the moment because they can make counts of disk reads much less
-            //efficient.  Delete the following lines once we have a count-diskread activity
-            if (!isScalarAggregate && !(options & (HOOcompoundproject|HOOinsidecompound)) && !ds->hasAttribute(_countProject_Atom) )
-                break;
-            if (isPureActivity(ds) && !isAggregateDataset(ds))
+            try
             {
-                OwnedMapper mapper = getMapper(ds);
-                ExpandSelectorMonitor expandMonitor(*this);
-                HqlExprArray newChildren;
-                unsigned num = children.ordinality();
-                LinkedHqlExpr oldDs = ds;
-                LinkedHqlExpr newDs = ds->queryChild(0);
-                if (transformed->getOperator() == no_aggregate)
+                if (ds->hasAttribute(prefetchAtom))
+                    break;
+
+                //MORE: If the record is empty then either remove the project if no SKIP, or convert the SKIP to a filter
+
+                //Don't remove projects for the moment because they can make counts of disk reads much less
+                //efficient.  Delete the following lines once we have a count-diskread activity
+                if (!isScalarAggregate && !(options & (HOOcompoundproject|HOOinsidecompound)) && !ds->hasAttribute(_countProject_Atom) )
+                    break;
+                if (isPureActivity(ds) && !isAggregateDataset(ds))
                 {
-                    oldDs.setown(createSelector(no_left, ds, querySelSeq(transformed)));
-                    newDs.setown(createSelector(no_left, newDs, querySelSeq(transformed)));
-                }
-                for (unsigned idx = 1; idx < num; idx++)
-                {
-                    OwnedHqlExpr mapped = expandFields(mapper, &children.item(idx), oldDs, newDs, &expandMonitor);
-                    if (containsCounter(mapped))
-                        expandMonitor.setComplex();
-                    newChildren.append(*mapped.getClear());
-                }
-                if (!expandMonitor.isComplex())
-                {
+                    OwnedMapper mapper = getMapper(ds);
+                    ExpandSelectorMonitor expandMonitor(*this);
+                    HqlExprArray newChildren;
+                    unsigned num = children.ordinality();
+                    LinkedHqlExpr oldDs = ds;
+                    LinkedHqlExpr newDs = ds->queryChild(0);
+                    if (transformed->getOperator() == no_aggregate)
+                    {
+                        oldDs.setown(createSelector(no_left, ds, querySelSeq(transformed)));
+                        newDs.setown(createSelector(no_left, newDs, querySelSeq(transformed)));
+                    }
                     for (unsigned idx = 1; idx < num; idx++)
-                        children.replace(OLINK(newChildren.item(idx-1)), idx);
-                    next = ds->queryChild(0);
+                    {
+                        OwnedHqlExpr mapped = expandFields(mapper, &children.item(idx), oldDs, newDs, &expandMonitor);
+                        if (containsCounter(mapped))
+                            expandMonitor.setComplex();
+                        newChildren.append(*mapped.getClear());
+                    }
+                    if (!expandMonitor.isComplex())
+                    {
+                        for (unsigned idx = 1; idx < num; idx++)
+                            children.replace(OLINK(newChildren.item(idx-1)), idx);
+                        next = ds->queryChild(0);
+                    }
                 }
+            }
+            catch(IException * e)
+            {
+                if (e->errorCode() != HQLERR_PotentialAmbiguity)
+                    throw;
+                e->Release();
             }
             break;
         case no_fetch:
@@ -1096,13 +1105,17 @@ bool CTreeOptimizer::expandFilterCondition(HqlExprArray & expanded, HqlExprArray
                 else
                     expandedFilter.setown(mapper->expandFields(cur, child, grandchild, grandchild, &expandMonitor));
             }
-            catch (IException * e)
+            catch (IException * _e)
             {
+                Owned<IException> e = _e;
+                if (e->errorCode() == HQLERR_PotentialAmbiguity)
+                    return false;
+
                 //Highly unusual, but assertwild doesn't force the fields into the output, so the output of the
                 //project project may not include the fields that are wildcarded.
                 if (cur->getOperator() != no_assertwild)
-                    throw;
-                e->Release();
+                    throw e.getClear();
+
                 expandedFilter.set(cur);
             }
 

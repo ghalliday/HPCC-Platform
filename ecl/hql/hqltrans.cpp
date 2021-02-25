@@ -3272,6 +3272,8 @@ void NewSelectorReplacingTransformer::initSelectorMapping(IHqlExpression * oldDa
 
     if (newDataset->getOperator() == no_activerow)
         savedNewDataset = newDataset->queryChild(0)->queryNormalizedSelector();
+    else if (newDataset->isDataset())
+        savedNewDataset = newDataset->queryNormalizedSelector();
 
     node_operator op = oldDataset->getOperator();
     if (oldDataset->isDatarow() || op == no_activetable || op == no_self || op == no_selfref)

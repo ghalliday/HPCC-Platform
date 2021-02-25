@@ -3979,8 +3979,22 @@ BoundRow * HqlCppTranslator::buildDatasetIterateProject(BuildCtx & ctx, IHqlExpr
 
     Owned<BoundRow> rowBuilder = createRowBuilder(ctx, tempRow);
 
-    OwnedHqlExpr leftSelect = createSelector(no_left, dataset, querySelSeq(expr));
-    OwnedHqlExpr transform = replaceSelector(expr->queryChild(1), leftSelect, dataset->queryNormalizedSelector());
+    IHqlExpression * selSeq = querySelSeq(expr);
+    LinkedHqlExpr transform = expr->queryChild(1);
+    try
+    {
+        //This generates better code (because offsets are reused, but can introduce an ambiguous expresion)
+        OwnedHqlExpr leftSelect = createSelector(no_left, dataset, selSeq);
+        transform.setown(replaceSelector(transform, leftSelect, dataset->queryNormalizedSelector()));
+    }
+    catch(IException * e)
+    {
+        if (e->errorCode() != HQLERR_PotentialAmbiguity)
+            throw;
+        e->Release();
+        BoundRow * prevCursor = resolveSelectorDataset(ctx, dataset->queryNormalizedSelector());
+        rebindTableCursor(ctx, dataset, prevCursor, no_left, selSeq);
+    }
 
     HqlExprAssociation * skipAssociation = NULL;
     if (containsSkip)
