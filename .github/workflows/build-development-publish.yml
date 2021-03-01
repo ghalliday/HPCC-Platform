@@ -1,0 +1,61 @@
+name: "Build and publish developer container"
+# This workflow is triggered on new tags of Community Edition 7.8.x or later,
+# or any of the weekly tag names starting 'master'
+on:
+  push:
+    branches:
+    - 'develop_debug*'
+    - 'develop_release*'
+
+jobs:
+  build:
+    name: "Build and publish developer container"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Check secrets"
+        run: |
+          if [ -z ${{ secrets.DOCKER_USERNAME }} ]; then
+            echo "::error ::DOCKER username not configured"
+            exit 1
+          fi
+          if [ -z ${{ secrets.DOCKER_PASSWORD }} ]; then
+            echo "::error ::DOCKER password not configured"
+            exit 1
+          fi
+      - name: "Determine active branch"
+        id: vars
+        run: |
+          echo "::set-output name=branch::${REF##*/}"
+        env:
+          REF: ${{ github.ref }}
+      - name: "Checkout Local Repo"
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: "Build"
+        run: |
+          echo "Build ${{ github.actor }}_${{ steps.vars.outputs.branch }}"
+          echo ${DOCKER_PASSWORD} | docker login -u ${DOCKER_USERNAME} --password-stdin
+          git remote add masterrepo https://github.com/hpcc-systems/HPCC-Platform.git
+          git fetch masterrepo
+          cd dockerfiles
+          ./incr.sh -p
+        env:
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          INPUT_DOCKER_REPO: ${{ secrets.DOCKER_USERNAME }}
+          INPUT_BUILD_TYPE: ${{ fromJSON('["Release", "Debug"]')[contains ( github.ref, '_debug')] }}
+          INPUT_BUILD_USER: ${{ github.actor }}
+          CUSTOM_TAG_NAME: ${{ github.actor }}_${{ steps.vars.outputs.branch }}
+      - name: "Notify on failure"
+        uses: hpcc-systems/action-send-mail@v2
+        if: ${{ failure() }}
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{secrets.GMAIL_USERNAME}}
+          password: ${{secrets.GMAIL_PASSWORD}}
+          subject: Github Actions job result for ${{ github.actor }}
+          body: Build job of ${{github.repository}} ${{github.ref}} ${{ fromJSON('["Release", "Debug"]')[contains ( github.ref, '_debug')] }} ${{ steps.vars.outputs.branch }} failed !
+          to: ${{secrets.GMAIL_RECIPIENTS}}
+          from: Github Actions
