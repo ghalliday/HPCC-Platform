@@ -3472,6 +3472,7 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                     break;
                 //fallthrough
             case no_hqlproject:
+                try
                 {
                     if (!isPureActivityIgnoringSkip(child) || hasUnknownTransform(child))
                         break;
@@ -3519,6 +3520,12 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                     }
                     break;
                 }
+                catch (IException * e)
+                {
+                    e->Release();
+                    break;
+                }
+
             case no_join:
                 if (isKeyedJoin(child))
                     break;

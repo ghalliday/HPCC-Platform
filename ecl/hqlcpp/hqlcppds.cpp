@@ -4615,10 +4615,23 @@ void HqlCppTranslator::doBuildRowAssignProjectRow(BuildCtx & ctx, IReferenceSele
 
     OwnedHqlExpr leftSelect = createSelector(no_left, srcRow, querySelSeq(expr));
     OwnedHqlExpr newRow = srcRow->getOperator() == no_select ? LINK(srcRow) : createRow(no_newrow, LINK(srcRow));
-    OwnedHqlExpr newTransform = replaceSelector(transform, leftSelect, newRow);
 
+#if 0
+    OwnedHqlExpr newTransform = replaceSelector(transform, leftSelect, newRow);
     Owned<BoundRow> selfCursor = target->getRow(subctx);
     doTransform(subctx, newTransform, selfCursor);
+#else
+    OwnedHqlExpr newTransform = queryNewReplaceSelector(transform, leftSelect, newRow);
+    Owned<BoundRow> selfCursor = target->getRow(subctx);
+    if (!newTransform)
+    {
+        BoundRow * prevCursor = source->getRow(subctx);
+        bindTableCursor(subctx, srcRow, prevCursor->queryBound(), no_left, querySelSeq(expr));
+        doTransform(subctx, transform, selfCursor);
+    }
+    else
+        doTransform(subctx, newTransform, selfCursor);
+#endif
 }
         
 void HqlCppTranslator::doBuildRowAssignSerializeRow(BuildCtx & ctx, IReferenceSelector * target, IHqlExpression * expr)

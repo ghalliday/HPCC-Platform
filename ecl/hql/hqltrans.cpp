@@ -3130,7 +3130,6 @@ void MergingHqlTransformer::setTransformedSelector(IHqlExpression * expr, IHqlEx
 #if 0
 SelectorReplacingTransformer::SelectorReplacingTransformer() 
 { 
-    introducesAmbiguity = false; 
     savedNewDataset = NULL; 
     isHidden = false; 
 }
@@ -3178,7 +3177,7 @@ void SelectorReplacingTransformer::updateMapping()
 IHqlExpression * SelectorReplacingTransformer::createTransformed(IHqlExpression * expr)
 {
     if (expr->queryNormalizedSelector() == savedNewDataset)
-        introducesAmbiguity = true;
+        throwError(HQLERR_PotentialAmbiguity);
 
     unsigned numNonHidden = activityHidesSelectorGetNumNonHidden(expr, oldSelector);
     if (numNonHidden == 0)
@@ -3238,7 +3237,6 @@ void SelectorReplacingTransformer::pushChildContext(IHqlExpression * expr, IHqlE
 static HqlTransformerInfo newSelectorReplacingTransformerInfo("NewSelectorReplacingTransformer");
 NewSelectorReplacingTransformer::NewSelectorReplacingTransformer() : NewHqlTransformer(newSelectorReplacingTransformerInfo)
 { 
-    introducesAmbiguity = false; 
     savedNewDataset = NULL; 
     isHidden=false; 
 }
@@ -3274,6 +3272,8 @@ void NewSelectorReplacingTransformer::initSelectorMapping(IHqlExpression * oldDa
         savedNewDataset = newDataset->queryChild(0)->queryNormalizedSelector();
     else if (newDataset->isDataset())
         savedNewDataset = newDataset->queryNormalizedSelector();
+    else if (isAlwaysActiveRow(newDataset))
+        savedNewDataset = newDataset;
 
     node_operator op = oldDataset->getOperator();
     if (oldDataset->isDatarow() || op == no_activetable || op == no_self || op == no_selfref)
@@ -3294,6 +3294,8 @@ void NewSelectorReplacingTransformer::initSelectorMapping(IHqlExpression * oldDa
 
     if (op == no_left || op == no_right)
         oldSelector.set(oldDataset);
+    else if (oldDataset->isDataset())
+        oldSelector.set(oldDataset->queryNormalizedSelector());
 }
 
 
@@ -3381,12 +3383,28 @@ void NewSelectorReplacingTransformer::setRootMapping(IHqlExpression * oldSel, IH
 IHqlExpression * NewSelectorReplacingTransformer::createTransformed(IHqlExpression * expr)
 {
     if (!isHidden && expr->queryNormalizedSelector() == savedNewDataset)
-        introducesAmbiguity = true;
+        throwError(HQLERR_PotentialAmbiguity);
 
-    unsigned numNonHidden = activityHidesSelectorGetNumNonHidden(expr, oldSelector);
-    if (numNonHidden == 0)
+    childDatasetType childType = getChildDatasetType(expr);
+    if (childType == childdataset_none)
         return NewHqlTransformer::createTransformed(expr);
 
+    //Does this expression implicitly introduces oldSelector into scope?  If so then we are likely to mis-map any children
+    unsigned numNonHidden = activityHidesSelectorGetNumNonHidden(expr, oldSelector);
+    if (numNonHidden)
+        throwError(HQLERR_PotentialAmbiguity);
+
+    //If mapping to a dataset, and the dataset is implicitly in scope, the mapping may change the meaning of the expression
+    //if the expression has any reference to the old selector.
+    if (activityHidesSelectorGetNumNonHidden(expr, savedNewDataset))
+    {
+        if (expr->usesSelector(oldSelector))
+            throwError(HQLERR_PotentialAmbiguity);
+        return LINK(expr);
+    }
+
+    return NewHqlTransformer::createTransformed(expr);
+    return LINK(expr);
     HqlExprArray children;
     for (unsigned i=0; i < numNonHidden; i++)
         children.append(*transform(expr->queryChild(i)));
@@ -3411,10 +3429,7 @@ IHqlExpression * newReplaceSelector(IHqlExpression * expr, IHqlExpression * oldS
 {
     NewSelectorReplacingTransformer transformer;
     transformer.initSelectorMapping(oldSelector, newSelector);
-    OwnedHqlExpr ret = transformer.transformRoot(expr);
-    if (transformer.foundAmbiguity())
-        throwError(HQLERR_PotentialAmbiguity);
-    return ret.getClear();
+    return transformer.transformRoot(expr);
 }
 
 void newReplaceSelector(HqlExprArray & target, const HqlExprArray & source, IHqlExpression * oldSelector, IHqlExpression * newSelector)
@@ -3423,18 +3438,23 @@ void newReplaceSelector(HqlExprArray & target, const HqlExprArray & source, IHql
     transformer.initSelectorMapping(oldSelector, newSelector);
     ForEachItemIn(i, source)
         target.append(*transformer.transformRoot(&source.item(i)));
-    if (transformer.foundAmbiguity())
-        throwError(HQLERR_PotentialAmbiguity);
 }
 
 IHqlExpression * queryNewReplaceSelector(IHqlExpression * expr, IHqlExpression * oldSelector, IHqlExpression * newSelector)
 {
     NewSelectorReplacingTransformer transformer;
     transformer.initSelectorMapping(oldSelector, newSelector);
-    OwnedHqlExpr ret = transformer.transformRoot(expr);
-    if (transformer.foundAmbiguity())
-        return NULL;
-    return ret.getClear();
+    try
+    {
+        return transformer.transformRoot(expr);
+    }
+    catch (IException * e)
+    {
+        if (e->errorCode() != HQLERR_PotentialAmbiguity)
+            throw;
+        e->Release();
+        return nullptr;
+    }
 }
 
 

@@ -1013,8 +1013,6 @@ public:
 
     inline NewSelectorReplacingInfo * queryExtra(IHqlExpression * expr) { return static_cast<NewSelectorReplacingInfo *>(queryTransformExtra(expr)); }
 
-    inline bool foundAmbiguity() const { return introducesAmbiguity; }
-
     void setRootMapping(IHqlExpression * oldSel, IHqlExpression * newSel, IHqlExpression * record, bool isSelector);
     void setActiveSelectorMapping(IHqlExpression * oldRecord, IHqlExpression * newRecord);
 
@@ -1025,7 +1023,6 @@ protected:
 
 protected:
     OwnedHqlExpr oldSelector;
-    bool introducesAmbiguity;
     bool isHidden;
     IHqlExpression * savedNewDataset;
 };

@@ -2342,8 +2342,15 @@ IHqlExpression * ThorHqlTransformer::createTransformed(IHqlExpression * expr)
             {
                 //Transform PROJECT(row, transform) to a ROW(transform') since more efficient
                 OwnedHqlExpr myLeft = createSelector(no_left, ds, querySelSeq(transformed));
-                OwnedHqlExpr replaced = replaceSelector(transformed->queryChild(1), myLeft, ds);
-                normalized = createRow(no_createrow, LINK(replaced));
+                try
+                {
+                    OwnedHqlExpr replaced = replaceSelector(transformed->queryChild(1), myLeft, ds);
+                    normalized = createRow(no_createrow, LINK(replaced));
+                }
+                catch (IException * e)
+                {
+                    e->Release();
+                }
             }
             break;
         }

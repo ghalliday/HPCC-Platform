@@ -1961,7 +1961,7 @@ ITypeInfo * makeModifier(ITypeInfo * basetype, typemod_t kind, IInterface * extr
         return basetype;
     }
 
-#ifdef _DEBUG
+#ifdef _DEBUGX
     ITypeInfo * cur = basetype;
     for (;;)
     {
