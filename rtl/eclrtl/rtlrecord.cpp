@@ -121,7 +121,7 @@ public:
     {
     }
 
-    bool excluded(const byte *row, byte *conditions) const
+    bool excluded(const RtlRow & row, byte *conditions) const
     {
         if (conditions[idx]==2)
         {
@@ -414,9 +414,9 @@ unsigned RtlRecord::getNumKeyedFields() const
     return ret;
 }
 
-void RtlRecord::calcRowOffsets(size_t * variableOffsets, const void * _row, unsigned numFieldsUsed) const
+void RtlRecord::calcRowOffsets(RtlRow & targetRow, unsigned numFieldsUsed) const
 {
-    const byte * row = static_cast<const byte *>(_row);
+    const byte * row = targetRow.queryRow();
     unsigned maxVarField = (numFieldsUsed>=numFields) ? numVarFields : whichVariableOffset[numFieldsUsed];
     if (numIfBlocks)
     {
@@ -426,22 +426,36 @@ void RtlRecord::calcRowOffsets(size_t * variableOffsets, const void * _row, unsi
         {
             unsigned fieldIndex = variableFieldIds[i];
             const RtlFieldInfo *field = fields[fieldIndex];
-            size_t offset = getOffset(variableOffsets, fieldIndex);
+            size_t offset = targetRow.getOffset(fieldIndex);
             if (field->flags & RFTMinifblock)
             {
                 const RtlCondFieldStrInfo *condfield = static_cast<const RtlCondFieldStrInfo *>(field);
-                unsigned startField = condfield->ifblock.queryStartField();
-                const byte *childRow = row;
-                if (startField)
-                    childRow += getOffset(variableOffsets, startField);
-                if (condfield->ifblock.excluded(childRow, conditions))
+                const IfBlockInfo &ifblock = condfield->ifblock;
+                unsigned startField = ifblock.queryStartField();
+                bool excluded;
+                if (!startField)
                 {
-                    variableOffsets[i+1] = offset; // (meaning size ends up as zero);
+                    excluded = ifblock.excluded(targetRow, conditions);
+                }
+                else
+                {
+                    throwUnexpected();
+                    #if 0
+                    //If blocks within nested rows are never going to be very efficient!
+                    const byte *childRawRow = row + targetRow.getOffset(startField);
+                    RtlDynRow childRow(ifblock.parentRecord, nullptr);
+                    row.setRow(childRawRow, ifblock.numPrevFields);
+                    excluded = ifblock.excluded(childRow, conditions);
+                    #endif
+                }
+                if (excluded)
+                {
+                    targetRow.variableOffsets[i+1] = offset; // (meaning size ends up as zero);
                     continue;
                 }
             }
             size_t fieldSize = queryType(fieldIndex)->size(row + offset, row);
-            variableOffsets[i+1] = offset+fieldSize;
+            targetRow.variableOffsets[i+1] = offset+fieldSize;
         }
     }
     else
@@ -453,13 +467,13 @@ void RtlRecord::calcRowOffsets(size_t * variableOffsets, const void * _row, unsi
             size32_t offset = fixedOffsets[fieldIndex] + varoffset;
             size32_t fieldSize = queryType(fieldIndex)->size(row + offset, row);
             varoffset = offset+fieldSize;
-            variableOffsets[i+1] = varoffset;
+            targetRow.variableOffsets[i+1] = varoffset;
         }
     }
 #ifdef _DEBUG
     for (unsigned i = maxVarField; i < numVarFields; i++)
     {
-        variableOffsets[i+1] = 0x7fffffff;
+        targetRow.variableOffsets[i+1] = 0x7fffffff;
     }
 #endif
 }
@@ -623,7 +637,8 @@ bool RtlRecord::excluded(const RtlFieldInfo *field, const byte *row, byte *condi
     const byte *childRow = row;
     if (startField)
         childRow += calculateOffset(row, startField);
-    return condfield->ifblock.excluded(childRow, conditionValues);
+    throwUnexpected();
+    return false;//condfield->ifblock.excluded(childRow, conditionValues);
 }
 
 size_t RtlRecord::getFixedOffset(unsigned field) const
@@ -775,7 +790,7 @@ void RtlRow::setRow(const void * _row, unsigned _numFieldsUsed)
     {
         numFieldsUsed = _numFieldsUsed;
         if (numFieldsUsed)
-            info.calcRowOffsets(variableOffsets, _row, _numFieldsUsed);
+            info.calcRowOffsets(*this, _numFieldsUsed);
 #if defined(_DEBUG) && defined(TRACE_ROWOFFSETS)
         for (unsigned i = 0; i < info.getNumFields() && i < numFieldsUsed; i++)
         {
@@ -804,7 +819,8 @@ void RtlRow::lazyCalcOffsets(unsigned _numFieldsUsed) const
     assert(row);
     if (_numFieldsUsed > numFieldsUsed)
     {
-        info.calcRowOffsets(variableOffsets, row, _numFieldsUsed); // MORE - could be optimized to only calc ones not previously calculated
+        RtlRow * mutableThis = const_cast<RtlRow *>(this);
+        info.calcRowOffsets(*mutableThis, _numFieldsUsed); // MORE - could be optimized to only calc ones not previously calculated
         numFieldsUsed = _numFieldsUsed;
     }
 }

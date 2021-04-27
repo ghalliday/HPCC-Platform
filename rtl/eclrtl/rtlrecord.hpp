@@ -198,7 +198,7 @@ public:
     RtlRecord(const RtlFieldInfo * const * fields, bool expandFields);
     ~RtlRecord();
 
-    void calcRowOffsets(size_t * variableOffsets, const void * _row, unsigned numFieldsUsed = (unsigned) -1) const;
+    void calcRowOffsets(RtlRow & _row, unsigned numFieldsUsed = (unsigned) -1) const;
 
     virtual size32_t getFixedSize() const
     {
@@ -261,6 +261,7 @@ protected:
 
 class ECLRTL_API RtlRow
 {
+    friend class RtlRecord;
 public:
     RtlRow(const RtlRecord & _info, const void * optRow, unsigned numOffsets, size_t * _variableOffsets);
 

@@ -1433,7 +1433,20 @@ public:
                 const byte *next = prefetchBuffer.queryRow();
                 size32_t rowSz; // use local var instead of reference param for efficiency
                 if (fieldFilterMatch(next))
-                    rowSz = translator->translate(outBuilder, *this, next);
+                {
+                    if (true || translator->needsTranslate())
+                    {
+                        rowSz = translator->translate(outBuilder, *this, next);
+                        if (!translator->needsTranslate())
+                            assertex(rowSz == inputRowSz);
+                    }
+                    else
+                    {
+                        rowSz = inputRowSz;
+                        byte * self = outBuilder.ensureCapacity(rowSz, "");
+                        memcpy(self, next, rowSz);
+                    }
+                }
                 else
                     rowSz = 0;
                 prefetchBuffer.finishedRow();
