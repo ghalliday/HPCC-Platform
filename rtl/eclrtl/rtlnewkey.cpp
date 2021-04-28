@@ -2192,6 +2192,16 @@ bool RowFilter::matches(const RtlRow & row) const
     return true;
 }
 
+bool RowFilter::matches(const void * rawRow, const RtlRecord & record) const
+{
+    unsigned numOffsets = record.getNumVarFields() + 1;
+    size_t * variableOffsets = (size_t *)alloca(numOffsets * sizeof(size_t));
+    byte * conditions = (byte *)alloca(record.getNumIfBlocks());
+    RtlRow row(record, nullptr, numOffsets, variableOffsets, conditions);
+    row.setRow(rawRow, numFieldsRequired);
+    return matches(row);
+}
+
 void RowFilter::appendFilters(const IConstArrayOf<IFieldFilter> & _filters)
 {
     ForEachItemIn(i, _filters)

@@ -971,7 +971,8 @@ extern ECLRTL_API void getFieldVal(size32_t & __lenResult,char * & __result, int
         {
             unsigned numOffsets = r.getNumVarFields() + 1;
             size_t * variableOffsets = (size_t *)alloca(numOffsets * sizeof(size_t));
-            RtlRow offsetCalculator(r, row, numOffsets, variableOffsets);
+            byte * conditions = (byte *)alloca(r.getNumIfBlocks());
+            RtlRow offsetCalculator(r, row, numOffsets, variableOffsets, conditions);
             offsetCalculator.getUtf8(__lenResult, __result, column);
         }
     }
@@ -1144,14 +1145,20 @@ private:
     {
         unsigned numOffsets = sourceRecInfo.getNumVarFields() + 1;
         size_t * variableOffsets = (size_t *)alloca(numOffsets * sizeof(size_t));
-        RtlRow sourceRow(sourceRecInfo, sourceRec, numOffsets, variableOffsets);  // MORE - could save the max source offset we actually need, and only set up that many...
+        byte * conditions = (byte *)alloca(sourceRecInfo.getNumIfBlocks());
+        RtlRow sourceRow(sourceRecInfo, sourceRec, numOffsets, variableOffsets, conditions);  // MORE - could save the max source offset we actually need, and only set up that many...
         return doTranslateOpaqueType(builder, callback, offset, &sourceRow);
     }
     size32_t doTranslateOpaqueType(ARowBuilder &builder, IVirtualFieldCallback & callback, size32_t offset, const void *sourceRow) const
     {
         dbgassertex(canTranslate());
+
+        unsigned destNumOffsets = destRecInfo.getNumVarFields() + 1;
+        size_t * destVariableOffsets = (size_t *)alloca(destNumOffsets * sizeof(size_t));
         byte * destConditions = (byte *)alloca(destRecInfo.getNumIfBlocks() * sizeof(byte));
         memset(destConditions, 2, destRecInfo.getNumIfBlocks() * sizeof(byte));
+        RtlRow destRow(destRecInfo, nullptr, destNumOffsets, destVariableOffsets, destConditions);
+
         size32_t estimate = destRecInfo.getFixedSize();
         bool hasBlobs = false;
         if (!estimate)
@@ -1166,8 +1173,12 @@ private:
         for (unsigned idx = 0; idx < destRecInfo.getNumFields(); idx++)
         {
             const RtlFieldInfo *field = destRecInfo.queryField(idx);
-            if (field->omitable() && destRecInfo.excluded(field, builder.getSelf(), destConditions))
-                continue;
+            if (field->omitable())
+            {
+                destRow.updateBuilderRow(builder.getSelf(), idx);
+                if (destRow.excluded(field))
+                    continue;
+            }
             const RtlTypeInfo *type = field->type;
             const MatchInfo &match = matchInfo[idx];
             if (match.matchType == match_none || match.matchType==match_fail)

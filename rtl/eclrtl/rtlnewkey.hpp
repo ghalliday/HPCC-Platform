@@ -60,6 +60,7 @@ public:
     void addFilter(const IFieldFilter & filter);
     const IFieldFilter &addFilter(const RtlRecord & record, const char * filter);
     bool matches(const RtlRow & row) const;
+    bool matches(const void * row, const RtlRecord & record) const;
 
     void createSegmentMonitors(IIndexReadContext *irc);
     void extractKeyFilter(const RtlRecord & record, IConstArrayOf<IFieldFilter> & keyFilters) const;

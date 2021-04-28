@@ -535,13 +535,7 @@ protected:
     inline bool fieldFilterMatch(const void * buffer)
     {
         if (actualFilter.numFilterFields())
-        {
-            unsigned numOffsets = actualRecord->getNumVarFields() + 1;
-            size_t * variableOffsets = (size_t *)alloca(numOffsets * sizeof(size_t));
-            RtlRow row(*actualRecord, nullptr, numOffsets, variableOffsets);
-            row.setRow(buffer, 0);  // Use lazy offset calculation
-            return actualFilter.matches(row);
-        }
+            return actualFilter.matches(buffer, *actualRecord);
         else
             return true;
     }
@@ -880,13 +874,7 @@ protected:
     inline bool fieldFilterMatchProjected(const void * buffer)
     {
         if (projectedFilter.numFilterFields())
-        {
-            unsigned numOffsets = projectedRecord->getNumVarFields() + 1;
-            size_t * variableOffsets = (size_t *)alloca(numOffsets * sizeof(size_t));
-            RtlRow row(*projectedRecord, nullptr, numOffsets, variableOffsets);
-            row.setRow(buffer, 0);  // Use lazy offset calculation
-            return projectedFilter.matches(row);
-        }
+            return projectedFilter.matches(buffer, *projectedRecord);
         else
             return true;
     }

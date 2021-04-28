@@ -121,20 +121,25 @@ public:
     {
     }
 
-    bool excluded(const RtlRow & row, byte *conditions) const
+    //MORE: Should probably move to RtlRow
+    bool excluded(const RtlRow & row) const
     {
-        if (conditions[idx]==2)
+        byte value = row.getCondition(idx);
+        if (value != 2)
+            return value==0;
+
+        if (parent && parent->excluded(row))
         {
-            if (parent && parent->excluded(row, conditions))
-                conditions[idx] = 0;
-            else
-            {
-                const RtlIfBlockTypeInfo *cond = static_cast<const RtlIfBlockTypeInfo *>(field.type);
-                conditions[idx] = cond->getCondition(row) ? 1 : 0;
-            }
+            row.setCondition(idx, 0);
+            return true;
         }
-        return conditions[idx]==0;
+
+        const RtlIfBlockTypeInfo *cond = static_cast<const RtlIfBlockTypeInfo *>(field.type);
+        value = cond->getCondition(row) ? 1 : 0;
+        row.setCondition(idx, value);
+        return value==0;
     }
+
     inline unsigned queryStartField() const { return startIdx; }
     inline unsigned numPrevFields() const { return prevFields; }
     inline bool matchIfBlock(const RtlIfBlockTypeInfo * ifblock) const { return ifblock == field.type; }
@@ -420,8 +425,7 @@ void RtlRecord::calcRowOffsets(RtlRow & targetRow, unsigned numFieldsUsed) const
     unsigned maxVarField = (numFieldsUsed>=numFields) ? numVarFields : whichVariableOffset[numFieldsUsed];
     if (numIfBlocks)
     {
-        byte *conditions = (byte *) alloca(numIfBlocks * sizeof(byte));
-        memset(conditions, 2, numIfBlocks);    // Meaning condition not yet calculated
+        memset(targetRow.conditions, 2, numIfBlocks);    // Meaning condition not yet calculated
         for (unsigned i = 0; i < maxVarField; i++)
         {
             unsigned fieldIndex = variableFieldIds[i];
@@ -435,7 +439,7 @@ void RtlRecord::calcRowOffsets(RtlRow & targetRow, unsigned numFieldsUsed) const
                 bool excluded;
                 if (!startField)
                 {
-                    excluded = ifblock.excluded(targetRow, conditions);
+                    excluded = ifblock.excluded(targetRow);
                 }
                 else
                 {
@@ -445,7 +449,7 @@ void RtlRecord::calcRowOffsets(RtlRow & targetRow, unsigned numFieldsUsed) const
                     const byte *childRawRow = row + targetRow.getOffset(startField);
                     RtlDynRow childRow(ifblock.parentRecord, nullptr);
                     row.setRow(childRawRow, ifblock.numPrevFields);
-                    excluded = ifblock.excluded(childRow, conditions);
+                    excluded = ifblock.excluded(childRow);
                     #endif
                 }
                 if (excluded)
@@ -495,9 +499,12 @@ size32_t RtlRecord::getMinRecordSize() const
 
 size32_t RtlRecord::deserialize(ARowBuilder & rowBuilder, IRowDeserializerSource & in) const
 {
+    unsigned numOffsets = getNumVarFields() + 1;
+    size_t * variableOffsets = (size_t *)alloca(numOffsets * sizeof(size_t));
+    byte * conditions = (byte *)alloca(getNumIfBlocks());
+    RtlRow targetRow(*this, nullptr, numOffsets, variableOffsets, conditions);
     size32_t offset = 0;
-    byte *conditionValues = (byte *) alloca(numIfBlocks);
-    memset(conditionValues, 2, numIfBlocks);
+    memset(conditions, 2, numIfBlocks);
     for (unsigned i = 0; i < numVarFields; i++)
     {
         unsigned fieldIndex = variableFieldIds[i];
@@ -505,9 +512,11 @@ size32_t RtlRecord::deserialize(ARowBuilder & rowBuilder, IRowDeserializerSource
         size32_t fixedSize = fixedOffsets[fieldIndex];
         byte * self = rowBuilder.ensureCapacity(offset + fixedSize, ""); // Why not field->name?
         in.read(fixedSize, self + offset);
-        if (excluded(field, self, conditionValues))
-            continue;
-        offset = queryType(fieldIndex)->deserialize(rowBuilder, in, offset + fixedSize);
+        targetRow.updateBuilderRow(self, fieldIndex);
+        offset += fixedSize;
+        if (!targetRow.excluded(field))
+            offset = queryType(fieldIndex)->deserialize(rowBuilder, in, offset);
+        targetRow.variableOffsets[i+1] = offset;
     }
     size32_t lastFixedSize = fixedOffsets[numFields];
     byte * self = rowBuilder.ensureCapacity(offset + lastFixedSize, "");
@@ -628,17 +637,10 @@ const RtlFieldInfo *RtlRecord::queryOriginalField(unsigned idx) const
 }
 
 
-bool RtlRecord::excluded(const RtlFieldInfo *field, const byte *row, byte *conditionValues) const
+bool RtlRecord::excluded(const RtlFieldInfo *field, const RtlRow & row) const
 {
-    if (!field->omitable())
-        return false;
-    const RtlCondFieldStrInfo *condfield = static_cast<const RtlCondFieldStrInfo *>(field);
-    unsigned startField = condfield->ifblock.queryStartField();
-    const byte *childRow = row;
-    if (startField)
-        childRow += calculateOffset(row, startField);
-    throwUnexpected();
-    return false;//condfield->ifblock.excluded(childRow, conditionValues);
+    //MORE: Should remove this function and call directly
+    return row.excluded(field);
 }
 
 size_t RtlRecord::getFixedOffset(unsigned field) const
@@ -658,7 +660,8 @@ size32_t RtlRecord::getRecordSize(const void *_row) const
     {
         unsigned numOffsets = getNumVarFields() + 1;
         size_t * variableOffsets = (size_t *)alloca(numOffsets * sizeof(size_t));
-        RtlRow sourceRow(*this, _row, numOffsets, variableOffsets);
+        byte * conditions = (byte *)alloca(getNumIfBlocks());
+        RtlRow sourceRow(*this, _row, numOffsets, variableOffsets, conditions);
         return sourceRow.getOffset(numFields+1);
     }
     else
@@ -687,7 +690,8 @@ size32_t RtlRecord::calculateOffset(const void *_row, unsigned field) const
     {
         unsigned numOffsets = getNumVarFields() + 1;
         size_t * variableOffsets = (size_t *)alloca(numOffsets * sizeof(size_t));
-        RtlRow sourceRow(*this, nullptr, numOffsets, variableOffsets);
+        byte * conditions = (byte *)alloca(numIfBlocks);
+        RtlRow sourceRow(*this, nullptr, numOffsets, variableOffsets, conditions);
         sourceRow.setRow(_row, field);
         return sourceRow.getOffset(field);
     }
@@ -709,7 +713,8 @@ size32_t RtlRecord::calculateOffset(const void *_row, unsigned field) const
 
 //---------------------------------------------------------------------------------------------------------------------
 
-RtlRow::RtlRow(const RtlRecord & _info, const void * optRow, unsigned numOffsets, size_t * _variableOffsets) : info(_info), variableOffsets(_variableOffsets)
+RtlRow::RtlRow(const RtlRecord & _info, const void * optRow, unsigned numOffsets, size_t * _variableOffsets, byte * _conditions)
+: info(_info), variableOffsets(_variableOffsets), conditions(_conditions)
 {
     assertex(numOffsets == info.getNumVarFields()+1);
     //variableOffset[0] is used for all fixed offset fields to avoid any special casing.
@@ -719,7 +724,7 @@ RtlRow::RtlRow(const RtlRecord & _info, const void * optRow, unsigned numOffsets
 
 size_t RtlRow::noVariableOffsets [1] = {0};
 
-RtlRow::RtlRow(const RtlRecord & _info, const void *_row) : info(_info), variableOffsets(noVariableOffsets)
+RtlRow::RtlRow(const RtlRecord & _info, const void *_row) : info(_info), variableOffsets(noVariableOffsets), conditions(nullptr)
 {
     row = (const byte *)_row;
 
@@ -825,6 +830,22 @@ void RtlRow::lazyCalcOffsets(unsigned _numFieldsUsed) const
     }
 }
 
+bool RtlRow::excluded(const RtlFieldInfo *field) const
+{
+    if (!field->omitable())
+        return false;
+    const RtlCondFieldStrInfo *condfield = static_cast<const RtlCondFieldStrInfo *>(field);
+    unsigned startField = condfield->ifblock.queryStartField();
+    if (startField)
+    {
+        //const byte *childRow = queryField(startField);
+        throwUnexpected();
+        return false;//condfield->ifblock.excluded(childRow);
+    }
+    else
+        return condfield->ifblock.excluded(*this);
+}
+
 RtlFixedRow::RtlFixedRow(const RtlRecord & _info, const void *_row, unsigned _numFieldsUsed)
 : RtlRow(_info, _row)
 {
@@ -832,13 +853,14 @@ RtlFixedRow::RtlFixedRow(const RtlRecord & _info, const void *_row, unsigned _nu
     dbgassertex(info.isFixedOffset(numFieldsUsed));
 }
 
-RtlDynRow::RtlDynRow(const RtlRecord & _info, const void * optRow) : RtlRow(_info, optRow, _info.getNumVarFields()+1, new size_t[_info.getNumVarFields()+1])
+RtlDynRow::RtlDynRow(const RtlRecord & _info, const void * optRow) : RtlRow(_info, optRow, _info.getNumVarFields()+1, new size_t[_info.getNumVarFields()+1], new byte[_info.getNumIfBlocks()])
 {
 }
 
 RtlDynRow::~RtlDynRow()
 {
     delete [] variableOffsets;
+    delete [] conditions;
 }
 
 
@@ -887,6 +909,16 @@ static const RtlRecord *setupRecordAccessor(const COutputMetaData &meta, bool ex
         delete lRecordAccessor;
         return expected;  // has been updated to the value set by other thread
     }
+}
+
+size32_t RtlRecordSize::getRecordSize(const void * row)
+{
+    //Allocate a temporary offset array on the stack to avoid runtime overhead.
+    unsigned numOffsets = offsetInformation.getNumVarFields() + 1;
+    size_t * variableOffsets = (size_t *)alloca(numOffsets * sizeof(size_t));
+    byte * conditions = (byte *)alloca(offsetInformation.getNumIfBlocks());
+    RtlRow offsetCalculator(offsetInformation, row, numOffsets, variableOffsets, conditions);
+    return offsetCalculator.getRecordSize();
 }
 
 COutputMetaData::COutputMetaData()

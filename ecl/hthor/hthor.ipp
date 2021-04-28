@@ -2344,11 +2344,7 @@ protected:
         if (actualFilter.numFilterFields())
         {
             const RtlRecord &actual = actualDiskMeta->queryRecordAccessor(true);
-            unsigned numOffsets = actual.getNumVarFields() + 1;
-            size_t * variableOffsets = (size_t *)alloca(numOffsets * sizeof(size_t));
-            RtlRow row(actual, nullptr, numOffsets, variableOffsets);
-            row.setRow(buffer, 0);  // Use lazy offset calculation
-            return actualFilter.matches(row);
+            return actualFilter.matches(buffer, actual);
         }
         else
             return true;

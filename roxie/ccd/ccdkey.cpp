@@ -275,8 +275,10 @@ public:
         unsigned numOffsets = recInfo.getNumVarFields() + 1;  // MORE - could use max offset of any sort field to avoid calculating ones we don't compare on
         size_t * variableOffsetsL = (size_t *)alloca(numOffsets * sizeof(size_t));
         size_t * variableOffsetsR = (size_t *)alloca(numOffsets * sizeof(size_t));
-        RtlRow lr(recInfo, l, numOffsets, variableOffsetsL);
-        RtlRow rr(recInfo, r, numOffsets, variableOffsetsR);
+        byte * conditionsL = (byte *)alloca(recInfo.getNumIfBlocks());
+        byte * conditionsR = (byte *)alloca(recInfo.getNumIfBlocks());
+        RtlRow lr(recInfo, l, numOffsets, variableOffsetsL, conditionsL);
+        RtlRow rr(recInfo, r, numOffsets, variableOffsetsR, conditionsR);
         ForEachItemIn(idx, sortFields)
         {
             unsigned sortField = sortFields.item(idx);
@@ -462,7 +464,8 @@ protected:
 
         unsigned numOffsets = actual->getNumVarFields() + 1;
         size_t * variableOffsets = (size_t *)alloca(numOffsets * sizeof(size_t));
-        RtlRow row(*actual, nullptr, numOffsets, variableOffsets);
+        byte * conditions = (byte *)alloca(actual->getNumIfBlocks());
+        RtlRow row(*actual, nullptr, numOffsets, variableOffsets, conditions);
         row.setRow(deserializeSource.queryRow(), 0);
         if (!postFilter.matches(row))
             return nullptr;

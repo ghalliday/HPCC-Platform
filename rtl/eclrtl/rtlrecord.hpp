@@ -237,7 +237,7 @@ public:
     const char * queryXPath(unsigned field) const; // NB: returns name if no xpath
     unsigned getFieldNum(const char *fieldName) const;
     const RtlRecord *queryNested(unsigned field) const;
-    bool excluded(const RtlFieldInfo *field, const byte *row, byte *conditions) const;
+    bool excluded(const RtlFieldInfo *field, const RtlRow & row) const;
     bool hasNested() const;
     const RtlFieldInfo * queryOriginalField(const char *fieldName) const;
 
@@ -262,8 +262,9 @@ protected:
 class ECLRTL_API RtlRow
 {
     friend class RtlRecord;
+    friend class IfBlockInfo;
 public:
-    RtlRow(const RtlRecord & _info, const void * optRow, unsigned numOffsets, size_t * _variableOffsets);
+    RtlRow(const RtlRecord & _info, const void * optRow, unsigned numOffsets, size_t * _variableOffsets, byte * _conditions);
 
     __int64 getInt(unsigned field) const;
     double getReal(unsigned field) const;
@@ -299,6 +300,21 @@ public:
         return queryRow() + getOffset(field);
     }
     explicit operator bool() { return row != nullptr; }
+
+    // only valid when building a row
+    void updateBuilderRow(const byte * newRow, unsigned numFieldsProcessed)
+    {
+        row = newRow;
+        numFieldsUsed = numFieldsProcessed;
+    }
+
+    bool excluded(const RtlFieldInfo *field) const;
+    bool excluded(const byte * newRow, const RtlFieldInfo *field) const;    // only called from??
+
+protected:
+    byte getCondition(unsigned idx) const { return conditions[idx]; }
+    void setCondition(unsigned idx, byte value) const { conditions[idx] = value; }
+
 protected:
     RtlRow(const RtlRecord & _info, const void *_row);  // for use by fixed-only case
 
@@ -306,6 +322,7 @@ protected:
     const byte * row;
     mutable unsigned numFieldsUsed = 0;
     size_t * variableOffsets;       // [0 + 1 entry for each variable size field ]
+    mutable byte * conditions;
     static size_t noVariableOffsets [1];  // Used when we are only interested in fixed offsets
 
 };
@@ -342,14 +359,7 @@ public:
     RtlRecordSize(const RtlRecordTypeInfo & fields) : offsetInformation(fields, true) {}
     RTLIMPLEMENT_IINTERFACE
 
-    virtual size32_t getRecordSize(const void * row) override
-    {
-        //Allocate a temporary offset array on the stack to avoid runtime overhead.
-        unsigned numOffsets = offsetInformation.getNumVarFields() + 1;
-        size_t * variableOffsets = (size_t *)alloca(numOffsets * sizeof(size_t));
-        RtlRow offsetCalculator(offsetInformation, row, numOffsets, variableOffsets);
-        return offsetCalculator.getRecordSize();
-    }
+    virtual size32_t getRecordSize(const void * row) override;
 
     virtual size32_t getFixedSize() const override
     {
