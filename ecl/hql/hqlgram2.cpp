@@ -3837,6 +3837,10 @@ IHqlExpression *HqlGram::lookupSymbol(IIdAtom * searchName, const attribute& err
 
                 if (ret)
                 {
+                    OwnedHqlExpr outerMatch = lookupContextSymbol(searchName, errpos, outerScopeAccessDepth);
+                    if (outerMatch && (outerMatch->getOperator() == no_param))
+                        reportWarning(CategoryUnexpected, HQLWRN_FieldHidesId, errpos.pos, HQLWRN_FieldHidesId_Text, str(searchName));
+
                     if (top->getOperator() != no_record)
                     {
                         //more: Should probably return createDataset(no_anon, record)
