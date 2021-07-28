@@ -128,6 +128,7 @@ protected:
     CDfsLogicalFileName dlfn;
     StringBuffer tempExternalName;
     CriticalSection outputCs;  // Ensure outputIO remains valid for the duration of mergeStats()
+    CRuntimeStatisticCollection prevDiskStats;
 
     void open();
     void removeFiles();

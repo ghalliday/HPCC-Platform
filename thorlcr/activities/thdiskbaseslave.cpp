@@ -261,7 +261,7 @@ void CDiskReadSlaveActivityBase::mergeSubFileStats(IPartDescriptor *partDesc, IE
         dbgassertex(superFDesc);
         unsigned subfile, lnum;
         if(superFDesc->mapSubPart(partDesc->queryPartIndex(), subfile, lnum))
-            mergeStats(*subFileStats[subfile], partStream);
+            extractStats(*subFileStats[subfile], partStream);
     }
 }
 const char *CDiskReadSlaveActivityBase::queryLogicalFilename(unsigned index)
@@ -469,7 +469,11 @@ void CDiskWriteSlaveActivityBase::close()
                 // ensure it is released/destroyed after releasing crit, since the IFileIO might involve a final copy and take considerable time.
                 tmpFileIO.setown(outputIO.getClear());
             }
-            mergeStats(stats, tmpFileIO, diskWriteRemoteStatistics);
+
+            CRuntimeStatisticCollection curDiskStats(diskWriteRemoteStatistics);
+            extractStats(curDiskStats, tmpFileIO, diskWriteRemoteStatistics);
+            mergeDeltaStats(stats, prevDiskStats, curDiskStats);
+            prevDiskStats.reset();
             tmpFileIO->close(); // NB: close now, do not rely on close in dtor
         }
 
@@ -495,7 +499,7 @@ void CDiskWriteSlaveActivityBase::close()
 }
 
 CDiskWriteSlaveActivityBase::CDiskWriteSlaveActivityBase(CGraphElementBase *container)
-    : ProcessSlaveActivity(container, diskWriteActivityStatistics)
+    : ProcessSlaveActivity(container, diskWriteActivityStatistics), prevDiskStats(diskWriteRemoteStatistics)
 {
     diskHelperBase = static_cast <IHThorDiskWriteArg *> (queryHelper());
     grouped = false;
@@ -545,11 +549,13 @@ void CDiskWriteSlaveActivityBase::abort()
 
 void CDiskWriteSlaveActivityBase::serializeStats(MemoryBuffer &mb)
 {
+    CRuntimeStatisticCollection curDiskStats(diskWriteRemoteStatistics);
     {
         CriticalBlock block(outputCs);
-        mergeStats(stats, outputIO, diskWriteRemoteStatistics);
+        extractStats(curDiskStats, outputIO, diskWriteRemoteStatistics);
     }
-    stats.setStatistic(StPerReplicated, replicateDone);
+    mergeDeltaStats(stats, prevDiskStats, curDiskStats);
+    stats.setStatistic(StPerReplicated, replicateDone); // scale is wrong - should be ppm rather than a percent.
     PARENT::serializeStats(mb);
 }
 

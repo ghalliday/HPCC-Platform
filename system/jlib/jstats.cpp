@@ -2313,6 +2313,7 @@ void CRuntimeStatisticCollection::reset()
     unsigned num = mapping.numStatistics();
     for (unsigned i = 0; i <= num; i++)
         values[i].clear();
+    //MORE: Should this clear nested?  Almost certainly
 }
 
 void CRuntimeStatisticCollection::reset(const StatisticsMapping & toClear)
@@ -2899,6 +2900,29 @@ CRuntimeStatisticCollection * CNestedRuntimeStatisticMap::createStats(const Stat
 CRuntimeStatisticCollection * CNestedSummaryRuntimeStatisticMap::createStats(const StatisticsMapping & mapping)
 {
     return new CRuntimeSummaryStatisticCollection(mapping);
+}
+
+//---------------------------------------------------
+
+void mergeDeltaStats(CRuntimeStatisticCollection & totalStats, CRuntimeStatisticCollection & prevStats, const CRuntimeStatisticCollection & nextStats)
+{
+    dbgassertex(&prevStats.queryMapping() == &nextStats.queryMapping());
+    const StatisticsMapping & mapping = prevStats.queryMapping();
+    unsigned max = mapping.numStatistics();
+    for (unsigned i=0; i < max; i++)
+    {
+        StatisticKind kind = mapping.getKind(i);
+        StatsMergeAction mergeMode = queryMergeMode(kind);
+        stat_type newValue = nextStats.getStatisticValue(kind);
+        if (mergeMode == StatsMergeSum)
+        {
+            stat_type prevValue = prevStats.getStatisticValue(kind);
+            prevStats.setStatistic(kind, newValue);
+            totalStats.mergeStatistic(kind, newValue - prevValue);
+        }
+        else
+            totalStats.mergeStatistic(kind, newValue);
+    }
 }
 
 //---------------------------------------------------

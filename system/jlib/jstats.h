@@ -640,7 +640,7 @@ protected:
     DerivedStats * derived;
 };
 
-class CNestedRuntimeStatisticCollection : public CInterface
+class jlib_decl CNestedRuntimeStatisticCollection : public CInterface
 {
 public:
     CNestedRuntimeStatisticCollection(const StatsScopeId & _scope, CRuntimeStatisticCollection * _stats)
@@ -669,7 +669,7 @@ public:
     CRuntimeStatisticCollection * stats;
 };
 
-class CNestedRuntimeStatisticMap
+class jlib_decl CNestedRuntimeStatisticMap
 {
 public:
     virtual ~CNestedRuntimeStatisticMap() = default;
@@ -694,13 +694,15 @@ protected:
     mutable ReadWriteLock lock;
 };
 
-class CNestedSummaryRuntimeStatisticMap : public CNestedRuntimeStatisticMap
+class jlib_decl CNestedSummaryRuntimeStatisticMap : public CNestedRuntimeStatisticMap
 {
 protected:
     virtual CRuntimeStatisticCollection * createStats(const StatisticsMapping & mapping) override;
 };
 
 //---------------------------------------------------------------------------------------------------------------------
+
+extern jlib_decl void mergeDeltaStats(CRuntimeStatisticCollection & totalStats, CRuntimeStatisticCollection & prevStats, const CRuntimeStatisticCollection & nextStats);
 
 //Some template helper classes for merging statistics from external sources.
 
@@ -736,6 +738,33 @@ void mergeStat(CRuntimeStatisticCollection & stats, INTERFACE * source, Statisti
 
 template <class INTERFACE>
 void mergeStat(CRuntimeStatisticCollection & stats, Shared<INTERFACE> source, StatisticKind kind) { mergeStat(stats, source.get(), kind); }
+
+//---------------------------------------------------------------------------------------------------------------------
+
+//Some template helper classes for merging statistics from external sources.
+
+template <class INTERFACE>
+void extractStats(CRuntimeStatisticCollection & stats, INTERFACE * source, const StatisticsMapping & mapping)
+{
+    if (!source)
+        return;
+
+    unsigned max = mapping.numStatistics();
+    for (unsigned i=0; i < max; i++)
+    {
+        StatisticKind kind = mapping.getKind(i);
+        stats.setStatistic(kind, source->getStatistic(kind));
+    }
+}
+
+template <class INTERFACE>
+void extractStats(CRuntimeStatisticCollection & stats, Shared<INTERFACE> source, const StatisticsMapping & mapping) { extractStats(stats, source.get(), mapping); }
+
+template <class INTERFACE>
+void extractStats(CRuntimeStatisticCollection & stats, INTERFACE * source)       { extractStats(stats, source, stats.queryMapping()); }
+
+template <class INTERFACE>
+void extractStats(CRuntimeStatisticCollection & stats, Shared<INTERFACE> source) { extractStats(stats, source.get(), stats.queryMapping()); }
 
 //---------------------------------------------------------------------------------------------------------------------
 
