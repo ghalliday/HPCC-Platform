@@ -99,6 +99,7 @@ static int checkSeqId(unsigned __int64 seqid, unsigned why)
     {
     //Add a case statement here for each expression being tracked.
     case 0:
+    case 91:
         break;
     default:
         return 0;
@@ -8705,7 +8706,7 @@ void CHqlRemoteScope::defineSymbol(IHqlExpression * expr)
         //remote scopes should possibly be held on a separate list, but that would require extra lookups in ::lookupSymbol
         //If this expression is defining a remote scope then it (currently) needs to be added to the symbols as well.
         //Don't add other symbols so we don't lose the original text (e.g., if syntax errors in dependent attributes)
-        if (dynamic_cast<IHqlRemoteScope *>(body) != NULL)
+        if ((dynamic_cast<IHqlRemoteScope *>(body) != NULL) || (dynamic_cast<CHqlMergedScope *>(body) != NULL))
             addToSymbols = true;
     }
 
@@ -9100,6 +9101,12 @@ inline bool canMergeDefinition(IHqlExpression * expr)
 
 IHqlExpression * CHqlMergedScope::lookupSymbol(IIdAtom * searchId, unsigned lookupFlags, HqlLookupContext & ctx)
 {
+    if (rootRepository != ctx.queryRepository())
+    {
+        HqlLookupContext childCtx(ctx);
+        childCtx.rootRepository = rootRepository;
+        return lookupSymbol(searchId, lookupFlags, childCtx);
+    }
     HqlCriticalBlock block(cs);
     OwnedHqlExpr resolved = CHqlScope::lookupSymbol(searchId, lookupFlags, ctx);
     if (resolved)
@@ -9148,7 +9155,7 @@ IHqlExpression * CHqlMergedScope::lookupSymbol(IIdAtom * searchId, unsigned look
             if (previousMatch)
             {
                 IHqlScope * previousScope = previousMatch->queryScope();
-                mergeScope.setown(new CHqlMergedScope(searchId, previousScope->queryFullName()));
+                mergeScope.setown(new CHqlMergedScope(searchId, previousScope->queryFullName(), this, rootRepository));
                 mergeScope->addScope(previousScope);
             }
 
@@ -9169,18 +9176,27 @@ IHqlExpression * CHqlMergedScope::lookupSymbol(IIdAtom * searchId, unsigned look
                 break;
         }
     }
-    if (mergeScope)
-    {
-        OwnedHqlExpr newScope = mergeScope.getClear()->closeExpr();
-        IHqlExpression * symbol = createSymbol(searchId, id, LINK(newScope), true, false, symbolFlags);
-        defineSymbol(symbol);
-        return LINK(symbol);
-    }
+
     if (previousMatch)
     {
+        IHqlScope * previousScope = previousMatch->queryScope();
+        if (!mergeScope && previousScope && previousScope->isContainerScope())
+        {
+            mergeScope.setown(new CHqlMergedScope(searchId, previousScope->queryFullName(), this, rootRepository));
+            mergeScope->addScope(previousScope);
+        }
+
+        if (mergeScope)
+        {
+            OwnedHqlExpr newScope = mergeScope.getClear()->closeExpr();
+            IHqlExpression * symbol = createSymbol(searchId, id, LINK(newScope), true, false, symbolFlags);
+            defineSymbol(symbol);
+            return LINK(symbol);
+        }
         defineSymbol(LINK(previousMatch));
         return previousMatch.getClear();
     }
+
     //Indicate that no match was found to save work next time.
     defineSymbol(createSymbol(searchId, LINK(mergeNoMatchMarker), ob_exported));
     return NULL;
@@ -16974,11 +16990,11 @@ static void gatherAttributeDependencies(HqlLookupContext & ctx, const char * ite
 extern HQL_API IPropertyTree * gatherAttributeDependencies(IEclRepository * dataServer, const char * items)
 {
     NullStatisticTarget nullStats;
-    HqlParseContext parseCtx(dataServer, NULL, NULL, nullStats);
+    HqlParseContext parseCtx(nullptr, nullptr, nullStats);
     parseCtx.nestedDependTree.setown(createPTree("Dependencies"));
 
     Owned<IErrorReceiver> errorHandler = createNullErrorReceiver();
-    HqlLookupContext ctx(parseCtx, errorHandler);
+    HqlLookupContext ctx(parseCtx, errorHandler, dataServer);
     if (items && *items)
     {
         for (;;)

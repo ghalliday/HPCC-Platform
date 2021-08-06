@@ -872,8 +872,8 @@ public:
         StringAttr cacheLocation;
     };
 
-    HqlParseContext(IEclRepository * _eclRepository, ICodegenContextCallback *_codegenCtx, IPropertyTree * _archive, IStatisticTarget & _statsTarget)
-    : archive(_archive), eclRepository(_eclRepository), codegenCtx(_codegenCtx), statsTarget(_statsTarget)
+    HqlParseContext(ICodegenContextCallback *_codegenCtx, IPropertyTree * _archive, IStatisticTarget & _statsTarget)
+    : archive(_archive), codegenCtx(_codegenCtx), statsTarget(_statsTarget)
     {
         expandCallsWhenBound = true;
         ignoreUnknownImport = false;
@@ -902,7 +902,6 @@ public:
 
     inline IPropertyTree * getClearMetaTree() { return metaTree.getClear(); }
     inline IPropertyTree * queryArchive() const { return archive; }
-    inline IEclRepository * queryRepository() const { return eclRepository; }
     inline bool isAborting() const { return aborting; }
     inline void setAborting() { aborting = true; }
     inline void setFastSyntax() { expandCallsWhenBound = false; }
@@ -925,7 +924,6 @@ public:
     inline bool hasCacheLocation( ) const { return !metaOptions.cacheLocation.isEmpty();}
 public:
     Linked<IPropertyTree> archive;
-    Linked<IEclRepository> eclRepository;
     Owned<IPropertyTree> nestedDependTree;
     Owned<IPropertyTree> globalDependTree; // A list of all dependencies for the query.  Used to locate manifests.
     Owned<IPropertyTree> metaTree;
@@ -972,7 +970,7 @@ private:
 class HqlDummyParseContext : public HqlParseContext
 {
 public:
-    HqlDummyParseContext() : HqlParseContext(NULL, NULL, NULL, nullStats) {}
+    HqlDummyParseContext() : HqlParseContext(nullptr, nullptr, nullStats) {}
 
     NullStatisticTarget nullStats;
 };
@@ -988,9 +986,10 @@ public:
         container = &other;
         if (parseCtx.timeParser)
             startCycles = get_cycles_now();
+        rootRepository = other.rootRepository;
     }
-    HqlLookupContext(HqlParseContext & _parseCtx, IErrorReceiver * _errs)
-    : parseCtx(_parseCtx), errs(_errs)
+    HqlLookupContext(HqlParseContext & _parseCtx, IErrorReceiver * _errs, IEclRepository * _rootRepository)
+    : parseCtx(_parseCtx), errs(_errs), rootRepository(_rootRepository)
     {
         functionCache = &parseCtx.defaultFunctionCache;
         if (parseCtx.timeParser)
@@ -1012,7 +1011,7 @@ public:
     inline void noteExternalLookup(IHqlScope * parentScope, IHqlExpression * expr) { parseCtx.noteExternalLookup(parentScope, expr); }
     inline void notePrivateSymbols(IHqlScope * scope) { parseCtx.notePrivateSymbols(scope); }
 
-    inline IEclRepository * queryRepository() const { return parseCtx.eclRepository; }
+    inline IEclRepository * queryRepository() const { return rootRepository; }
     inline bool queryExpandCallsWhenBound() const { return parseCtx.expandCallsWhenBound; }
     inline HqlParseContext & queryParseContext() const { return parseCtx; }
     inline unsigned numErrors() const { return errs ? errs->errCount() : 0; }
@@ -1040,6 +1039,7 @@ private:
 public:
     Linked<IErrorReceiver> errs;
     HqlExprArray * functionCache;
+    IEclRepository * rootRepository;
     cycle_t startCycles = 0;
     cycle_t childCycles = 0;
     HqlLookupContext * container = nullptr;
@@ -1050,7 +1050,7 @@ public:
 class HqlDummyLookupContext
 {
 public:
-    HqlDummyLookupContext(IErrorReceiver * _errs) : lookupCtx(dummyCtx, _errs) {}
+    HqlDummyLookupContext(IErrorReceiver * _errs) : lookupCtx(dummyCtx, _errs, nullptr) {}
 
     HqlLookupContext & ctx() { return lookupCtx; }
     operator HqlLookupContext & () { return lookupCtx; } // implicit cast to a HqlLookupContext
@@ -1094,6 +1094,7 @@ interface IHqlScope : public IInterface
     virtual bool hasBaseClass(IHqlExpression * searchBase) = 0;
     virtual bool allBasesFullyBound() const = 0;
     virtual bool isEquivalentScope(const IHqlScope & other) const = 0;
+    virtual bool isContainerScope() const = 0;
 
     virtual IHqlScope * clone(HqlExprArray & children, HqlExprArray & symbols) = 0;
     virtual IHqlScope * queryConcreteScope() = 0;

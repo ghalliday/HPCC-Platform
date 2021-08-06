@@ -25,6 +25,70 @@
 #include "hqlerror.hpp"
 #include "hqlutil.hpp"
 
+static const char * queryExtractFilename(const char * urn)
+{
+    if (hasPrefix(urn, "file:", true))
+        return urn + 5;
+    switch (*urn)
+    {
+    case '~':
+    case '.':
+    case '/':
+        return urn;
+    }
+    return nullptr;
+}
+
+bool looksLikeGitUrl(const char * urn)
+{
+    if (startsWith(urn, "git+") || startsWith(urn, "git:"))
+        return true;
+    if (strstr(urn, ".git#"))
+        return true;
+    return false;
+}
+
+static bool splitRepoVersion(StringBuffer & repoUrn, StringBuffer & repo, StringBuffer & version, const char * urn)
+{
+    const char * cur = urn;
+    if (startsWith(urn, "git+") || startsWith(urn, "git:"))
+    {
+        const char * colon = strchr(urn, ':');
+        if (!colon)
+            return false;
+        if (colon[1] != '/' || colon[2] != '/')
+            return false;
+        const char * slash = strchr(colon+3, '/');
+        if (!slash)
+            return false;
+        cur = slash + 1;
+    }
+    else if (!isalnum(*urn))
+        return false;
+    else
+        //MORE: Pass this in as a defaultGitPrefix so gitlab can also be used by default.
+        repoUrn.append("git+ssh://git@github.com/");
+
+    const char * hash = strchr(cur, '#');
+    if (hash)
+    {
+        repoUrn.append(hash-urn, urn);
+        repo.append(hash-cur, cur);
+        version.set(hash + 1);
+    }
+    else
+    {
+        repoUrn.append(urn);
+        repo.set(cur);
+    }
+
+    if (endsWith(repo, ".git"))
+        repo.setLength(repo.length()-4);
+
+    return true;
+}
+
+
 //-------------------------------------------------------------------------------------------------------------------
 
 static void getRootScopes(HqlScopeArray & rootScopes, IHqlScope * scope)
@@ -142,12 +206,10 @@ IHqlScope * getResolveDottedScope(const char * modname, unsigned lookupFlags, Hq
 
 //-------------------------------------------------------------------------------------------------------------------
 
-class HQL_API CompoundEclRepository : implements IEclRepository, public CInterface
+class HQL_API CompoundEclRepository : implements CInterfaceOf<IEclRepository>
 {
 public:
-    CompoundEclRepository() { rootScope.setown(new CHqlMergedScope(NULL, NULL)); }
-
-    IMPLEMENT_IINTERFACE;
+    CompoundEclRepository() { rootScope.setown(new CHqlMergedScope(nullptr, nullptr, nullptr, this)); }
 
     void addRepository(IEclRepository & _repository);
 
@@ -258,8 +320,8 @@ static IIdAtom * queryModuleIdFromFullName(const char * name)
 class HQL_API CNewEclRepository : implements IEclRepositoryCallback, public CInterface
 {
 public:
-    CNewEclRepository(IEclSourceCollection * _collection, const char * rootScopeFullName, bool _addToArchive) :
-        collection(_collection), addToArchive(_addToArchive)
+    CNewEclRepository(EclRepositoryManager * _container, IEclSourceCollection * _collection, const char * rootScopeFullName, bool _addToArchive) :
+        container(_container), collection(_collection), addToArchive(_addToArchive)
     {
         rootScope.setown(createRemoteScope(queryModuleIdFromFullName(rootScopeFullName), rootScopeFullName, this, NULL, NULL, true, NULL));
     }
@@ -278,6 +340,7 @@ protected:
     IHqlExpression * createSymbol(IHqlRemoteScope * rScope, IEclSource * source);
 
 protected:
+    EclRepositoryManager * container;
     Linked<IEclSourceCollection> collection;
     Owned<IHqlRemoteScope> rootScope;
     CriticalSection cs;
@@ -399,30 +462,238 @@ IHqlExpression * CNewEclRepository::createSymbol(IHqlRemoteScope * rScope, IEclS
             body.set(queryExpression(childScope->queryScope()));
             break;
         }
+    case ESTdependency:
+        {
+            const char * defaultUrl = source->queryPath();
+            Owned<IProperties> props = source->getProperties();
+            IEclRepository * repo = container->resolveDependentRepository(eclId, defaultUrl);
+            IHqlScope * childScope = repo->queryRootScope();
+            body.set(queryExpression(childScope));
+            break;
+        }
     default:
         throwUnexpected();
     }
     return ::createSymbol(eclId, scope->queryId(), body.getClear(), NULL, true, true, symbolFlags, contents, 0, 0, 0, 0, 0);
 }
 
-
-extern HQL_API IEclRepository * createRepository(IEclSourceCollection * source, const char * rootScopeFullName, bool includeInArchive)
-{
-    return new CNewEclRepository(source, rootScopeFullName, includeInArchive);
-}
-
 //-------------------------------------------------------------------------------------------------------------------
 
 #include "hqlcollect.hpp"
 
-extern HQL_API IEclRepository * createNewSourceFileEclRepository(IErrorReceiver *errs, const char * path, unsigned flags, unsigned trace, bool includeInArchive)
+EclRepositoryManager::EclRepositoryManager(const EclRepositoryManager & other)
+ : options(other.options)
 {
+    ForEachItemIn(i1, other.repos)
+    {
+        EclRepositoryMapping & cur = other.repos.item(i1);
+        repos.append(OLINK(cur));
+    }
+    ForEachItemIn(i2, other.sharedSources)
+        sharedSources.append(OLINK(other.sharedSources.item(i2)));
+
+    ForEachItemIn(i3, other.allSources)
+        allSources.append(OLINK(other.allSources.item(i3)));
+}
+
+void EclRepositoryManager::addNestedRepository(IIdAtom * scopeId, IEclSourceCollection * source, bool includeInArchive)
+{
+    Owned<IEclRepository> directoryRepository = createRepository(source, str(scopeId), true);
+    Owned<IEclRepository> nested = createNestedRepository(scopeId, directoryRepository);
+    allSources.append(*nested.getClear());
+}
+
+void EclRepositoryManager::addSharedSourceFileEclRepository(IErrorReceiver *errs, const char * path, unsigned flags, unsigned trace, bool includeInArchive)
+{
+    Owned<IEclRepository> repo = createNewSourceFileEclRepository(errs, path, flags, trace, includeInArchive);
+    sharedSources.append(*repo.getLink());
+    allSources.append(*repo.getClear());
+}
+
+void EclRepositoryManager::addQuerySourceFileEclRepository(IErrorReceiver *errs, const char * path, unsigned flags, unsigned trace)
+{
+    Owned<IEclRepository> repo = createNewSourceFileEclRepository(errs, path, flags, trace, true);
+    allSources.append(*repo.getClear());
+}
+
+void EclRepositoryManager::addSingleDefinitionEclRepository(const char * moduleName, const char * attrName, IFileContents * contents, bool includeInArchive)
+{
+    Owned<IEclRepository> repo = createSingleDefinitionEclRepository(moduleName, attrName, contents, includeInArchive);
+    allSources.append(*repo.getClear());
+}
+
+void EclRepositoryManager::addRepository(IEclSourceCollection * source, const char * rootScopeFullName, bool includeInArchive)
+{
+    Owned<IEclRepository> repo = createRepository(source, rootScopeFullName, includeInArchive);
+    allSources.append(*repo.getClear());
+}
+
+
+void EclRepositoryManager::addMapping(const char * url, const char * path)
+{
+    StringBuffer repoUrn, repo, version;
+    if (!splitRepoVersion(repoUrn, repo, version, url))
+        throw makeStringExceptionV(99, "Unsupported repository link format '%s'", url);
+    repos.append(*new EclRepositoryMapping(repo, version, path));
+}
+
+IEclRepository * EclRepositoryManager::resolveDependentRepository(IIdAtom * name, const char * defaultUrl)
+{
+    const char * filename = queryExtractFilename(defaultUrl);
+    StringBuffer path;
+    if (!filename)
+    {
+        StringBuffer repoUrn, repo, version;
+        if (!splitRepoVersion(repoUrn, repo, version, defaultUrl))
+            throw makeStringExceptionV(99, "Unsupported repository link format '%s'", defaultUrl);
+        if (isEmptyString(version))
+            throw makeStringExceptionV(99, "Expected a version number in the url '%s'", defaultUrl);
+
+        //Cheek to see if the location of a repository has been overriden on the command line:
+        ForEachItemIn(i, repos)
+        {
+            const EclRepositoryMapping & cur = repos.item(i);
+            if (streq(cur.url, repo) && (isEmptyString(cur.version) || streq(cur.version, version)))
+            {
+                filename = cur.path;
+                break;
+            }
+        }
+
+        if (!filename)
+        {
+            //First check to see if the repo has been cloned - if so directly access the version.
+            //MORE: Allow this to be configured
+            //MORE: windows/linux path chars
+            StringBuffer repoPath;
+            addPathSepChar(repoPath.append(options.eclRepoPath)).append(repo);
+
+            bool ok = false;
+            if (checkDirExists(repoPath))
+            {
+                if (options.updateRepos)
+                {
+                    unsigned retCode = runGitCommand(nullptr, "fetch origin", repoPath);
+                    if (retCode != 0)
+                        DBGLOG("Failed to download the latest version of %s", defaultUrl);
+                }
+
+                ok = true;
+            }
+            else
+            {
+                recursiveCreateDirectory(options.eclRepoPath);
+                if (options.fetchRepos)
+                {
+                    VStringBuffer params("clone %s \"%s\" --no-checkout", repoUrn.str(), repo.str());
+                    unsigned retCode = runGitCommand(nullptr, params, options.eclRepoPath);
+                    if (retCode != 0)
+                        throw makeStringExceptionV(99, "Failed to clone dependency '%s'", defaultUrl);
+                    ok = true;
+                }
+
+            }
+
+            if (!ok)
+                throw makeStringExceptionV(99, "Cannot locate the source code for dependency '%s'.  --fetchrepos not enabled", defaultUrl);
+
+            // Really the version should be a SHA, but for flexibility version could be a sha, a tag or a branch (on origin).
+            // Check for a sha/tag and map it to a version.  If that does not work see if it is a branch.
+            VStringBuffer params("rev-parse --short %s", version.str());
+            StringBuffer sha;
+            unsigned retCode = runGitCommand(&sha, params, repoPath);
+            if (retCode == 0)
+            {
+                version.set(sha);
+            }
+            else
+            {
+                //Check for a branch origin/<version>
+                params.clear().appendf("rev-parse --short origin/%s", version.str());
+                unsigned retCode = runGitCommand(&sha.clear(), params, repoPath);
+                if (retCode == 0)
+                    version.set(sha);
+            }
+            //Strip any trailing newlines and spaces.
+            version.clip();
+
+            path.append(repoPath).appendf("/.git/{%s}", version.str());
+            filename = path;
+        }
+    }
+
+    //Create a new repository for the directory that contains the dependent package
+    allSources.clear();
+    Owned<IErrorReceiver> errs = createThrowingErrorReceiver();
+    ForEachItemIn(iShared, sharedSources)
+        allSources.append(OLINK(sharedSources.item(iShared)));
+    unsigned flags = 0;
+    Owned<IEclRepository> repo = createNewSourceFileEclRepository(errs, filename, flags, 0, true);
+    allSources.append(*repo.getClear());
+    Owned<IEclRepository> compound = createCompoundRepository();
+    dependencies.append(*LINK(compound));
+    return compound;
+}
+
+
+IEclRepository * EclRepositoryManager::createNewSourceFileEclRepository(IErrorReceiver *errs, const char * path, unsigned flags, unsigned trace, bool includeInArchive)
+{
+    if (*path == ENVSEPCHAR)
+        path++;
+
+    if (looksLikeGitUrl(path))
+    {
+        IEclRepository * match = EclRepositoryManager::resolveDependentRepository(nullptr, path);
+        return LINK(match);
+    }
     Owned<IEclSourceCollection> source = createFileSystemEclCollection(errs, path, flags, trace);
     return createRepository(source, nullptr, includeInArchive);
 }
 
-extern HQL_API IEclRepository * createSingleDefinitionEclRepository(const char * moduleName, const char * attrName, IFileContents * contents, bool includeInArchive)
+IEclRepository * EclRepositoryManager::createSingleDefinitionEclRepository(const char * moduleName, const char * attrName, IFileContents * contents, bool includeInArchive)
 {
     Owned<IEclSourceCollection> source = createSingleDefinitionEclCollection(moduleName, attrName, contents);
     return createRepository(source, nullptr, includeInArchive);
 }
+
+IEclRepository * EclRepositoryManager::createCompoundRepository()
+{
+    Owned<IEclRepository> compound = ::createCompoundRepository(allSources);
+    dependencies.append(*LINK(compound));
+    allSources.kill();
+    return compound.getClear();
+}
+
+IEclRepository * EclRepositoryManager::createRepository(IEclSourceCollection * source, const char * rootScopeFullName, bool includeInArchive)
+{
+    return new CNewEclRepository(this, source, rootScopeFullName, includeInArchive);
+}
+
+void EclRepositoryManager::kill()
+{
+    repos.kill();
+    sharedSources.kill();
+    allSources.kill();
+}
+
+unsigned EclRepositoryManager::runGitCommand(StringBuffer * output, const char *args, const char * cwd)
+{
+    StringBuffer tempOutput;
+    if (!output)
+        output= &tempOutput;
+
+    const char * cmd = "git";
+    VStringBuffer runcmd("%s %s", cmd, args);
+    StringBuffer error;
+    unsigned ret = runExternalCommand(cmd, *output, error, runcmd, nullptr, cwd);
+    if (options.optVerbose)
+    {
+        if (ret > 0)
+            printf("%s return code was %d\n%s\n", cmd, ret, error.str());
+        else
+            printf("%s\n", output->str());
+    }
+    return ret;
+}
+
+//-------------------------------------------------------------------------------------------------------------------

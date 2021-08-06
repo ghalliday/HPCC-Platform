@@ -7202,7 +7202,8 @@ protected:
             expecting("\"");
         readString(name);
         if (!name.length())
-            error("empty JSON id");
+            name.append("_empty_");
+            //error("empty JSON id");
         readNext();
         skipWS();
         if (':'!=nextChar)
