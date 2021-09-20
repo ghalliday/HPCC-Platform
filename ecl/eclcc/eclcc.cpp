@@ -433,6 +433,7 @@ protected:
     bool optPruneArchive = true;
     bool optFetchRepos = false;
     bool optUpdateRepos = false;
+    bool optSingleRepoVersion = false;
 
     mutable bool daliConnected = false;
     mutable bool disconnectReported = false;
@@ -537,7 +538,7 @@ int main(int argc, const char *argv[])
 
 #ifndef _CONTAINERIZED
         // Turn logging down (we turn it back up if -v option seen)
-        Owned<ILogMsgFilter> filter = getCategoryLogMsgFilter(MSGAUD_user| MSGAUD_operator, MSGCLS_error);
+        Owned<ILogMsgFilter> filter = getCategoryLogMsgFilter(MSGAUD_user| MSGAUD_operator, MSGCLS_error|MSGCLS_warning);
         queryLogMsgManager()->changeMonitorFilter(queryStderrLogMsgHandler(), filter);
 #else
         setupContainerizedLogMsgHandler();
@@ -2172,7 +2173,7 @@ bool EclCC::processFiles()
 
     //Set up the default repository information.  This could be simplified to not use a localRepositoryManager later
     //if eclcc did not have a strange mode for running multiple queries as part of the regression suite testing on windows.
-    repositoryManager.setOptions(eclRepoPath, optDefaultGitPrefix, optFetchRepos, optUpdateRepos, logVerbose);
+    repositoryManager.setOptions(eclRepoPath, optDefaultGitPrefix, optFetchRepos, optUpdateRepos, logVerbose, optSingleRepoVersion);
     ForEachItemIn(iMapping, repoMappings)
     {
         const char * cur = repoMappings.item(iMapping);
@@ -2881,6 +2882,9 @@ int EclCC::parseCommandLineOptions(int argc, const char* argv[])
         {
         }
         else if (iter.matchFlag(optShared, "-shared"))
+        {
+        }
+        else if (iter.matchFlag(optSingleRepoVersion, "--singleRepoVersion"))
         {
         }
         else if (iter.matchFlag(tempBool, "-syntax"))

@@ -121,6 +121,7 @@ const char * const helpText[] = {
     "    -R<repo>[#version]=path Resolve repository references in directory 'path'",
     "!   --regeneratecache Force regeneration of cache (overwrite existing cache)",
     "!   -showpaths    Print information about the searchpaths eclcc is using",
+    "!   --singleRepoVersion Report an error if more than one version of a repo is used"
     "    -specs file   Read eclcc configuration from specified file",
     "!   -split m:n    Process a subset m of n input files (only with -b option)",
     "!   --tracecache  Add details of whether cache entries are up to date to the log file",

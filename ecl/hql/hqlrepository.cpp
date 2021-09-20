@@ -586,6 +586,8 @@ void EclRepositoryManager::processArchive(IPropertyTree * archiveTree)
 
 IEclPackage * EclRepositoryManager::resolveDependentRepository(IIdAtom * name, const char * defaultUrl, bool requireSHA)
 {
+    CriticalBlock block(cs);
+
     //Check to see if the reference is to a filename.  Should possibly be disabled on a switch.
     const char * filename = queryExtractFilename(defaultUrl);
     const char * repoKey = filename ? filename : defaultUrl;
@@ -688,6 +690,30 @@ IEclPackage * EclRepositoryManager::resolveDependentRepository(IIdAtom * name, c
             }
             //Strip any trailing newlines and spaces.
             version.clip();
+
+            //Check if the same repository has already been resolved, but with a different version....
+            std::string repoKey(repo);
+            auto match = repoVersions.find(repoKey);
+            if (match != repoVersions.end())
+            {
+                if (!match->second.contains(version))
+                {
+                    match->second.append(version);
+
+                    StringBuffer versions;
+                    match->second.getString(versions, ",");
+
+                    //MORE: This is hard to feed back into the warnings for the workunit.  Probably needs some more thought.
+                    if (options.singleRepoVersion)
+                        throw makeStringExceptionV(ERR_MULTIPLE_REPO_VERSIONS, "Multiple versions of repository '%s' used (%s)", repo.str(), versions.str());
+                    UWARNLOG("Multiple versions of repository '%s' used (%s)", repo.str(), versions.str());
+                }
+            }
+            else
+            {
+                auto elem = repoVersions.emplace(repoKey, StringArray());
+                elem.first->second.append(version);
+            }
 
             path.append(repoPath).appendf("/.git/{%s}", version.str());
             filename = path;
