@@ -669,7 +669,7 @@ protected:
     DerivedStats * derived;
 };
 
-class CNestedRuntimeStatisticCollection : public CInterface
+class jlib_decl CNestedRuntimeStatisticCollection : public CInterface
 {
 public:
     CNestedRuntimeStatisticCollection(const StatsScopeId & _scope, CRuntimeStatisticCollection * _stats)
@@ -699,7 +699,7 @@ public:
     CRuntimeStatisticCollection * stats;
 };
 
-class CNestedRuntimeStatisticMap
+class jlib_decl CNestedRuntimeStatisticMap
 {
 public:
     virtual ~CNestedRuntimeStatisticMap() = default;

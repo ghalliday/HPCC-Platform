@@ -506,6 +506,18 @@ class EclccCompileThread : implements IPooledThread, implements IErrorReporter, 
         }
         Owned<IPipeProcess> pipe = createPipeProcess();
         pipe->setenv("ECLCCSERVER_THREAD_INDEX", idxStr.str());
+
+        //Ensure that automatically fetched repositories end up on storage with a long lifetime than the eclccserver instances
+        if (isContainerized())
+        {
+            StringBuffer repoPath;
+            if (getConfigurationDirectory(nullptr, "repo", nullptr, nullptr, repoPath))
+            {
+                addPathSepChar(repoPath).append("repos");
+                pipe->setenv("ECLCC_ECLREPO_PATH", repoPath);
+            }
+        }
+
         Owned<IPropertyTreeIterator> options = config->getElements(isContainerized() ? "./options" : "./Option");
         ForEach(*options)
         {

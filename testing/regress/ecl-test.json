@@ -26,7 +26,7 @@
         "Clusters": {
             "hthor" : "hthor",
             "thor"  : "thor",
-            "roxie" : "roxie"
+            "roxie" : "roxie-workunit"
         },
         "ClusterNames": {
             "hthor" : "myhthor",

@@ -52,6 +52,7 @@ dependency_check () {
 }
 
 CMD="install"
+MINIKUBE=0
 DEVELOPER_OPTIONS="--set global.privileged=true"
 while [ "$#" -gt 0 ]; do
   arg=$1
@@ -88,6 +89,7 @@ while [ "$#" -gt 0 ]; do
          echo "    -p <location>      Use local persistent data"
          echo "    -pv <yamlfile>     Override dataplane definitions for local persistent data"
          echo "    -e                 Deploy light-weight Elastic Stack for component log processing"
+         echo "    -m                 Running under minikube - avoid creating persist directories"
          exit
          ;;
       t) CMD="template"
@@ -97,6 +99,8 @@ while [ "$#" -gt 0 ]; do
       v) DEVELOPER_OPTIONS=""
          ;;
       e) DEPLOY_ES=true
+         ;;
+      m) MINIKUBE=1
          ;;
       *) restArgs+=(${arg})
          ;;
@@ -123,10 +127,13 @@ fi
 if [[ -n ${PERSIST} ]] ; then
   PERSIST=$(realpath -q $PERSIST || echo $PERSIST)
   PERSIST_PATH=$(echo $PERSIST | sed 's/\\//g')
-  for subdir in `grep subPath: $PVFILE | awk '{ print $2 }'` ; do
-    echo mkdir -p ${PERSIST_PATH}/$subdir
-    mkdir -p ${PERSIST_PATH}/$subdir
-  done
+  if [ $MINIKUBE -ne 1 ] ; then
+    for subdir in `grep subPath: $PVFILE | awk '{ print $2 }'` ; do
+      echo mkdir -p ${PERSIST_PATH}/$subdir
+      mkdir -p ${PERSIST_PATH}/$subdir
+    done
+  fi
+  echo "Starting with persistent storage ${PERSIST}"
   helm ${CMD} localfile $scriptdir/../helm/examples/local/hpcc-localfile --set common.hostpath=${PERSIST} $PERSISTVALUES | tee lsfull.yaml | grep -A1000 storage: > localstorage.yaml && \
   grep "##" lsfull.yaml  && \
   helm ${CMD} $CLUSTERNAME $scriptdir/../helm/hpcc/ --set global.image.root="${DOCKER_REPO}" --set global.image.version=$LABEL $DEVELOPER_OPTIONS $DEP_UPDATE_ARG ${restArgs[@]} -f localstorage.yaml
