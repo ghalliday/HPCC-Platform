@@ -1515,12 +1515,17 @@ public:
     {
         return querySet;
     }
+    void noteDead()
+    {
+        dead = true;
+    }
 
     // These are set at construction and not changed for the lifetime of the object
     const Owned<const IRoxiePackageMap> packages;
     const unsigned numChannels;
     const hash64_t xmlHash;
     const StringAttr querySet;
+    std::atomic<bool> dead{false};
 };
 
 /**
@@ -1547,6 +1552,8 @@ class CRoxieDaliQueryPackageManager : public CRoxieQueryPackageManager, implemen
 {
     Owned<IRoxieDaliHelper> daliHelper;
     Owned<IDaliPackageWatcher> notifier;
+    std::atomic<unsigned> notifyCount{0};
+    CriticalSection cs;
 
 public:
     IMPLEMENT_IINTERFACE;
@@ -1566,6 +1573,35 @@ public:
 
     virtual void notify(SubscriptionId id, const char *xpath, SDSNotifyFlags flags, unsigned valueLen, const void *valueData)
     {
+        #if 0
+        unsigned active = 1;
+        unsigned waits = 0;
+        #else
+        unsigned active = ++notifyCount;
+        //Increment notifies, and exit if someone got here before us and is still waiting.
+        if (active != 1)
+            return;
+
+        unsigned waits = 1;
+        //Critical section is here to prevent a subsequent notify from overtaking the previous one
+        CriticalBlock block(cs);
+        for (;;)
+        {
+            MilliSleep(50);
+            unsigned nextActive = notifyCount;
+            if (active == nextActive)
+            {
+                //If no more requests came in, set the counter back to zero, and process the notification
+                active = notifyCount.exchange(0);
+                break;
+            }
+            active = nextActive;
+            waits++;
+        }
+#endif
+        DBGLOG("Dali update '%s' for '%s': %u changes (%u waits) [%p] %s", xpath, queryQuerySetName(), active, waits, this, dead ? " dead" : "");
+        if (dead)
+            return;
         reload(false);
         daliHelper->commitCache();
     }
@@ -1634,6 +1670,9 @@ public:
     CRoxiePackageSetWatcher(IRoxieDaliHelper *_daliHelper, unsigned numChannels, CRoxiePackageSetWatcher *oldPackages, bool forceReload)
     : daliHelper(_daliHelper), stateHash(0)
     {
+        DBGLOG("Create package watcher");
+        printStackReport();
+
         ForEachItemIn(idx, allQuerySetNames)
         {
             createQueryPackageManagers(numChannels, allQuerySetNames.item(idx), oldPackages, forceReload);
@@ -1781,6 +1820,12 @@ public:
             throw MakeStringException(ROXIE_UNKNOWN_QUERY, "Unknown query %s", id);
     }
 
+    void noteDead()
+    {
+        ForEachItemIn(i, allQueryPackages)
+            allQueryPackages.item(i).noteDead();
+    }
+
 private:
     CIArrayOf<CRoxieQueryPackageManager> allQueryPackages;
     Linked<IRoxieDaliHelper> daliHelper;
@@ -1800,6 +1845,7 @@ private:
     void createQueryPackageManager(unsigned numChannels, const IRoxiePackageMap *packageMap, const char *querySet, hash64_t xmlHash, bool forceReload)
     {
         Owned<CRoxieQueryPackageManager> qpm = new CRoxieDaliQueryPackageManager(numChannels, packageMap, querySet, xmlHash);
+        DBGLOG(">Create package manager %p", qpm.get());
         qpm->load(forceReload);
         stateHash = rtlHash64Data(sizeof(stateHash), &stateHash, qpm->getHash());
         allQueryPackages.append(*qpm.getClear());
@@ -1807,6 +1853,7 @@ private:
 
     void createQueryPackageManagers(unsigned numChannels, const char *querySet, CRoxiePackageSetWatcher *oldPackages, bool forceReload)
     {
+        DBGLOG("Create package managers %p", this);
         int loadedPackages = 0;
         int activePackages = 0;
         Owned<IPropertyTree> packageTree = daliHelper->getPackageSets();
@@ -1914,6 +1961,7 @@ public:
 
     void requestReload(bool signal, bool force)
     {
+        DBGLOG("CRoxiePackageSetManager::requestReload(%i,%i)", signal, force);
         if (force)
             forcePending = true;    
         if (signal)
@@ -2080,6 +2128,10 @@ private:
             }
             newPackages.setown(new CRoxiePackageSetWatcher(daliHelper, numChannels, currentPackages, forceRetry));
         }
+
+        if (allQueryPackages)
+            allQueryPackages->noteDead();
+
         // Hold the lock for as little time as we can
         // Note that we must NOT hold the lock during the delete of the old object - or we deadlock.
         // Hence the slightly convoluted code below
