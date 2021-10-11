@@ -1973,19 +1973,18 @@ private:
 
     Semaphore autoReloadTrigger;
     Semaphore autoReloadComplete;
-    atomic_t autoSignalsPending;
-    atomic_t autoPending;
-    bool forcePending;
+    std::atomic<unsigned> autoSignalsPending;
+    std::atomic<unsigned> autoPending;
+    std::atomic<bool> forcePending;
 
     class AutoReloadThread : public Thread
     {
-        bool closing;
+        std::atomic<bool> closing{false};
         CRoxiePackageSetManager &owner;
     public:
         AutoReloadThread(CRoxiePackageSetManager &_owner)
         : Thread("AutoReloadThread"), owner(_owner)
         {
-            closing = false;
         }
 
         virtual int run()
@@ -1997,15 +1996,27 @@ private:
                 owner.autoReloadTrigger.wait();
                 if (closing)
                     break;
-                unsigned signalsPending = atomic_read(&owner.autoSignalsPending);
+
+                //If there has been an explicit reload(), there may also be a control:reload in quick succession, so wait for it.
+                //NOTE: control:reload generally locaks the roxie connection and waits for a response, so it is unlikely that
+                //multiple control:reloads will be received at the same time.
+                unsigned signalsPending = owner.autoSignalsPending;
                 if (!signalsPending)
-                    Sleep(500); // Typically notifications come in clumps - this avoids reloading too often
-                if (atomic_read(&owner.autoPending))
+                    owner.autoReloadTrigger.wait(500);
+                if (closing)
+                    break;
+
+                // How many threads are waiting for a completed signal in response to control:reload?
+                // They can all be signalled when the reload is complete, and subsequent iterations will do nothing (but may signal).
+                signalsPending = owner.autoSignalsPending.exchange(0);
+
+                //Check if there are any requests from last time that have not been processed yet.
+                if (owner.autoPending.exchange(0))
                 {
-                    atomic_set(&owner.autoPending, 0);
+                    bool forcePending = owner.forcePending.exchange(false);
                     try
                     {
-                        owner.reload(owner.forcePending);
+                        owner.reload(forcePending);
                     }
                     catch (IException *E)
                     {
@@ -2017,13 +2028,10 @@ private:
                     {
                         IERRLOG("Unknown exception in AutoReloadThread");
                     }
-                    owner.forcePending = false;
                 }
+
                 if (signalsPending)
-                {
-                    atomic_dec(&owner.autoSignalsPending);
-                    owner.autoReloadComplete.signal();
-                }
+                    owner.autoReloadComplete.signal(signalsPending);
             }
             if (traceLevel)
                 DBGLOG("AutoReloadThread %p exiting", this);
