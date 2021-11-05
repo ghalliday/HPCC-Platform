@@ -378,7 +378,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
             requester->requestToSend(slots, myNode.getIpAddress());
         }
 
-        void noteDone(UdpSenderEntry *requester, UdpRequestToSendMsg &msg)
+        void noteDone(UdpSenderEntry *requester, const UdpRequestToSendMsg &msg)
         {
             switch (requester->state)
             {
@@ -404,7 +404,23 @@ class CReceiveManager : implements IReceiveManager, public CInterface
         receive_receive_flow(CReceiveManager &_parent, unsigned flow_p, unsigned _maxSlotsPerSender)
         : Thread("UdpLib::receive_receive_flow"), parent(_parent), flow_port(flow_p), maxSlotsPerSender(_maxSlotsPerSender)
         {
-            if (check_max_socket_read_buffer(udpFlowSocketsSize) < 0) 
+        }
+        
+        ~receive_receive_flow() 
+        {
+            if (running)
+            {
+                running = false;
+                if (flow_socket)
+                    flow_socket->close();
+                join();
+            }
+        }
+
+        virtual void start()
+        {
+            running = true;
+            if (check_max_socket_read_buffer(udpFlowSocketsSize) < 0)
                 throw MakeStringException(ROXIE_UDP_ERROR, "System Socket max read buffer is less than %i", udpFlowSocketsSize);
 #ifdef SOCKET_SIMULATION
             if (isUdpTestMode)
@@ -415,20 +431,122 @@ class CReceiveManager : implements IReceiveManager, public CInterface
             flow_socket->set_receive_buffer_size(udpFlowSocketsSize);
             size32_t actualSize = flow_socket->get_receive_buffer_size();
             DBGLOG("UdpReceiver: receive_receive_flow created port=%d sockbuffsize=%d actual %d", flow_port, udpFlowSocketsSize, actualSize);
-        }
-        
-        ~receive_receive_flow() 
-        {
-            running = false;
-            if (flow_socket) 
-                flow_socket->close();
-            join();
+            Thread::start();
         }
 
-        virtual void start()
+        void doFlowRequest(const UdpRequestToSendMsg &msg)
         {
-            running = true;
-            Thread::start();
+            flowRequestsReceived++;
+            if (udpTraceLevel > 5 || udpTraceFlow)
+            {
+                StringBuffer ipStr;
+                DBGLOG("UdpReceiver: received %s msg flowSeq %" SEQF "u sendSeq %" SEQF "u from node=%s", flowType::name(msg.cmd), msg.flowSeq, msg.sendSeq, msg.sourceNode.getTraceText(ipStr).str());
+            }
+            UdpSenderEntry *sender = &parent.sendersTable[msg.sourceNode];
+            switch (msg.cmd)
+            {
+            case flowType::request_to_send:
+                enqueueRequest(sender, msg.flowSeq, msg.sendSeq);
+                break;
+
+            case flowType::send_completed:
+                noteDone(sender, msg);
+                break;
+
+            case flowType::request_to_send_more:
+                noteDone(sender, msg);
+                enqueueRequest(sender, msg.flowSeq+1, msg.sendSeq);
+                break;
+
+            default:
+                DBGLOG("UdpReceiver: received unrecognized flow control message cmd=%i", msg.cmd);
+            }
+        }
+
+        unsigned checkPendingRequests()
+        {
+            unsigned timeout = 5000;   // The default timeout is 5 seconds if nothing is waiting for response...
+            if (pendingPermits)
+            {
+                unsigned now = msTick();
+                for (UdpSenderEntry *finger = pendingPermits; finger != nullptr; )
+                {
+                    if (now - finger->timeStamp >= udpRequestToSendAckTimeout)
+                    {
+                        if (udpTraceLevel || udpTraceFlow || udpTraceTimeouts)
+                        {
+                            StringBuffer s;
+                            DBGLOG("permit to send %" SEQF "u to node %s timed out after %u ms, rescheduling", finger->flowSeq, finger->dest.getIpText(s).str(), udpRequestToSendAckTimeout);
+                        }
+                        UdpSenderEntry *next = finger->nextSender;
+                        pendingPermits.remove(finger);
+                        if (++finger->timeouts > udpMaxRetryTimedoutReqs && udpMaxRetryTimedoutReqs != 0)
+                        {
+                            if (udpTraceLevel || udpTraceFlow || udpTraceTimeouts)
+                            {
+                                StringBuffer s;
+                                DBGLOG("permit to send %" SEQF "u to node %s timed out %u times - abandoning", finger->flowSeq, finger->dest.getIpText(s).str(), finger->timeouts);
+                            }
+                        }
+                        else
+                        {
+                            // Put it back on the queue (at the back)
+                            finger->timeStamp = now;
+                            pendingRequests.append(finger);
+                            finger->state = flowType::request_to_send;
+                        }
+                        finger = next;
+                    }
+                    else
+                    {
+                        timeout = finger->timeStamp + udpRequestToSendAckTimeout - now;
+                        break;
+                    }
+                }
+            }
+            unsigned slots = parent.input_queue->available();
+            bool anyCanSend = false;
+            for (UdpSenderEntry *finger = pendingRequests; finger != nullptr; finger = finger->nextSender)
+            {
+                if (pendingPermits.length()>=udpMaxPendingPermits)
+                    break;
+                if (!slots) // || slots<minSlotsPerSender)
+                {
+                    timeout = 1;   // Slots should free up very soon!
+                    break;
+                }
+                // If requester would not be able to send me any (because of the ones in flight) then wait
+
+                if (finger->canSendAny())
+                {
+                    unsigned requestSlots = slots;
+                    if (requestSlots>maxSlotsPerSender)
+                        requestSlots = maxSlotsPerSender;
+                    okToSend(finger, requestSlots);
+                    slots -= requestSlots;
+                    if (timeout > udpRequestToSendAckTimeout)
+                        timeout = udpRequestToSendAckTimeout;
+                    anyCanSend = true;
+                }
+                else
+                {
+                    if (udpTraceFlow)
+                    {
+                        StringBuffer s;
+                        DBGLOG("Sender %s can't be given permission to send yet as resend buffer full", finger->dest.getIpText(s).str());
+                    }
+                }
+            }
+            if (slots && pendingRequests.length() && pendingPermits.length()<udpMaxPendingPermits && !anyCanSend)
+            {
+                if (udpTraceFlow)
+                {
+                    StringBuffer s;
+                    DBGLOG("All senders blocked by resend buffers");
+                }
+                timeout = 1; // Hopefully one of the senders should unblock soon
+            }
+            return timeout;
         }
 
         virtual int run() override
@@ -455,114 +573,10 @@ class CReceiveManager : implements IReceiveManager, public CInterface
                         const unsigned l = sizeof(msg);
                         unsigned int res ;
                         flow_socket->readtms(&msg, l, l, res, 0);
-                        flowRequestsReceived++;
                         assert(res==l);
-                        if (udpTraceLevel > 5 || udpTraceFlow)
-                        {
-                            StringBuffer ipStr;
-                            DBGLOG("UdpReceiver: received %s msg flowSeq %" SEQF "u sendSeq %" SEQF "u from node=%s", flowType::name(msg.cmd), msg.flowSeq, msg.sendSeq, msg.sourceNode.getTraceText(ipStr).str());
-                        }
-                        UdpSenderEntry *sender = &parent.sendersTable[msg.sourceNode];
-                        switch (msg.cmd)
-                        {
-                        case flowType::request_to_send:
-                            enqueueRequest(sender, msg.flowSeq, msg.sendSeq);
-                            break;
-
-                        case flowType::send_completed:
-                            noteDone(sender, msg);
-                            break;
-
-                        case flowType::request_to_send_more:
-                            noteDone(sender, msg);
-                            enqueueRequest(sender, msg.flowSeq+1, msg.sendSeq);
-                            break;
-
-                        default:
-                            DBGLOG("UdpReceiver: received unrecognized flow control message cmd=%i", msg.cmd);
-                        }
+                        doFlowRequest(msg);
                     }
-                    timeout = 5000;   // The default timeout is 5 seconds if nothing is waiting for response...
-                    if (pendingPermits)
-                    {
-                        unsigned now = msTick();
-                        for (UdpSenderEntry *finger = pendingPermits; finger != nullptr; )
-                        {
-                            if (now - finger->timeStamp >= udpRequestToSendAckTimeout)
-                            {
-                                if (udpTraceLevel || udpTraceFlow || udpTraceTimeouts)
-                                {
-                                    StringBuffer s;
-                                    DBGLOG("permit to send %" SEQF "u to node %s timed out after %u ms, rescheduling", finger->flowSeq, finger->dest.getIpText(s).str(), udpRequestToSendAckTimeout);
-                                }
-                                UdpSenderEntry *next = finger->nextSender;
-                                pendingPermits.remove(finger);
-                                if (++finger->timeouts > udpMaxRetryTimedoutReqs && udpMaxRetryTimedoutReqs != 0)
-                                {
-                                    if (udpTraceLevel || udpTraceFlow || udpTraceTimeouts)
-                                    {
-                                        StringBuffer s;
-                                        DBGLOG("permit to send %" SEQF "u to node %s timed out %u times - abandoning", finger->flowSeq, finger->dest.getIpText(s).str(), finger->timeouts);
-                                    }
-                                }
-                                else
-                                {
-                                    // Put it back on the queue (at the back)
-                                    finger->timeStamp = now;
-                                    pendingRequests.append(finger);
-                                    finger->state = flowType::request_to_send;
-                                }
-                                finger = next;
-                            }
-                            else
-                            {
-                                timeout = finger->timeStamp + udpRequestToSendAckTimeout - now;
-                                break;
-                            }
-                        }
-                    }
-                    unsigned slots = parent.input_queue->available();
-                    bool anyCanSend = false;
-                    for (UdpSenderEntry *finger = pendingRequests; finger != nullptr; finger = finger->nextSender)
-                    {
-                        if (pendingPermits.length()>=udpMaxPendingPermits)
-                            break;
-                        if (!slots) // || slots<minSlotsPerSender)
-                        {
-                            timeout = 1;   // Slots should free up very soon!
-                            break;
-                        }
-                        // If requester would not be able to send me any (because of the ones in flight) then wait
-
-                        if (finger->canSendAny())
-                        {
-                            unsigned requestSlots = slots;
-                            if (requestSlots>maxSlotsPerSender)
-                                requestSlots = maxSlotsPerSender;
-                            okToSend(finger, requestSlots);
-                            slots -= requestSlots;
-                            if (timeout > udpRequestToSendAckTimeout)
-                                timeout = udpRequestToSendAckTimeout;
-                            anyCanSend = true;
-                        }
-                        else
-                        {
-                            if (udpTraceFlow)
-                            {
-                                StringBuffer s;
-                                DBGLOG("Sender %s can't be given permission to send yet as resend buffer full", finger->dest.getIpText(s).str());
-                            }
-                        }
-                    }
-                    if (slots && pendingRequests.length() && pendingPermits.length()<udpMaxPendingPermits && !anyCanSend)
-                    {
-                        if (udpTraceFlow)
-                        {
-                            StringBuffer s;
-                            DBGLOG("All senders blocked by resend buffers");
-                        }
-                        timeout = 1; // Hopefully one of the senders should unblock soon
-                    }
+                    timeout = checkPendingRequests();
                 }
                 catch (IException *e)
                 {
@@ -603,7 +617,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
             {
                 receive_socket = CSimulatedReadSocket::udp_create(SocketEndpoint(parent.data_port, myNode.getIpAddress()));
                 selfFlowSocket = CSimulatedWriteSocket::udp_connect(SocketEndpoint(parent.receive_flow_port, myNode.getIpAddress()));
-           }
+            }
             else
 #endif
             {
@@ -645,23 +659,29 @@ class CReceiveManager : implements IReceiveManager, public CInterface
         #else
             adjustPriority(2);
         #endif
-            DataBuffer *b = NULL;
             started.signal();
             unsigned lastOOOReport = 0;
             unsigned lastPacketsOOO = 0;
+            unsigned timeout = 5000;
+            DataBuffer *b = nullptr;
             while (running) 
             {
                 try 
                 {
+                    if (!b)
+                        b = bufferManager->allocate();
+
                     unsigned int res;
-                    b = bufferManager->allocate();
                     while (true)
                     {
-                        receive_socket->read(b->data, 1, DATA_PAYLOAD, res, 5);
+                        receive_socket->readtms(b->data, 1, DATA_PAYLOAD, res, timeout);
                         if (res!=sizeof(UdpRequestToSendMsg))
                             break;
+                        //Sending flow packets to the data thread ensures they do not overtake the data
+                        //Redirect them to the flow thread to process them.
                         selfFlowSocket->write(b->data, res);
                     }
+
                     dataPacketsReceived++;
                     UdpPacketHeader &hdr = *(UdpPacketHeader *) b->data;
                     assert(hdr.length == res && hdr.length > sizeof(hdr));
@@ -684,12 +704,39 @@ class CReceiveManager : implements IReceiveManager, public CInterface
                         }
                     }
                     parent.input_queue->pushOwn(b);
-                    b = NULL;
+                    b = nullptr;
+
+                    if (udpStatsReportInterval)
+                    {
+                        unsigned now = msTick();
+                        if (now-lastOOOReport > udpStatsReportInterval)
+                        {
+                            lastOOOReport = now;
+                            if (packetsOOO > lastPacketsOOO)
+                            {
+                                DBGLOG("%u more packets received out-of-order by this server (%u total)", packetsOOO-lastPacketsOOO, packetsOOO-0);
+                                lastPacketsOOO = packetsOOO;
+                            }
+                            if (flowRequestsReceived > lastFlowRequestsReceived)
+                            {
+                                DBGLOG("%u more flow requests received by this server (%u total)", flowRequestsReceived-lastFlowRequestsReceived, flowRequestsReceived-0);
+                                lastFlowRequestsReceived = flowRequestsReceived;
+                            }
+                            if (flowPermitsSent > lastFlowPermitsSent)
+                            {
+                                DBGLOG("%u more flow permits sent by this server (%u total)", flowPermitsSent-lastFlowPermitsSent, flowPermitsSent-0);
+                                lastFlowPermitsSent = flowPermitsSent;
+                            }
+                            if (dataPacketsReceived > lastDataPacketsReceived)
+                            {
+                                DBGLOG("%u more data packets received by this server (%u total)", dataPacketsReceived-lastDataPacketsReceived, dataPacketsReceived-0);
+                                lastDataPacketsReceived = dataPacketsReceived;
+                            }
+                        }
+                    }
                 }
                 catch (IException *e) 
                 {
-                    ::Release(b);
-                    b = NULL;
                     if (running && e->errorCode() != JSOCKERR_timeout_expired)
                     {
                         StringBuffer s;
@@ -700,38 +747,8 @@ class CReceiveManager : implements IReceiveManager, public CInterface
                 }
                 catch (...) 
                 {
-                    ::Release(b);
-                    b = NULL;
                     DBGLOG("UdpReceiver: receive_data::run unknown exception port %u", parent.data_port);
                     MilliSleep(1000);
-                }
-                if (udpStatsReportInterval)
-                {
-                    unsigned now = msTick();
-                    if (now-lastOOOReport > udpStatsReportInterval)
-                    {
-                        lastOOOReport = now;
-                        if (packetsOOO > lastPacketsOOO)
-                        {
-                            DBGLOG("%u more packets received out-of-order by this server (%u total)", packetsOOO-lastPacketsOOO, packetsOOO-0);
-                            lastPacketsOOO = packetsOOO;
-                        }
-                        if (flowRequestsReceived > lastFlowRequestsReceived)
-                        {
-                            DBGLOG("%u more flow requests received by this server (%u total)", flowRequestsReceived-lastFlowRequestsReceived, flowRequestsReceived-0);
-                            lastFlowRequestsReceived = flowRequestsReceived;
-                        }
-                        if (flowPermitsSent > lastFlowPermitsSent)
-                        {
-                            DBGLOG("%u more flow permits sent by this server (%u total)", flowPermitsSent-lastFlowPermitsSent, flowPermitsSent-0);
-                            lastFlowPermitsSent = flowPermitsSent;
-                        }
-                        if (dataPacketsReceived > lastDataPacketsReceived)
-                        {
-                            DBGLOG("%u more data packets received by this server (%u total)", dataPacketsReceived-lastDataPacketsReceived, dataPacketsReceived-0);
-                            lastDataPacketsReceived = dataPacketsReceived;
-                        }
-                    }
                 }
             }
             ::Release(b);
@@ -782,6 +799,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
 #ifndef _WIN32
         setpriority(PRIO_PROCESS, 0, -15);
 #endif
+        assertex(data_port != receive_flow_port);
         receive_flow_port = server_flow_port;
         data_port = d_port;
         input_queue_size = queue_size;
