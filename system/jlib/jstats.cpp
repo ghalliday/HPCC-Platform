@@ -69,6 +69,25 @@ void setStatisticsComponentName(StatisticCreatorType processType, const char * p
 
 //--------------------------------------------------------------------------------------------------------------------
 
+// The following statistics are automatically summed for all subgraphs when the stats are published to the workunit
+// They need to make sense when aggregated over subgraphs/graphs/workflow items etc.
+// The list is In the same order as jstatcode.h - new items go on the end
+// All the times in this list are aggregated by summing (others could be supported, but I doubt it is worth it)
+const StatisticsMapping scopeMergedStatistics({
+    StCycleLocalExecuteCycles, // Not sure if this is still needabout either of these
+    StTimeLocalExecute, StNumRowsProcessed,
+    StNumIndexSeeks, StNumIndexScans, StNumIndexWildSeeks, StNumIndexSkips, StNumIndexNullSkips, StNumIndexMerges, StNumIndexMergeCompares,
+    StNumPreFiltered, StNumPostFiltered,
+    StNumBlobCacheHits, StNumLeafCacheHits,  StNumNodeCacheHits, StNumBlobCacheAdds, StNumLeafCacheAdds, StNumNodeCacheAdds, StNumServerCacheHits,
+    StNumIndexAccepted, StNumIndexRejected, StNumAtmostTriggered,
+    StNumDiskSeeks, StNumDiskRowsRead, StNumIndexRowsRead, StNumDiskAccepted, StNumDiskRejected,
+    StTimeSoapcall,
+    StTimeDiskReadIO, StTimeDiskWriteIO, StSizeDiskRead, StSizeDiskWrite, StNumDiskReads, StNumDiskWrites,
+    StNumSpills, StTimeSpillElapsed, StTimeSortElapsed, StTimeBlocked, StCostExecute, StSizeAgentReply, StTimeAgentWait, StCostFileAccess,
+});
+
+//--------------------------------------------------------------------------------------------------------------------
+
 // Textual forms of the different enumerations, first items are for none and all.
 static constexpr const char * const measureNames[] = { "", "all", "ns", "ts", "cnt", "sz", "cpu", "skw", "node", "ppm", "ip", "cy", "en", "txt", "bool", "id", "fname", "cost", NULL };
 static constexpr const char * const creatorTypeNames[]= { "", "all", "unknown", "hthor", "roxie", "roxie:s", "thor", "thor:m", "thor:s", "eclcc", "esp", "summary", NULL };
@@ -728,13 +747,15 @@ extern jlib_decl StatsMergeAction queryMergeMode(StatisticKind kind)
 #define NAMES(x, y) \
     BASE_NAMES(x, y) \
     #x "Delta" # y, \
-    #x "StdDev" #y,
+    #x "StdDev" #y, \
+    #x "Merged" #y,
 
 
 #define WHENNAMES(x, y) \
     BASE_NAMES(x, y) \
     "TimeDelta" # y, \
-    "TimeStdDev" # y,
+    "TimeStdDev" # y, \
+    #x "Merged" #y,
 
 #define BASE_TAGS(x, y) \
     "@" #x "Min" # y,  \
@@ -751,14 +772,16 @@ extern jlib_decl StatsMergeAction queryMergeMode(StatisticKind kind)
     "@" #x #y, \
     BASE_TAGS(x, y) \
     "@" #x "Delta" # y, \
-    "@" #x "StdDev" # y,
+    "@" #x "StdDev" # y, \
+    "@" #x "Merged" # y,
 
 //Define the tags for time items.
 #define WHENTAGS(x, y) \
     "@" #x #y, \
     BASE_TAGS(x, y) \
     "@TimeDelta" # y, \
-    "@TimeStdDev" # y,
+    "@TimeStdDev" # y, \
+    "@" #x "Merged" # y,
 
 #define CORESTAT(x, y, m)     St##x##y, m, St##x##y, St##x##y, { NAMES(x, y) }, { TAGS(x, y) }
 #define STAT(x, y, m)         CORESTAT(x, y, m)
@@ -1319,6 +1342,8 @@ StringBuffer & StatsScopeId::getScopeText(StringBuffer & out) const
         return out.append(ChannelScopePrefix).append(id);
     case SSTunknown:
         return out.append(name);
+    case SSTnone:
+        return out;
     default:
 #ifdef _DEBUG
         throwUnexpected();
@@ -1805,14 +1830,7 @@ public:
             iter.query().getMinMaxActivity(minValue, maxValue);
     }
 
-//other public interface functions
-    void addStatistic(StatisticKind kind, unsigned __int64 value)
-    {
-        Statistic s(kind, value);
-        stats.append(s);
-    }
-
-    void updateStatistic(StatisticKind kind, unsigned __int64 value, StatsMergeAction mergeAction)
+    virtual void updateStatistic(StatisticKind kind, unsigned __int64 value, StatsMergeAction mergeAction) override
     {
         if (mergeAction != StatsMergeAppend)
         {
@@ -1826,6 +1844,13 @@ public:
                 }
             }
         }
+        Statistic s(kind, value);
+        stats.append(s);
+    }
+
+//other public interface functions
+    void addStatistic(StatisticKind kind, unsigned __int64 value)
+    {
         Statistic s(kind, value);
         stats.append(s);
     }
@@ -1869,18 +1894,18 @@ public:
             cur.mergeInto(target);
     }
 
-    virtual void visit(IStatisticVisitor & visitor) const
+    virtual void visit(IStatisticVisitor & visitor)
     {
         if (visitor.visitScope(*this))
         {
-            for (auto const & cur : children)
+            for (auto & cur : children)
                 cur.visit(visitor);
         }
     }
 
-    virtual void visitChildren(IStatisticVisitor & visitor) const
+    virtual void visitChildren(IStatisticVisitor & visitor)
     {
-        for (auto const & cur : children)
+        for (auto & cur : children)
             cur.visit(visitor);
     }
 
@@ -2009,7 +2034,7 @@ class StatAggregator : implements IStatisticVisitor
 public:
     StatAggregator(StatisticKind _kind) : kind(_kind) {}
 
-    virtual bool visitScope(const IStatisticCollection & cur)
+    virtual bool visitScope(IStatisticCollection & cur)
     {
         switch (cur.queryScopeType())
         {
@@ -2037,6 +2062,58 @@ public:
     }
     stat_type getTotal() const { return total; }
 private:
+    stat_type total = 0;
+    StatisticKind kind;
+};
+
+
+class NestedStatAggregator : implements IStatisticVisitor
+{
+public:
+    NestedStatAggregator()
+    {
+    }
+
+    virtual bool visitScope(IStatisticCollection & cur)
+    {
+        depth++;
+        if (scopeStats.size() < depth)
+            scopeStats.emplace_back(new CRuntimeStatisticCollection(scopeMergedStatistics, false));
+
+        CRuntimeStatisticCollection & curStats = *scopeStats[depth-1];
+        cur.visitChildren(*this);
+
+        const unsigned numStats = scopeMergedStatistics.numStatistics();
+        for (unsigned i = 0; i < numStats; i++)
+        {
+            StatisticKind kind = (StatisticKind)scopeMergedStatistics.getKind(i);
+            stat_type childValue = curStats.getStatisticValue(kind);
+            stat_type thisValue;
+            if (cur.getStatistic(kind, thisValue))
+                curStats.mergeStatistic(kind, thisValue);
+            stat_type totalValue = curStats.getStatisticValue(kind);
+            if (totalValue)
+            {
+                //Only add a merged summary for this level if the children have anything to add...
+                if (childValue)
+                {
+                    StringBuffer scope;
+                    cur.getFullScope(scope);
+                    DBGLOG("Aggregate %s:%s=%" I64F "u", scope.str(), queryStatisticName(kind), totalValue);
+                    cur.updateStatistic(kind|StMerged, totalValue, queryMergeMode(kind));
+                }
+                if (depth > 1)
+                    scopeStats[depth-2]->mergeStatistic(kind, totalValue);
+            }
+        }
+
+        curStats.reset();
+        depth--;
+        return false;
+    }
+private:
+    std::vector<std::unique_ptr<CRuntimeStatisticCollection>> scopeStats;
+    unsigned depth = 0;
     stat_type total = 0;
     StatisticKind kind;
 };
@@ -2141,6 +2218,8 @@ public:
     }
     virtual IStatisticCollection * getResult() override
     {
+        NestedStatAggregator aggregator;
+        aggregator.visitScope(*rootScope);
         return LINK(rootScope);
     }
 

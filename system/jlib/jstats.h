@@ -44,6 +44,19 @@ inline constexpr stat_type statPercentageOf(stat_type value, stat_type per) { re
 inline StatisticKind queryStatsVariant(StatisticKind kind) { return (StatisticKind)(kind & ~StKindMask); }
 inline cost_type money2cost_type(double money) { return money * 1E6; }
 inline double cost_type2money(cost_type cost) { return ((double) cost) / 1E6; }
+
+//---------------------------------------------------------------------------------------------------------------------
+
+enum StatsMergeAction
+{
+    StatsMergeKeepNonZero,
+    StatsMergeReplace,
+    StatsMergeSum,
+    StatsMergeMin,
+    StatsMergeMax,
+    StatsMergeAppend,
+};
+
 //---------------------------------------------------------------------------------------------------------------------
 
 //Represents a single level of a scope
@@ -121,8 +134,9 @@ public:
     virtual unsigned __int64 queryWhenCreated() const = 0;
     virtual void mergeInto(IStatisticGatherer & target) const = 0;
     virtual StringBuffer &toXML(StringBuffer &out) const = 0;
-    virtual void visit(IStatisticVisitor & target) const = 0;
-    virtual void visitChildren(IStatisticVisitor & target) const = 0;
+    virtual void visit(IStatisticVisitor & target) = 0;
+    virtual void visitChildren(IStatisticVisitor & target) = 0;
+    virtual void updateStatistic(StatisticKind kind, unsigned __int64 value, StatsMergeAction mergeAction) = 0;
 };
 
 interface IStatisticCollectionIterator : public IIteratorOf<IStatisticCollection>
@@ -131,17 +145,7 @@ interface IStatisticCollectionIterator : public IIteratorOf<IStatisticCollection
 
 interface IStatisticVisitor
 {
-    virtual bool visitScope(const IStatisticCollection & cur) = 0;        // return true to iterate through children
-};
-
-enum StatsMergeAction
-{
-    StatsMergeKeepNonZero,
-    StatsMergeReplace,
-    StatsMergeSum,
-    StatsMergeMin,
-    StatsMergeMax,
-    StatsMergeAppend,
+    virtual bool visitScope(IStatisticCollection & cur) = 0;        // return true to iterate through children
 };
 
 interface IStatisticGatherer : public IInterface
@@ -890,5 +894,6 @@ public:
 
 extern jlib_decl StringBuffer & formatMoney(StringBuffer &out, unsigned __int64 value);
 extern jlib_decl stat_type aggregateStatistic(StatisticKind kind, IStatisticCollection * statsCollection);
+extern jlib_decl const StatisticsMapping scopeMergedStatistics;
 
 #endif

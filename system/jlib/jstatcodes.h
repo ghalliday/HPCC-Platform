@@ -244,6 +244,8 @@ enum StatisticKind
     StNumPods,
     StMax,
 
+    // When adding an entry, does it make sense to also accumulate it at different levels?  If so add to scopeMergedStatistics in jstats.cpp
+
     //For any quantity there is potentially the following variants.
     //These modifiers ORd with the values above to form a compound type.
     StKindMask                          = 0x0ffff,
@@ -258,7 +260,8 @@ enum StatisticKind
     StNodeMax                           = 0x80000,  // the node containing the maximum
     StDeltaX                            = 0x90000,  // a difference in the value of X
     StStdDevX                           = 0xa0000,  // standard deviation in the value of X
-    StNextModifier                      = 0xb0000,
+    StMerged                            = 0xb0000,  // Aggregated from this node and all children
+    StNextModifier                      = 0xc0000,
 
     //NOTE: Do not use 0x80000000 since wu attributes use those values, and they should not overlap
 };
