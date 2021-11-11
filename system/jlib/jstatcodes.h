@@ -31,13 +31,6 @@
 
 #define MATCHES_CONST_PREFIX(search, prefix) (strncmp(search, prefix, strlen(prefix)) == 0)
 
-enum CombineStatsAction
-{
-    MergeStats,
-    ReplaceStats,
-    AppendStats,
-};
-
 enum StatisticCreatorType
 {
     SCTnone,

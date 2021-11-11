@@ -33,6 +33,9 @@
 #ifdef _WIN32
 #include <sys/timeb.h>
 #endif
+#ifdef _DEBUG
+#define VERIFY_STATS
+#endif
 
 static CriticalSection statsNameCs;
 static StringBuffer statisticsComponentName;
@@ -725,12 +728,6 @@ StatsMergeAction queryMergeMode(StatisticMeasure measure)
     }
 }
 
-extern jlib_decl StatsMergeAction queryMergeMode(StatisticKind kind)
-{
-    //MORE: Optimize by looking up in the meta
-    return queryMergeMode(queryMeasure(kind));
-}
-
 //--------------------------------------------------------------------------------------------------------------------
 
 #define BASE_NAMES(x, y) \
@@ -783,25 +780,25 @@ extern jlib_decl StatsMergeAction queryMergeMode(StatisticKind kind)
     "@TimeStdDev" # y, \
     "@" #x "Merged" # y,
 
-#define CORESTAT(x, y, m)     St##x##y, m, St##x##y, St##x##y, { NAMES(x, y) }, { TAGS(x, y) }
-#define STAT(x, y, m)         CORESTAT(x, y, m)
+#define CORESTAT(x, y, measure, merge)     St##x##y, measure, St##x##y, St##x##y, merge, { NAMES(x, y) }, { TAGS(x, y) }
+#define STAT(x, y, measure, merge)         CORESTAT(x, y, measure, merge)
 
 //--------------------------------------------------------------------------------------------------------------------
 
 //These are the macros to use to define the different entries in the stats meta table
 //#define TIMESTAT(y) STAT(Time, y, SMeasureTimeNs)
-#define TIMESTAT(y) St##Time##y, SMeasureTimeNs, St##Time##y, St##Cycle##y##Cycles, { NAMES(Time, y) }, { TAGS(Time, y) }
-#define WHENSTAT(y) St##When##y, SMeasureTimestampUs, St##When##y, St##When##y, { WHENNAMES(When, y) }, { WHENTAGS(When, y) }
-#define NUMSTAT(y) STAT(Num, y, SMeasureCount)
-#define SIZESTAT(y) STAT(Size, y, SMeasureSize)
-#define LOADSTAT(y) STAT(Load, y, SMeasureLoad)
-#define SKEWSTAT(y) STAT(Skew, y, SMeasureSkew)
-#define NODESTAT(y) STAT(Node, y, SMeasureNode)
-#define PERSTAT(y) STAT(Per, y, SMeasurePercent)
-#define IPV4STAT(y) STAT(IPV4, y, SMeasureIPV4)
-#define CYCLESTAT(y) St##Cycle##y##Cycles, SMeasureCycle, St##Time##y, St##Cycle##y##Cycles, { NAMES(Cycle, y##Cycles) }, { TAGS(Cycle, y##Cycles) }
-#define ENUMSTAT(y) STAT(Enum, y, SMeasureEnum)
-#define COSTSTAT(y) STAT(Cost, y, SMeasureCost)
+#define TIMESTAT(y) St##Time##y, SMeasureTimeNs, St##Time##y, St##Cycle##y##Cycles, StatsMergeSum, { NAMES(Time, y) }, { TAGS(Time, y) }
+#define WHENSTAT(y) St##When##y, SMeasureTimestampUs, St##When##y, St##When##y, StatsMergeKeepNonZero, { WHENNAMES(When, y) }, { WHENTAGS(When, y) }
+#define NUMSTAT(y) STAT(Num, y, SMeasureCount, StatsMergeSum)
+#define SIZESTAT(y) STAT(Size, y, SMeasureSize, StatsMergeSum)
+#define LOADSTAT(y) STAT(Load, y, SMeasureLoad, StatsMergeMax)
+#define SKEWSTAT(y) STAT(Skew, y, SMeasureSkew, StatsMergeMax)
+#define NODESTAT(y) STAT(Node, y, SMeasureNode, StatsMergeNone)
+#define PERSTAT(y) STAT(Per, y, SMeasurePercent, StatsMergeReplace)
+#define IPV4STAT(y) STAT(IPV4, y, SMeasureIPV4, StatsMergeNone)
+#define CYCLESTAT(y) St##Cycle##y##Cycles, SMeasureCycle, St##Time##y, St##Cycle##y##Cycles, StatsMergeSum, { NAMES(Cycle, y##Cycles) }, { TAGS(Cycle, y##Cycles) }
+#define ENUMSTAT(y) STAT(Enum, y, SMeasureEnum, StatsMergeNone)
+#define COSTSTAT(y) STAT(Cost, y, SMeasureCost, StatsMergeSum)
 //--------------------------------------------------------------------------------------------------------------------
 
 class StatisticMeta
@@ -811,14 +808,15 @@ public:
     StatisticMeasure measure;
     StatisticKind serializeKind;
     StatisticKind rawKind;
+    StatsMergeAction mergeAction;
     const char * names[StNextModifier/StVariantScale];
     const char * tags[StNextModifier/StVariantScale];
 };
 
 //The order of entries in this table must match the order in the enumeration
-static const StatisticMeta statsMetaData[StMax] = {
-    { StKindNone, SMeasureNone, StKindNone, StKindNone, { "none" }, { "@none" } },
-    { StKindAll, SMeasureAll, StKindAll, StKindAll, { "all" }, { "@all" } },
+static constexpr const StatisticMeta statsMetaData[StMax] = {
+    { StKindNone, SMeasureNone, StKindNone, StKindNone, StatsMergeNone, { "none" }, { "@none" } },
+    { StKindAll, SMeasureAll, StKindAll, StKindAll, StatsMergeNone, { "all" }, { "@all" } },
     { WHENSTAT(GraphStarted) }, // Deprecated - use WhenStart
     { WHENSTAT(GraphFinished) }, // Deprecated - use WhenFinished
     { WHENSTAT(FirstRow) },
@@ -959,6 +957,18 @@ bool includeStatisticIfZero(StatisticKind kind)
 
 
 //--------------------------------------------------------------------------------------------------------------------
+
+extern jlib_decl StatsMergeAction queryMergeMode(StatisticKind kind)
+{
+    unsigned variant = queryStatsVariant(kind);
+    if (variant)
+        return queryMergeMode(queryMeasure(kind));
+
+    StatisticKind rawkind = (StatisticKind)(kind & StKindMask);
+    if (rawkind >= StKindNone && rawkind < StMax)
+        return statsMetaData[rawkind].mergeAction;
+    return StatsMergeNone;
+}
 
 StatisticMeasure queryMeasure(StatisticKind kind)
 {
@@ -1187,6 +1197,7 @@ unsigned __int64 mergeStatisticValue(unsigned __int64 prevValue, unsigned __int6
     switch (mergeAction)
     {
     case StatsMergeKeepNonZero:
+    case StatsMergeNone:
         if (prevValue)
             return prevValue;
         return newValue;
@@ -2322,6 +2333,7 @@ void CRuntimeStatistic::merge(unsigned __int64 otherValue, StatsMergeAction merg
     switch (mergeAction)
     {
     case StatsMergeKeepNonZero:
+    case StatsMergeNone:
         if (otherValue && !value)
         {
             unsigned __int64 zero = 0;
@@ -3860,6 +3872,11 @@ extern int registerStatsCategory(const char *longName, const char *shortName)
     return statsCategories.ordinality()-1;
 }
 
+
+static_assert(_elements_in(measureNames) == SMeasureMax+1 && !measureNames[SMeasureMax], "measureNames needs updating");
+static_assert(_elements_in(creatorTypeNames) == SCTmax+1 && !creatorTypeNames[SCTmax], "creatorTypeNames needs updating");
+static_assert(_elements_in(scopeTypeNames) == SSTmax+1 && !scopeTypeNames[SSTmax], "scopeTypeNames needs updating");
+
 static void checkKind(StatisticKind kind)
 {
     if (kind < StMax)
@@ -3902,23 +3919,20 @@ static void checkDistributedKind(StatisticKind kind)
 
 void verifyStatisticFunctions()
 {
-    static_assert(_elements_in(measureNames) == SMeasureMax+1 && !measureNames[SMeasureMax], "measureNames needs updating");
-    static_assert(_elements_in(creatorTypeNames) == SCTmax+1 && !creatorTypeNames[SCTmax], "creatorTypeNames needs updating");
-    static_assert(_elements_in(scopeTypeNames) == SSTmax+1 && !scopeTypeNames[SSTmax], "scopeTypeNames needs updating");
-
     //Check the various functions return values for all possible values.
     for (unsigned i1=SMeasureAll; i1 < SMeasureMax; i1++)
     {
         const char * prefix __attribute__((unused)) = queryMeasurePrefix((StatisticMeasure)i1);
         const char * name = queryMeasureName((StatisticMeasure)i1);
         assertex(queryMeasure(name, SMeasureMax) == i1);
+        if (i1 != SMeasureAll)
+            queryMergeMode((StatisticMeasure)i1);
     }
 
     for (StatisticScopeType sst = SSTnone; sst < SSTmax; sst = (StatisticScopeType)(sst+1))
     {
         const char * name = queryScopeTypeName(sst);
         assertex(queryScopeType(name, SSTmax) == sst);
-
     }
 
     for (StatisticCreatorType sct = SCTnone; sct < SCTmax; sct = (StatisticCreatorType)(sct+1))
@@ -3929,11 +3943,15 @@ void verifyStatisticFunctions()
 
     for (unsigned i2=StKindAll+1; i2 < StMax; i2++)
     {
-        checkDistributedKind((StatisticKind)i2);
+        StatisticKind kind = (StatisticKind)i2;
+        checkDistributedKind(kind);
+        queryMergeMode(kind);
+        assertex(queryMergeMode(kind) == queryMergeMode(queryMeasure(kind)));
     }
 }
 
-#ifdef _DEBUG
+
+#ifdef VERIFY_STATS
 MODULE_INIT(INIT_PRIORITY_STANDARD)
 {
     verifyStatisticFunctions();

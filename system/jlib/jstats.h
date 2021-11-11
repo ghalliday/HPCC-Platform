@@ -49,6 +49,8 @@ inline double cost_type2money(cost_type cost) { return ((double) cost) / 1E6; }
 
 enum StatsMergeAction
 {
+    StatsMergeUnknown,
+    StatsMergeNone,         // merge makes no sense
     StatsMergeKeepNonZero,
     StatsMergeReplace,
     StatsMergeSum,
