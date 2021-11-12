@@ -119,6 +119,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
         unsigned timeouts = 0;                 // How many consecutive timeouts have happened on the current request
         unsigned requestTime = 0;              // When we received the active requestToSend
         unsigned timeStamp = 0;                // When we last sent okToSend
+        unsigned permitsIssued = 0;            // How many I have been told I can send
 
     private:
         // Updated by receive_data thread, read atomically by receive_flow
@@ -325,10 +326,16 @@ class CReceiveManager : implements IReceiveManager, public CInterface
         Owned<ISocket> flow_socket;
         const unsigned flow_port;
         const unsigned maxSlotsPerSender;
+        const unsigned maxPermits;                  // Must be provided in the constructor
+        const unsigned minSlotsPerSender = 1;       // Could increase to prevent lots of small permits being granted
         std::atomic<bool> running = { false };
-        
+        unsigned permitsIssued = 0;
         SenderList pendingRequests;     // List of people wanting permission to send
         SenderList pendingPermits;      // List of people given permission to send
+
+    private:
+        inline void returnPermits(unsigned permits) { dbgassertex(permits >= permitsIssued); permitsIssued -= permits; }
+        inline unsigned allocatePermits(unsigned permits) { permitsIssued += permits; dbgassertex(permitsIssued <= maxPermits); return permits; }
 
         void enqueueRequest(UdpSenderEntry *requester, sequence_t flowSeq, sequence_t sendSeq)
         {
@@ -339,6 +346,8 @@ class CReceiveManager : implements IReceiveManager, public CInterface
                 // Fall through
             case flowType::send_completed:
                 pendingRequests.append(requester);
+                returnPermits(requester->permitsIssued);
+                requester->permitsIssued = 0;
                 requester->state = flowType::request_to_send;
                 break;
             case flowType::request_to_send:
@@ -356,6 +365,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
 
         void okToSend(UdpSenderEntry *requester, unsigned slots)
         {
+            assert(slots > 0);
             switch (requester->state)
             {
             case flowType::request_to_send:
@@ -363,10 +373,13 @@ class CReceiveManager : implements IReceiveManager, public CInterface
                 // Fall through
             case flowType::send_completed:
                 pendingPermits.append(requester);
+                requester->permitsIssued = allocatePermits(slots);
                 requester->state = flowType::ok_to_send;
                 break;
             case flowType::ok_to_send:
                 // Perhaps the sender never saw our permission? Already on queue...
+                returnPermits(requester->permitsIssued);
+                requester->permitsIssued = allocatePermits(slots);
                 break;
             default:
                 // Unexpected state, should never happen!
@@ -387,6 +400,8 @@ class CReceiveManager : implements IReceiveManager, public CInterface
                 pendingRequests.remove(requester);
                 break;
             case flowType::ok_to_send:
+                returnPermits(requester->permitsIssued);
+                requester->permitsIssued = 0;
                 pendingPermits.remove(requester);
                 break;
             case flowType::send_completed:
@@ -402,7 +417,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
 
     public:
         receive_receive_flow(CReceiveManager &_parent, unsigned flow_p, unsigned _maxSlotsPerSender)
-        : Thread("UdpLib::receive_receive_flow"), parent(_parent), flow_port(flow_p), maxSlotsPerSender(_maxSlotsPerSender)
+        : Thread("UdpLib::receive_receive_flow"), parent(_parent), flow_port(flow_p), maxSlotsPerSender(_maxSlotsPerSender), maxPermits(_parent.input_queue_size)
         {
         }
         
@@ -449,6 +464,12 @@ class CReceiveManager : implements IReceiveManager, public CInterface
                 enqueueRequest(sender, msg.flowSeq, msg.sendSeq);
                 break;
 
+            case flowType::send_start:
+                // Feels like this is the right code but works (marginally) better without this code here!
+                returnPermits(sender->permitsIssued);
+                sender->permitsIssued = allocatePermits(msg.packets);
+                break;
+
             case flowType::send_completed:
                 noteDone(sender, msg);
                 break;
@@ -476,7 +497,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
                         if (udpTraceLevel || udpTraceFlow || udpTraceTimeouts)
                         {
                             StringBuffer s;
-                            DBGLOG("permit to send %" SEQF "u to node %s timed out after %u ms, rescheduling", finger->flowSeq, finger->dest.getIpText(s).str(), udpRequestToSendAckTimeout);
+                            DBGLOG("permit %" SEQF "u to node %s (%u packets) timed out after %u ms, rescheduling", finger->flowSeq, finger->dest.getIpText(s).str(), finger->permitsIssued, udpRequestToSendAckTimeout);
                         }
                         UdpSenderEntry *next = finger->nextSender;
                         pendingPermits.remove(finger);
@@ -508,20 +529,24 @@ class CReceiveManager : implements IReceiveManager, public CInterface
             bool anyCanSend = false;
             for (UdpSenderEntry *finger = pendingRequests; finger != nullptr; finger = finger->nextSender)
             {
-                if (pendingPermits.length()>=udpMaxPendingPermits)
+                if (pendingPermits.length()>=udpMaxPendingPermits || permitsIssued==maxPermits)
                     break;
-                if (!slots) // || slots<minSlotsPerSender)
+
+                if (slots < minSlotsPerSender)
                 {
+                    //The number of slots may increase if (a) data is read off the input queue, or (b) a send_start adjusts the number of permits
                     timeout = 1;   // Slots should free up very soon!
                     break;
                 }
-                // If requester would not be able to send me any (because of the ones in flight) then wait
 
+                // If requester would not be able to send me any (because of the ones in flight) then wait
                 if (finger->canSendAny())
                 {
                     unsigned requestSlots = slots;
                     if (requestSlots>maxSlotsPerSender)
                         requestSlots = maxSlotsPerSender;
+                    if (requestSlots > maxPermits-permitsIssued)
+                        requestSlots = maxPermits-permitsIssued;
                     okToSend(finger, requestSlots);
                     slots -= requestSlots;
                     if (timeout > udpRequestToSendAckTimeout)

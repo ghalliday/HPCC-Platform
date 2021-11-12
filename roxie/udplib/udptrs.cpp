@@ -207,16 +207,20 @@ private:
     int     currentQNumPkts = 0;         // Current Queue Number of Consecutive Processed Packets.
     int     *maxPktsPerQ = nullptr;      // to minimise power function re-calc for every packet
 
-    void sendRequest(UdpRequestToSendMsg &msg)
+    void sendRequest(UdpRequestToSendMsg &msg, bool sendWithData)
     {
         try
         {
             if (udpTraceLevel > 3 || udpTraceFlow)
             {
                 StringBuffer s, s2;
-                DBGLOG("UdpSender[%s]: sending flowType::%s msg %" SEQF "u flowSeq %" SEQF "u to node=%s", msg.sourceNode.getTraceText(s2).str(), flowType::name(msg.cmd), msg.sendSeq, msg.flowSeq, ip.getIpText(s).str());
+                DBGLOG("UdpSender[%s]: sending flowType::%s msg %" SEQF "u flowSeq %" SEQF "u to node=%s %s",
+                       msg.sourceNode.getTraceText(s2).str(), flowType::name(msg.cmd), msg.sendSeq, msg.flowSeq, ip.getIpText(s).str(), sendWithData ? "<data>" : "<flow>");
             }
-            send_flow_socket->write(&msg, sizeof(UdpRequestToSendMsg));
+            if (sendWithData)
+                data_socket->write(&msg, sizeof(UdpRequestToSendMsg));
+            else
+                send_flow_socket->write(&msg, sizeof(UdpRequestToSendMsg));
             flowRequestsSent++;
         }
         catch(IException *e)
@@ -254,6 +258,18 @@ public:
     {
         return (packetsQueued.load(std::memory_order_relaxed) || (resendList && resendList->numActive()));
     }
+
+    void sendStart(unsigned packets)
+    {
+        UdpRequestToSendMsg msg;
+        msg.packets = packets;                 // Note this is how many we are actually going to send
+        msg.sendSeq = nextSendSequence;
+        msg.sourceNode = sourceIP;
+        msg.flowSeq = activeFlowSequence;
+        msg.cmd = flowType::send_start;
+        sendRequest(msg, false);
+    }
+
     void sendDone(unsigned packets)
     {
         //This function has a potential race condition with requestToSendNew:
@@ -284,7 +300,7 @@ public:
             msg.cmd = flowType::send_completed;
             requestExpiryTime = 0;
         }
-        sendRequest(msg);
+        sendRequest(msg, true);
         timeouts = 0;
     }
 
@@ -303,7 +319,7 @@ public:
             msg.flowSeq = ++activeFlowSequence;
             msg.sourceNode = sourceIP;
             requestExpiryTime = msTick() + udpRequestToSendAckTimeout;
-            sendRequest(msg);
+            sendRequest(msg, false);
         }
     }
 
@@ -333,7 +349,7 @@ public:
             msg.flowSeq = activeFlowSequence;
             msg.sourceNode = sourceIP;
             requestExpiryTime = msTick() + udpRequestToSendAckTimeout;
-            sendRequest(msg);
+            sendRequest(msg, false);
         }
     }
 
@@ -406,6 +422,7 @@ public:
 #endif
         }
         MemoryBuffer encryptBuffer;
+        sendStart(toSend.size());
         for (DataBuffer *buffer: toSend)
         {
             UdpPacketHeader *header = (UdpPacketHeader*) buffer->data;
