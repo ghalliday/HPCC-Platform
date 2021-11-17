@@ -338,24 +338,32 @@ bool PacketTracker::noteSeen(UdpPacketHeader &hdr)
     }
     if (delta < TRACKER_BITS)
     {
-        unsigned idx = (seq / 64) % TRACKER_DWORDS;
-        unsigned bit = seq % 64;
-        __uint64 bitm = U64C(1)<<bit;
-        duplicate = (seen[idx] & bitm) != 0;
-        seen[idx] |= bitm;
-        if (seq==base)
+        if (likely(seq==base))
         {
-            while (seen[idx] & bitm)
+            for (;;)
             {
                 // Important to update in this order, so that during the window where they are inconsistent we have
                 // false negatives rather than false positives
-                seen[idx] &= ~bitm;
                 base++;
-                idx = (base / 64) % TRACKER_DWORDS;
-                bit = base % 64;
-                bitm = U64C(1)<<bit;
+                if ((int)(base - hwm) > 0)
+                    break;
+                unsigned idx = (base / 64) % TRACKER_DWORDS;
+                unsigned bit = base % 64;
+                __uint64 bitm = U64C(1)<<bit;
+                if (likely(!(seen[idx] & bitm)))
+                    break;
+                seen[idx] &= ~bitm;
             }
         }
+        else
+        {
+            unsigned idx = (seq / 64) % TRACKER_DWORDS;
+            unsigned bit = seq % 64;
+            __uint64 bitm = U64C(1)<<bit;
+            duplicate = (seen[idx] & bitm) != 0;
+            seen[idx] |= bitm;
+        }
+
         // calculate new hwm, with some care for wrapping
         if ((int) (seq - hwm) > 0)
             hwm = seq;
@@ -515,6 +523,11 @@ class PacketTrackerTest : public CppUnit::TestFixture
     }
 
     void testReplay()
+    {
+        for (unsigned i=0; i < 10000000; i++)
+            testReplayx();
+    }
+    void testReplayx()
     {
         PacketTracker p;
         t(p,1,0x1);
