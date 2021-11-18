@@ -118,7 +118,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
         sequence_t sendSeq = 0;                // the sender's most recent sequence number from request-to-send, representing sequence number of next packet it will send
         unsigned timeouts = 0;                 // How many consecutive timeouts have happened on the current request
         unsigned requestTime = 0;              // When we received the active requestToSend
-        unsigned timeStamp = 0;                // When we last sent okToSend
+        unsigned permitTime = 0;               // When we last sent okToSend
 
     private:
         // Updated by receive_data thread, read atomically by receive_flow
@@ -171,6 +171,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
                 if (udpAssumeSequential && packetsSeen.hasGaps())
                     return true;
             }
+            //MORE: Should this be permitTime rather than requestTime?
             if (msTick()-requestTime > udpResendTimeout)
                 return true;
             return false;
@@ -374,7 +375,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
                 throwUnexpected();
                 break;
             }
-            requester->timeStamp = msTick();
+            requester->permitTime = msTick();
             requester->requestToSend(slots, myNode.getIpAddress());
         }
 
@@ -486,14 +487,16 @@ class CReceiveManager : implements IReceiveManager, public CInterface
                     if (pendingPermits)
                     {
                         unsigned now = msTick();
+                        unsigned udpPermitTimeout = udpRequestToSendTimeout; // This should be a separate configuration item (all with better documentation)
                         for (UdpSenderEntry *finger = pendingPermits; finger != nullptr; )
                         {
-                            if (now - finger->timeStamp >= udpRequestToSendAckTimeout)
+                            unsigned elapsed = now - finger->permitTime;
+                            if (elapsed >= udpPermitTimeout)
                             {
                                 if (udpTraceLevel || udpTraceFlow || udpTraceTimeouts)
                                 {
                                     StringBuffer s;
-                                    DBGLOG("permit to send %" SEQF "u to node %s timed out after %u ms, rescheduling", finger->flowSeq, finger->dest.getIpText(s).str(), udpRequestToSendAckTimeout);
+                                    DBGLOG("permit to send %" SEQF "u to node %s timed out after %u ms, rescheduling", finger->flowSeq, finger->dest.getIpText(s).str(), elapsed);
                                 }
                                 UdpSenderEntry *next = finger->nextSender;
                                 pendingPermits.remove(finger);
@@ -508,7 +511,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
                                 else
                                 {
                                     // Put it back on the queue (at the back)
-                                    finger->timeStamp = now;
+                                    finger->permitTime = 0;
                                     pendingRequests.append(finger);
                                     finger->state = flowType::request_to_send;
                                 }
@@ -516,7 +519,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
                             }
                             else
                             {
-                                timeout = finger->timeStamp + udpRequestToSendAckTimeout - now;
+                                timeout = udpPermitTimeout - elapsed;
                                 break;
                             }
                         }

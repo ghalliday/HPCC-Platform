@@ -869,6 +869,7 @@ class SimulatedUdpStressTest : public CppUnit::TestFixture
             udpRequestToSendTimeout = 10000;
             udpRequestToSendAckTimeout = 10000;
             udpMaxPendingPermits = 1;
+            udpResendTimeout = 10;
             udpTraceFlow = 0;
             isUdpTestMode = true;
             roxiemem::setTotalMemoryLimit(false, false, false, 20*1024*1024, 0, NULL, NULL);

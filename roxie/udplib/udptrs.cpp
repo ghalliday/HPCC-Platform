@@ -87,7 +87,7 @@ RelaxedAtomic<unsigned> flowRequestsSent;
 RelaxedAtomic<unsigned> flowPermitsReceived;
 RelaxedAtomic<unsigned> dataPacketsSent;
 
-unsigned udpResendTimeout = 10;  // in millseconds
+unsigned udpResendTimeout = 10;  // in millseconds.  How long should elapse after a packet has been sent before we assume it is lost
 bool udpResendLostPackets = true;
 bool udpAssumeSequential = false;
 
