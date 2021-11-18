@@ -43,6 +43,7 @@ unsigned udpRequestToSendAckTimeout = 10; // value in milliseconds
 #ifdef _DEBUG
 //#define TEST_DROPPED_PACKETS
 #endif
+#define TEST_DROPPED_PACKETS
 
 using roxiemem::DataBuffer;
 /*
@@ -248,6 +249,7 @@ public:
     std::atomic<unsigned> packetsQueued = { 0 };
     std::atomic<sequence_t> nextSendSequence = {0};
     std::atomic<sequence_t> activeFlowSequence = {0};
+    std::atomic<sequence_t> activePermitSeq{0};
     CriticalSection activeCrit;
 
     bool hasDataToSend() const
@@ -337,6 +339,11 @@ public:
         }
     }
 
+    void notePermitReceived(unsigned permitFlowSeq)
+    {
+        activePermitSeq = permitFlowSeq;
+    }
+
     void requestAcknowledged()
     {
         CriticalBlock b(activeCrit);
@@ -418,7 +425,8 @@ public:
             try
             {
 #ifdef TEST_DROPPED_PACKETS
-                if (((header->pktSeq & UDP_PACKET_RESENT)==0) && (header->pktSeq==0 || header->pktSeq==10 || ((header->pktSeq&UDP_PACKET_COMPLETE) != 0)))
+                //if (((header->pktSeq & UDP_PACKET_RESENT)==0) && (header->pktSeq==0 || header->pktSeq==10 || ((header->pktSeq&UDP_PACKET_COMPLETE) != 0)))
+                if (((header->pktSeq & UDP_PACKET_RESENT)==0) && (((header->pktSeq&UDP_PACKET_COMPLETE) != 0)))
                     DBGLOG("Deliberately dropping packet %" SEQF "u", header->sendSeq);
                 else
 #endif
@@ -461,6 +469,7 @@ public:
             else
                 ::Release(buffer);
         }
+        activePermitSeq = 0;
         sendDone(toSend.size());
         return totalSent;
     }
@@ -707,13 +716,23 @@ class CSendManager : implements ISendManager, public CInterface
                     }
 #endif
                     unsigned expireTime = dest.requestExpiryTime;
+                    unsigned curPermitSeq = dest.activePermitSeq.load();
+                    //Avoid resending a request to send if we have already received a permit
                     if (expireTime)
                     {
-                        int timeToGo = expireTime-now;
-                        if (timeToGo <= 0)
-                            dest.resendRequestToSend();
-                        else if ((unsigned) timeToGo < timeout)
-                            timeout = timeToGo;
+                        if (!curPermitSeq || (curPermitSeq != dest.activeFlowSequence))
+                        {
+                            int timeToGo = expireTime-now;
+                            if (timeToGo <= 0)
+                                dest.resendRequestToSend();
+                            else if ((unsigned) timeToGo < timeout)
+                                timeout = timeToGo;
+                        }
+                        else
+                        {
+                            StringBuffer s;
+                            DBGLOG("UdpSender[%s]: entry %s waiting to send with active permit", parent.myId, dest.ip.getIpText(s).str());
+                        }
                     }
                 }
                 if (udpStatsReportInterval && (now-lastResentReport > udpStatsReportInterval))
@@ -819,7 +838,8 @@ class CSendManager : implements ISendManager, public CInterface
                                 StringBuffer s;
                                 DBGLOG("UdpSender[%s]: received ok_to_send msg max %d packets from node=%s seq %" SEQF "u", parent.myId, f.max_data, f.destNode.getTraceText(s).str(), f.flowSeq);
                             }
-                            parent.data->ok_to_send(f);
+                            if (parent.data->ok_to_send(f))
+                                parent.receiversTable[f.destNode].notePermitReceived(f.flowSeq);
                             break;
 
                         case flowType::request_received:
