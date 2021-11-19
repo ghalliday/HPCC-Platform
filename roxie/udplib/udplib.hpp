@@ -176,11 +176,11 @@ extern UDPLIB_API unsigned udpLocalWriteSocketSize;
 extern UDPLIB_API unsigned udpMaxRetryTimedoutReqs;
 extern UDPLIB_API unsigned udpRequestToSendTimeout;
 extern UDPLIB_API unsigned udpRequestToSendAckTimeout;
+extern UDPLIB_API unsigned udpResendTimeout;  // in millseconds
 
 extern UDPLIB_API void stopAeronDriver();
 
 extern UDPLIB_API bool udpResendLostPackets;
-extern UDPLIB_API unsigned udpResendTimeout;  // in millseconds
 extern UDPLIB_API unsigned udpMaxPendingPermits;
 extern UDPLIB_API bool udpAssumeSequential;
 extern UDPLIB_API unsigned udpStatsReportInterval;

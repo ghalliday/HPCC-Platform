@@ -37,8 +37,9 @@
 
 unsigned udpOutQsPriority = 0;
 unsigned udpMaxRetryTimedoutReqs = 0; // 0 means off (keep retrying forever)
-unsigned udpRequestToSendTimeout = 0; // value in milliseconds - 0 means calculate from query timeouts
 unsigned udpRequestToSendAckTimeout = 10; // value in milliseconds
+unsigned udpRequestToSendTimeout = 0; // value in milliseconds - 0 means calculate from query timeouts
+unsigned udpResendTimeout = 10;  // in millseconds.  How long should elapse after a packet has been sent before we assume it is lost
 
 #ifdef _DEBUG
 //#define TEST_DROPPED_PACKETS
@@ -87,7 +88,6 @@ RelaxedAtomic<unsigned> flowRequestsSent;
 RelaxedAtomic<unsigned> flowPermitsReceived;
 RelaxedAtomic<unsigned> dataPacketsSent;
 
-unsigned udpResendTimeout = 10;  // in millseconds.  How long should elapse after a packet has been sent before we assume it is lost
 bool udpResendLostPackets = true;
 bool udpAssumeSequential = false;
 
