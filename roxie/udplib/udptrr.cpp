@@ -42,8 +42,141 @@
 
 #include <thread>
 
+/*
+
+The UDP transport layer uses the following timeouts:
+
+Timeouts:
+    udpFlowAckTimeout  - the maximum time that it is expected to take to receive an acknowledgement of a flow message (when one is sent) - should be small
+    udpGrantTimeout    - the maximum time that it is expected to take to grant a permit having received a request
+    updDataSendTimeout - the maximum time that is is expected to send the data once a permit has been granted.
+    udpResendTimeout   - the time that should have elapsed before a missing packet is resent (...unconvinced this is a good idea)
+
+General flow:
+-------------
+The general flow is as follows:
+
+On the sender:
+* When data becomes available (and none was previously present)
+  - Send a request to send to the receiver flow port.  Set timeout to ack timeout.
+
+* When receive "request_received"
+  - Set timeout to udpGrantTimeout
+
+* When receive ok_to_send, add the permit to a permit queue.
+  - Mark target as permit pending (to avoid resending requests)
+
+* Periodically:
+  If permit requested, timeout has expired, and permit not received resubmit request (with ack timeout)
+
+* When a permit is popped from the queue
+  - gather packets to resend that are not recorded as received in the header sent by the receiver
+  - gather any extra data packets to send up to the permit size.
+  - Send a begin_send [to the ? port]
+  - Send the data packets
+  - if no more data (and nothing in the resend list) send a send_done to data port
+    else send a request_to_send_more to the data port, and set re-request timeout to udpDataSendTimeout.
+
+On the receiver:
+* When receive request_to_send:
+  - if flowId is < prevFlow id (within a small window) ignore the request.  (But be careful if a server has restarted...)
+  - If sender has an active permit, remove from permits list and free up the permit [Alternative suggestion below if flowid matches]
+  - Add to requests list
+  - Send an acknowledgement [ Not always done at the moment ]
+  - check to grant new permits
+
+* When receive begin_send
+  - Adjust the permit to the actual number of packets being sent
+  - check to grant new permits
+
+* When receive send_completed:
+  - remove from permits list (and free up the permit)
+  - grant to grant new permits
+
+* When receive request_to_send_more:
+  - Treat as send_complete, followed by a request_to_send.
+
+Behaviour on lost flow messages
+-------------------------------
+* request_to_send.
+  - sender will re-request fairly quickly
+  - receiver needs no special support
+  => delay of ack timeout for this sender to start sending data
+
+* request_received
+  - sender will re-request fairly quickly
+  - receiver needs to acknowledge duplicate requests to send (but ignore requests with a lower flow id, since they have arrived out of order)
+  => extra flow message, but no delay since receiver will still go ahead with allocating permits.
+
+* ok_to_send
+  - sender will re-request if not received within a time limit
+  - receiver will remove permit after timeout, and grant new permits
+  - if a receiver gets a request to send for an active permit, it should probably reissue the permit rather than requeuing the request
+  => the available permits will be reduced by the number allocated to the sender.  If multiple permits are not supported no data will be received by this node.
+
+* begin_send
+  - allocated permits are not reduced as quickly as they could be
+  => input queue will not have as much data sent to it, (reducing the number of parallel sends?)
+
+* send_done
+  - allocated permit will last longer than it needs to.
+  => similar to ok_to_send: reduced permits and delay in receiving any extra data if only a single permit is allowed.
+
+* request_to_send_more
+  - allocated permit will last longer than it needs to
+  - sender will eventually send a new request-to-send after the DataSend timeout
+  => reduced permits and no data received for a while if a single permit
+
+* data packet
+  - the next flow message from the receiver will contain details of which packets have been received.
+  - the next permit will possibly be used to send some of the missing packets (see suggestions for changes from current)
+  => collator will not be able to combine and pass data stream onto the activities.  Receiver memory consumption will go up.
+
+Timeout problems
+----------------
+For each of the timeouts, what happens if they are set too high, or too low, and what is an estimate for a "good" value?
+
+* udpFlowAckTimeout
+  Too high: delay in sending data if a request_to_send/request_received is lost
+  Too low: flow control cannot acknowledge quickly enough, and receiver flow control is flooded.
+  Suggestion: Should keep low, but avoid any risk of flooding.  10 times the typical time to process a request?
+* udpGrantTimeout
+  Too high: Lost ok_to_send messages will reduce the number of permits for a long time
+  Too low: Receiver will be flooded with requests to send when large numbers of nodes want to send.
+  Suggestion: Better to be too low than too high.  Similar to udpDataSendTimeout?  10 * the ack timeout?
+              (If lower than the udpDataSendTimeout then the permit could be resent)
+* updDataSendTimeout
+  Too high: lost send_done/request_to_send_more will reduce the number of permits, and delay the sender
+  Too low: permits will expire while the data is being transferred - slots will be over-committed.
+           sender will potentially re-request to send before all the data has been sent over the wire
+  Suggestion: If multiple permits, probably better to be too high than too low.
+              E.g. The time to send and receive the data for all/half the slots?
+
+Conclusions
+-----------
+Some conclusions from walking through the issues:
+
+* We need to support multiple permits, otherwise lost send_complete or ok_to_send flow messages will lead to periods when
+  no data is being received.  (Unless we add acknowledgements for those messages.)
+* We want to retain separate data port and a flow port - otherwise flow requests from other senders will be held up by data.
+  send_done and request_to_send_more should be sent on the data port though (so they don't overtake the data).
+
+Questions/suggestions/future
+----------------------------
+- Currently missing packets are not resent within udpResendTimeout.  Does this make sense?  I suspect only on a network where OOO/lost packets
+  are *very* common.
+- senders should send all missing packets - (currently it is limited by the permit size)
+- Should "begin" send go to the data port or the flow port.  Flow port - since this will allow permits to be adjusted more quickly (although what about thread priorities?)
+- What should the relative priorities of the receive flow and data threads be?
+- Should the receiver immediately send a permit of 0 blocks to the receiver on send_complete/request_to_send_more to ensure missing
+  blocks are sent as quickly as possible (and sender memory is freed up)?
+- Should ok_to_send also have an acknowledgement?
+- Switch to using ns for the timeout values - so more detailed response timings can be gathered/reported
+
+*/
 using roxiemem::DataBuffer;
 using roxiemem::IRowManager;
+
 
 unsigned udpMaxPendingPermits = 1;
 
