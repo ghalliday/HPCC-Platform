@@ -386,6 +386,28 @@ HqlGram::HqlGram(HqlGram & container, IHqlScope * _containerScope, IFileContents
     globalImportPending = false;
 }
 
+// Used for parsing a constant expression inside the preprocessor.
+HqlGram::HqlGram(HqlGram & container, IHqlScope * _containerScope, HqlLex * _lexer)
+: lookupCtx(container.lookupCtx)
+{
+    containerParser = &container;
+
+    init(container.globalScope, _containerScope);
+    parseScope.set(container.parseScope);
+    sourcePath.set(container.sourcePath);
+    inSignedModule = container.inSignedModule;// || _text->isImplicitlySigned();
+    errorHandler = lookupCtx.errs;
+    moduleName = containerScope->queryId();
+
+    donatedLexer = true;
+    constantBraNesting = 0;
+    lexObject = _lexer;
+    forceResult = true;
+    parsingTemplateAttribute = false;
+    parseConstantText = true;
+    globalImportPending = false;
+}
+
 //Used for parsing members of a forward module
 HqlGram::HqlGram(HqlGramCtx & parent, IHqlScope * _containerScope, IFileContents * _text, IXmlScope *xmlScope)
 : lookupCtx(parent.lookupCtx)
@@ -514,7 +536,8 @@ void HqlGram::init(IHqlScope * _globalScope, IHqlScope * _containerScope)
 HqlGram::~HqlGram()
 {
     errorHandler = NULL;
-    delete lexObject;
+    if (!donatedLexer)
+        delete lexObject;
 
     cleanCurTransform();
 }                        
@@ -522,7 +545,8 @@ HqlGram::~HqlGram()
 int HqlGram::yyLex(attribute * yylval, const short * activeState)
 {
     if (checkAborting()) return 0;
-    return lexObject->yyLex(*yylval, LEXall, activeState);
+    int ret = lexObject->yyLex(*yylval, LEXall, activeState);
+    return ret;
 }
 
 
@@ -3718,12 +3742,21 @@ void HqlGram::onOpenBra()
     //see setActiveAttrs for more details.
     validAttributesStack.append(pendingAttributes);
     pendingAttributes = NULL;
+    constantBraNesting++;
 }
 
 void HqlGram::onCloseBra()
 {
     if (validAttributesStack.ordinality())
         validAttributesStack.pop();
+    constantBraNesting--;
+}
+
+bool HqlGram::isEndOfConstantParameter() const
+{
+    if (constantBraNesting == 0)
+        return true;
+    return (constantBraNesting == 0);
 }
 
 IHqlExpression *HqlGram::lookupSymbol(IHqlScope * scope, IIdAtom * searchName)

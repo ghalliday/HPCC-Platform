@@ -23,6 +23,7 @@
 class CXmlScope : public IXmlScope, public CInterface
 {
     friend class CXmlScopeIterator;
+    friend IXmlScope* createdChildXmlScope(IXmlScope * parent);
 
 protected:
     IPropertyTree* root;
@@ -158,6 +159,8 @@ bool CXmlScope::getValue(const char* x, StringBuffer &ret)
 /* return false if the name is already defined. */
 bool CXmlScope::declareValue(const char *name)
 {
+    if (strieq(name, "dests"))
+        printf("\n");
     if (locals && locals->hasProp(name))
         return false;
     
@@ -230,4 +233,10 @@ HQL_API IXmlScope* loadXML(const char* xml)
 HQL_API IXmlScope* createXMLScope()
 {
     return loadXML("<?xml version=\"1.0\" encoding=\"UTF-8\"?><root/>");
+}
+
+HQL_API IXmlScope* createdChildXmlScope(IXmlScope * parent)
+{
+    CXmlScope * cast = static_cast<CXmlScope  *>(parent);
+    return new CXmlScope(cast->root, cast);
 }

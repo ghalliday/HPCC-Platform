@@ -1987,6 +1987,8 @@ FUNCTIONMACRO|MACRO {
                     }
 ")"                 {
                         setupdatepos;
+                        if (lexer->isEndOfConstantParameter())
+                            return END_NESTED_BRACKET;
                         lexer->onCloseBra();
                         return ')';
                     }

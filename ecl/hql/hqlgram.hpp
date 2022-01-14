@@ -31,6 +31,12 @@
 
 #include "hqlxmldb.hpp"
 
+//Two pseudo-tokens that are used to mark the end of a preprocessor parameter
+#define END_NESTED_THRESHOLD -1024
+#define END_NESTED_BASE      (END_NESTED_THRESHOLD - 256)
+#define END_NESTED_BRACKET   (END_NESTED_BASE+')')
+#define END_NESTED_COMMA     (END_NESTED_BASE+',')
+
 #define EXPORT_FLAG 1
 #define VIRTUAL_FLAG 2
 #define SHARED_FLAG 4
@@ -432,6 +438,7 @@ class HqlGram : implements IErrorReceiver, public CInterface
 
 public:
     HqlGram(HqlGram & container, IHqlScope * containerScope, IFileContents * text, IXmlScope *xmlScope); // parse a constant expression
+    HqlGram(HqlGram & container, IHqlScope * containerScope, HqlLex * lexer); // parse a constant expression
     HqlGram(HqlGramCtx &parent, IHqlScope * containerScope, IFileContents * text, IXmlScope *xmlScope);  // parse a forward declaration
     HqlGram(IHqlScope * _globalScope, IHqlScope * _containerScope, IFileContents * text, HqlLookupContext & _ctx, IXmlScope *xmlScope, bool _hasFieldMap, bool loadImplicit);
     virtual ~HqlGram();
@@ -787,6 +794,7 @@ public:
 
     void onOpenBra();
     void onCloseBra();
+    bool isEndOfConstantParameter() const;
 
     int yyLex(attribute * yylval, const short * activeState);
 
@@ -1009,6 +1017,8 @@ protected:
     ConstPointerArray validAttributesStack;
     unsigned minimumScopeIndex;
     const TokenMap * pendingAttributes;
+    unsigned constantBraNesting = 10000;    // Large enough to never be decremented to 0
+    bool donatedLexer = false;
 
     void setIdUnknown(bool expected) { expectedUnknownId = expected; }
     bool getIdUnknown() { return expectedUnknownId; }
@@ -1229,6 +1239,7 @@ class HqlLex
 
         IHqlExpression *lookupSymbol(IIdAtom * name, const attribute& errpos);
         void reportError(const attribute & returnToken, int errNo, const char *format, ...) __attribute__((format(printf, 4, 5)));
+        void reportError(const ECLlocation & pos, int errNo, const char *format, ...) __attribute__((format(printf, 4, 5)));
         void reportWarning(WarnErrorCategory category, const attribute & returnToken, int warnNo, const char *format, ...) __attribute__((format(printf, 5, 6)));
 
         void beginNestedHash(unsigned kind) { hashendKinds.append(kind); hashendFlags.append(0); }
@@ -1246,6 +1257,8 @@ class HqlLex
         }
         inline void onOpenBra() { yyParser->onOpenBra(); }
         inline void onCloseBra() { yyParser->onCloseBra(); }
+        bool isEndOfConstantParameter() const { return yyParser->isEndOfConstantParameter(); }
+
         inline ISourcePath * querySourcePath() const { return sourcePath; }
 
         bool isMacroActive(IHqlExpression *expr);
@@ -1254,9 +1267,11 @@ class HqlLex
         void pushText(IFileContents * text, int startLineNo, int startColumn);
         void pushText(const char *s, int startLineNo, int startColumn);
         bool getParameter(StringBuffer &curParam, const char* for_what, int* startLine=NULL, int* startCol=NULL);
-        IValue *foldConstExpression(const attribute & errpos, IHqlExpression * expr, IXmlScope *xmlScope, int startLine, int startCol);
-        IValue *parseConstExpression(const attribute & errpos, StringBuffer &curParam, IXmlScope *xmlScope, int line, int col);
-        IValue *parseConstExpression(const attribute & errpos, IFileContents * contents, IXmlScope *xmlScope, int line, int col);
+        IValue *foldConstExpression(const ECLlocation & errpos, IHqlExpression * expr, IXmlScope *xmlScope, int startLine, int startCol);
+        IValue *parseConstExpression(const ECLlocation & errpos, StringBuffer &curParam, IXmlScope *xmlScope, int line, int col);
+        IValue *parseConstExpression(const ECLlocation & errpos, IFileContents * contents, IXmlScope *xmlScope, int line, int col);
+        IHqlExpression * parseParameter(const char* for_what);
+
         IHqlExpression * parseECL(IFileContents * contents, IXmlScope *xmlScope, int startLine, int startCol);
         IHqlExpression * parseECL(const char * curParam, IXmlScope *xmlScope, int startLine, int startCol);
         void setMacroParam(const attribute & errpos, IHqlExpression* funcdef, StringBuffer& curParam, IIdAtom * argumentName, unsigned& parmno,IProperties *macroParms);

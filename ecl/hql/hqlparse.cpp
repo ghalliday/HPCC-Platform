@@ -263,6 +263,7 @@ void HqlLex::pushText(IFileContents * text, int startLineNo, int startColumn)
     bool useLegacyImport = hasLegacyImportSemantics();
     bool useLegacyWhen = hasLegacyWhenSemantics();
     inmacro = new HqlLex(yyParser, text, NULL, NULL);
+//    inmacro->setParentLex(this);
     inmacro->setLegacyImport(useLegacyImport);
     inmacro->setLegacyWhen(useLegacyWhen);
     inmacro->set_yyLineNo(startLineNo);
@@ -286,6 +287,7 @@ void HqlLex::pushText(const char *s)
     bool useLegacyImport = hasLegacyImportSemantics();
     bool useLegacyWhen = hasLegacyWhenSemantics();
     inmacro = new HqlLex(yyParser, macroContents, NULL, NULL);
+//    inmacro->setParentLex(this);
     inmacro->setLegacyImport(useLegacyImport);
     inmacro->setLegacyWhen(useLegacyWhen);
     inmacro->set_yyLineNo(yyLineNo);
@@ -527,6 +529,7 @@ void HqlLex::pushMacro(IHqlExpression *expr)
         bool useLegacyImport = hasLegacyImportSemantics();
         bool useLegacyWhen = hasLegacyWhenSemantics();
         inmacro = new HqlLex(yyParser, macroContents, NULL, LINK(expr));
+        inmacro->setParentLex(this);
         inmacro->setLegacyImport(useLegacyImport);
         inmacro->setLegacyWhen(useLegacyWhen);
 
@@ -537,7 +540,6 @@ void HqlLex::pushMacro(IHqlExpression *expr)
         /* set the lineno and column in the original source as the starting point */
         inmacro->yyLineNo = macroBodyExpr->getStartLine();
         inmacro->yyColumn = macroBodyExpr->getStartColumn();
-        inmacro->setParentLex(this);
         inmacro->macroParms.setown(macroParms.getClear());
         inmacro->hashDollar = macroBodyExpr->queryBody()->queryName();
     }
@@ -613,9 +615,9 @@ void HqlLex::processEncrypted()
     bool useLegacyImport = hasLegacyImportSemantics();
     bool useLegacyWhen = hasLegacyWhenSemantics();
     inmacro = new HqlLex(yyParser, decryptedContents, NULL, NULL);
+    inmacro->setParentLex(this);
     inmacro->setLegacyImport(useLegacyImport);
     inmacro->setLegacyWhen(useLegacyWhen);
-    inmacro->setParentLex(this);
     inmacro->encrypted = true;
 }
 
@@ -669,6 +671,61 @@ bool HqlLex::getParameter(StringBuffer &curParam, const char* for_what, int* sta
     }
 }
 
+IHqlExpression * HqlLex::parseParameter(const char* for_what)
+{
+    Owned<IHqlScope> scope = createScope();
+
+    HqlGram * savedParser = yyParser;
+    HqlGram parser(*yyParser, scope, this);
+    yyParser = &parser;
+    Linked<IXmlScope> savedXmlScope = xmlScope;
+//    Owned<IXmlScope> savedXmlScope = xmlScope;
+//    if (xmlScope)
+//        xmlScope = createdChildXmlScope(xmlScope);
+
+    OwnedHqlExpr ret = parser.yyParse(false, false);
+
+    ::Release(xmlScope);
+    xmlScope = savedXmlScope.getClear();
+
+    HqlLex * lexer = this;
+    do
+    {
+        assertex(lexer->yyParser == &parser);
+        lexer->yyParser = savedParser;
+        lexer = lexer->inmacro;
+    } while (lexer);
+
+    return ret.getClear();
+#if 0
+    HqlGram * savedParser = yyParser;
+    HqlLex * rootLexer = this;
+    while (rootLexer->parentLex)
+        rootLexer = rootLexer->parentLex;
+
+    HqlGram parser(*yyParser, scope, rootLexer);
+    {
+        HqlLex * lexer = this;
+        do
+        {
+            assertex(lexer->yyParser == savedParser);
+            lexer->yyParser = &parser;
+            lexer = lexer->parentLex;
+        } while (lexer);
+    }
+    OwnedHqlExpr ret = parser.yyParse(false, false);
+    {
+        HqlLex * lexer = this;
+        do
+        {
+            lexer->yyParser = savedParser;
+            lexer = lexer->parentLex;
+        } while (lexer);
+    }
+    return ret.getClear();
+#endif
+}
+
 void HqlLex::doSkipUntilEnd(attribute & returnToken, const char * forwhat)
 {
     while (skipNesting)
@@ -689,12 +746,20 @@ void HqlLex::doSkipUntilEnd(attribute & returnToken, const char * forwhat)
 void HqlLex::doIf(attribute & returnToken, bool isElseIf)
 {
     StringBuffer forwhat;
-    int line = returnToken.pos.lineno, col = returnToken.pos.column;
     forwhat.appendf("#IF(%d,%d)",returnToken.pos.lineno,returnToken.pos.column);
 
     int tok = yyLex(returnToken, LEXnone, 0);
     if (tok != '(')
         reportError(returnToken, ERR_EXPECTED_LEFTCURLY, "( expected"); // MORE - make it fatal!
+
+    ECLlocation location = returnToken.pos;
+#if 1
+    OwnedHqlExpr parameter = parseParameter(forwhat.str());
+    Owned<IValue> value = foldConstExpression(location, parameter, xmlScope, location.lineno, location.column);
+    if (lastToken != END_NESTED_BRACKET)
+        reportError(returnToken, ERR_EXPECTED_LEFTCURLY, ") expected"); // MORE - make it fatal!
+    onCloseBra();
+#else
     StringBuffer curParam("(");
     if (getParameter(curParam, forwhat.str()))
     {
@@ -704,7 +769,8 @@ void HqlLex::doIf(attribute & returnToken, bool isElseIf)
             ;
     }
     curParam.append(')');
-    Owned<IValue> value = parseConstExpression(returnToken, curParam, queryTopXmlScope(),line,col);
+    Owned<IValue> value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope(),location.lineno,location.column);
+#endif
     if (value && !value->getBoolValue())
     {
         setHashEndFlags(0);
@@ -854,7 +920,7 @@ void HqlLex::doExpand(attribute & returnToken)
             ;
     }
     curParam.append(')');
-    Owned<IValue> value = parseConstExpression(returnToken, curParam, queryTopXmlScope(),startLine-1,startCol);
+    Owned<IValue> value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope(),startLine-1,startCol);
     if (value)
     {
         StringBuffer buf;
@@ -888,6 +954,14 @@ void HqlLex::doSet(attribute & returnToken, bool append)
         reportError(returnToken, ERR_EXPECTED_COMMA, ", expected");
         return;
     }
+
+#if 1
+    OwnedHqlExpr parameter = parseParameter(forwhat.str());
+    IValue * value = foldConstExpression(returnToken.pos, parameter, queryTopXmlScope(), returnToken.pos.lineno, returnToken.pos.column);
+    if (lastToken != END_NESTED_BRACKET)
+        reportError(returnToken, ERR_EXPECTED_LEFTCURLY, ") expected"); // MORE - make it fatal!
+    onCloseBra();
+#else
     StringBuffer curParam("(");
 
     int startLine, startCol;
@@ -899,7 +973,8 @@ void HqlLex::doSet(attribute & returnToken, bool append)
             ;
     }
     curParam.append(')');
-    IValue *value = parseConstExpression(returnToken, curParam, queryTopXmlScope(),startLine-1,startCol);
+    IValue *value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope(),startLine-1,startCol);
+#endif
     if (value)
     {
         StringBuffer buf;
@@ -925,7 +1000,7 @@ void HqlLex::doLine(attribute & returnToken)
     bool moreParams = getParameter(curParam, forwhat.str(), &line, &col);
     curParam.append(')');
 
-    IValue *value = parseConstExpression(returnToken, curParam, queryTopXmlScope(),line,col);
+    IValue *value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope(),line,col);
     if (value && value->getTypeCode()==type_int)
     {
         returnToken.pos.lineno = yyLineNo = (int)value->getIntValue();
@@ -945,7 +1020,7 @@ void HqlLex::doLine(attribute & returnToken)
                 ;
         }
         curParam.append(')');
-        IValue *value = parseConstExpression(returnToken, curParam, queryTopXmlScope(),startLine-1,startCol);
+        IValue *value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope(),startLine-1,startCol);
         if (value && value->getTypeCode()==type_string)
         {
             StringBuffer buf;
@@ -1043,7 +1118,7 @@ void HqlLex::doError(attribute & returnToken, bool isError)
     }
     curParam.append(')');
     StringBuffer buf;
-    OwnedIValue value = parseConstExpression(returnToken, curParam, queryTopXmlScope(),startLine-1,startCol);
+    OwnedIValue value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope(),startLine-1,startCol);
     if (value)
     {
         value->getStringValue(buf);
@@ -1148,7 +1223,7 @@ void HqlLex::doTrace(attribute & returnToken)
             ;
     }
     curParam.append(')');
-    Owned<IValue> value = parseConstExpression(returnToken, curParam, queryTopXmlScope(),startLine-1,startCol);
+    Owned<IValue> value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope(),startLine-1,startCol);
     if (value)
     {
         StringBuffer buf;
@@ -1567,7 +1642,7 @@ void HqlLex::checkNextLoop(const attribute & errpos, bool first, int startLine, 
 #ifdef TIMING_DEBUG
             MTIME_SECTION(timer, "HqlLex::checkNextLoopcond");
 #endif
-            Owned<IValue> value = parseConstExpression(errpos, forFilter, subscope,startLine,startCol);
+            Owned<IValue> value = parseConstExpression(errpos.pos, forFilter, subscope,startLine,startCol);
             filtered = !value || !value->getBoolValue();
         }
         else
@@ -1803,7 +1878,7 @@ IHqlExpression *HqlLex::parseECL(const char * text, IXmlScope *xmlScope, int sta
 }
 
 
-IValue *HqlLex::foldConstExpression(const attribute & errpos, IHqlExpression * expr, IXmlScope *xmlScope, int startLine, int startCol)
+IValue *HqlLex::foldConstExpression(const ECLlocation & errpos, IHqlExpression * expr, IXmlScope *xmlScope, int startLine, int startCol)
 {
     OwnedIValue value;
     if (expr)
@@ -1840,7 +1915,7 @@ IValue *HqlLex::foldConstExpression(const attribute & errpos, IHqlExpression * e
     return value.getClear();
 }
 
-IValue *HqlLex::parseConstExpression(const attribute & errpos, StringBuffer &curParam, IXmlScope *xmlScope, int startLine, int startCol)
+IValue *HqlLex::parseConstExpression(const ECLlocation & errpos, StringBuffer &curParam, IXmlScope *xmlScope, int startLine, int startCol)
 {
 #ifdef TIMING_DEBUG
     MTIME_SECTION(timer, "HqlLex::parseConstExpression");
@@ -1849,7 +1924,7 @@ IValue *HqlLex::parseConstExpression(const attribute & errpos, StringBuffer &cur
     return foldConstExpression(errpos, expr, xmlScope, startLine, startCol);
 }
 
-IValue *HqlLex::parseConstExpression(const attribute & errpos, IFileContents * text, IXmlScope *xmlScope, int startLine, int startCol)
+IValue *HqlLex::parseConstExpression(const ECLlocation & errpos, IFileContents * text, IXmlScope *xmlScope, int startLine, int startCol)
 {
 #ifdef TIMING_DEBUG
     MTIME_SECTION(timer, "HqlLex::parseConstExpression");
@@ -1909,7 +1984,7 @@ void HqlLex::doMangle(attribute & returnToken, bool de)
             ;
     }
     curParam.append(')');
-    IValue *value = parseConstExpression(returnToken, curParam, queryTopXmlScope(), line, col);
+    IValue *value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope(), line, col);
     if (value)
     {
         const char *str = value->getStringValue(curParam.clear());
@@ -2184,6 +2259,17 @@ void HqlLex::reportError(const attribute & returnToken, int errNo, const char *f
     }
 }
 
+void HqlLex::reportError(const ECLlocation & pos, int errNo, const char *format, ...)
+{
+    if (yyParser)
+    {
+        va_list args;
+        va_start(args, format);
+        yyParser->reportErrorVa(errNo, pos, format, args);
+        va_end(args);
+    }
+}
+
 void HqlLex::reportWarning(WarnErrorCategory category, const attribute & returnToken, int warnNo, const char *format, ...)
 {
     if (yyParser)
@@ -2373,6 +2459,11 @@ int HqlLex::yyLex(attribute & returnToken, LexerFlags lookupFlags, const short *
                 lastToken = ret;
                 return ret;
             }
+            if (ret <= END_NESTED_THRESHOLD)
+            {
+                lastToken = ret;
+                return ret;
+            }
 
 #if defined(TRACE_MACRO)
             DBGLOG("MACRO>> inmacro %p deleted\n", inmacro);
@@ -2417,7 +2508,7 @@ int HqlLex::yyLex(attribute & returnToken, LexerFlags lookupFlags, const short *
                 reportError(returnToken, ERR_COMMENT_UNENDED,"BEGINC++ or EMBED is not terminated");
             else if (inMultiString)
                 reportError(returnToken, ERR_COMMENT_UNENDED,"Multiline string constant is not terminated");
-            if (hashendKinds.ordinality())
+            if (hashendKinds.ordinality() && !isEndOfConstantParameter())
             {
                 StringBuffer msg("Unexpected EOF: ");
                 msg.append(hashendKinds.ordinality()).append(" more #END needed");

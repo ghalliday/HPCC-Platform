@@ -73,5 +73,6 @@ interface IEclRepository;
 
 HQL_API IXmlScope* loadXML(const char* filename);
 HQL_API IXmlScope* createXMLScope();
+HQL_API IXmlScope* createdChildXmlScope(IXmlScope * parent);
 
 #endif
