@@ -18,6 +18,7 @@
 #include "platform.h"
 #include <string.h>
 #include <limits.h>
+#include <algorithm>
 #include "jtask.hpp"
 #include "jlog.hpp"
 #include "jqueue.hpp"
@@ -40,6 +41,12 @@ class ATaskProcessors;
 static thread_local ATaskProcessor * activeTaskProcessor = nullptr;
 
 //---------------------------------------------------------------------------------------------------------------------
+
+void CTask::spawnOwnedChildTask(CTask * ownedTask)
+{
+    assertex(activeTaskProcessor);
+    activeTaskProcessor->enqueueOwnedChildTask(ownedTask);
+}
 
 void CTask::setException(IException * e)
 {
@@ -480,6 +487,15 @@ ATaskProcessor * queryCurrentTaskProcessor()
 
 //---------------------------------------------------------------------------------------------------------------------
 
+static unsigned maxTasks = (unsigned)-1;
+static unsigned maxIOTasks = (unsigned)-1;
+
+void setTaskLimits(unsigned _maxCpuTasks, unsigned _maxIOTasks)
+{
+    maxTasks = _maxCpuTasks;
+    maxIOTasks = _maxIOTasks;
+}
+
 TaskScheduler::TaskScheduler(unsigned _numThreads) : numThreads(_numThreads)
 {
     processors = new CTaskProcessor * [numThreads];
@@ -509,12 +525,14 @@ TaskScheduler::~TaskScheduler()
 
 extern jlib_decl ITaskScheduler & queryTaskScheduler()
 {
-    return *querySingleton(taskScheduler, singletonCs, [] { return new TaskScheduler(getAffinityCpus()); });
+    unsigned numTasks = std::min(maxTasks, getAffinityCpus());
+    return *querySingleton(taskScheduler, singletonCs, [ numTasks ] { return new TaskScheduler(numTasks); });
 }
 
 extern jlib_decl ITaskScheduler & queryIOTaskScheduler()
 {
-    return *querySingleton(iotaskScheduler, singletonCs, [] { return new TaskScheduler(getAffinityCpus() * 2); });
+    unsigned numTasks = std::min(maxIOTasks, getAffinityCpus() * 2);
+    return *querySingleton(iotaskScheduler, singletonCs, [ numTasks ] { return new TaskScheduler(numTasks); });
 }
 
 //---------------------------------------------------------------------------------------------------------------------

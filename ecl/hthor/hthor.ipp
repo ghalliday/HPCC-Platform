@@ -1135,6 +1135,7 @@ public:
         {
             const void * * rows = rowsToSort.getBlock(finger);
             const void * row = rows[finger];
+            __builtin_prefetch(row);
             rows[finger++] = NULL;
             return row;
         }

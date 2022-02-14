@@ -41,6 +41,10 @@ public:
     {
         numPredecessors.fetch_add(1);
     }
+    void incPred(unsigned numExtra)
+    {
+        numPredecessors.fetch_add(numExtra);
+    }
     // Return true if this is now available to execute.
     bool notePredDone()
     {
@@ -51,6 +55,14 @@ public:
     {
         return nullptr;
     }
+
+    void setNumPredecessors(unsigned _numPred)
+    {
+        numPredecessors.store(_numPred);
+    }
+
+    // Called within an executing task to start a child task - will be pushed onto the local task queue
+    void spawnOwnedChildTask(CTask * ownedTask);
 
     //Set an exception (if one has not already been set), which will be thrown after waiting is complete
     void setException(IException * e);
@@ -169,5 +181,7 @@ protected:
     std::function<void ()> func;
 };
 
+static constexpr unsigned UnlimitedTasks = (unsigned)-1;
+void jlib_decl setTaskLimits(unsigned _maxCpuTasks, unsigned _maxIOTasks);
 
 #endif
