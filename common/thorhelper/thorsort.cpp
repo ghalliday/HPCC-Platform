@@ -289,6 +289,7 @@ class TbbParallelMergeSorter
 
         virtual CTask * execute()
         {
+            //MORE: Nothing shares either succ1 or succ2, so we could initialize predecessor count to 0, and unconditionally schedule
             if (succ1->notePredDone())
                 spawnOwnedChildTask(succ1);
             if (succ2->notePredDone())
@@ -314,11 +315,10 @@ class TbbParallelMergeSorter
                 //On entry next is assumed to be used once by this function
                 if ((n <= multiThreadedBlockThreshold) || (depth >= sorter.singleThreadDepth))
                 {
-                    //Create a new task rather than calling sort directly, so that the successor is set up correctly
-                    //It would be possible to sort then if (next->decrement_ref_count()) return next; instead
-                    //MORE: Could revisit now using our own task manager
-                    CTask * sort = new SubSortTask(sorter, *successor, rows, n, temp, depth);
-                    return sort;
+                    mergeSort(rows, n, sorter.compare, temp, depth);
+                    if (successor->notePredDone())
+                        return successor;
+                    return nullptr;
                 }
 
                 void * * result = (depth & 1) ? temp : rows;
@@ -707,8 +707,10 @@ public:
     void sortRoot(void ** rows, size_t n, void ** temp)
     {
         unsigned  numPred = 1 + 1; // the initial bisect task and the wait for the result.
-        Owned<CCompletionTask> end = new CCompletionTask(1 + 1, scheduler);
-        end->Link(); // Increment the link count, since it will be decremented once the task is executed
+        Owned<CCompletionTask> end = new CCompletionTask(scheduler, numPred);
+
+        // Rely on scheduling to release the link counts for child tasks (including this completion task) to minimize atomic operations
+        end->setMinimalLinking();
 
         //MORE: This bisection could be done in a single pass, rather than creating separate tasks - although
         //it is hard to tell what would be the most efficient...  This ensures they are spread over all cpus.

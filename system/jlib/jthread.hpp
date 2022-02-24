@@ -198,11 +198,12 @@ public:
 
 // Asynchronous 'for' utility class
 // see HRPCUTIL.CPP for example of usage
-
+interface ITaskScheduler;
 class jlib_decl CAsyncFor
 {
 public:
     void For(unsigned num,unsigned maxatonce,bool abortFollowingException=false,bool shuffled=false);
+    void TaskFor(unsigned num, ITaskScheduler & scheduler);
     virtual void Do(unsigned idx=0)=0;
 };
 
@@ -238,6 +239,14 @@ template <typename AsyncFunc>
 inline void asyncFor(unsigned num, AsyncFunc func)
 {
     asyncFor(num, num, false, false, func);
+}
+
+//Implementation of asyncFor that uses the task library
+template <typename AsyncFunc>
+inline void taskFor(unsigned num, ITaskScheduler & scheduler, AsyncFunc func)
+{
+    CAsyncForFunc<AsyncFunc> async(func);
+    async.TaskFor(num, scheduler);
 }
 
 // ---------------------------------------------------------------------------

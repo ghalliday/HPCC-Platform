@@ -100,7 +100,7 @@ class cTaskQSortBase
 
 public:
 
-    cTaskQSortBase() : taskScheduler(queryTaskScheduler()), finished(new CCompletionTask(1, queryTaskScheduler()))
+    cTaskQSortBase() : taskScheduler(queryTaskScheduler()), finished(new CCompletionTask(queryTaskScheduler()))
     {
     }
 

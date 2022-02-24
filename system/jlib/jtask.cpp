@@ -23,6 +23,8 @@
 #include "jlog.hpp"
 #include "jqueue.hpp"
 
+constexpr bool traceTasks = false;
+
 static std::atomic<ITaskScheduler *> taskScheduler{nullptr};
 static std::atomic<ITaskScheduler *> iotaskScheduler{nullptr};
 static CriticalSection singletonCs;
@@ -63,12 +65,20 @@ void CCompletionTask::decAndWait()
     {
         //This is the last predecessor - skip signalling the semaphore and then waiting for it
         //common if no child tasks have been created...
+        if (!tasksLinkedOnSchedule)
+            Release();
     }
     else
         sem.wait();
 
     if (exception)
         throw LINK(exception.load());
+}
+
+void CCompletionTask::setMinimalLinking()
+{
+    Link();     // This will be release either when the task is scheduled, or when waiting for completion.
+    tasksLinkedOnSchedule = false;
 }
 
 void CCompletionTask::spawn(std::function<void ()> func)
@@ -377,6 +387,8 @@ protected:
                 task = processors[nextTarget]->stealTask();
                 if (task)
                 {
+                    if (traceTasks)
+                        printf("Stolen for %u on %u\n", id, sched_getcpu());
                     if (waiting)
                         processorsWaiting--;
                     return task;
@@ -386,13 +398,22 @@ protected:
             //Nothing was found - probably another processor added a child but then processed it before
             //anyone stole it.
             if (waiting)
+            {
+                if (traceTasks)
+                    printf("Pause %u on %u\n", id, sched_getcpu());
                 avail.wait();
+                if (traceTasks)
+                    printf("Restart %u on %u\n", id, sched_getcpu());
+            }
             else
             {
                 waiting = true;
                 processorsWaiting++;
             }
         }
+
+        if (traceTasks)
+            printf("Task for %u on %u\n", id, sched_getcpu());
 
         if (waiting)
             processorsWaiting--;

@@ -23,6 +23,60 @@
 #include "jthread.hpp"
 #include "jqueue.hpp"
 
+
+/*
+
+This file defines multiple taskSchedulers than be used to execute code in parallel without the cost of starting up
+new threads, and avoiding over-commiting the number of cores to process tasks.
+
+It is currently aimed at non-blocking tasks, but the hope is to also use it for IO based tasks (which may over-commit to a certain degree).
+
+There are two common ways of using it.
+
+1) Lambda style functions.
+
+Create a completion task.  When you want to execute some code in parallel use the spawn() function, and at the end wait for all tasks to complete.
+
+Owned<CCompletionTask> completed = new CCompletionTask[(queryTaskScheduler())];
+...
+completed->spawn([n]() { printf("%u\n", n); });
+...
+completed->decAndWait();
+
+
+2) Create task classes, and schedule them when they are ready to run
+
+
+Owned<CCompletionTask> completed = new CCompletionTask[(queryTaskScheduler())];
+...
+CTask * task = new XTask(completed);
+queryTaskScheduler().enqueueOwnedTask(*task);
+...
+processor->decAndWait();
+
+
+Link counting
+- Simple successor linking:
+  The simplest approach is for all tasks to LINK their successor tasks.  When a successor task is ready to be scheduled
+  it is LINKed and scheduled.  The link counts are reduced when the predecessor task is destroyed, and then released
+  again when the task completes.
+  However, this means two effective link counts are held for a task, one for the number of predecessors and another
+  for the lifetime.
+
+  The classes used to implmement the lambda tasks use this approach.
+
+- Avoiding successor linking:
+  A task is only ever scheduled by a single predecessor. If all created tasks will eventually be
+  executed there is no need to link/release the successor tasks.  The link count will be 1 from when it was created.
+  When it is executed it will be decremented and cleaned up.
+
+  If this approach is used, you must call setMinimalLinking() on the CCompletionTask - this increments the link count
+  ready for decrementing when the task is scheduled, and also avoids starting a task if there are no child tasks
+  waiting to complete.
+
+  The parallel merge sort uses this approach.
+*/
+
 interface ITaskScheduler;
 
 class jlib_decl CTask : public CInterface
@@ -149,7 +203,8 @@ protected:
 class jlib_decl CCompletionTask final : public CTask
 {
 public:
-    CCompletionTask(unsigned _numPred, ITaskScheduler & _scheduler) : CTask(_numPred), scheduler(_scheduler) {}
+    CCompletionTask(ITaskScheduler & _scheduler, unsigned _numPred=1) : CTask(_numPred), scheduler(_scheduler) {}
+    CCompletionTask() : CTask(1), scheduler(queryTaskScheduler()) {}
     ~CCompletionTask() { ::Release(exception.load()); }
 
     virtual CTask * execute() override
@@ -164,9 +219,13 @@ public:
     //Called when main thread has completed - decrements the predecessor count, and waits for completion
     void decAndWait();
 
+    //Called when tasks are not linked before scheduling
+    void setMinimalLinking();
+
 protected:
     ITaskScheduler & scheduler;
     Semaphore sem;
+    bool tasksLinkedOnSchedule{true};
 };
 
 // A class used by CCompletionTask to implement spawn
