@@ -3443,8 +3443,15 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
         {
             node_operator childOp = child->getOperator();
             IHqlExpression * transformedCountProject = transformed->queryAttribute(_countProject_Atom);
-            if (transformed->hasAttribute(prefetchAtom))
-                break;      // play safe
+            IHqlExpression * prefetchAttr = transformed->queryAttribute(prefetchAtom);
+            if (prefetchAttr)
+            {
+                if ((childOp != no_hqlproject) && (childOp != no_newusertable))
+                    break;
+                if (child->hasAttribute(prefetchAtom))
+                    break;
+            }
+
             IHqlExpression * transformKeyed = transformed->queryAttribute(keyedAtom);
             IHqlExpression * transform = transformed->queryChild(1);
             switch(childOp)
@@ -3502,6 +3509,8 @@ IHqlExpression * CTreeOptimizer::doCreateTransformed(IHqlExpression * transforme
                         args.append(*expandedTransform.getClear());
                         if (countProjectAttr)
                             args.append(*LINK(countProjectAttr));
+                        if (prefetchAttr)
+                            args.append(*LINK(prefetchAttr));
                         args.append(*LINK(transformedSeq));
                         if (transformKeyed)
                             args.append(*LINK(transformKeyed));
