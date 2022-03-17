@@ -176,6 +176,7 @@ public:
     const byte *    readDirect(size32_t len);                                       // for efficiency
     MemoryBuffer &  readPacked(unsigned & value);
     MemoryBuffer &  readPacked(unsigned __int64 & value);
+    const char *    readCStringDirect(); // return current pointer, and skip to end of null terminated string
 
     inline MemoryBuffer &  readMemSize(memsize_t & value) { __int64 val; read(val); value = (memsize_t)val; assertex(val == (__int64) value); return *this; }
     MemoryBuffer &  skip(unsigned len);

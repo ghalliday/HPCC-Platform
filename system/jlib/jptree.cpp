@@ -3045,15 +3045,51 @@ void PTree::deserializeSelf(MemoryBuffer &src)
         setName(NULL);
     else
         setName(_name);
-    StringAttr attrName, attrValue;
-    for (;;)
+
+    const char * cur = reinterpret_cast<const char *>(src.readDirect(0));
+    unsigned count = 0;
+    while (*cur)
     {
-        src.read(attrName);
-        if (attrName.isEmpty())
-            break;
-        src.read(attrValue);
-        setProp(attrName, attrValue);
+        //Skip the attribute name
+        cur += strlen(cur)+1;
+        //skip the value
+        cur += strlen(cur)+1;
+        count++;
     }
+
+    if (count)
+    {
+        CQualifierMap *map = nullptr;
+        if (arrayOwner)
+            map = arrayOwner->queryMap();
+
+        CriticalBlock block(hashcrit);
+        AttrValue *newattrs = CAtomPTree::newAttrArray(count);
+        for (unsigned i=0; i < count; i++)
+        {
+            const char * attrName = src.readCStringDirect();
+            const char * attrValue = src.readCStringDirect();
+
+            if (map)
+                map->insertEntryIfMapped(attrName, attrValue, this);
+
+            AttrValue & v = newattrs[i];
+            if (!v.key.set(attrName))
+                v.key.setPtr(attrHT->addkey(attrName, isnocase()));
+            //shared via atom table, may want to add this later... escaped and unescaped versions should be considered unique
+            //if (encoded)
+            //    v->key.setEncoded();
+            if (!v.value.set(attrValue))
+                v.value.setPtr(attrHT->addval(attrValue));
+        }
+
+        numAttrs = count;
+        attrs = newattrs;
+    }
+
+    //Skip the null that marks the end of the list
+    const char * nullName = src.readCStringDirect();
+    assertex(!*nullName);
 
     size32_t size;
     unsigned pos = src.getPos();

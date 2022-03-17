@@ -803,6 +803,19 @@ const byte * MemoryBuffer::readDirect(size32_t len)
     return ret;
 }
 
+const char * MemoryBuffer::readCStringDirect()
+{
+    const char * ret = (const char *)buffer + readPos;
+    size32_t len = 0;
+    while (ret[len++])
+    {
+        CHECKREADPOS(len);
+    }
+    CHECKREADPOS(len);
+    readPos += len;
+    return ret;
+}
+
 unsigned __int64 MemoryBuffer::readPacked()
 {
     unsigned __int64 value = 0;

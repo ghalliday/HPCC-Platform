@@ -801,8 +801,9 @@ public:
 
 class jlib_decl CAtomPTree : public PTree
 {
-    AttrValue *newAttrArray(unsigned n);
-    void freeAttrArray(AttrValue *a, unsigned n);
+    friend class PTree;
+    static AttrValue *newAttrArray(unsigned n);
+    static void freeAttrArray(AttrValue *a, unsigned n);
     PtrStrUnion<HashKeyElement> name;
 protected:
     virtual bool removeAttribute(const char *k) override;
