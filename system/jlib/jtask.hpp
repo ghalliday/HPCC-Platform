@@ -148,6 +148,7 @@ public:
 
     // Execute a function as a child task - decAndWait() will wait for completion
     void spawn(std::function<void ()> func);
+    void spawn(IThreaded & threaded);
 
     //Called when main thread has completed - decrements the predecessor count, and waits for completion
     void decAndWait();
@@ -157,17 +158,19 @@ protected:
     Semaphore sem;
 };
 
-// A class used by CCompletionTask to implement spawn
-class jlib_decl CFunctionTask final : public CPredecessorTask
+//This class is present in the header file to prevent the c++ compilers from devirtualising calls to CCompletionTask
+class CNullTask final : public CTask
 {
 public:
-    CFunctionTask(std::function<void ()> _func, CTask * _successor);
+    CNullTask() : CTask(0) {}
+    ~CCompletionTask() { ::Release(exception.load()); }
 
-    virtual CTask * execute() override;
-
-protected:
-    std::function<void ()> func;
+    virtual CTask * execute() override
+    {
+        return nullptr;
+    }
 };
+
 
 
 #endif

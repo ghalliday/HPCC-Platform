@@ -50,6 +50,32 @@ void CTask::setException(IException * e)
 
 //---------------------------------------------------------------------------------------------------------------------
 
+// Classes used by CCompletionTask to implement spawn
+class jlib_decl CFunctionTask final : public CPredecessorTask
+{
+public:
+    CFunctionTask(std::function<void ()> _func, CTask * _successor);
+
+    virtual CTask * execute() override;
+
+protected:
+    std::function<void ()> func;
+};
+
+class CThreadedTask final : public CPredecessorTask
+{
+public:
+    CThreadedTask(IThreaded & _threaded, CTask * _successor);
+
+    virtual CTask * execute() override;
+
+protected:
+    IThreaded & threaded;
+};
+
+
+//---------------------------------------------------------------------------------------------------------------------
+
 void CCompletionTask::decAndWait()
 {
     if (notePredDone())
@@ -74,6 +100,16 @@ void CCompletionTask::spawn(std::function<void ()> func)
     }
 }
 
+void CCompletionTask::spawn(IThreaded & threaded)
+{
+    // Avoid spawning a new child task if a different child task has failed
+    if (!hasException())
+    {
+        CTask * task = new CThreadedTask(threaded, this);
+        enqueueOwnedTask(scheduler, task);
+    }
+}
+
 
 //---------------------------------------------------------------------------------------------------------------------
 
@@ -90,6 +126,31 @@ CTask * CFunctionTask::execute()
         try
         {
             func();
+        }
+        catch (IException * e)
+        {
+            successor->setException(e);
+            e->Release();
+        }
+    }
+    return checkNextTask();
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+
+CThreadedTask::CThreadedTask(IThreaded & _threaded, CTask * _successor);
+: CPredecessorTask(0, _successor), threaded(_threaded)
+{
+}
+
+CTask * CThreadedTask::execute()
+{
+    //Avoid starting a new subtask if one of the subtasks has already failed
+    if (!successor->hasException())
+    {
+        try
+        {
+            threaded.threadmain();
         }
         catch (IException * e)
         {
@@ -361,20 +422,9 @@ protected:
             }
 
             //Nothing there - now see if we can steal a child from all processors except ourself.
-            unsigned nextTarget = id;
-            for (unsigned i=1; i < numThreads; i++)
-            {
-                nextTarget++;
-                if (nextTarget == numThreads)
-                    nextTarget = 0;
-                task = processors[nextTarget]->stealTask();
-                if (task)
-                {
-                    if (waiting)
-                        processorsWaiting--;
-                    return task;
-                }
-            }
+            task = stealTask(id);
+            if (task)
+                return task;
 
             //Nothing was found - probably another processor added a child but then processed it before
             //anyone stole it.
@@ -397,6 +447,25 @@ protected:
     {
         if (processorsWaiting != 0)
             avail.signal();
+    }
+
+    CTask * stealTask(unsigned id)
+    {
+        unsigned nextTarget = id;
+        for (unsigned i=1; i < numThreads; i++)
+        {
+            nextTarget++;
+            if (nextTarget == numThreads)
+                nextTarget = 0;
+            task = processors[nextTarget]->stealTask();
+            if (task)
+            {
+                if (waiting)
+                    processorsWaiting--;
+                return task;
+            }
+        }
+        return nullptr;
     }
 
 protected:
