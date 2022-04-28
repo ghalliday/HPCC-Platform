@@ -119,7 +119,7 @@ void enableThreadSEH() { SEHHandling=true; }
 void disableThreadSEH() { SEHHandling=false; } // only prevents new threads from having SEH handler, no mech. for turning off existing threads SEH handling.
 
 
-static ICopyArrayOf<Thread> ThreadList;
+static DListOf<Thread> ThreadList;
 static CriticalSection ThreadListSem;
 static size32_t defaultThreadStackSize=0;
 static ICopyArrayOf<Thread> ThreadDestroyList;
@@ -456,8 +456,9 @@ void Thread::startRelease()
 
     {
         CriticalBlock block(ThreadListSem);
-        ThreadList.zap(*this);  // just in case restarting
-        ThreadList.append(*this);
+        if (next)
+            ThreadList.remove(this);  // just in case restarting
+        ThreadList.enqueue(this);
     }
 #ifdef _WIN32
     DWORD count = ResumeThread(hThread);
@@ -534,7 +535,7 @@ Thread::~Thread()
 //  DBGLOG("Thread %x (%s) destroyed\n", threadid, threadname);
     {
         CriticalBlock block(ThreadListSem);
-        ThreadList.zap(*this);
+        ThreadList.remove(this);
     }
     free(cthreadname.threadname);
     cthreadname.threadname = NULL;
@@ -549,9 +550,11 @@ unsigned getThreadCount()
 StringBuffer & getThreadList(StringBuffer &str)
 {
     CriticalBlock block(ThreadListSem);
-    ForEachItemIn(i,ThreadList) {
-        Thread &item=ThreadList.item(i);
-        item.getInfo(str).append("\n");
+    Thread * cur = ThreadList.head();
+    while (cur)
+    {
+        cur->getInfo(str).append("\n");
+        cur = cur->queryNextActive();
     }
     return str;
 }
@@ -560,11 +563,12 @@ StringBuffer &getThreadName(int thandle,unsigned tid,StringBuffer &name)
 {
     CriticalBlock block(ThreadListSem);
     bool found=false;
-    ForEachItemIn(i,ThreadList) {
-        Thread &item=ThreadList.item(i);
+    Thread * cur = ThreadList.head();
+    while (cur)
+    {
         int h; 
         unsigned t;
-        const char *s = item.getLogInfo(h,t);
+        const char *s = cur->getLogInfo(h,t);
         if (s&&*s&&((thandle==0)||(h==thandle))&&((tid==0)||(t==tid))) {
             if (found) {
                 name.clear();
@@ -573,6 +577,7 @@ StringBuffer &getThreadName(int thandle,unsigned tid,StringBuffer &name)
             name.append(s);
             found = true;
         }
+        cur = cur->queryNextActive();
     }
     return name;
 }

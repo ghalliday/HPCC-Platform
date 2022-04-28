@@ -25,6 +25,7 @@
 #include "jexcept.hpp"
 #include "jhash.hpp"
 #include <functional>
+#include "jqueue.hpp"
 
 #ifdef _WIN32
 #define DEFAULT_THREAD_PRIORITY THREAD_PRIORITY_NORMAL
@@ -75,11 +76,14 @@ public:
 
 class jlib_decl Thread : public CInterface, public IThread
 {
+    friend class DListOf<Thread>;
 private:
     ThreadId threadid;
     unsigned short stacksize; // in 4K blocks
     int prioritydelta;
     int nicelevel;
+    Thread * next = nullptr;
+    Thread * prev = nullptr;
 
     bool alive;
     unsigned tidlog;
@@ -143,7 +147,7 @@ public:
 
     IThreadName *queryThreadName() { return ithreadname; }
     void setThreadName(IThreadName *name) { ithreadname = name; }
-
+    Thread * queryNextActive() const { return next; }
 };
 
 interface IThreaded
