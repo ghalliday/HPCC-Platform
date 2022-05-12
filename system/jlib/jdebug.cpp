@@ -2744,7 +2744,7 @@ public:
         if (prevTime.getTotal())
         {
             deltaTime = current - prevTime;
-            latestCPU = 100 - deltaTime.getIdlePercent();
+                 = 100 - deltaTime.getIdlePercent();
         }
         prevTime = current;
 

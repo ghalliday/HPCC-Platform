@@ -202,7 +202,7 @@ public:
 
 static void process(IConstWorkUnit &w, IProperties *globals, const StringArray & args)
 {
-    const char *action = globals->queryProp("#action");
+    const char *action = globals->queryProp("action");
     if (!action || stricmp(action, "list")==0)
     {
         printf("%-20s %-10s %-10s %-10s %-10s\n", w.queryWuid(), w.queryClusterName(), w.queryUser(), w.queryJobName(), w.queryStateDesc());
@@ -220,10 +220,28 @@ static void process(IConstWorkUnit &w, IProperties *globals, const StringArray &
             printf("%s\n", schema.str());
         }
     }
-    else if (stricmp(action, "analyze")==0)
+    else if (stricmp(action, "activity")==0)
+    {
+        Owned<IPropertyTree> options = createPTree();
+        applyProperties(options, globals);
+        analyseActivity(&w, options, args);
+    }
+    else if (stricmp(action, "analyze")==0 || stricmp(action, "analyse")==0)
     {
         // can't calculate cost in terms of money (pricing table not available and size of cluster not known here)
         analyseAndPrintIssues(&w, 0, globals->getPropBool("UPDATEWU"));
+    }
+    else if (stricmp(action, "critical")==0)
+    {
+        Owned<IPropertyTree> options = createPTree();
+        applyProperties(options, globals);
+        analyseCriticalPath(&w, options, args);
+    }
+    else if (stricmp(action, "depend")==0)
+    {
+        Owned<IPropertyTree> options = createPTree();
+        applyProperties(options, globals);
+        analyseDependencies(&w, options, args);
     }
     else if (stricmp(action, "dump")==0)
     {
@@ -240,6 +258,12 @@ static void process(IConstWorkUnit &w, IProperties *globals, const StringArray &
             factory->deleteWorkUnit(wuid.str());
         }
         printf("deleted %s\n", wuid.str());
+    }
+    else if (stricmp(action, "hotspot")==0)
+    {
+        Owned<IPropertyTree> options = createPTree();
+        applyProperties(options, globals);
+        analyseHotspots(&w, options, args);
     }
     else if (stricmp(action, "postmortem")==0)
     {
@@ -348,7 +372,7 @@ int main(int argc, const char *argv[])
         else
         {
             action = argv[i];
-            globals->setProp("#action", argv[i]);
+            globals->setProp("action", argv[i]);
         }
     }
     if (!action || !*action)
@@ -414,10 +438,16 @@ int main(int argc, const char *argv[])
         }
 
         StringBuffer daliServers;
+        bool hasFactory = true;
         if (globals->getProp("DALISERVER", daliServers))
         {
-            Owned<IGroup> serverGroup = createIGroup(daliServers.str(), DALI_SERVER_PORT);
-            initClientProcess(serverGroup, DCR_Testing);
+            if (!daliServers.isEmpty())
+            {
+                Owned<IGroup> serverGroup = createIGroup(daliServers.str(), DALI_SERVER_PORT);
+                initClientProcess(serverGroup, DCR_Testing);
+            }
+            else
+                hasFactory = false;
         }
         else if (!serverSpecified)
         {
@@ -437,7 +467,7 @@ int main(int argc, const char *argv[])
             if (since)
                 cutoff.setDateString(since, NULL);
         }
-        Owned<IWorkUnitFactory> factory = getWorkUnitFactory();
+        Owned<IWorkUnitFactory> factory = hasFactory ? getWorkUnitFactory() : createUnexpectedWorkUnitFactory();
 #ifdef _USE_CPPUNIT
         if (stricmp(action, "-selftest")==0)
         {
@@ -634,7 +664,10 @@ int main(int argc, const char *argv[])
         {
             usage();
         }
-        else if (strieq(action, "list") || strieq(action, "dump") || strieq(action, "results") || strieq(action, "delete") || strieq(action, "archive") || strieq(action, "info") || strieq(action, "analyze") || strieq(action, "postmortem"))
+        else if (strieq(action, "list") || strieq(action, "dump") || strieq(action, "results") || strieq(action, "delete") ||
+                 strieq(action, "archive") || strieq(action, "info") || strieq(action, "analyze") || strieq(action, "analyse") ||
+                 strieq(action, "depend") || strieq(action, "hotspot") || strieq(action, "critical") || strieq(action, "activity") ||
+                 strieq(action, "postmortem"))
         {
             if (strieq(action, "info") && args.empty())
                 args.append("source[all],properties[all]");
@@ -669,6 +702,26 @@ int main(int argc, const char *argv[])
                     }
                 }
             }
+            else if (args.ordinality() && checkFileExists(args.item(0)))
+            {
+                StringBuffer xml;
+                xml.loadFile(args.item(0));
+                args.remove(0);
+
+                //If the file has come from a roxie control:queryStats call, extract the part that coresponds to the query
+                const char * start = strstr(xml, "<Query");
+                if (start != xml.str())
+                {
+                    xml.remove(0, start-xml.str());
+                    const char * end = strstr(xml, "</Query>");
+                    if (end)
+                        xml.setLength(end + strlen("</Query>") -xml.str());
+                }
+
+                Owned<IConstWorkUnit> workunit = createLocalWorkUnitFromXml(xml);
+                if (workunit)
+                    process(*workunit, globals, args);
+            }
             else
             {
                 if (strieq(action, "delete") && !globals->getPropBool(("FORCE")))
@@ -684,6 +737,7 @@ int main(int argc, const char *argv[])
                     Owned<IConstWorkUnit> w = factory->openWorkUnit(wi.queryWuid());
                     if (w)
                     {
+                        DBGLOG("Processing %s", w->queryWuid());
                         process(*w, globals, args);
                         ret = 0; // There was at least one match
                     }

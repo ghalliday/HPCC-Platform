@@ -26,4 +26,10 @@
 
 void WUANALYSIS_API analyseWorkunit(IWorkUnit * wu, IPropertyTree *options, double costPerMs);
 void WUANALYSIS_API analyseAndPrintIssues(IConstWorkUnit * wu, double costPerMs, bool updatewu);
+
+void WUANALYSIS_API analyseActivity(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args);
+void WUANALYSIS_API analyseDependencies(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args);
+void WUANALYSIS_API analyseCriticalPath(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args);
+void WUANALYSIS_API analyseHotspots(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args);
+
 #endif
