@@ -385,9 +385,12 @@ class CHThorIndexWriteActivity : public CHThorActivityBase
     Owned<IFile> file;
     bool incomplete;
     bool defaultNoSeek = false;
+    bool defaultInplace = false;
     offset_t sizeLimit;
     unsigned __int64 duplicateKeyCount = 0;
     unsigned __int64 cummulativeDuplicateKeyCount = 0;
+    unsigned __int64 totalLeaves = 0;
+    unsigned __int64 totalBranches = 0;
     stat_type numDiskWrites = 0;
     cost_type diskAccessCost = 0;
     void close();
@@ -400,6 +403,8 @@ class CHThorIndexWriteActivity : public CHThorActivityBase
         progress.addStatistic(StNumDuplicateKeys, cummulativeDuplicateKeyCount);
         progress.addStatistic(StNumDiskWrites, numDiskWrites);
         progress.addStatistic(StCostFileAccess, diskAccessCost);
+        progress.addStatistic(StNumLeafCacheAdds, totalLeaves);
+        progress.addStatistic(StNumNodeCacheAdds, totalBranches);
     }
 
 public:

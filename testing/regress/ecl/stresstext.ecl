@@ -19,7 +19,7 @@
 //version multiPart=true
 
 import ^ as root;
-multiPart := #IFDEFINED(root.multiPart, true);
+multiPart := #IFDEFINED(root.multiPart, false);
 
 //--- end of version configuration ---
 

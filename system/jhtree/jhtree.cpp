@@ -54,6 +54,7 @@
 #include "jmisc.hpp"
 #include "jstats.h"
 #include "ctfile.hpp"
+#include "jhinplace.hpp"
 
 #include "jhtree.ipp"
 #include "keybuild.hpp"
@@ -71,6 +72,8 @@ bool useMemoryMappedIndexes = false;
 bool linuxYield = false;
 bool traceSmartStepping = false;
 bool flushJHtreeCacheOnOOM = true;
+std::atomic<unsigned __int64> branchSearchCycles{0};
+std::atomic<unsigned __int64> leafSearchCycles{0};
 
 MODULE_INIT(INIT_PRIORITY_JHTREE_JHTREE)
 {
@@ -578,6 +581,26 @@ public:
 
 ///////////////////////////////////////////////////////////////////////////////
 
+enum CacheType : unsigned
+{
+    CacheBranch = 0,
+    CacheLeaf = 1,
+    CacheBlob = 2,
+    //CacheTLK?
+    CacheMax = 3
+};
+static constexpr const char * cacheTypeText[CacheMax]  = { "branch", "leaf", "blob" };
+
+static_assert((unsigned)CacheBranch == (unsigned)NodeBranch, "Mismatch Cache Branch");
+static_assert((unsigned)CacheLeaf == (unsigned)NodeLeaf, "Mismatch Cache Leaf");
+static_assert((unsigned)CacheBlob == (unsigned)NodeBlob, "Mismatch Cache Blob");
+
+constexpr StatisticKind addStatId[CacheMax] = { StNumNodeCacheAdds, StNumLeafCacheAdds, StNumBlobCacheAdds };
+constexpr StatisticKind hitStatId[CacheMax] = { StNumNodeCacheHits, StNumLeafCacheHits, StNumBlobCacheHits };
+constexpr StatisticKind loadStatId[CacheMax] = { StCycleNodeLoadCycles, StCycleLeafLoadCycles, StCycleBlobLoadCycles };
+constexpr RelaxedAtomic<unsigned> * hitMetric[CacheMax] = { &nodeCacheHits, &leafCacheHits, &blobCacheHits };
+constexpr RelaxedAtomic<unsigned> * addMetric[CacheMax] = { &nodeCacheAdds, &leafCacheAdds, &blobCacheAdds };
+constexpr RelaxedAtomic<unsigned> * dupMetric[CacheMax] = { &nodeCacheDups, &leafCacheDups, &blobCacheDups };
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -674,19 +697,6 @@ public:
     }
 };
 
-enum CacheType : unsigned
-{
-    CacheBranch = 0,
-    CacheLeaf = 1,
-    CacheBlob = 2,
-    //CacheTLK?
-    CacheMax = 3
-};
-static constexpr const char * cacheTypeText[CacheMax]  = { "branch", "leaf", "blob" };
-
-static_assert((unsigned)CacheBranch == (unsigned)NodeBranch, "Mismatch Cache Branch");
-static_assert((unsigned)CacheLeaf == (unsigned)NodeLeaf, "Mismatch Cache Leaf");
-static_assert((unsigned)CacheBlob == (unsigned)NodeBlob, "Mismatch Cache Blob");
 
 class CNodeCache : public CInterface
 {
@@ -737,6 +747,7 @@ public:
         {
             out.append(cacheTypeText[i]).append('(');
             cache[i].traceState(out);
+            out.appendf(" [%u:%u:%u]", hitMetric[i]->load(), addMetric[i]->load(), dupMetric[i]->load());
             out.append(") ");
         }
     }
@@ -770,6 +781,13 @@ void clearNodeCache()
     queryNodeCache()->clear();
 }
 
+
+void logCacheState()
+{
+    if (nodeCache)
+        nodeCache->logState();
+    DBGLOG("Search times branch(%lluns) leaf(%lluns)", cycle_to_nanosec(branchSearchCycles), cycle_to_nanosec(leafSearchCycles));
+}
 
 inline CKeyStore *queryKeyStore()
 {
@@ -1004,9 +1022,12 @@ CKeyIndex::CKeyIndex(unsigned _iD, const char *_name) : name(_name)
 
 void CKeyIndex::init(KeyHdr &hdr, bool isTLK)
 {
+    //NOTE: KeyHdr is in the disk representation, and has not called SwapBigEndian.  That is called in load().
+    //So modify oldktype since that avoids endian issues (it is a single byte), and it will be merged into keyFlags
+    //by the load() call.
     if (isTLK)
-        hdr.ktype |= HTREE_TOPLEVEL_KEY; // Once upon a time, thor did not set
-    else if (hdr.ktype & HTREE_TOPLEVEL_KEY)
+        hdr.oldktype |= HTREE_TOPLEVEL_KEY;
+    else if (hdr.oldktype & HTREE_TOPLEVEL_KEY)
         isTLK = true;
 
     keyHdr = new CKeyHdr();
@@ -1061,7 +1082,10 @@ CMemKeyIndex::CMemKeyIndex(unsigned _iD, IMemoryMappedFile *_io, const char *_na
     if (io->length() < sizeof(hdr))
         throw MakeStringException(0, "Failed to read key header: file too small, could not read %u bytes", (unsigned) sizeof(hdr));
     memcpy(&hdr, io->base(), sizeof(hdr));
-    if (hdr.ktype & USE_TRAILING_HEADER)
+
+    //Should really call SwapBigEndian before accessing any of the header fields, but the init() call below assumes
+    //that it has not yet been swapped.  Test singlebyte oldktype rather than keyFlags.
+    if (hdr.oldktype & USE_TRAILING_HEADER)
     {
         _WINREV(hdr.nodeSize);
         memcpy(&hdr, (io->base()+io->length()) - hdr.nodeSize, sizeof(hdr));
@@ -1094,7 +1118,10 @@ CDiskKeyIndex::CDiskKeyIndex(unsigned _iD, IFileIO *_io, const char *_name, bool
     KeyHdr hdr;
     if (io->read(0, sizeof(hdr), &hdr) != sizeof(hdr))
         throw MakeStringException(0, "Failed to read key header: file too small, could not read %u bytes", (unsigned) sizeof(hdr));
-    if (hdr.ktype & USE_TRAILING_HEADER)
+
+    //Should really call SwapBigEndian before accessing any of the header fields, but the init() call below assumes
+    //that it has not yet been swapped.  Test singlebyte oldktype rather than keyFlags.
+    if (hdr.oldktype & USE_TRAILING_HEADER)
     {
         _WINREV(hdr.nodeSize);
         if (!io->read(io->size() - hdr.nodeSize, sizeof(hdr), &hdr))
@@ -1128,14 +1155,17 @@ CJHTreeNode *CKeyIndex::createNode(NodeType type)
     switch(type)
     {
     case NodeBranch:
-        return new CJHTreeNode();
+        if (keyHdr->isInplaceCompressedBranch())
+            return new CJHInplaceTreeNode();
+        else
+            return new CJHTreeNodeCommon();
     case NodeLeaf:
         if (keyHdr->isVariable())
             return new CJHVarTreeNode();
         else if (keyHdr->isRowCompressed())
             return new CJHRowCompressedNode();
         else
-            return new CJHTreeNode();
+            return new CJHTreeNodeCommon();
     case NodeBlob:
         return new CJHTreeBlobNode();
     case NodeMeta:
@@ -1625,18 +1655,7 @@ bool CKeyCursor::gtEqual(const char *src, char *dst, KeyStatsCollector &stats)
     }
     for (;;)
     {
-        unsigned int a = lwm;
-        int b = node->getNumKeys();
-        // first search for first GTE entry (result in b(<),a(>=))
-        while ((int)a<b)
-        {
-            int i = a+(b-a)/2;
-            int rc = node->compareValueAt(src, i);
-            if (rc>0)
-                a = i+1;
-            else
-                b = i;
-        }
+        unsigned int a = node->locateGE(src, lwm);
         if (node->isLeaf())
         {
             if (a<node->getNumKeys())
@@ -1706,18 +1725,7 @@ bool CKeyCursor::ltEqual(const char *src, KeyStatsCollector &stats)
     }
     for (;;)
     {
-        unsigned int a = lwm;
-        int b = node->getNumKeys();
-        // Locate first record greater than src
-        while ((int)a<b)
-        {
-            int i = a+(b+1-a)/2;
-            int rc = node->compareValueAt(src, i-1);
-            if (rc>=0)
-                a = i;
-            else
-                b = i-1;
-        }
+        unsigned int a = node->locateGT(src, lwm);
         if (node->isLeaf())
         {
             // record we want is the one before first record greater than src.
@@ -2415,13 +2423,6 @@ void CNodeCache::getCacheInfo(ICacheInfoRecorder &cacheInfo)
     }
 }
 
-constexpr StatisticKind addStatId[CacheMax] = { StNumNodeCacheAdds, StNumLeafCacheAdds, StNumBlobCacheAdds };
-constexpr StatisticKind hitStatId[CacheMax] = { StNumNodeCacheHits, StNumLeafCacheHits, StNumBlobCacheHits };
-constexpr StatisticKind loadStatId[CacheMax] = { StCycleNodeLoadCycles, StCycleLeafLoadCycles, StCycleBlobLoadCycles };
-constexpr RelaxedAtomic<unsigned> * hitMetric[CacheMax] = { &nodeCacheHits, &leafCacheHits, &blobCacheHits };
-constexpr RelaxedAtomic<unsigned> * addMetric[CacheMax] = { &nodeCacheAdds, &leafCacheAdds, &blobCacheAdds };
-constexpr RelaxedAtomic<unsigned> * dupMetric[CacheMax] = { &nodeCacheDups, &leafCacheDups, &blobCacheDups };
-
 //Rather than using a critical section in each node (which can be large and expensive) have an array which is indexed by a function
 //of the key id/file position
 constexpr unsigned numLoadCritSects = 64;
@@ -2601,6 +2602,7 @@ void clearNodeStats()
     nodeCacheAdds.store(0);
     nodeCacheDups.store(0);
 }
+
 
 //------------------------------------------------------------------------------------------------
 
@@ -3313,7 +3315,7 @@ class IKeyManagerTest : public CppUnit::TestFixture
             out.setown(createNoSeekIOStream(out));
         unsigned maxRecSize = variable ? 18 : 10;
         unsigned keyedSize = 10;
-        Owned<IKeyBuilder> builder = createKeyBuilder(out, COL_PREFIX | HTREE_FULLSORT_KEY | HTREE_COMPRESSED_KEY |
+        Owned<IKeyBuilder> builder = createKeyBuilder(out, COL_PREFIX | HTREE_FULLSORT_KEY | HTREE_COMPRESSED_KEY | INPLACE_COMPRESS_BRANCH |
                 (quickCompressed ? HTREE_QUICK_COMPRESSED_KEY : 0) |
                 (variable ? HTREE_VARSIZE : 0) |
                 (useTrailingHeader ? USE_TRAILING_HEADER : 0) |

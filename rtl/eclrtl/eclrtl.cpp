@@ -6208,6 +6208,12 @@ size32_t rtlGetPackedSizeFromFirst(byte first)
     return numExtraBytesFromFirst(first)+1;
 }
 
+size32_t rtlGetPackedSize(unsigned __int64 value)
+{
+    return numExtraBytesFromValue(value) + 1;
+}
+
+
 
 
 

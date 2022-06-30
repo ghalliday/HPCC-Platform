@@ -341,6 +341,7 @@ QueryOptions::QueryOptions()
     traceEnabled = defaultTraceEnabled;
     traceLimit = defaultTraceLimit;
     noSeekBuildIndex = defaultNoSeekBuildIndex;
+    inplaceBuildIndex = defaultInplaceBuildIndex;
     allSortsMaySpill = false; // No global default for this
     statsToWorkunit = false; // No global default or workunit setting for this
     failOnLeaks = alwaysFailOnLeaks;
@@ -380,6 +381,7 @@ QueryOptions::QueryOptions(const QueryOptions &other)
     traceEnabled = other.traceEnabled;
     traceLimit = other.traceLimit;
     noSeekBuildIndex = other.noSeekBuildIndex;
+    inplaceBuildIndex = other.inplaceBuildIndex;
     allSortsMaySpill = other.allSortsMaySpill;
     failOnLeaks = other.failOnLeaks;
     collectFactoryStatistics = other.collectFactoryStatistics;
@@ -431,6 +433,7 @@ void QueryOptions::setFromWorkUnit(IConstWorkUnit &wu, const IPropertyTree *stat
     updateFromWorkUnit(allSortsMaySpill, wu, "allSortsMaySpill");
     updateFromWorkUnit(failOnLeaks, wu, "failOnLeaks");
     updateFromWorkUnit(noSeekBuildIndex, wu, "noSeekBuildIndex");
+    updateFromWorkUnit(inplaceBuildIndex, wu, "inplaceBuildIndex");
     updateFromWorkUnit(collectFactoryStatistics, wu, "collectFactoryStatistics");
     updateFromWorkUnit(executeDependenciesSequentially, wu, "executeDependenciesSequentially");
     updateFromWorkUnit(startInputsSequentially, wu, "startInputsSequentially");
@@ -504,6 +507,7 @@ void QueryOptions::setFromContext(const IPropertyTree *ctx)
         updateFromContext(traceEnabled, ctx, "@traceEnabled", "_TraceEnabled");
         updateFromContext(traceLimit, ctx, "@traceLimit", "_TraceLimit");
         updateFromContext(noSeekBuildIndex, ctx, "@noSeekBuildIndex", "_NoSeekBuildIndex");
+        updateFromContext(inplaceBuildIndex, ctx, "@inplaceBuildIndex", "_InplaceBuildIndex");
         // Note: allSortsMaySpill is not permitted at context level (too late anyway, unless I refactored)
         updateFromContext(failOnLeaks, ctx, "@failOnLeaks", "_FailOnLeaks");
         updateFromContext(collectFactoryStatistics, ctx, "@collectFactoryStatistics", "_CollectFactoryStatistics");

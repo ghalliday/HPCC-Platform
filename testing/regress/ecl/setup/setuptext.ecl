@@ -521,7 +521,7 @@ shakespeareStream := normalizeWordFormat(convertTextFileToInversion(4, Directory
         #if (useLocal=true)
                 NOROOT,
         #end
-                COMPRESSED(ROW)),
+                COMPRESSED(ROW),SET('_nodeSize', 8192),SET('_inplace',1)),
             fileServices.setColumnMapping(Files.NameSearchIndex, 'word{set(unicodelib.UnicodeToLowerCase)}')       // unicode just to be perverse
         );
     END;

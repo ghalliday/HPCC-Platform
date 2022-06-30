@@ -24,12 +24,15 @@
 #endif
 
 #include "jmisc.hpp"
+#include "jset.hpp"
 #include "hlzw.h"
 
 #include "ctfile.hpp"
 #include "jstats.h"
 
-void SwapBigEndian(KeyHdr &hdr)
+//---------------------------------------------------------------------------------------------------------------------
+
+void SwapBigEndian(KeyHdr &hdr, bool read)
 {
     _WINREV(hdr.phyrec);
     _WINREV(hdr.delstk);
@@ -78,10 +81,14 @@ void SwapBigEndian(KeyHdr &hdr)
     _WINREV(hdr.fileSize);
     _WINREV(hdr.nodeKeyLength);
     _WINREV(hdr.version);
+    _WINREV(hdr.keyFlags);
     _WINREV(hdr.blobHead);
     _WINREV(hdr.metadataHead);
     _WINREV(hdr.bloomHead);
     _WINREV(hdr.partitionFieldMask);
+    //Clone the old flags byte into the new flags word for backwards compatibility
+    if (read)
+        hdr.keyFlags |= (byte)hdr.oldktype;
 }
 
 inline void SwapBigEndian(NodeHdr &hdr)
@@ -105,16 +112,16 @@ extern bool isCompressedIndex(const char *filename)
         KeyHdr hdr;
         if (io->read(0, sizeof(hdr), &hdr) == sizeof(hdr))
         {
-            SwapBigEndian(hdr);
-            if (hdr.nodeSize && size % hdr.nodeSize == 0 && hdr.ktype & (HTREE_COMPRESSED_KEY|HTREE_QUICK_COMPRESSED_KEY))
+            SwapBigEndian(hdr, true);
+            if (hdr.nodeSize && size % hdr.nodeSize == 0 && hdr.keyFlags & (HTREE_COMPRESSED_KEY|HTREE_QUICK_COMPRESSED_KEY))
             {
-                if (hdr.ktype & USE_TRAILING_HEADER)
+                if (hdr.keyFlags & USE_TRAILING_HEADER)
                 {
                     if (io->read(size-hdr.nodeSize, sizeof(hdr), &hdr) != sizeof(hdr))
                         return false;
-                    SwapBigEndian(hdr);
+                    SwapBigEndian(hdr, true);
                 }
-                if (hdr.root && hdr.root % hdr.nodeSize == 0 && hdr.phyrec == size-1 && hdr.ktype & (HTREE_COMPRESSED_KEY|HTREE_QUICK_COMPRESSED_KEY))
+                if (hdr.root && hdr.root % hdr.nodeSize == 0 && hdr.phyrec == size-1 && hdr.keyFlags & (HTREE_COMPRESSED_KEY|HTREE_QUICK_COMPRESSED_KEY))
                 {
                     NodeHdr root;
                     if (io->read(hdr.root, sizeof(root), &root) == sizeof(root))
@@ -142,14 +149,14 @@ extern jhtree_decl bool isIndexFile(IFile *file)
         KeyHdr hdr;
         if (io->read(0, sizeof(hdr), &hdr) != sizeof(hdr))
             return false;
-        SwapBigEndian(hdr);
+        SwapBigEndian(hdr, true);
         if (hdr.nodeSize && (size % hdr.nodeSize == 0))
         {
-            if (hdr.ktype & USE_TRAILING_HEADER)
+            if (hdr.keyFlags & USE_TRAILING_HEADER)
             {
                 if (io->read(size-hdr.nodeSize, sizeof(hdr), &hdr) != sizeof(hdr))
                     return false;
-                SwapBigEndian(hdr);
+                SwapBigEndian(hdr, true);
 
             }
             if (!hdr.root || !hdr.nodeSize || !hdr.root || size % hdr.nodeSize ||  hdr.phyrec != size-1 || hdr.root % hdr.nodeSize || hdr.root >= size)
@@ -182,7 +189,7 @@ CKeyHdr::CKeyHdr()
 void CKeyHdr::load(KeyHdr &_hdr)
 {
     memcpy(&hdr, &_hdr, sizeof(hdr));
-    SwapBigEndian(hdr);
+    SwapBigEndian(hdr, true);
 
     if (0xffff != hdr.version && KEYBUILD_VERSION < hdr.version)
         throw MakeKeyException(KeyExcpt_IncompatVersion, "This build is compatible with key versions <= %u. Key is version %u", KEYBUILD_VERSION, (unsigned) hdr.version);
@@ -195,7 +202,7 @@ void CKeyHdr::write(IFileIOStream *out, CRC32 *crc)
     byte *buf = (byte *) ma.allocate(nodeSize); 
     memcpy(buf, &hdr, sizeof(hdr));
     memset(buf+sizeof(hdr), 0xff, nodeSize-sizeof(hdr));
-    SwapBigEndian(*(KeyHdr*) buf);
+    SwapBigEndian(*(KeyHdr*) buf, false);
     out->write(nodeSize, buf);
     if (crc)
         crc->tally(nodeSize, buf);
@@ -208,7 +215,7 @@ unsigned int CKeyHdr::getMaxKeyLength()
 
 bool CKeyHdr::isVariable() 
 {
-    return (hdr.ktype & HTREE_VARSIZE) == HTREE_VARSIZE; 
+    return (hdr.keyFlags & HTREE_VARSIZE) == HTREE_VARSIZE;
 }
 
 //=========================================================================================================
@@ -281,8 +288,6 @@ void CWriteNodeBase::writeHdr()
 
 void CWriteNodeBase::write(IFileIOStream *out, CRC32 *crc)
 {
-    if (isLeaf() && (keyType & HTREE_COMPRESSED_KEY))
-        lzwcomp.close();
     assertex(hdr.keyBytes<=maxBytes);
     writeHdr();
     out->seek(getFpos(), IFSbegin);
@@ -373,13 +378,19 @@ bool CWriteNode::add(offset_t pos, const void *indata, size32_t insize, unsigned
         hdr.keyBytes += bytes;
     }
 
+    saveLastKey(indata, insize, sequence);
+    return true;
+}
+
+void CWriteNode::saveLastKey(const void *indata, size32_t insize, unsigned __int64 sequence)
+{
     if (insize>keyLen)
         throw MakeStringException(0, "key+payload (%u) exceeds max length (%u)", insize, keyLen);
     memcpy(lastKeyValue, indata, insize);
     lastSequence = sequence;
     hdr.numKeys++;
-    return true;
 }
+
 
 size32_t CWriteNode::compressValue(const char *keyData, size32_t size, char *result)
 {
@@ -400,6 +411,24 @@ size32_t CWriteNode::compressValue(const char *keyData, size32_t size, char *res
 
 //=========================================================================================================
 
+CLeafWriteNode::CLeafWriteNode(offset_t _fpos, CKeyHdr *_keyHdr) : CWriteNode(_fpos, _keyHdr, true)
+{
+}
+
+void CLeafWriteNode::write(IFileIOStream *out, CRC32 *crc)
+{
+    if (keyType & HTREE_COMPRESSED_KEY)
+        lzwcomp.close();
+    CWriteNode::write(out, crc);
+}
+
+
+CBranchWriteNode::CBranchWriteNode(offset_t _fpos, CKeyHdr *_keyHdr) : CWriteNode(_fpos, _keyHdr, false)
+{
+}
+
+//=========================================================================================================
+
 CBlobWriteNode::CBlobWriteNode(offset_t _fpos, CKeyHdr *_keyHdr) : CWriteNodeBase(_fpos, _keyHdr)
 {
     hdr.leafFlag = NodeBlob;
@@ -408,6 +437,12 @@ CBlobWriteNode::CBlobWriteNode(offset_t _fpos, CKeyHdr *_keyHdr) : CWriteNodeBas
 
 CBlobWriteNode::~CBlobWriteNode()
 {
+}
+
+void CBlobWriteNode::write(IFileIOStream *out, CRC32 *crc)
+{
+    lzwcomp.close();
+    CWriteNodeBase::write(out, crc);
 }
 
 unsigned __int64 CBlobWriteNode::makeBlobId(offset_t nodepos, unsigned offset)
@@ -504,12 +539,6 @@ CJHTreeNode::CJHTreeNode()
     expandedSize = 0;
 }
 
-void CJHTreeNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _fpos, bool needCopy)
-{
-    CNodeBase::load(_keyHdr, _fpos);
-    unpack(rawData, needCopy);
-}
-
 CJHTreeNode::~CJHTreeNode()
 {
     releaseMem(keyBuf, expandedSize);
@@ -538,30 +567,101 @@ void *CJHTreeNode::allocMem(size32_t len)
     return ret;
 }
 
-char *CJHTreeNode::expandKeys(void *src,size32_t &retsize)
-{
-    Owned<IExpander> exp = createLZWExpander(true);
-    int len=exp->init(src);
-    if (len==0)
-    {
-        retsize = 0;
-        return NULL;
-    }
-    char *outkeys=(char *) allocMem(len);
-    exp->expand(outkeys);
-    retsize = len;
-    return outkeys;
-}
-
 size32_t CJHTreeNode::getNodeSize() const
 {
     return keyHdr->getNodeSize();
 }
 
-void CJHTreeNode::unpack(const void *node, bool needCopy)
+offset_t CJHTreeNode::prevNodeFpos() const
+{
+    offset_t ll;
+
+    if (!isLeaf())
+        ll = getFPosAt(0);
+    else
+        ll = hdr.leftSib;
+    return ll;
+}
+
+offset_t CJHTreeNode::nextNodeFpos() const
+{
+    offset_t ll;
+
+    if (!isLeaf())
+        ll = getFPosAt(hdr.numKeys - 1);
+    else
+        ll = hdr.rightSib;
+    return ll;
+}
+
+unsigned __int64 CJHTreeNode::getSequence(unsigned int index) const
+{
+    if (index >= hdr.numKeys) return 0;
+    return firstSequence + index;
+}
+
+bool CJHTreeNode::contains(const char *src) const
+{ // returns true if node contains key
+
+    if (compareValueAt(src, 0)<0)
+        return false;
+    if (compareValueAt(src, hdr.numKeys-1)>0)
+        return false;
+    return true;
+}
+
+
+int CJHTreeNode::locateGE(const char * search, unsigned minIndex) const
+{
+    CCycleTimer timer;
+    unsigned int a = minIndex;
+    int b = getNumKeys();
+    // first search for first GTE entry (result in b(<),a(>=))
+    while ((int)a<b)
+    {
+        int i = a+(b-a)/2;
+        int rc = compareValueAt(search, i);
+        if (rc>0)
+            a = i+1;
+        else
+            b = i;
+    }
+
+    unsigned __int64 elapsed = timer.elapsedCycles();
+    if (isBranch())
+        branchSearchCycles += elapsed;
+    else
+        leafSearchCycles += elapsed;
+    return a;
+}
+
+
+int CJHTreeNode::locateGT(const char * search, unsigned minIndex) const
+{
+    unsigned int a = minIndex;
+    int b = getNumKeys();
+    // Locate first record greater than src
+    while ((int)a<b)
+    {
+        //MORE: Note sure why the index is subtly different to the GTE version
+        //I suspect no good reason, and may mess up cache locality.
+        int i = a+(b+1-a)/2;
+        int rc = compareValueAt(search, i-1);
+        if (rc>=0)
+            a = i;
+        else
+            b = i-1;
+    }
+    return a;
+}
+
+
+void CJHTreeNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _fpos, bool needCopy)
 {
     assertex(!keyBuf && (expandedSize == 0));
-    memcpy(&hdr, node, sizeof(hdr));
+
+    CNodeBase::load(_keyHdr, _fpos);
+    memcpy(&hdr, rawData, sizeof(hdr));
     SwapBigEndian(hdr);
     __int64 maxsib = keyHdr->getHdrStruct()->phyrec;
     if (!hdr.isValid(keyHdr->getNodeSize()))
@@ -578,13 +678,20 @@ void CJHTreeNode::unpack(const void *node, bool needCopy)
     if (hdr.leafFlag == NodeBranch)
         keyLen = keyHdr->getNodeKeyLength();
     keyRecLen = keyLen + sizeof(offset_t);
-    char *keys = ((char *) node) + sizeof(hdr);
+    char *keys = ((char *) rawData) + sizeof(hdr);
     if (hdr.crc32)
     {
         unsigned crc = crc32(keys, hdr.keyBytes, 0);
         if (hdr.crc32 != crc)
             throw MakeStringException(0, "CRC error on key node");
     }
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+
+void CJHTreeNodeCommon::unpack(const void *node, bool needCopy)
+{
+    char *keys = ((char *) node) + sizeof(hdr);
     if (hdr.leafFlag==NodeLeaf)
     {
         firstSequence = *(unsigned __int64 *) keys;
@@ -720,34 +827,29 @@ void CJHTreeNode::unpack(const void *node, bool needCopy)
     }
 }
 
-offset_t CJHTreeNode::prevNodeFpos() const
-{
-    offset_t ll;
 
-    if (!isLeaf())
-        ll = getFPosAt(0);
-    else
-        ll = hdr.leftSib;
-    return ll;
+char *CJHTreeNodeCommon::expandKeys(void *src,size32_t &retsize)
+{
+    Owned<IExpander> exp = createLZWExpander(true);
+    int len=exp->init(src);
+    if (len==0)
+    {
+        retsize = 0;
+        return NULL;
+    }
+    char *outkeys=(char *) allocMem(len);
+    exp->expand(outkeys);
+    retsize = len;
+    return outkeys;
 }
 
-offset_t CJHTreeNode::nextNodeFpos() const
-{
-    offset_t ll;
 
-    if (!isLeaf())
-        ll = getFPosAt(hdr.numKeys - 1);
-    else
-        ll = hdr.rightSib;
-    return ll;
-}
-
-int CJHTreeNode::compareValueAt(const char *src, unsigned int index) const
+int CJHTreeNodeCommon::compareValueAt(const char *src, unsigned int index) const
 {
     return memcmp(src, keyBuf + index*keyRecLen + (keyHdr->hasSpecialFileposition() ? sizeof(offset_t) : 0), keyCompareLen);
 }
 
-bool CJHTreeNode::getValueAt(unsigned int index, char *dst) const
+bool CJHTreeNodeCommon::getValueAt(unsigned int index, char *dst) const
 {
     if (index >= hdr.numKeys) return false;
     if (dst)
@@ -770,7 +872,8 @@ bool CJHTreeNode::getValueAt(unsigned int index, char *dst) const
     return true;
 }
 
-size32_t CJHTreeNode::getSizeAt(unsigned int index) const
+
+size32_t CJHTreeNodeCommon::getSizeAt(unsigned int index) const
 {
     if (keyHdr->hasSpecialFileposition())
         return keyLen + sizeof(offset_t);
@@ -778,7 +881,7 @@ size32_t CJHTreeNode::getSizeAt(unsigned int index) const
         return keyLen;
 }
 
-offset_t CJHTreeNode::getFPosAt(unsigned int index) const
+offset_t CJHTreeNodeCommon::getFPosAt(unsigned int index) const
 {
     if (index >= hdr.numKeys) return 0;
 
@@ -789,21 +892,14 @@ offset_t CJHTreeNode::getFPosAt(unsigned int index) const
     return pos;
 }
 
-unsigned __int64 CJHTreeNode::getSequence(unsigned int index) const
+void CJHTreeNodeCommon::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _fpos, bool needCopy)
 {
-    if (index >= hdr.numKeys) return 0;
-    return firstSequence + index;
+    CJHTreeNode::load(_keyHdr, rawData, _fpos, needCopy);
+    unpack(rawData, needCopy);
 }
 
-bool CJHTreeNode::contains(const char *src) const
-{ // returns true if node contains key
 
-    if (compareValueAt(src, 0)<0)
-        return false;
-    if (compareValueAt(src, hdr.numKeys-1)>0)
-        return false;
-    return true;
-}
+//---------------------------------------------------------------------------------------------------------------------
 
 extern jhtree_decl void validateKeyFile(const char *filename, offset_t nodePos)
 {
@@ -851,7 +947,8 @@ extern jhtree_decl void validateKeyFile(const char *filename, offset_t nodePos)
             MTIME_SECTION(queryActiveTimer(), "JHTREE read index node");
             io->read(nodeOffset, hdr.nodeSize, buffer);
         }
-        CJHTreeNode theNode;
+        //GH MORE: This will not work with inplace compressed keys
+        CJHTreeNodeCommon theNode;
         {
             MTIME_SECTION(queryActiveTimer(), "JHTREE load index node");
             theNode.load(&keyHdr, buffer, nodeOffset, true);
@@ -884,7 +981,7 @@ CJHVarTreeNode::CJHVarTreeNode()
 
 void CJHVarTreeNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _fpos, bool needCopy)
 {
-    CJHTreeNode::load(_keyHdr, rawData, _fpos, needCopy);
+    CJHTreeNodeCommon::load(_keyHdr, rawData, _fpos, needCopy);
     unsigned n = getNumKeys();
     recArray = new const char * [n];
     const char *finger = keyBuf;
@@ -953,7 +1050,7 @@ offset_t CJHVarTreeNode::getFPosAt(unsigned int num) const
 
 void CJHRowCompressedNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _fpos, bool needCopy)
 {
-    CJHTreeNode::load(_keyHdr, rawData, _fpos, needCopy);
+    CJHTreeNodeCommon::load(_keyHdr, rawData, _fpos, needCopy);
     assertex(hdr.leafFlag==NodeLeaf);
     char *keys = ((char *) rawData) + sizeof(hdr)+sizeof(firstSequence);
     assertex(IRandRowExpander::isRand(keys));
@@ -1097,4 +1194,3 @@ IKeyException *MakeKeyException(int code, const char *format, ...)
     va_end(args);
     return e;
 }
-

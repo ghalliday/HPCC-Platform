@@ -50,6 +50,7 @@ class IndexWriteSlaveActivity : public ProcessSlaveActivity, public ILookAheadSt
     bool sizeSignalled;
     bool isLocal, singlePartKey, reportOverflow, fewcapwarned, refactor;
     bool defaultNoSeek = false;
+    bool defaultInplace = false;
     unsigned __int64 totalCount;
 
     size32_t maxDiskRecordSize, lastRowSize, firstRowSize;
@@ -89,6 +90,7 @@ public:
         refactor = false;
         enableTlkPart0 = (0 != container.queryJob().getWorkUnitValueInt("enableTlkPart0", globals->getPropBool("@enableTlkPart0", true)));
         defaultNoSeek = (0 != container.queryJob().getWorkUnitValueInt("noSeekBuildIndex", globals->getPropBool("@noSeekBuildIndex", isContainerized())));
+        defaultInplace = (0 != container.queryJob().getWorkUnitValueInt("inplaceBuildIndex", globals->getPropBool("@inplaceBuildIndex", false)));
         reInit = (0 != (TIWvarfilename & helper->getFlags()));
         duplicateKeyCount = 0;
     }
@@ -182,6 +184,8 @@ public:
         }
         if (metadata->getPropBool("_useTrailingHeader", true))
             flags |= USE_TRAILING_HEADER;
+        if (metadata->getPropBool("_inplace", defaultInplace))
+            flags |= INPLACE_COMPRESS_BRANCH;
         unsigned twFlags = isUrl(partFname) ? TW_Direct : TW_RenameToPrimary;
         builderIFileIO.setown(createMultipleWrite(this, partDesc, 0, twFlags, compress, NULL, this, &abortSoon));
         Owned<IFileIOStream> out = createBufferedIOStream(builderIFileIO, 0x100000);

@@ -19,6 +19,7 @@
 #include "eclhelper.hpp"
 #include "bloom.hpp"
 #include "jmisc.hpp"
+#include "jhinplace.hpp"
 
 struct CRC32HTE
 {
@@ -91,9 +92,11 @@ protected:
     CRC32EndHT crcEndPosTable;
     CRC32 headCRC;
     bool doCrc = false;
+    byte * nullRow = nullptr;
 
 private:
     unsigned __int64 duplicateCount;
+    unsigned __int64 sizeLeaves = 0;
     __uint64 partitionFieldMask = 0;
     CWriteNode *activeNode = nullptr;
     CBlobWriteNode *activeBlobNode = nullptr;
@@ -109,6 +112,7 @@ public:
           enforceOrder(_enforceOrder),
           isTLK(_isTLK)
     {
+        flags |= INPLACE_COMPRESS_BRANCH;
         sequence = _startSequence;
         keyHdr.setown(new CKeyHdr());
         keyValueSize = rawSize;
@@ -129,7 +133,8 @@ public:
         hdr->nodeSize = nodeSize;
         hdr->extsiz = 4096;
         hdr->length = keyValueSize; 
-        hdr->ktype = flags;
+        hdr->oldktype = flags;
+        hdr->keyFlags = flags;
         hdr->timeid = 0;
         hdr->clstyp = 1;  // IDX_CLOSE
         hdr->maxkbn = nodeSize-sizeof(NodeHdr);
@@ -168,11 +173,24 @@ public:
                     bloomInfo++;
                 }
             }
+
+            //Create a representation of the null row - used for the new compression algorithm
+            nullRow = new byte[keyedSize];
+            RtlStaticRowBuilder rowBuilder(nullRow, keyedSize);
+
+            auto & meta = _helper->queryDiskRecordSize()->queryRecordAccessor(true);
+            size32_t offset = 0;
+            for (unsigned idx = 0; idx < meta.getNumFields() && offset < keyedSize; idx++)
+            {
+                const RtlFieldInfo *field = meta.queryField(idx);
+                offset = field->type->buildNull(rowBuilder, offset, field);
+            }
         }
     }
 
     ~CKeyBuilder()
     {
+        delete [] nullRow;
         for (;;)
         {
             CRC32HTE *et = (CRC32HTE *)crcEndPosTable.next(NULL);
@@ -182,11 +200,21 @@ public:
         }
     }
 
+    CWriteNode * createWriteNode(offset_t fpos, CKeyHdr *keyHdr, bool isLeaf)
+    {
+        if (isLeaf)
+            return new CLeafWriteNode(fpos, keyHdr);
+        else if (keyHdr->isInplaceCompressedBranch())
+            return new CNewBranchWriteNode(fpos, keyHdr, nullRow);
+        else
+            return new CBranchWriteNode(fpos, keyHdr);
+    }
+
     void buildLevel(NodeInfoArray &thisLevel, NodeInfoArray &parents)
     {
         unsigned int leaf = 0;
         CWriteNode *node = NULL;
-        node = new CWriteNode(nextPos, keyHdr, levels==0);
+        node = createWriteNode(nextPos, keyHdr, levels==0);
         nextPos += keyHdr->getNodeSize();
         while (leaf<thisLevel.ordinality())
         {
@@ -195,7 +223,7 @@ public:
             {
                 flushNode(node, parents);
                 node->Release();
-                node = new CWriteNode(nextPos, keyHdr, levels==0);
+                node = createWriteNode(nextPos, keyHdr, levels==0);
                 nextPos += keyHdr->getNodeSize();
                 verifyex(node->add(info.pos, info.value, info.size, info.sequence));
             }
@@ -406,6 +434,7 @@ protected:
             }
             pendingNodes.kill();
         }
+        sizeLeaves = nextPos - keyHdr->getNodeSize();
         buildTree(leafInfo);
         if(metadata)
         {
@@ -454,7 +483,7 @@ protected:
         records++;
         if (NULL == activeNode)
         {
-            activeNode = new CWriteNode(nextPos, keyHdr, true);
+            activeNode = createWriteNode(nextPos, keyHdr, true);
             nextPos += keyHdr->getNodeSize();
         }
         else if (enforceOrder) // NB: order is indeterminate when build a TLK for a LOCAL index. duplicateCount is not calculated in this case.
@@ -484,7 +513,7 @@ protected:
 
             flushNode(activeNode, leafInfo);
             activeNode->Release();
-            activeNode = new CWriteNode(nextPos, keyHdr, true);
+            activeNode = createWriteNode(nextPos, keyHdr, true);
             nextPos += keyHdr->getNodeSize();
             if (!activeNode->add(pos, keyData, recsize, sequence))
                 throw MakeStringException(0, "Key row too large to fit within a key node (uncompressed size=%d, variable=%s, pos=%" I64F "d)", recsize, keyHdr->isVariable()?"true":"false", pos);
@@ -535,7 +564,12 @@ protected:
         return head;
     }
 
-    unsigned __int64 getDuplicateCount() { return duplicateCount; };
+    virtual unsigned __int64 getDuplicateCount() const override { return duplicateCount; };
+    virtual unsigned __int64 getNumLeaves() const override { return sizeLeaves/keyHdr->getNodeSize(); };
+    virtual unsigned __int64 getNumBranches() const override
+    {
+        return (nextPos - sizeLeaves)/keyHdr->getNodeSize();
+    }
 
 protected:
     void writeMetadata(char const * data, size32_t size)
@@ -626,5 +660,5 @@ int compareParts(CInterface * const * _left, CInterface * const * _right)
 
 extern jhtree_decl bool checkReservedMetadataName(const char *name)
 {
-    return strsame(name, "_nodeSize") || strsame(name, "_noSeek") || strsame(name, "_useTrailingHeader");
+    return strsame(name, "_nodeSize") || strsame(name, "_noSeek") || strsame(name, "_useTrailingHeader") || strsame(name, "_inplace");
 }

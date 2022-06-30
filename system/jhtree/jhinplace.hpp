@@ -1,0 +1,158 @@
+/*##############################################################################
+
+    HPCC SYSTEMS software Copyright (C) 2012 HPCC Systems®.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+############################################################################## */
+
+#ifndef JHINPLACE_HPP
+#define JHINPLACE_HPP
+
+#include "jiface.hpp"
+#include "jhutil.hpp"
+#include "hlzw.h"
+#include "jcrc.hpp"
+#include "jio.hpp"
+#include "jfile.hpp"
+#include "ctfile.hpp"
+
+class InplaceNodeSearcher
+{
+public:
+    InplaceNodeSearcher() = default;
+    InplaceNodeSearcher(unsigned _count, const byte * data, size32_t _keyLen, const byte * _nullRow);
+    void init(unsigned _count, const byte * data, size32_t _keyLen, const byte * _nullRow);
+
+    //Find the first row that is >= the search row
+    unsigned findGE(const unsigned len, const byte * search) const;
+    bool getValueAt(unsigned int num, char *key) const;
+    int compareValueAt(const char *src, unsigned int index) const;
+    int compareValueAtFallback(const char *src, unsigned int index) const;
+
+protected:
+    const byte * nodeData = nullptr;
+    const byte * nullRow = nullptr;
+    size32_t count = 0;
+    size32_t keyLen = 0;
+};
+
+//---------------------------------------------------------------------------------------------------------------------
+
+class PartialMatchBuilder;
+class PartialMatch : public CInterface
+{
+public:
+    PartialMatch(PartialMatchBuilder * _builder, size32_t _len, const void * _data, unsigned _rowOffset, bool _isRoot)
+    : builder(_builder), data(_len, _data), rowOffset(_rowOffset), isRoot(_isRoot)
+    {
+    }
+
+    bool combine(size32_t newLen, const byte * newData);
+    bool removeLast();
+    void serialize(MemoryBuffer & buffer);
+    void serializeFirst(MemoryBuffer & out);
+    bool squash();
+    void trace(unsigned indent);
+
+    size32_t getSize();
+    size32_t getCount();
+    const byte * queryNullRow();
+    bool isEnd() const { return data.length() == 0; }
+
+protected:
+    bool allNextAreEnd();
+    void cacheSizes();
+    size32_t getMaxOffset();
+
+protected:
+    PartialMatchBuilder * builder;
+    MemoryBuffer data;
+    MemoryBuffer squashedData;
+    CIArrayOf<PartialMatch> next;
+    unsigned rowOffset;
+    size32_t maxOffset = 0;
+    size32_t size = 0;
+    size32_t maxCount = 0;
+    bool dirty = true;
+    bool squashed = false;
+    bool isRoot;
+};
+
+
+class PartialMatchBuilder
+{
+public:
+    PartialMatchBuilder(size32_t _keyLen, const byte *_nullRow, bool _optimizeTrailing) : nullRow(_nullRow), keyLen(_keyLen), optimizeTrailing(_optimizeTrailing)
+    {
+        //MORE: Options for #null bytes to include in a row, whether to squash etc.
+    }
+
+    void add(size32_t len, const void * data);
+    void removeLast();
+    void serialize(MemoryBuffer & out);
+    void squash();
+    void trace();
+
+    const byte * queryNullRow() const { return nullRow; }
+    unsigned getCount() { return root ? root->getCount() : 0; }
+    unsigned getSize() { return root ? root->getSize() : 0; }
+
+protected:
+    Owned<PartialMatch> root;
+    const byte * nullRow;
+    size32_t keyLen;
+    bool optimizeTrailing;
+};
+
+//---------------------------------------------------------------------------------------------------------------------
+
+class jhtree_decl CJHInplaceTreeNode : public CJHTreeNode
+{
+public:
+    virtual void load(CKeyHdr *keyHdr, const void *rawData, offset_t pos, bool needCopy) override;
+    virtual bool getValueAt(unsigned int num, char *key) const override;
+    virtual size32_t getSizeAt(unsigned int num) const override;
+    virtual offset_t getFPosAt(unsigned int num) const override;
+    virtual int compareValueAt(const char *src, unsigned int index) const override;
+
+    virtual int locateGE(const char * search, unsigned minIndex) const override;
+
+protected:
+    InplaceNodeSearcher searcher;
+    const byte * positionData = nullptr;
+    byte bytesPerPosition = 0;
+    bool scaleFposByNodeSize = false;
+};
+
+
+class jhtree_decl CNewBranchWriteNode : public CWriteNode
+{
+public:
+    CNewBranchWriteNode(offset_t fpos, CKeyHdr *keyHdr, const byte * nullRow);
+
+    virtual bool add(offset_t pos, const void *data, size32_t size, unsigned __int64 sequence) override;
+    virtual void write(IFileIOStream *, CRC32 *crc) override;
+
+protected:
+    unsigned getDataSize();
+
+protected:
+    PartialMatchBuilder builder;
+    const byte * nullRow;
+    Unsigned64Array positions;
+    unsigned nodeSize;
+    bool scaleFposByNodeSize = true;
+};
+
+
+#endif
