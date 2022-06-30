@@ -100,6 +100,19 @@ int KeyCompressor::writekey(offset_t fPtr, const char *key, unsigned datalength,
     return 1;
 }
 
+bool KeyCompressor::limitWrite(size32_t maxLength, const char *key, size32_t datalength)
+{
+    assert(!isBlob);
+    comp->startblock(); // start transaction
+    if (comp->limitWrite(maxLength,key,datalength)!=datalength) {
+        close();
+        return false;
+    }
+    comp->commitblock();    // end transaction
+    return true;
+}
+
+
 unsigned KeyCompressor::writeBlob(const char *data, unsigned datalength)
 {
     assert(isBlob);

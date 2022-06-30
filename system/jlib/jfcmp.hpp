@@ -140,9 +140,21 @@ public:
         }
     }
 
-    size32_t write(const void *buf,size32_t len)
+    size32_t write(const void *buf,size32_t len) override
     {
-        // no more than wrmax per write (unless dynamically sizing)
+        return doWrite((size32_t)-1, buf, len);
+    }
+
+    size32_t limitWrite(size32_t limit, const void *buf,size32_t len) override
+    {
+        UNIMPLEMENTED; // need to adjust limit to subtract minimum overhead
+        assertex(!outBufMb); // Limited write only supported to a fixed size buffer
+        return doWrite(limit, buf, len);
+    }
+
+    size32_t doWrite(size32_t thisLimit, const void *buf,size32_t len)
+    {
+        size32_t limit = (thisLimit < inmax) ? thisLimit : inmax;
         size32_t lenb = wrmax;
         byte *b = (byte *)buf;
         size32_t written = 0;
@@ -150,12 +162,12 @@ public:
         {
             if (len < lenb)
                 lenb = len;
-            if (lenb+inlen>inmax)
+            if (lenb+inlen>limit)
             {
                 if (trailing)
                     return written;
                 flushcommitted();
-                if (lenb+inlen>inmax)
+                if (lenb+inlen>limit)
                 {
                     if (outBufMb) // sizing input buffer, but outBufMb!=NULL is condition of whether in use or not
                     {
@@ -165,8 +177,10 @@ public:
                         inbuf = (byte *)inma.bufferBase();
                         wrmax = blksz;
                         setinmax();
+                        limit = inmax;
                     }
-                    lenb = inmax-inlen;
+
+                    lenb = limit-inlen;
                     if (len < lenb)
                         lenb = len;
                 }

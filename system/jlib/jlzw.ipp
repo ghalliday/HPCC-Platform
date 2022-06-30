@@ -49,7 +49,8 @@ public:
     virtual void    open(MemoryBuffer &mb, size32_t initialSize);
     virtual void    open(void *blk,size32_t blksize);
     virtual void    close();
-    virtual size32_t    write(const void *buf,size32_t len);
+    virtual size32_t write(const void *buf,size32_t len);
+    virtual size32_t limitWrite(size32_t limit, const void *buf,size32_t len);
     virtual void *  bufptr() { return outbuf;}
     virtual size32_t    buflen() { return outlen;}
     virtual void    startblock();
@@ -59,7 +60,10 @@ protected:
     void flushbuf();
     void initCommon();
     void ensure(size32_t sz);
+    size32_t doWrite(size32_t thisLimit, const void *buf,size32_t buflen);
+
     virtual void initdict();
+
     size32_t inlen;
     size32_t inlenblk;
     size32_t outlen;

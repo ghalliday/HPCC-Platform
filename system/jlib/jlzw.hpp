@@ -30,6 +30,7 @@ interface jlib_decl ICompressor : public IInterface
     virtual void   open(void *blk, size32_t blksize)=0;              // fixed size output
     virtual void   close()=0;
     virtual size32_t write(const void *buf,size32_t len)=0;             
+    virtual size32_t limitWrite(size32_t maxLength, const void *buf,size32_t len)=0;
                                                                             
     virtual void * bufptr()=0;
     virtual size32_t buflen()=0;

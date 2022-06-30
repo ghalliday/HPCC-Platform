@@ -19,6 +19,7 @@
 #include "eclhelper.hpp"
 #include "bloom.hpp"
 #include "jmisc.hpp"
+#include "jhinplace.hpp"
 
 struct CRC32HTE
 {
@@ -119,6 +120,8 @@ protected:
     CRC32EndHT crcEndPosTable;
     CRC32 headCRC;
     bool doCrc = false;
+    byte * nullRow = nullptr;
+    KeyBuildContext ctx;
 
 private:
     unsigned __int64 duplicateCount;
@@ -214,6 +217,23 @@ public:
                 else
                     throw makeStringExceptionV(0, "Unrecognised index compression format %s", compression);
             }
+
+
+#if 0
+            //Create a representation of the null row - potentially used for the new compression algorithm
+            nullRow = new byte[keyedSize];
+            RtlStaticRowBuilder rowBuilder(nullRow, keyedSize);
+
+            auto & meta = _helper->queryDiskRecordSize()->queryRecordAccessor(true);
+            size32_t offset = 0;
+            for (unsigned idx = 0; idx < meta.getNumFields() && offset < keyedSize; idx++)
+            {
+                const RtlFieldInfo *field = meta.queryField(idx);
+                offset = field->type->buildNull(rowBuilder, offset, field);
+            }
+            ctx.nullRow = nullRow;
+#endif
+
         }
         if (!indexCompressor)
             indexCompressor.setown(new LegacyIndexCompressor);
@@ -221,6 +241,7 @@ public:
 
     ~CKeyBuilder()
     {
+        delete [] nullRow;
         for (;;)
         {
             CRC32HTE *et = (CRC32HTE *)crcEndPosTable.next(NULL);
@@ -501,6 +522,18 @@ protected:
             else
                 *fileCrc = 0;
         }
+
+#if 0
+        //MORE: Refactor into a ctx.traceDebugSummary()
+        DBGLOG("NumDuplicates = %u", ctx.numKeyedDuplicates);
+        for (unsigned i = 0; i < 256; i+= 8)
+        {
+            StringBuffer s;
+            for (unsigned j=0; j < 7; j++)
+                s.appendf(" %4x", ctx.singleCounts[i+j]);
+            DBGLOG("%02x:%s", i, s.str());
+        }
+#endif
     }
 
     void addLeafInfo(CNodeInfo *info)

@@ -376,6 +376,7 @@ extern bool enableKeyDiff;
 extern PTreeReaderOptions defaultXmlReadFlags;
 extern bool mergeAgentStatistics;
 extern bool defaultNoSeekBuildIndex;
+extern bool defaultInplaceBuildIndex;
 extern unsigned parallelQueryLoadThreads;
 extern bool adhocRoxie;
 extern bool alwaysFailOnLeaks;

@@ -29,6 +29,7 @@ set (    SRCS
          hlzw.cpp 
          ctfile.cpp 
          jhtree.cpp 
+         jhinplace.cpp
          jhutil.cpp 
          bloom.cpp
          keybuild.cpp 
@@ -40,6 +41,7 @@ set (    INCLUDES
          ctfile.hpp
          hlzw.h
          jhtree.hpp
+         jhinplace.hpp
          jhutil.hpp
          bloom.hpp
          keybuild.hpp
@@ -57,6 +59,10 @@ include_directories (
          ./../../system/security/zcrypt
          ./../../testing/unittests
     )
+
+
+#set_source_files_properties (jhinplace.cpp PROPERTIES COMPILE_FLAGS -Wa,-acdhl=jhinplace.lst)
+
 
 ADD_DEFINITIONS( -D_USRDLL -DJHTREE_EXPORTS -DECLRTL_LOCAL )
 

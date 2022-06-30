@@ -140,6 +140,7 @@ bool defaultCollectFactoryStatistics = true;
 bool defaultExecuteDependenciesSequentially = false;
 bool defaultStartInputsSequentially = false;
 bool defaultNoSeekBuildIndex = false;
+bool defaultInplaceBuildIndex = false;
 unsigned parallelQueryLoadThreads = 0;               // Number of threads to use for parallel loading of queries. 0 means don't (may cause CPU starvation on other vms)
 bool alwaysFailOnLeaks = false;
 bool ignoreFileDateMismatches = false;
@@ -294,6 +295,7 @@ public:
     }
     bool onAbort()
     {
+            logCacheState();
         aborted.signal();
         roxieMetrics.clear();
 #ifdef _DEBUG
@@ -1156,6 +1158,7 @@ int CCD_API roxie_main(int argc, const char *argv[], const char * defaultYaml)
         defaultExecuteDependenciesSequentially = topology->getPropBool("@executeDependenciesSequentially", defaultExecuteDependenciesSequentially);
         defaultStartInputsSequentially = topology->getPropBool("@startInputsSequentially", defaultStartInputsSequentially);
         defaultNoSeekBuildIndex = topology->getPropBool("@noSeekBuildIndex", isContainerized());
+        defaultInplaceBuildIndex = topology->getPropBool("@inplaceBuildIndex", false);
         parallelQueryLoadThreads = topology->getPropInt("@parallelQueryLoadThreads", parallelQueryLoadThreads);
         if (!parallelQueryLoadThreads)
             parallelQueryLoadThreads = 1;
@@ -1530,6 +1533,7 @@ int CCD_API roxie_main(int argc, const char *argv[], const char * defaultYaml)
             }
         }
         DBGLOG("Roxie closing down");
+        logCacheState();
         shuttingDown = true;
         stopTopoThread();
         ::Release(globalPackageSetManager);

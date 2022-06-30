@@ -316,6 +316,20 @@ void CLZWCompressor::open(void *buf,size32_t max)
 
 size32_t CLZWCompressor::write(const void *buf,size32_t buflen)
 {
+    return doWrite((size32_t)-1, buf, buflen);
+}
+
+size32_t CLZWCompressor::limitWrite(size32_t limit, const void *buf,size32_t buflen)
+{
+    if (limit <= SAFETY_MARGIN)
+        return 0;
+    assertex(!outBufMb); // Limited write only supported to a fixed size buffer
+    return doWrite(limit - SAFETY_MARGIN, buf, buflen);
+}
+
+
+size32_t CLZWCompressor::doWrite(size32_t thisLimit, const void *buf,size32_t buflen)
+{
     if (!buflen)
         return 0;
     if (!dict.curbits)
@@ -326,6 +340,7 @@ size32_t CLZWCompressor::write(const void *buf,size32_t buflen)
 #endif
 
     size32_t len=buflen;
+    size32_t limit = (thisLimit < maxlen) ? thisLimit : maxlen;
     if (curcode==-1)
     {
         curcode = *(in++);
@@ -344,10 +359,13 @@ size32_t CLZWCompressor::write(const void *buf,size32_t buflen)
                 dict.dictparent[index] = curcode;
                 dict.dictchar[index] = (unsigned char) ch;
                 PUTCODE(curcode);
-                if ((outlen>=maxlen))
+                if ((outlen>=limit))
                 {
                     if (outBufMb)
+                    {
                         ensure(outlen+0x10000);
+                        limit = maxlen;
+                    }
                     else
                     {
                         size32_t ret;
@@ -1395,6 +1413,11 @@ public:
         return buflen;
     }
 
+    size32_t limitWrite(size32_t limit, const void *buf,size32_t buflen)
+    {
+        UNIMPLEMENTED_X("CRDiffCompressor::limitWrite");
+    }
+
 
 
     void startblock()
@@ -1669,7 +1692,10 @@ public:
         return buflen;
     }
 
-
+    size32_t limitWrite(size32_t limit, const void *buf,size32_t buflen)
+    {
+        UNIMPLEMENTED_X("CRandRDiffCompressor::limitWrite");
+    }
 
     void startblock()
     {
@@ -2590,6 +2616,11 @@ public:
     size32_t write(const void *buf,size32_t len)
     {
         return comp->write(buf,len);
+    }
+
+    size32_t limitWrite(size32_t limit, const void *buf,size32_t len)
+    {
+        return comp->limitWrite(limit,buf,len);
     }
 
     void * bufptr()

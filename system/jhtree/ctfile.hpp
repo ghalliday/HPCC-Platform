@@ -118,6 +118,7 @@ enum CompressionType : byte
     LegacyCompression = 0,    // Keys built prior to 8.12.x will always have 0 here
     // Additional compression formats can be added here...
     SplitPayload = 1,         // A proof-of-concept using separate compression blocks for keyed fields vs payload
+    InplaceCompression = 2,
 };
 
 //#pragma pack(1)
@@ -504,5 +505,14 @@ enum KeyExceptionCodes
 interface jhtree_decl IKeyException : extends IException { };
 IKeyException *MakeKeyException(int code, const char *format, ...) __attribute__((format(printf, 2, 3)));
 
+class KeyBuildContext
+{
+public:
+    unsigned numKeyedDuplicates = 0;
+    unsigned singleCounts[256] = { 0 };
+    MemoryBuffer uncompressed;
+    MemoryAttr compressed;
+    const byte * nullRow = nullptr;
+};
 
 #endif

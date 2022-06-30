@@ -1120,6 +1120,7 @@ CHThorIndexWriteActivity::CHThorIndexWriteActivity(IAgentContext &_agent, unsign
     clusterHandler.setown(createClusterWriteHandler(agent, &helper, NULL, lfn, filename, false));
     sizeLimit = agent.queryWorkUnit()->getDebugValueInt64("hthorDiskWriteSizeLimit", defaultHThorDiskWriteSizeLimit);
     defaultNoSeek = agent.queryWorkUnit()->getDebugValueBool("noSeekBuildIndex", isContainerized());
+    defaultInplace = agent.queryWorkUnit()->getDebugValueBool("inplaceBuildIndex", false);
 }
 
 CHThorIndexWriteActivity::~CHThorIndexWriteActivity()
@@ -1194,6 +1195,10 @@ void CHThorIndexWriteActivity::execute()
         }
         if (metadata->getPropBool("_useTrailingHeader", true))
             flags |= USE_TRAILING_HEADER;
+        if (metadata->getPropBool("_inplace", defaultInplace))
+            flags |= INPLACE_COMPRESS_BRANCH;
+        if (metadata->getPropBool("_inplaceleaf", defaultInplace))
+            flags |= INPLACE_COMPRESS_LEAF;
 
         size32_t keyMaxSize = helper.queryDiskRecordSize()->getRecordSize(NULL);
         if (hasTrailingFileposition(helper.queryDiskRecordSize()->queryTypeInfo()))

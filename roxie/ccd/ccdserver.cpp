@@ -12559,6 +12559,10 @@ public:
             }
             if (metadata->getPropBool("_useTrailingHeader", true))
                 flags |= USE_TRAILING_HEADER;
+            if (metadata->getPropBool("_inplace", ctx->queryOptions().inplaceBuildIndex))
+                flags |= INPLACE_COMPRESS_BRANCH;
+            if (metadata->getPropBool("_inplaceleaf", ctx->queryOptions().inplaceBuildIndex))
+                flags |= INPLACE_COMPRESS_LEAF;
             Owned<IFileIOStream> out = createBufferedIOStream(io, 0x100000);
             if (!needsSeek)
                 out.setown(createNoSeekIOStream(out));

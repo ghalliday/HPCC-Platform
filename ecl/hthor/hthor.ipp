@@ -385,6 +385,7 @@ class CHThorIndexWriteActivity : public CHThorActivityBase
     Owned<IFile> file;
     bool incomplete;
     bool defaultNoSeek = false;
+    bool defaultInplace = false;
     offset_t sizeLimit;
     unsigned __int64 duplicateKeyCount = 0;
     unsigned __int64 cummulativeDuplicateKeyCount = 0;

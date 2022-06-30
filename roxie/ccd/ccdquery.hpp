@@ -109,6 +109,7 @@ public:
     bool failOnLeaks;
     bool collectFactoryStatistics;
     bool noSeekBuildIndex;
+    bool inplaceBuildIndex = false;
     bool parallelWorkflow;
     bool statsToWorkunit = false;
     bool executeDependenciesSequentially = false;
