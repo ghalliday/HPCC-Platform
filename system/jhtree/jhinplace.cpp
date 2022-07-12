@@ -305,30 +305,6 @@ static unsigned bytesRequired(unsigned __int64 value)
     return bytes;
 }
 
-unsigned readBytesEntry32(const byte * address, unsigned index, unsigned bytes)
-{
-    if (bytes == 0)
-        return index;
-
-    //Non aligned access, assumes little endian, but avoids a loop
-    const unsigned * pValue = (const unsigned *)(address + index * bytes);
-    unsigned value = *pValue;
-    unsigned mask = ((1U << (bytes * 8)) -1);
-    return (value & mask);
-}
-
-unsigned __int64 readBytesEntry64(const byte * address, unsigned index, unsigned bytes)
-{
-    if (bytes == 0)
-        return index;
-
-    //Non aligned access, assumes little endian, but avoids a loop
-    const unsigned __int64 * pValue = (const unsigned __int64 *)(address + index * bytes);
-    unsigned __int64 value = *pValue;
-    unsigned __int64 mask = ((U64C(1) << (bytes * 8)) -1);
-    return (value & mask);
-}
-
 void serializeBytes(MemoryBuffer & out, unsigned __int64 value, unsigned bytes)
 {
     for (unsigned i=0; i < bytes; i++)
@@ -337,6 +313,50 @@ void serializeBytes(MemoryBuffer & out, unsigned __int64 value, unsigned bytes)
         value >>= 8;
     }
     assertex(value == 0);
+}
+
+unsigned readBytesEntry32(const byte * address, unsigned index, unsigned bytes)
+{
+#if 0
+    //Is the following quicker?  It avoids a multiply, but adds a condition.
+    dbgassertex(bytes != 0);
+    dbgassertex(bytes <= 2);
+
+    if (bytes == 1)
+        return *(const byte *)(address + index);
+    else
+        return *(const unsigned short *)(address + index * 2);
+
+#else
+
+    //Non aligned access, assumes little endian, but avoids a loop
+    const byte * addrValue = address + index * bytes;
+    unsigned value = *(const unsigned *)addrValue;
+
+    //Experiment with the following optional implementations
+#if 0
+    unsigned shift = (4 - bytes) * 8;
+    return (value << shift) >> shift;
+#else
+    if (bytes == 4)
+        return value;
+    unsigned mask = ((1U << (bytes * 8)) -1);
+    return (value & mask);
+#endif
+#endif
+}
+
+unsigned __int64 readBytesEntry64(const byte * address, unsigned index, unsigned bytes)
+{
+    dbgassertex(bytes != 0);
+
+    //Non aligned access, assumes little endian, but avoids a loop
+    const unsigned __int64 * pValue = (const unsigned __int64 *)(address + index * bytes);
+    unsigned __int64 value = *pValue;
+    if (bytes == 8)
+        return value;
+    unsigned __int64 mask = ((U64C(1) << (bytes * 8)) -1);
+    return (value & mask);
 }
 
 //=========================================================================================================
@@ -792,7 +812,13 @@ int InplaceNodeSearcher::compareValueAt(const char * search, unsigned int compar
                 //This entry is greater than search => item(i) is the correct entry
                 if (i == 0)
                     return -1;
-                unsigned matchIndex = resultPrev + readBytesEntry32(counts, i-1, bytesPerCount) + 1;
+
+                unsigned delta;
+                if (bytesPerCount == 0)
+                    delta = i;
+                else
+                    delta = readBytesEntry32(counts, i-1, bytesPerCount) + 1;
+                unsigned matchIndex = resultPrev + delta;
                 return (compareIndex >= matchIndex) ? -1 : +1;
             }
             else if (nextFinger < nextSearch)
@@ -801,11 +827,19 @@ int InplaceNodeSearcher::compareValueAt(const char * search, unsigned int compar
             }
             else
             {
-                //Exact match.  Reduce the range of the match counts using the running counts
-                //stored for each of the options, and continue matching.
-                resultNext = resultPrev + readBytesEntry32(counts, i, bytesPerCount)+1;
-                if (i > 0)
-                    resultPrev += readBytesEntry32(counts, i-1, bytesPerCount)+1;
+                if (bytesPerCount == 0)
+                {
+                    resultPrev += i;
+                    resultNext = resultPrev+1;
+                }
+                else
+                {
+                    //Exact match.  Reduce the range of the match counts using the running counts
+                    //stored for each of the options, and continue matching.
+                    resultNext = resultPrev + readBytesEntry32(counts, i, bytesPerCount)+1;
+                    if (i > 0)
+                        resultPrev += readBytesEntry32(counts, i-1, bytesPerCount)+1;
+                }
 
                 //If the compareIndex is < the lower bound for the match index the search value must be higher
                 if (compareIndex < resultPrev)
@@ -847,6 +881,8 @@ int InplaceNodeSearcher::compareValueAt(const char * search, unsigned int compar
     return 0;
 }
 
+inline unsigned reverseBytes(unsigned value) { return __builtin_bswap32(value); }
+
 //Find the first row that is >= the search row
 unsigned InplaceNodeSearcher::findGE(const unsigned len, const byte * search) const
 {
@@ -871,9 +907,9 @@ unsigned InplaceNodeSearcher::findGE(const unsigned len, const byte * search) co
                 const unsigned nextFinger = *(const unsigned *)(finger + i);
                 if (nextSearch != nextFinger)
                 {
-                    nextSearch = reverseBytes(nextSearch);
-                    nextFinger = reverseBytes(nextFinger);
-                    if (nextFinger > nextSearch)
+                    const unsigned revNextSearch = reverseBytes(nextSearch);
+                    const unsigned revNextFinger = reverseBytes(nextFinger);
+                    if (revNextFinger > revNextSearch)
                         return resultPrev;
                     else
                         return resultNext;
@@ -928,6 +964,8 @@ unsigned InplaceNodeSearcher::findGE(const unsigned len, const byte * search) co
             if (nextFinger > nextSearch)
             {
                 //This entry is greater than search => this is the correct entry
+                if (bytesPerCount == 0)
+                    return resultPrev + i;
                 if (i == 0)
                     return resultPrev;
                 return resultPrev + readBytesEntry32(counts, i-1, bytesPerCount) + 1;
@@ -938,11 +976,19 @@ unsigned InplaceNodeSearcher::findGE(const unsigned len, const byte * search) co
             }
             else
             {
-                //Exact match.  Reduce the range of the match counts using the running counts
-                //stored for each of the options, and continue matching.
-                resultNext = resultPrev + readBytesEntry32(counts, i, bytesPerCount)+1;
-                if (i > 0)
-                    resultPrev += readBytesEntry32(counts, i-1, bytesPerCount)+1;
+                if (bytesPerCount == 0)
+                {
+                    resultPrev += i;
+                    resultNext = resultPrev+1;
+                }
+                else
+                {
+                    //Exact match.  Reduce the range of the match counts using the running counts
+                    //stored for each of the options, and continue matching.
+                    resultNext = resultPrev + readBytesEntry32(counts, i, bytesPerCount)+1;
+                    if (i > 0)
+                        resultPrev += readBytesEntry32(counts, i-1, bytesPerCount)+1;
+                }
 
                 const byte * offsets = counts + numOptions * bytesPerCount;
                 const byte * next = offsets + (numOptions-1) * bytesPerOffset;

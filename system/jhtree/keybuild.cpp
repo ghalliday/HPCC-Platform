@@ -112,7 +112,7 @@ public:
           enforceOrder(_enforceOrder),
           isTLK(_isTLK)
     {
-        flags |= INPLACE_COMPRESS_BRANCH;
+        //flags |= INPLACE_COMPRESS_BRANCH;
         sequence = _startSequence;
         keyHdr.setown(new CKeyHdr());
         keyValueSize = rawSize;

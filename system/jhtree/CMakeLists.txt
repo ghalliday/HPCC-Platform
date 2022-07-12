@@ -59,6 +59,9 @@ include_directories (
          ./../../testing/unittests
     )
 
+set_source_files_properties (jhinplace.cpp PROPERTIES COMPILE_FLAGS -Wa,-ahl=jhinplace.lst)
+
+
 ADD_DEFINITIONS( -D_USRDLL -DJHTREE_EXPORTS -DECLRTL_LOCAL )
 
 HPCC_ADD_LIBRARY( jhtree SHARED ${SRCS} ${INCLUDES} )
