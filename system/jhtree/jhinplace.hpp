@@ -71,6 +71,7 @@ public:
 
 protected:
     bool allNextAreEnd();
+    unsigned appendRepeat(size32_t offset, size32_t copyOffset, byte repeatByte, size32_t repeatCount);
     void cacheSizes();
     size32_t getMaxOffset();
 
@@ -100,12 +101,11 @@ public:
     void add(size32_t len, const void * data);
     void removeLast();
     void serialize(MemoryBuffer & out);
-    void squash();
     void trace();
 
     const byte * queryNullRow() const { return nullRow; }
-    unsigned getCount() { return root ? root->getCount() : 0; }
-    unsigned getSize() { return root ? root->getSize() : 0; }
+    unsigned getCount();
+    unsigned getSize();
 
 protected:
     Owned<PartialMatch> root;

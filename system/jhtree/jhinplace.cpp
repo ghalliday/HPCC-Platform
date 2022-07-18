@@ -22,6 +22,7 @@
 #ifdef __linux__
 #include <alloca.h>
 #endif
+#include <algorithm>
 
 #include "jmisc.hpp"
 #include "jset.hpp"
@@ -34,6 +35,28 @@
 #ifdef _DEBUG
 #define SANITY_CHECK_INPLACE_BUILDER     // painfully expensive consistency check
 #endif
+
+static constexpr size32_t minRepeatCount = 2;       // minimum number of times a 0x00 or 0x20 is repeated to generate a special opcode
+static constexpr size32_t minRepeatXCount = 3;      // minimum number of times a byte is repeated to generate a special opcode
+static constexpr size32_t maxQuotedCount = 31 + 256; // maximum number of characters that can be quoted in a row
+static constexpr size32_t repeatDelta = (minRepeatCount - 1);
+static constexpr size32_t repeatXDelta = (minRepeatXCount - 1);
+
+constexpr size32_t getMinRepeatCount(byte value)
+{
+    return (value == 0x00 || value == 0x20) ? minRepeatCount : minRepeatXCount;
+}
+
+enum SquashOp : byte
+{
+    SqZero      = 0x00,           // repeated zeros
+    SqSpace     = 0x01,           // repeated spaces
+    SqQuote     = 0x02,           // Quoted text
+    SqRepeat    = 0x03,           // any character repeated
+    SqOption    = 0x04,           // an set of option bytes
+    SqNull      = 0x06,           // repeats that match the null row
+    SqSpecial   = 0x07,           // special control flow
+};
 
 /*
 
@@ -157,6 +180,26 @@ NOTES:
 
 
 //For the following the efficiency of serialization isn't a big concern, speed of deserializion is.
+
+void serializeOp(MemoryBuffer & out, SquashOp op, size32_t count)
+{
+    assertex(count != 0 && count < 32 + 255);
+    if (count <= 31)
+    {
+        out.append((byte)((op << 5) | count));
+    }
+    else
+    {
+        out.append((byte)(op << 5));
+        out.append((byte)(count - 32));
+    }
+}
+
+unsigned sizeSerializedOp(size32_t count)
+{
+    return (count <= 31) ? 1 : 2;
+}
+
 
 //Packing using a top bit to indicate more.  Revisit if it isn't great.  Could alternatively use rtl packed format, but want to avoid the overhead of a call
 static unsigned sizePacked(unsigned __int64 value)
@@ -383,21 +426,12 @@ void PartialMatch::cacheSizes()
     if (!dirty)
         return;
 
+    squash();
     dirty = false;
     if (squashed && squashedData.length())
         size = squashedData.length();
     else
-    {
-        if (isRoot)
-        {
-            size = sizePacked(data.length()) + data.length();
-        }
-        else
-        {
-            unsigned len = data.length() ? data.length() : 1;
-            size = sizePacked(len-1) + (len - 1);
-        }
-    }
+        size = 0;
 
     maxOffset = 0;
     unsigned numNext = next.ordinality();
@@ -405,7 +439,7 @@ void PartialMatch::cacheSizes()
     {
         if (allNextAreEnd())
         {
-            size += sizePacked(numNext-2);  // count of options
+            size += sizeSerializedOp(numNext-1);  // count of options
             size += 1;                      // end marker
             maxCount = numNext;
         }
@@ -420,7 +454,7 @@ void PartialMatch::cacheSizes()
                 offset += next.item(i).getSize();
             }
 
-            size += sizePacked(numNext-2);  // count of options
+            size += sizeSerializedOp(numNext-1);  // count of options
             size += 1;                      // count and offset table information
             size += numNext;                // bytes of data
 
@@ -458,6 +492,7 @@ bool PartialMatch::combine(size32_t newLen, const byte * newData)
             next.append(*new PartialMatch(builder, curLen - matchLen, curData + matchLen, rowOffset + matchLen, false));
             next.append(*new PartialMatch(builder, newLen - matchLen, newData + matchLen, rowOffset + matchLen, false));
             data.setLength(matchLen);
+            squashed = false;
             return true;
         }
 
@@ -476,6 +511,7 @@ bool PartialMatch::combine(size32_t newLen, const byte * newData)
         next.append(*childNode.getClear());
         next.append(*new PartialMatch(builder, newLen - matchLen, newData + matchLen, rowOffset + matchLen, false));
         data.setLength(matchLen);
+        squashed = false;
         return true;
     }
     return false;
@@ -527,26 +563,15 @@ bool PartialMatch::removeLast()
 
 void PartialMatch::serialize(MemoryBuffer & out)
 {
+    squash();
+
     size32_t originalPos = out.length();
     if (squashed && squashedData.length())
         out.append(squashedData);
     else
     {
-        if (isRoot)
-        {
-            serializePacked(out, data.length());
-            out.append(data.length(), data.toByteArray());
-        }
-        else
-        {
-            if (data.length())
-            {
-                serializePacked(out, data.length()-1);
-                out.append(data.length()-1, data.toByteArray()+1);
-            }
-            else
-                serializePacked(out, 0);
-        }
+        unsigned skip = isRoot ? 0 : 1;
+        assertex (data.length() <= skip);
     }
 
     unsigned numNext = next.ordinality();
@@ -554,7 +579,7 @@ void PartialMatch::serialize(MemoryBuffer & out)
     {
         if (allNextAreEnd())
         {
-            serializePacked(out, numNext-2);  // count of options
+            serializeOp(out, SqOption, numNext-1);  // count of options
             out.append((byte)0);
         }
         else
@@ -566,7 +591,7 @@ void PartialMatch::serialize(MemoryBuffer & out)
             if (getCount() != numNext)
                 sizeInfo |= (countBytes << 3);
 
-            serializePacked(out, numNext-2);  // count of options
+            serializeOp(out, SqOption, numNext-1);  // count of options
             out.append(sizeInfo);
 
             for (unsigned iFirst = 0; iFirst < numNext; iFirst++)
@@ -602,72 +627,91 @@ void PartialMatch::serialize(MemoryBuffer & out)
     assertex(newPos - originalPos == getSize());
 }
 
+unsigned PartialMatch::appendRepeat(size32_t offset, size32_t copyOffset, byte repeatByte, size32_t repeatCount)
+{
+    unsigned numOps = 0;
+    const byte * source = data.bytes();
+    size32_t copySize = (offset - copyOffset) - repeatCount;
+    if (copySize)
+    {
+        while (copySize)
+        {
+            size32_t chunkSize = std::min(copySize, maxQuotedCount);
+            serializeOp(squashedData, SqQuote, chunkSize);
+            squashedData.append(chunkSize, source+copyOffset);
+            copyOffset += chunkSize;
+            copySize -= chunkSize;
+            numOps++;
+        }
+    }
+    if (repeatCount)
+    {
+        switch (repeatByte)
+        {
+        case 0x00:
+            serializeOp(squashedData, SqZero, repeatCount - repeatDelta);
+            break;
+        case 0x20:
+            serializeOp(squashedData, SqSpace, repeatCount - repeatDelta);
+            break;
+        default:
+            serializeOp(squashedData, SqRepeat, repeatCount - repeatXDelta);
+            squashedData.append(repeatByte);
+            break;
+        }
+        numOps++;
+    }
+    return numOps;
+}
+
 bool PartialMatch::squash()
 {
     if (!squashed)
     {
         squashed = true;
         squashedData.clear();
-#if 0
-        //Disable squashing for now because the search code does not yet support it.
-        if (data.length() >= 3)
+
+        //Always squash if you have some text - avoids length calculation elsewhere
+        size32_t startOffset = isRoot ? 0 : 1;
+        if (data.length() > startOffset)
         {
             const byte * source = data.bytes();
-            size32_t delta = isRoot ? 0 : 1;
-            size32_t startOffset = delta;
-            size32_t len = data.length() - delta;
+            size32_t maxOffset = data.length();
 
             unsigned copyOffset = startOffset;
-            unsigned offset = 0;
-            unsigned nullCount = 0;
+            unsigned repeatCount = 0;
+            byte prevByte = 0;
             const byte * nullRow = queryNullRow();
-            for (offset = startOffset; offset < len; offset++)
+            for (unsigned offset = startOffset; offset < maxOffset; offset++)
             {
-                if (source[offset] == nullRow[offset+rowOffset])
+                byte nextByte = source[offset];
+
+                //MORE Add support for compressing against the null row at somepoint
+                if (nextByte == prevByte)
                 {
-                    nullCount++;
+                    repeatCount++;
                 }
                 else
                 {
-                    if (nullCount > 3)
+                    //MORE: Revisit and m ake this more sophisticated.  Trade off between space and comparison time.
+                    //  if space or /0 decrease the threshold by 1.
+                    //  if the start of the string then reduce the threshold.
+                    //  If no child entries increase the threshold (since it may require a special continuation byte)
+                    if (repeatCount > 3)
                     {
-                        size_t copySize = (offset - copyOffset) - nullCount;
-                        if (copySize)
-                        {
-                            serializePacked(squashedData, copySize);
-                            squashedData.append(copySize, source+copyOffset);
-                        }
-                        squashedData.append((byte)0xFC);
-                        squashedData.appendPacked(nullCount-2);
+                        appendRepeat(offset, copyOffset, prevByte, repeatCount);
                         copyOffset = offset;
                     }
-                    nullCount = 0;
+                    repeatCount = 1;
+                    prevByte = nextByte;
                 }
             }
 
-            if (nullCount <= 3)
-                nullCount = 0;
+            if (repeatCount < getMinRepeatCount(prevByte))
+                repeatCount = 0;
 
-            size_t copySize = (offset - copyOffset) - nullCount;
-            if (copySize)
-            {
-                serializePacked(squashedData, copySize);
-                squashedData.append(copySize, source+copyOffset);
-            }
-            if (nullCount)
-            {
-                squashedData.append((byte)0xFC);
-                squashedData.appendPacked(nullCount-2);
-            }
-            dirty = true;
+            appendRepeat(maxOffset, copyOffset, prevByte, repeatCount);
         }
-#endif
-    }
-
-    ForEachItemIn(i, next)
-    {
-        if (next.item(i).squash())
-            dirty = true;
     }
     return dirty;
 }
@@ -688,7 +732,10 @@ void PartialMatch::serializeFirst(MemoryBuffer & out)
 
 void PartialMatch::trace(unsigned indent)
 {
-    printf("%*s(%.*s", indent, "", (int)data.length(), data.toByteArray());
+    StringBuffer hex;
+    for (unsigned i=0; i < squashedData.length(); i++)
+        hex.append(' ').appendhex(squashedData.bytes()[i], true);
+    printf("%*s(%.*s %u:%u[%u] [%s]", indent, "", (int)data.length(), data.toByteArray(), data.length(), squashedData.length(), getSize(), hex.str());
     if (next.ordinality())
     {
         printf(", {\n");
@@ -732,11 +779,6 @@ void PartialMatchBuilder::serialize(MemoryBuffer & out)
     root->serialize(out);
 }
 
-void PartialMatchBuilder::squash()
-{
-    root->squash();
-}
-
 void PartialMatchBuilder::trace()
 {
     if (root)
@@ -748,6 +790,15 @@ void PartialMatchBuilder::trace()
     printf("\n\n");
 }
 
+unsigned PartialMatchBuilder::getCount()
+{
+    return root ? root->getCount() : 0;
+}
+
+unsigned PartialMatchBuilder::getSize()
+{
+    return root ? root->getSize() : 0;
+}
 
 //---------------------------------------------------------------------------------------------------------------------
 
@@ -764,6 +815,871 @@ void InplaceNodeSearcher::init(unsigned _count, const byte * data, size32_t _key
     nullRow = _nullRow;
 }
 
+int InplaceNodeSearcher::compareValueAt(const char * search, unsigned int compareIndex) const
+{
+    unsigned resultPrev = 0;
+    unsigned resultNext = count;
+    const byte * finger = nodeData;
+    unsigned offset = 0;
+
+    while (offset < keyLen)
+    {
+        byte next = *finger++;
+        SquashOp op = (SquashOp)(next >> 5);
+        unsigned count = (next & 0x1f);
+        if (count == 0)
+            count = 32 + *finger++;
+
+        switch (op)
+        {
+        case SqQuote:
+        {
+            unsigned numBytes = count;
+            for (unsigned i=0; i < numBytes; i++)
+            {
+                const byte nextSearch = search[i];
+                const byte nextFinger = finger[i];
+                if (nextFinger > nextSearch)
+                {
+                    //This entry is larger than the search value => we have a match
+                    return -1;
+                }
+                else if (nextFinger < nextSearch)
+                {
+                    //This entry (and all children) are less than the search value
+                    //=> the next entry is the match
+                    return +1;
+                }
+            }
+            search += numBytes;
+            offset += numBytes;
+            finger += numBytes;
+            break;
+        }
+        case SqZero:
+        case SqSpace:
+        {
+            const byte nextFinger = "\x00\x20"[op];
+            unsigned numBytes = count + repeatDelta;
+            for (unsigned i=0; i < numBytes; i++)
+            {
+                const byte nextSearch = search[i];
+                if (nextFinger > nextSearch)
+                    return -1;
+                else if (nextFinger < nextSearch)
+                    return +1;
+            }
+            search += numBytes;
+            offset += numBytes;
+            break;
+        }
+        case SqRepeat:
+        {
+            const byte nextFinger = *finger++;
+            unsigned numBytes = count + repeatXDelta;
+            for (unsigned i=0; i < numBytes; i++)
+            {
+                const byte nextSearch = search[i];
+                if (nextFinger > nextSearch)
+                    return -1;
+                else if (nextFinger < nextSearch)
+                    return +1;
+            }
+            search += numBytes;
+            offset += numBytes;
+            break;
+        }
+        case SqOption:
+        {
+            const unsigned numOptions = count+1;
+            byte sizeInfo = *finger++;
+            //Top two bits are currently spare - it may make sense to move before count and use them for repetition
+            byte bytesPerCount = (sizeInfo >> 3) & 7; // could pack other information in....
+            byte bytesPerOffset = (sizeInfo & 7);
+
+            //MORE: Duplicates can occur on the last byte of the key - if so we have a match
+            if (bytesPerOffset == 0)
+            {
+                dbgassertex(resultNext == resultPrev+numOptions);
+                return 0;
+            }
+
+            const byte * counts = finger + numOptions; // counts follow the data
+            const byte nextSearch = search[0];
+            for (unsigned i=0; i < numOptions; i++)
+            {
+                const byte nextFinger = finger[i];
+                if (nextFinger > nextSearch)
+                {
+                    //This entry is greater than search => item(i) is the correct entry
+                    if (i == 0)
+                        return -1;
+
+                    unsigned delta;
+                    if (bytesPerCount == 0)
+                        delta = i;
+                    else
+                        delta = readBytesEntry32(counts, i-1, bytesPerCount) + 1;
+                    unsigned matchIndex = resultPrev + delta;
+                    return (compareIndex >= matchIndex) ? -1 : +1;
+                }
+                else if (nextFinger < nextSearch)
+                {
+                    //The entry is < search => keep looping
+                }
+                else
+                {
+                    if (bytesPerCount == 0)
+                    {
+                        resultPrev += i;
+                        resultNext = resultPrev+1;
+                    }
+                    else
+                    {
+                        //Exact match.  Reduce the range of the match counts using the running counts
+                        //stored for each of the options, and continue matching.
+                        resultNext = resultPrev + readBytesEntry32(counts, i, bytesPerCount)+1;
+                        if (i > 0)
+                            resultPrev += readBytesEntry32(counts, i-1, bytesPerCount)+1;
+                    }
+
+                    //If the compareIndex is < the lower bound for the match index the search value must be higher
+                    if (compareIndex < resultPrev)
+                        return +1;
+
+                    //If the compareIndex is >= the upper bound for the match index the search value must be lower
+                    if (compareIndex >= resultNext)
+                        return -1;
+
+                    const byte * offsets = counts + numOptions * bytesPerCount;
+                    const byte * next = offsets + (numOptions-1) * bytesPerOffset;
+                    finger = next;
+                    if (i > 0)
+                        finger += readBytesEntry32(offsets, i-1, bytesPerOffset);
+                    search++;
+                    offset++;
+                    //Use a goto because we can't continue the outer loop from an inner loop
+                    goto nextTree;
+                }
+            }
+
+            //Search is > all elements
+            return +1;
+        }
+        }
+
+    nextTree:
+        ;
+    }
+
+    return 0;
+}
+
+inline unsigned reverseBytes(unsigned value) { return __builtin_bswap32(value); }
+
+//Find the first row that is >= the search row
+unsigned InplaceNodeSearcher::findGE(const unsigned len, const byte * search) const
+{
+    unsigned resultPrev = 0;
+    unsigned resultNext = count;
+    const byte * finger = nodeData;
+    unsigned offset = 0;
+
+    while (offset < keyLen)
+    {
+        byte next = *finger++;
+        SquashOp op = (SquashOp)(next >> 5);
+        unsigned count = (next & 0x1f);
+        if (count == 0)
+            count = 32 + *finger++;
+
+        switch (op)
+        {
+        case SqQuote:
+        {
+            unsigned i=0;
+            unsigned numBytes = count;
+#if 0
+            if (unlikely(numBytes >= 4))
+            {
+                do
+                {
+                    //Technically undefined behaviour because the data was not originally
+                    //defined as unsigned values, access will be misaligned.
+                    const unsigned nextSearch = *(const unsigned *)(search + i);
+                    const unsigned nextFinger = *(const unsigned *)(finger + i);
+                    if (nextSearch != nextFinger)
+                    {
+                        const unsigned revNextSearch = reverseBytes(nextSearch);
+                        const unsigned revNextFinger = reverseBytes(nextFinger);
+                        if (revNextFinger > revNextSearch)
+                            return resultPrev;
+                        else
+                            return resultNext;
+                    }
+                    i += 4;
+                } while (i + 4 <= numBytes);
+            }
+#endif
+
+            for (; i < numBytes; i++)
+            {
+                const byte nextSearch = search[i];
+                const byte nextFinger = finger[i];
+                if (nextFinger > nextSearch)
+                {
+                    //This entry is larger than the search value => we have a match
+                    return resultPrev;
+                }
+                else if (nextFinger < nextSearch)
+                {
+                    //This entry (and all children) are less than the search value
+                    //=> the next entry is the match
+                    return resultNext;
+                }
+            }
+            search += numBytes;
+            offset += numBytes;
+            finger += numBytes;
+            break;
+        }
+        case SqZero:
+        case SqSpace:
+        {
+            const byte nextFinger = "\x00\x20"[op];
+            unsigned numBytes = count + repeatDelta;
+            for (unsigned i=0; i < numBytes; i++)
+            {
+                const byte nextSearch = search[i];
+                if (nextFinger > nextSearch)
+                    return resultPrev;
+                else if (nextFinger < nextSearch)
+                    return resultNext;
+            }
+            search += numBytes;
+            offset += numBytes;
+            break;
+        }
+        case SqRepeat:
+        {
+            const byte nextFinger = *finger++;
+            unsigned numBytes = count + repeatXDelta;
+            for (unsigned i=0; i < numBytes; i++)
+            {
+                const byte nextSearch = search[i];
+                if (nextFinger > nextSearch)
+                    return resultPrev;
+                else if (nextFinger < nextSearch)
+                    return resultNext;
+            }
+            search += numBytes;
+            offset += numBytes;
+            break;
+        }
+        case SqOption:
+        {
+        const unsigned numOptions = count+1;
+            byte sizeInfo = *finger++;
+            //Top two bits are currently spare - it may make sense to move before count and use them for repetition
+            byte bytesPerCount = (sizeInfo >> 3) & 7; // could pack other information in....
+            byte bytesPerOffset = (sizeInfo & 7);
+
+            //MORE: Duplicates can occur on the last byte of the key - if so we have a match
+            if (bytesPerOffset == 0)
+            {
+                dbgassertex(resultNext == resultPrev+numOptions);
+                break;
+            }
+
+            const byte * counts = finger + numOptions; // counts follow the data
+            const byte nextSearch = search[0];
+            for (unsigned i=0; i < numOptions; i++)
+            {
+                const byte nextFinger = finger[i];
+                if (nextFinger > nextSearch)
+                {
+                    //This entry is greater than search => this is the correct entry
+                    if (bytesPerCount == 0)
+                        return resultPrev + i;
+                    if (i == 0)
+                        return resultPrev;
+                    return resultPrev + readBytesEntry32(counts, i-1, bytesPerCount) + 1;
+                }
+                else if (nextFinger < nextSearch)
+                {
+                    //The entry is < search => keep looping
+                }
+                else
+                {
+                    if (bytesPerCount == 0)
+                    {
+                        resultPrev += i;
+                        resultNext = resultPrev+1;
+                    }
+                    else
+                    {
+                        //Exact match.  Reduce the range of the match counts using the running counts
+                        //stored for each of the options, and continue matching.
+                        resultNext = resultPrev + readBytesEntry32(counts, i, bytesPerCount)+1;
+                        if (i > 0)
+                            resultPrev += readBytesEntry32(counts, i-1, bytesPerCount)+1;
+                    }
+
+                    const byte * offsets = counts + numOptions * bytesPerCount;
+                    const byte * next = offsets + (numOptions-1) * bytesPerOffset;
+                    finger = next;
+                    if (i > 0)
+                        finger += readBytesEntry32(offsets, i-1, bytesPerOffset);
+                    search++;
+                    offset++;
+                    //Use a goto because we can't continue the outer loop from an inner loop
+                    goto nextTree;
+                }
+            }
+
+            //Did not match any => next value matches
+            return resultNext;
+        }
+        }
+
+    nextTree:
+        ;
+    }
+
+#if 0
+    //compare with the null value
+    for (unsigned i=offset; i < keyLen; i++)
+    {
+        const byte nextSearch = search[i-offset];
+        const byte nextFinger = nullRow[i];
+        if (nextFinger > nextSearch)
+            return resultPrev;
+        else if (nextFinger < nextSearch)
+            return resultNext;
+    }
+#endif
+
+    return resultPrev;
+}
+
+bool InplaceNodeSearcher::getValueAt(unsigned int searchIndex, char *key) const
+{
+    if (searchIndex >= count)
+        return false;
+
+    unsigned resultPrev = 0;
+    unsigned resultNext = count;
+    const byte * finger = nodeData;
+    unsigned offset = 0;
+
+    while (offset < keyLen)
+    {
+        byte next = *finger++;
+        SquashOp op = (SquashOp)(next >> 5);
+        unsigned count = (next & 0x1f);
+        if (count == 0)
+            count = 32 + *finger++;
+
+        switch (op)
+        {
+        case SqQuote:
+        {
+            unsigned i=0;
+            unsigned numBytes = count;
+            for (; i < numBytes; i++)
+                key[offset+i] = finger[i];
+            offset += numBytes;
+            finger += numBytes;
+            break;
+        }
+        case SqZero:
+        case SqSpace:
+        {
+            const byte nextFinger = "\x00\x20"[op];
+            unsigned numBytes = count + repeatDelta;
+            for (unsigned i=0; i < numBytes; i++)
+                key[offset+i] = nextFinger;
+            offset += numBytes;
+            break;
+    }
+        case SqRepeat:
+        {
+            const byte nextFinger = *finger++;
+            unsigned numBytes = count + repeatXDelta;
+            for (unsigned i=0; i < numBytes; i++)
+                key[offset+i] = nextFinger;
+
+            offset += numBytes;
+            break;
+        }
+        case SqOption:
+        {
+            const unsigned numOptions = count+1;
+            byte sizeInfo = *finger++;
+            //Top two bits are currently spare - it may make sense to move before count and use them for repetition
+            byte bytesPerCount = (sizeInfo >> 3) & 7; // could pack other information in....
+            byte bytesPerOffset = (sizeInfo & 7);
+
+            //MORE: Duplicates can occur after the last byte of the key - bytesPerOffset is set to 0 if this occurs
+            if (bytesPerOffset == 0)
+                break;
+
+            const byte * counts = finger + numOptions; // counts follow the data
+            unsigned option = 0;
+            unsigned countPrev = 0;
+            unsigned countNext = 1;
+            if (bytesPerCount == 0)
+            {
+                option = searchIndex - resultPrev;
+                countPrev = option;
+                countNext = option+1;
+            }
+            else
+            {
+                countPrev = 0;
+                for (unsigned i=0; i < numOptions; i++)
+                {
+                    countNext = readBytesEntry32(counts, i, bytesPerCount)+1;
+                    if (searchIndex < resultPrev + countNext)
+                    {
+                        option = i;
+                        break;
+                    }
+                    countPrev = countNext;
+                }
+            }
+            key[offset++] = finger[option];
+
+            resultNext = resultPrev + countNext;
+            resultPrev = resultPrev + countPrev;
+
+            const byte * offsets = counts + numOptions * bytesPerCount;
+            const byte * next = offsets + (numOptions-1) * bytesPerOffset;
+            finger = next;
+            if (option > 0)
+                finger += readBytesEntry32(offsets, option-1, bytesPerOffset);
+            break;
+        }
+        }
+    }
+
+    return true;
+}
+
+int InplaceNodeSearcher::compareValueAtFallback(const char *src, unsigned int index) const
+{
+    char temp[256] = { 0 };
+    getValueAt(index, temp);
+    return strcmp(src, temp);
+}
+
+
+//---------------------------------------------------------------------------------------------------------------------
+
+int CJHInplaceTreeNode::compareValueAt(const char *src, unsigned int index) const
+{
+    dbgassertex(index < hdr.numKeys);
+    return searcher.compareValueAt(src, index);
+}
+
+int CJHInplaceTreeNode::locateGE(const char * search, unsigned minIndex) const
+{
+#if 0
+    return CJHTreeNode::locateGE(search, minIndex);
+#else
+    if (hdr.numKeys == 0) return 0;
+
+    CCycleTimer timer;
+    unsigned int match = searcher.findGE(keyLen, (const byte *)search);
+    if (match < minIndex)
+        match = minIndex;
+    unsigned __int64 elapsed = timer.elapsedCycles();
+    if (isBranch())
+        branchSearchCycles += elapsed;
+    else
+        leafSearchCycles += elapsed;
+    return match;
+#endif
+}
+
+offset_t CJHInplaceTreeNode::getFPosAt(unsigned int index) const
+{
+    if (index >= hdr.numKeys) return 0;
+
+    offset_t delta = 0;
+    if ((bytesPerPosition > 0) && (index != 0))
+        delta = readBytesEntry64(positionData, index-1, bytesPerPosition);
+    else
+        delta = index;
+
+    if (scaleFposByNodeSize)
+        delta *= getNodeSize();
+
+    return firstSequence + delta;
+}
+
+bool CJHInplaceTreeNode::getValueAt(unsigned int index, char *dst) const
+{
+    if (index >= hdr.numKeys) return false;
+    if (dst)
+    {
+        searcher.getValueAt(index, dst);
+        throwUnexpected();  // The following logic needs to be checked once we are using this for leaf nodes.
+#if 0
+        if (keyHdr->hasSpecialFileposition())
+        {
+            //It would make sense to have the fileposition at the start of the row from the perspective of the
+            //internal representation, but that would complicate everything else which assumes the keyed
+            //fields start at the beginning of the row.
+            const char * p = keyBuf + index*keyRecLen;
+            memcpy(dst, p + sizeof(offset_t), keyLen);
+            memcpy(dst+keyLen, p, sizeof(offset_t));
+        }
+        else
+        {
+            const char * p = keyBuf + index*keyRecLen;
+            memcpy(dst, p, keyLen);
+        }
+    #endif
+    }
+    return true;
+}
+
+
+size32_t CJHInplaceTreeNode::getSizeAt(unsigned int index) const
+{
+    //MORE: Change for variable length keys
+    if (keyHdr->hasSpecialFileposition())
+        return keyLen + sizeof(offset_t);
+    else
+        return keyLen;
+}
+
+void CJHInplaceTreeNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _fpos, bool needCopy)
+{
+    CJHTreeNode::load(_keyHdr, rawData, _fpos, needCopy);
+
+    const byte * nullRow = nullptr; //MORE: This should be implemented
+    unsigned numKeys = hdr.numKeys;
+    if (numKeys)
+    {
+        size32_t len = hdr.keyBytes;
+        const size32_t padding = 8 - 1; // Ensure that unsigned8 values can be read "legally"
+        const byte * data = ((const byte *)rawData) + sizeof(hdr);
+        keyBuf = (char *) allocMem(len + padding);
+        memcpy(keyBuf, data, len);
+        memset(keyBuf+len, 0, padding);
+        expandedSize = len;
+
+        //Filepositions are stored as a packed base and an (optional) list of scaled compressed deltas
+        data = (const byte *)keyBuf;
+        byte sizeMask = *data++;
+        if (sizeMask & 0x80)
+            scaleFposByNodeSize = true;
+        bytesPerPosition = (sizeMask & 0x7f);
+
+        firstSequence = readPacked64(data);
+        positionData = data;
+
+        if (bytesPerPosition != 0)
+            data += (bytesPerPosition * (numKeys -1));
+
+        searcher.init(numKeys, data, keyLen, nullRow);
+    }
+}
+
+
+//=========================================================================================================
+
+CNewBranchWriteNode::CNewBranchWriteNode(offset_t _fpos, CKeyHdr *_keyHdr, const byte * _nullRow)
+: CWriteNode(_fpos, _keyHdr, false), builder(keyLen, _nullRow, false), nullRow(_nullRow)
+{
+    nodeSize = _keyHdr->getNodeSize();
+}
+
+bool CNewBranchWriteNode::add(offset_t pos, const void * _data, size32_t size, unsigned __int64 sequence)
+{
+    if (0xffff == hdr.numKeys)
+        return false;
+
+    const byte * data = (const byte *)_data;
+#if 0
+    //Disable this until nullrows are passed to the reading code.
+    while (size && data[size-1]==nullRow[size-1])
+        size--;
+#endif
+
+    unsigned oldSize = getDataSize();
+    builder.add(size, data);
+    if (positions.ordinality())
+        assertex(positions.tos() <= pos);
+    positions.append(pos);
+    if (getDataSize() > maxBytes-hdr.keyBytes)
+    {
+        if (getDataSize() > maxBytes-hdr.keyBytes)
+        {
+            builder.removeLast();
+            positions.pop();
+            unsigned nowSize = getDataSize();
+            assertex(oldSize == nowSize);
+            return false;
+        }
+    }
+    if (scaleFposByNodeSize && ((pos % nodeSize) != 0))
+        scaleFposByNodeSize = false;
+
+    saveLastKey(data, size, sequence);
+    return true;
+}
+
+unsigned CNewBranchWriteNode::getDataSize()
+{
+    if (positions.ordinality() == 0)
+        return 0;
+
+    //MORE: Cache this, and calculate the incremental increase in size
+
+    //Compress the filepositions by
+    //a) storing them as deltas from the first
+    //b) scaling by nodeSize if possible.
+    //c) storing in the minimum number of bytes possible.
+    unsigned __int64 firstPosition = positions.item(0);
+    unsigned __int64 maxPosition = positions.tos() - firstPosition;
+    if (scaleFposByNodeSize)
+        maxPosition /= nodeSize;
+    unsigned bytesPerPosition = 0;
+    if (maxPosition + 1 != positions.ordinality())
+        bytesPerPosition = bytesRequired(maxPosition);
+
+    unsigned posSize = 1 + sizePacked(firstPosition) + bytesPerPosition * (positions.ordinality() - 1);
+    return posSize + builder.getSize();
+}
+
+void CNewBranchWriteNode::write(IFileIOStream *out, CRC32 *crc)
+{
+    hdr.keyBytes = getDataSize();
+
+    MemoryBuffer data;
+    data.setBuffer(maxBytes, keyPtr, false);
+    data.setWritePos(0);
+
+    if (positions.ordinality())
+    {
+        //Pack these by scaling and reducing the number of bytes
+        unsigned __int64 firstPosition = positions.item(0);
+        unsigned __int64 maxPosition = positions.tos() - firstPosition;
+        if (scaleFposByNodeSize)
+            maxPosition /= nodeSize;
+
+        unsigned bytesPerPosition = 0;
+        if (maxPosition + 1 != positions.ordinality())
+            bytesPerPosition = bytesRequired(maxPosition);
+
+        byte sizeMask = (byte)bytesPerPosition | (scaleFposByNodeSize ? 0x80 : 0);
+        data.append(sizeMask);
+        serializePacked(data, firstPosition);
+
+        if (bytesPerPosition != 0)
+        {
+            for (unsigned i=1; i < positions.ordinality(); i++)
+            {
+                unsigned __int64 delta = positions.item(i) - firstPosition;
+                if (scaleFposByNodeSize)
+                    delta /= nodeSize;
+                serializeBytes(data, delta, bytesPerPosition);
+            }
+        }
+
+        builder.serialize(data);
+
+        assertex(data.length() == getDataSize());
+    }
+
+    CWriteNode::write(out, crc);
+}
+
+
+//=========================================================================================================
+
+#ifdef _USE_CPPUNIT
+#include "unittests.hpp"
+#include "eclrtl.hpp"
+
+class TestInplaceNodeSearcher : public InplaceNodeSearcher
+{
+public:
+    TestInplaceNodeSearcher(unsigned _count, const byte * data, size32_t _keyLen, const byte * _nullRow) : InplaceNodeSearcher(_count,  data, _keyLen, _nullRow)
+    {
+    }
+
+    void doFind(const char * search)
+    {
+        unsigned match = findGE(strlen(search), (const byte *)search);
+        printf("('%s': %u) ", search, match);
+    }
+
+    void find(const char * search)
+    {
+        StringBuffer text;
+        doFind(search);
+        doFind(text.clear().append(strlen(search)-1, search));
+        doFind(text.clear().append(strlen(search)-1, search).append('a'));
+        doFind(text.clear().append(strlen(search)-1, search).append('z'));
+        doFind(text.clear().append(search).append(' '));
+        doFind(text.clear().append(search).append('\t'));
+        doFind(text.clear().append(search).append('z'));
+        printf("\n");
+    }
+};
+
+
+static int normalizeCompare(int x)
+{
+    return (x < 0) ? -1 : (x > 0) ? 1 : 0;
+}
+class InplaceIndexTest : public CppUnit::TestFixture
+{
+    CPPUNIT_TEST_SUITE( InplaceIndexTest  );
+        //CPPUNIT_TEST(testBytesFromFirstTiming);
+        CPPUNIT_TEST(testSearching);
+    CPPUNIT_TEST_SUITE_END();
+
+    void testBytesFromFirstTiming()
+    {
+        for (unsigned i=0; i <= 0xff; i++)
+            assertex(numExtraBytesFromFirst1(i) == numExtraBytesFromFirst2(i));
+        unsigned total = 0;
+        {
+            CCycleTimer timer;
+            for (unsigned i=0; i < 0xffffff; i++)
+                total += numExtraBytesFromFirst1(i);
+            printf("%llu\n", timer.elapsedNs());
+        }
+        {
+            CCycleTimer timer;
+            for (unsigned i2=0; i2 < 0xffffff; i2++)
+                total += numExtraBytesFromFirst2(i2);
+            printf("%llu\n", timer.elapsedNs());
+        }
+        printf("%u\n", total);
+    }
+
+    void testSearching()
+    {
+        const size32_t keyLen = 8;
+        bool optimizeTrailing = false;  // remove trailing bytes that match the null row.
+        const byte * nullRow = (const byte *)"                                   ";
+        PartialMatchBuilder builder(keyLen, nullRow, optimizeTrailing);
+
+        const char * entries[] = {
+            "abel    ",
+            "abigail ",
+            "absalom ",
+            "barry   ",
+            "barty   ",
+            "bill    ",
+            "brian   ",
+            "briany  ",
+            "charlie ",
+            "charlie ",
+            "chhhhhhs",
+            "georgina",
+            "georgina",
+            "georginb",
+            "jim     ",
+            "jimmy   ",
+            "john    ",
+        };
+        unsigned numEntries = _elements_in(entries);
+        for (unsigned i=0; i < numEntries; i++)
+        {
+            const char * entry = entries[i];
+            builder.add(strlen(entry), entry);
+        }
+
+        MemoryBuffer buffer;
+        builder.serialize(buffer);
+        DBGLOG("Raw size = %u", keyLen * numEntries);
+        DBGLOG("Serialized size = %u", buffer.length());
+        builder.trace();
+
+        TestInplaceNodeSearcher searcher(builder.getCount(), buffer.bytes(), keyLen, nullRow);
+
+        for (unsigned i=0; i < numEntries; i++)
+        {
+            const char * entry = entries[i];
+            StringBuffer s;
+            find(entry, [&searcher,&s,numEntries](const char * search) {
+                unsigned match = searcher.findGE(strlen(search), (const byte *)search);
+                s.appendf("('%s': %u) ", search, match);
+                if (match > 0  && !(searcher.compareValueAt(search, match-1) >= 0))
+                {
+                    s.append("<");
+                    //assertex(searcher.compareValueAt(search, match-1) >= 0);
+                }
+                if (match < numEntries && !(searcher.compareValueAt(search, match) <= 0))
+                {
+                    s.append(">");
+                    //assertex(searcher.compareValueAt(search, match) <= 0);
+                }
+            });
+            DBGLOG("%s", s.str());
+        }
+
+        for (unsigned i=0; i < numEntries; i++)
+        {
+            char result[256] = {0};
+            const char * entry = entries[i];
+
+            if (!searcher.getValueAt(i, result))
+                printf("%u: getValue() failed\n", i);
+            else if (!streq(entry, result))
+                printf("%u: '%s', '%s'\n", i, entry, result);
+
+            auto callback = [numEntries, entries, &searcher](const char * search)
+            {
+                for (unsigned j= 0; j < numEntries; j++)
+                {
+                    int expected = normalizeCompare(strcmp(search, entries[j]));
+                    int actual = normalizeCompare(searcher.compareValueAt(search, j));
+                    if (expected != actual)
+                        printf("compareValueAt('%s', %u)=%d, expected %d\n", search, j, actual, expected);
+                }
+            };
+            find(entry, callback);
+        }
+
+        exit(0);
+    }
+
+    void find(const char * search, std::function<void(const char *)> callback)
+    {
+        callback(search);
+
+        unsigned searchLen = strlen(search);
+        unsigned trimLen = rtlTrimStrLen(searchLen, search);
+        StringBuffer text;
+        text.clear().append(search).setCharAt(trimLen-1, ' '); callback(text);
+        text.clear().append(search).setCharAt(trimLen-1, 'a'); callback(text);
+        text.clear().append(search).setCharAt(trimLen-1, 'z'); callback(text);
+        if (searchLen != trimLen)
+        {
+            text.clear().append(search).setCharAt(trimLen, '\t'); callback(text);
+            text.clear().append(search).setCharAt(trimLen, 'a'); callback(text);
+            text.clear().append(search).setCharAt(trimLen, 'z'); callback(text);
+        }
+    }
+
+};
+
+CPPUNIT_TEST_SUITE_REGISTRATION( InplaceIndexTest );
+CPPUNIT_TEST_SUITE_NAMED_REGISTRATION( InplaceIndexTest, "InplaceIndexTest" );
+
+#endif
+
+
+#if 0
+//Old code:
 int InplaceNodeSearcher::compareValueAt(const char * search, unsigned int compareIndex) const
 {
     unsigned resultPrev = 0;
@@ -1101,419 +2017,5 @@ bool InplaceNodeSearcher::getValueAt(unsigned int searchIndex, char *key) const
         key[i] = nullRow[i];
     return true;
 }
-
-int InplaceNodeSearcher::compareValueAtFallback(const char *src, unsigned int index) const
-{
-    char temp[256] = { 0 };
-    getValueAt(index, temp);
-    return strcmp(src, temp);
-}
-
-
-//---------------------------------------------------------------------------------------------------------------------
-
-int CJHInplaceTreeNode::compareValueAt(const char *src, unsigned int index) const
-{
-    dbgassertex(index < hdr.numKeys);
-    return searcher.compareValueAt(src, index);
-}
-
-int CJHInplaceTreeNode::locateGE(const char * search, unsigned minIndex) const
-{
-#if 0
-    return CJHTreeNode::locateGE(search, minIndex);
-#else
-    if (hdr.numKeys == 0) return 0;
-
-    CCycleTimer timer;
-    unsigned int match = searcher.findGE(keyLen, (const byte *)search);
-    if (match < minIndex)
-        match = minIndex;
-    unsigned __int64 elapsed = timer.elapsedCycles();
-    if (isBranch())
-        branchSearchCycles += elapsed;
-    else
-        leafSearchCycles += elapsed;
-    return match;
-#endif
-}
-
-offset_t CJHInplaceTreeNode::getFPosAt(unsigned int index) const
-{
-    if (index >= hdr.numKeys) return 0;
-
-    offset_t delta = 0;
-    if ((bytesPerPosition > 0) && (index != 0))
-        delta = readBytesEntry64(positionData, index-1, bytesPerPosition);
-    else
-        delta = index;
-
-    if (scaleFposByNodeSize)
-        delta *= getNodeSize();
-
-    return firstSequence + delta;
-}
-
-bool CJHInplaceTreeNode::getValueAt(unsigned int index, char *dst) const
-{
-    if (index >= hdr.numKeys) return false;
-    if (dst)
-    {
-        searcher.getValueAt(index, dst);
-        throwUnexpected();  // The following logic needs to be checked once we are using this for leaf nodes.
-#if 0
-        if (keyHdr->hasSpecialFileposition())
-        {
-            //It would make sense to have the fileposition at the start of the row from the perspective of the
-            //internal representation, but that would complicate everything else which assumes the keyed
-            //fields start at the beginning of the row.
-            const char * p = keyBuf + index*keyRecLen;
-            memcpy(dst, p + sizeof(offset_t), keyLen);
-            memcpy(dst+keyLen, p, sizeof(offset_t));
-        }
-        else
-        {
-            const char * p = keyBuf + index*keyRecLen;
-            memcpy(dst, p, keyLen);
-        }
-    #endif
-    }
-    return true;
-}
-
-
-size32_t CJHInplaceTreeNode::getSizeAt(unsigned int index) const
-{
-    //MORE: Change for variable length keys
-    if (keyHdr->hasSpecialFileposition())
-        return keyLen + sizeof(offset_t);
-    else
-        return keyLen;
-}
-
-void CJHInplaceTreeNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _fpos, bool needCopy)
-{
-    CJHTreeNode::load(_keyHdr, rawData, _fpos, needCopy);
-
-    const byte * nullRow = nullptr; //MORE: This should be implemented
-    unsigned numKeys = hdr.numKeys;
-    if (numKeys)
-    {
-        size32_t len = hdr.keyBytes;
-        const size32_t padding = 8 - 1; // Ensure that unsigned8 values can be read "legally"
-        const byte * data = ((const byte *)rawData) + sizeof(hdr);
-        keyBuf = (char *) allocMem(len + padding);
-        memcpy(keyBuf, data, len);
-        memset(keyBuf+len, 0, padding);
-        expandedSize = len;
-
-        //Filepositions are stored as a packed base and an (optional) list of scaled compressed deltas
-        data = (const byte *)keyBuf;
-        byte sizeMask = *data++;
-        if (sizeMask & 0x80)
-            scaleFposByNodeSize = true;
-        bytesPerPosition = (sizeMask & 0x7f);
-
-        firstSequence = readPacked64(data);
-        positionData = data;
-
-        if (bytesPerPosition != 0)
-            data += (bytesPerPosition * (numKeys -1));
-
-        searcher.init(numKeys, data, keyLen, nullRow);
-    }
-}
-
-
-//=========================================================================================================
-
-CNewBranchWriteNode::CNewBranchWriteNode(offset_t _fpos, CKeyHdr *_keyHdr, const byte * _nullRow)
-: CWriteNode(_fpos, _keyHdr, false), builder(keyLen, _nullRow, false), nullRow(_nullRow)
-{
-    nodeSize = _keyHdr->getNodeSize();
-}
-
-bool CNewBranchWriteNode::add(offset_t pos, const void * _data, size32_t size, unsigned __int64 sequence)
-{
-    if (0xffff == hdr.numKeys)
-        return false;
-
-    const byte * data = (const byte *)_data;
-#if 0
-    //Disable this until nullrows are passed to the reading code.
-    while (size && data[size-1]==nullRow[size-1])
-        size--;
-#endif
-
-    unsigned oldSize = getDataSize();
-    builder.add(size, data);
-    if (positions.ordinality())
-        assertex(positions.tos() <= pos);
-    positions.append(pos);
-    if (getDataSize() > maxBytes-hdr.keyBytes)
-    {
-        builder.squash();
-        if (getDataSize() > maxBytes-hdr.keyBytes)
-        {
-            builder.removeLast();
-            positions.pop();
-            builder.squash();
-            unsigned nowSize = getDataSize();
-//            assertex(oldSize == nowSize);
-            assertex(oldSize >= nowSize);       // squashing may have reduced the size lower than it was before
-            return false;
-        }
-    }
-    if (scaleFposByNodeSize && ((pos % nodeSize) != 0))
-        scaleFposByNodeSize = false;
-
-    saveLastKey(data, size, sequence);
-    return true;
-}
-
-unsigned CNewBranchWriteNode::getDataSize()
-{
-    if (positions.ordinality() == 0)
-        return 0;
-
-    //MORE: Cache this, and calculate the incremental increase in size
-
-    //Compress the filepositions by
-    //a) storing them as deltas from the first
-    //b) scaling by nodeSize if possible.
-    //c) storing in the minimum number of bytes possible.
-    unsigned __int64 firstPosition = positions.item(0);
-    unsigned __int64 maxPosition = positions.tos() - firstPosition;
-    if (scaleFposByNodeSize)
-        maxPosition /= nodeSize;
-    unsigned bytesPerPosition = 0;
-    if (maxPosition + 1 != positions.ordinality())
-        bytesPerPosition = bytesRequired(maxPosition);
-
-    unsigned posSize = 1 + sizePacked(firstPosition) + bytesPerPosition * (positions.ordinality() - 1);
-    return posSize + builder.getSize();
-}
-
-void CNewBranchWriteNode::write(IFileIOStream *out, CRC32 *crc)
-{
-    hdr.keyBytes = getDataSize();
-
-    MemoryBuffer data;
-    data.setBuffer(maxBytes, keyPtr, false);
-    data.setWritePos(0);
-
-    if (positions.ordinality())
-    {
-        //Pack these by scaling and reducing the number of bytes
-        unsigned __int64 firstPosition = positions.item(0);
-        unsigned __int64 maxPosition = positions.tos() - firstPosition;
-        if (scaleFposByNodeSize)
-            maxPosition /= nodeSize;
-
-        unsigned bytesPerPosition = 0;
-        if (maxPosition + 1 != positions.ordinality())
-            bytesPerPosition = bytesRequired(maxPosition);
-
-        byte sizeMask = (byte)bytesPerPosition | (scaleFposByNodeSize ? 0x80 : 0);
-        data.append(sizeMask);
-        serializePacked(data, firstPosition);
-
-        if (bytesPerPosition != 0)
-        {
-            for (unsigned i=1; i < positions.ordinality(); i++)
-            {
-                unsigned __int64 delta = positions.item(i) - firstPosition;
-                if (scaleFposByNodeSize)
-                    delta /= nodeSize;
-                serializeBytes(data, delta, bytesPerPosition);
-            }
-        }
-
-        builder.serialize(data);
-
-        assertex(data.length() == getDataSize());
-    }
-
-    CWriteNode::write(out, crc);
-}
-
-
-//=========================================================================================================
-
-#ifdef _USE_CPPUNIT
-#include "unittests.hpp"
-#include "eclrtl.hpp"
-
-class TestInplaceNodeSearcher : public InplaceNodeSearcher
-{
-public:
-    TestInplaceNodeSearcher(unsigned _count, const byte * data, size32_t _keyLen, const byte * _nullRow) : InplaceNodeSearcher(_count,  data, _keyLen, _nullRow)
-    {
-    }
-
-    void doFind(const char * search)
-    {
-        unsigned match = findGE(strlen(search), (const byte *)search);
-        printf("('%s': %u) ", search, match);
-    }
-
-    void find(const char * search)
-    {
-        StringBuffer text;
-        doFind(search);
-        doFind(text.clear().append(strlen(search)-1, search));
-        doFind(text.clear().append(strlen(search)-1, search).append('a'));
-        doFind(text.clear().append(strlen(search)-1, search).append('z'));
-        doFind(text.clear().append(search).append(' '));
-        doFind(text.clear().append(search).append('\t'));
-        doFind(text.clear().append(search).append('z'));
-        printf("\n");
-    }
-};
-
-
-static int normalizeCompare(int x)
-{
-    return (x < 0) ? -1 : (x > 0) ? 1 : 0;
-}
-class InplaceIndexTest : public CppUnit::TestFixture
-{
-    CPPUNIT_TEST_SUITE( InplaceIndexTest  );
-        //CPPUNIT_TEST(testBytesFromFirstTiming);
-        CPPUNIT_TEST(testSearching);
-    CPPUNIT_TEST_SUITE_END();
-
-    void testBytesFromFirstTiming()
-    {
-        for (unsigned i=0; i <= 0xff; i++)
-            assertex(numExtraBytesFromFirst1(i) == numExtraBytesFromFirst2(i));
-        unsigned total = 0;
-        {
-            CCycleTimer timer;
-            for (unsigned i=0; i < 0xffffff; i++)
-                total += numExtraBytesFromFirst1(i);
-            printf("%llu\n", timer.elapsedNs());
-        }
-        {
-            CCycleTimer timer;
-            for (unsigned i2=0; i2 < 0xffffff; i2++)
-                total += numExtraBytesFromFirst2(i2);
-            printf("%llu\n", timer.elapsedNs());
-        }
-        printf("%u\n", total);
-    }
-
-    void testSearching()
-    {
-        const size32_t keyLen = 8;
-        bool optimizeTrailing = false;  // remove trailing bytes that match the null row.
-        const byte * nullRow = (const byte *)"                                   ";
-        PartialMatchBuilder builder(keyLen, nullRow, optimizeTrailing);
-
-        const char * entries[] = {
-            "abel    ",
-            "abigail ",
-            "absalom ",
-            "barry   ",
-            "barty   ",
-            "bill    ",
-            "brian   ",
-            "briany  ",
-            "charlie ",
-            "charlie ",
-            "georgina",
-            "georgina",
-            "georginb",
-            "jim     ",
-            "jimmy   ",
-            "john    ",
-        };
-        unsigned numEntries = _elements_in(entries);
-        for (unsigned i=0; i < numEntries; i++)
-        {
-            const char * entry = entries[i];
-            builder.add(strlen(entry), entry);
-        }
-
-        MemoryBuffer buffer;
-        builder.serialize(buffer);
-        DBGLOG("Serialized size = %u", buffer.length());
-
-        MemoryBuffer squashed;
-        builder.squash();
-        builder.serialize(squashed.clear());
-        DBGLOG("Squashed size = %u", squashed.length());
-
-        TestInplaceNodeSearcher searcher(builder.getCount(), buffer.bytes(), keyLen, nullRow);
-
-        for (unsigned i=0; i < numEntries; i++)
-        {
-            const char * entry = entries[i];
-            StringBuffer s;
-            find(entry, [&searcher,&s,numEntries](const char * search) {
-                unsigned match = searcher.findGE(strlen(search), (const byte *)search);
-                s.appendf("('%s': %u) ", search, match);
-                if (match > 0  && !(searcher.compareValueAt(search, match-1) >= 0))
-                {
-                    s.append("<");
-                    assertex(searcher.compareValueAt(search, match-1) >= 0);
-                }
-                if (match < numEntries && !(searcher.compareValueAt(search, match) <= 0))
-                {
-                    s.append(">");
-                    assertex(searcher.compareValueAt(search, match) <= 0);
-                }
-            });
-            DBGLOG("%s", s.str());
-        }
-
-        for (unsigned i=0; i < numEntries; i++)
-        {
-            char result[256] = {0};
-            const char * entry = entries[i];
-
-            if (!searcher.getValueAt(i, result))
-                printf("%u: getValue() failed\n", i);
-            else if (!streq(entry, result))
-                printf("%u: '%s', '%s'\n", i, entry, result);
-
-            auto callback = [numEntries, entries, &searcher](const char * search)
-            {
-                for (unsigned j= 0; j < numEntries; j++)
-                {
-                    int expected = normalizeCompare(strcmp(search, entries[j]));
-                    int actual = normalizeCompare(searcher.compareValueAt(search, j));
-                    if (expected != actual)
-                        printf("compareValueAt('%s', %u)=%d, expected %d\n", search, j, actual, expected);
-                }
-            };
-            find(entry, callback);
-        }
-
-        exit(0);
-    }
-
-    void find(const char * search, std::function<void(const char *)> callback)
-    {
-        callback(search);
-
-        unsigned searchLen = strlen(search);
-        unsigned trimLen = rtlTrimStrLen(searchLen, search);
-        StringBuffer text;
-        text.clear().append(search).setCharAt(trimLen-1, ' '); callback(text);
-        text.clear().append(search).setCharAt(trimLen-1, 'a'); callback(text);
-        text.clear().append(search).setCharAt(trimLen-1, 'z'); callback(text);
-        if (searchLen != trimLen)
-        {
-            text.clear().append(search).setCharAt(trimLen, '\t'); callback(text);
-            text.clear().append(search).setCharAt(trimLen, 'a'); callback(text);
-            text.clear().append(search).setCharAt(trimLen, 'z'); callback(text);
-        }
-    }
-
-};
-
-CPPUNIT_TEST_SUITE_REGISTRATION( InplaceIndexTest );
-CPPUNIT_TEST_SUITE_NAMED_REGISTRATION( InplaceIndexTest, "InplaceIndexTest" );
 
 #endif
