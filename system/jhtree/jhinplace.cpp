@@ -31,6 +31,10 @@
 #include "jhinplace.hpp"
 #include "jstats.h"
 
+#ifdef _DEBUG
+#define SANITY_CHECK_INPLACE_BUILDER     // painfully expensive consistency check
+#endif
+
 /*
 
 How can you store non-leaf nodes that are compressed, don't need decompression to compare, and are efficient to resolve?
@@ -96,17 +100,17 @@ Compression optimizations:
 Done:
   * Add code to trace the node cache sizes and the time taken to search branch nodes.
     Use this to compare i) normal ii) new format iii) new format with direct search
+  * Ensure that the allocated node result is padded with 3 zero bytes to allow misaligned access.
+  * Experiminent with updating offset only - code size and speed - seemed slower on first version
+  * Move serialize code in builder inside a sanity check flag.
 
 Next Steps:
-  * Implement findGT (inline in terms of a common function).
+  * Implement findGT (inline in terms of a common function). - delay until new format introduced
     Add to unit tests as well as node code.
-  * Ensure that the allocated node result is padded with 3 zero bytes to allow misaligned access.
-  * Experiminent with updating offset only - code size and speed
-  * Move serialize code in builder inside a sanity check flag.
 => Have a complete implementation that is useful for speed testing
 
   * Use leading bit count operations to implement packing/unpacking operations
-  * Allow repeated values and matches to the nll record to be compressed
+  * Allow repeated values and matches to the null record to be compressed
       Use size bytes 0xF0-0xFF to represent special sequences.
       Bottom bit indicates if there is a following match (rather than opt)
       0xF0/F1 <count> <byte> - byte is repeated <count> times
@@ -710,9 +714,11 @@ void PartialMatchBuilder::add(size32_t len, const void * data)
         root.set(new PartialMatch(this, len, data, 0, true));
     else
         root->combine(len, (const byte *)data);
+
+#ifdef SANITY_CHECK_INPLACE_BUILDER
     MemoryBuffer out;
     root->serialize(out);
-//    trace();
+#endif
 }
 
 void PartialMatchBuilder::removeLast()
@@ -1194,9 +1200,11 @@ void CJHInplaceTreeNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _f
     if (numKeys)
     {
         size32_t len = hdr.keyBytes;
+        const size32_t padding = 8 - 1; // Ensure that unsigned8 values can be read "legally"
         const byte * data = ((const byte *)rawData) + sizeof(hdr);
-        keyBuf = (char *) allocMem(len);
+        keyBuf = (char *) allocMem(len + padding);
         memcpy(keyBuf, data, len);
+        memset(keyBuf+len, 0, padding);
         expandedSize = len;
 
         //Filepositions are stored as a packed base and an (optional) list of scaled compressed deltas
