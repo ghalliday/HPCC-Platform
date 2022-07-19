@@ -170,6 +170,11 @@ Future potential optimizations
     Is big or little endian better for the packed integers?
     ?Use LZ END to compress payload in leaf nodes?
 
+Different ways of storing the payload:
+  * Small fixed size, store as is, offset calculated
+  * small compressed/variablesize.  store size as a byte, but accumulate to find the offsets.
+  * large compressed.  store offset as a word
+
 NOTES:
     The format is assumed to have a fixed length key, potentially followed by a variable length payload that is never compared.
     Always guarantee 3 bytes after last item in an array to allow misaligned read access
@@ -729,8 +734,13 @@ void PartialMatch::serializeFirst(MemoryBuffer & out)
 {
     if (data.length())
         out.append(data.bytes()[0]);
-    else
+    else if (rowOffset < builder->queryKeyLen())
+    {
+        assertex(queryNullRow());
         out.append(queryNullRow()[rowOffset]);
+    }
+    else
+        out.append((byte)0);    // will probably be harmless - potentially appending an extra 0 byte to shorter payloads.
 }
 
 void PartialMatch::trace(unsigned indent)
@@ -1178,10 +1188,10 @@ unsigned InplaceNodeSearcher::findGE(const unsigned len, const byte * search) co
     return resultPrev;
 }
 
-bool InplaceNodeSearcher::getValueAt(unsigned int searchIndex, char *key) const
+size32_t InplaceNodeSearcher::getValueAt(unsigned int searchIndex, char *key) const
 {
     if (searchIndex >= count)
-        return false;
+        return 0;
 
     unsigned resultPrev = 0;
     unsigned resultNext = count;
@@ -1279,7 +1289,7 @@ bool InplaceNodeSearcher::getValueAt(unsigned int searchIndex, char *key) const
         }
     }
 
-    return true;
+    return offset;
 }
 
 int InplaceNodeSearcher::compareValueAtFallback(const char *src, unsigned int index) const
@@ -1300,9 +1310,6 @@ int CJHInplaceTreeNode::compareValueAt(const char *src, unsigned int index) cons
 
 int CJHInplaceTreeNode::locateGE(const char * search, unsigned minIndex) const
 {
-#if 0
-    return CJHTreeNode::locateGE(search, minIndex);
-#else
     if (hdr.numKeys == 0) return 0;
 
     CCycleTimer timer;
@@ -1315,60 +1322,6 @@ int CJHInplaceTreeNode::locateGE(const char * search, unsigned minIndex) const
     else
         leafSearchCycles += elapsed;
     return match;
-#endif
-}
-
-offset_t CJHInplaceTreeNode::getFPosAt(unsigned int index) const
-{
-    if (index >= hdr.numKeys) return 0;
-
-    offset_t delta = 0;
-    if ((bytesPerPosition > 0) && (index != 0))
-        delta = readBytesEntry64(positionData, index-1, bytesPerPosition);
-    else
-        delta = index;
-
-    if (scaleFposByNodeSize)
-        delta *= getNodeSize();
-
-    return firstSequence + delta;
-}
-
-bool CJHInplaceTreeNode::getValueAt(unsigned int index, char *dst) const
-{
-    if (index >= hdr.numKeys) return false;
-    if (dst)
-    {
-        searcher.getValueAt(index, dst);
-        throwUnexpected();  // The following logic needs to be checked once we are using this for leaf nodes.
-#if 0
-        if (keyHdr->hasSpecialFileposition())
-        {
-            //It would make sense to have the fileposition at the start of the row from the perspective of the
-            //internal representation, but that would complicate everything else which assumes the keyed
-            //fields start at the beginning of the row.
-            const char * p = keyBuf + index*keyRecLen;
-            memcpy(dst, p + sizeof(offset_t), keyLen);
-            memcpy(dst+keyLen, p, sizeof(offset_t));
-        }
-        else
-        {
-            const char * p = keyBuf + index*keyRecLen;
-            memcpy(dst, p, keyLen);
-        }
-    #endif
-    }
-    return true;
-}
-
-
-size32_t CJHInplaceTreeNode::getSizeAt(unsigned int index) const
-{
-    //MORE: Change for variable length keys
-    if (keyHdr->hasSpecialFileposition())
-        return keyLen + sizeof(offset_t);
-    else
-        return keyLen;
 }
 
 void CJHInplaceTreeNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _fpos, bool needCopy)
@@ -1404,6 +1357,74 @@ void CJHInplaceTreeNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _f
     }
 }
 
+//---------------------------------------------------------------------------------------------------------------------
+
+offset_t CJHInplaceBranchNode::getFPosAt(unsigned int index) const
+{
+    if (index >= hdr.numKeys) return 0;
+
+    offset_t delta = 0;
+    if ((bytesPerPosition > 0) && (index != 0))
+        delta = readBytesEntry64(positionData, index-1, bytesPerPosition);
+    else
+        delta = index;
+
+    if (scaleFposByNodeSize)
+        delta *= getNodeSize();
+
+    return firstSequence + delta;
+}
+
+bool CJHInplaceBranchNode::getValueAt(unsigned int index, char *dst) const
+{
+    throwUnexpected();
+}
+
+
+size32_t CJHInplaceBranchNode::getSizeAt(unsigned int index) const
+{
+    throwUnexpected();
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+
+
+offset_t CJHInplaceLeafNode::getFPosAt(unsigned int index) const
+{
+    throwUnexpected();
+}
+
+bool CJHInplaceLeafNode::getValueAt(unsigned int index, char *dst) const
+{
+    if (index >= hdr.numKeys) return false;
+    if (dst)
+    {
+        unsigned len = searcher.getValueAt(index, dst);
+
+        //MORE: Copy the payload (if exists)
+        MORE;
+        throwUnexpected();  // The following logic needs to be checked once we are using this for leaf nodes.
+
+        if (keyHdr->hasSpecialFileposition())
+        {
+            offset_t filePosition = firstSequence;
+            if (bytesPerPosition > 0)
+                filePosition += readBytesEntry64(positionData, index, bytesPerPosition);
+            memcpy(dst+len, &filePosition, sizeof(offset_t));
+        }
+    }
+    return true;
+}
+
+
+size32_t CJHInplaceLeafNode::getSizeAt(unsigned int index) const
+{
+    //MORE: Change for variable length keys
+    if (keyHdr->hasSpecialFileposition())
+        return keyLen + sizeof(offset_t);
+    else
+        return keyLen;
+}
 
 //=========================================================================================================
 

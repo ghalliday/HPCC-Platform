@@ -1156,10 +1156,12 @@ CJHTreeNode *CKeyIndex::createNode(NodeType type)
     {
     case NodeBranch:
         if (keyHdr->isInplaceCompressedBranch())
-            return new CJHInplaceTreeNode();
+            return new CJHInplaceBranchNode();
         else
             return new CJHTreeNodeCommon();
     case NodeLeaf:
+        if (keyHdr->isInplaceCompressedLeaf())
+            return new CJHInplaceLeafNode();
         if (keyHdr->isVariable())
             return new CJHVarTreeNode();
         else if (keyHdr->isRowCompressed())

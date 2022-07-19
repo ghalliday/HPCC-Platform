@@ -35,7 +35,7 @@ public:
 
     //Find the first row that is >= the search row
     unsigned findGE(const unsigned len, const byte * search) const;
-    bool getValueAt(unsigned int num, char *key) const;
+    size32_t getValueAt(unsigned int num, char *key) const;
     int compareValueAt(const char *src, unsigned int index) const;
     int compareValueAtFallback(const char *src, unsigned int index) const;
 
@@ -121,11 +121,7 @@ class jhtree_decl CJHInplaceTreeNode : public CJHTreeNode
 {
 public:
     virtual void load(CKeyHdr *keyHdr, const void *rawData, offset_t pos, bool needCopy) override;
-    virtual bool getValueAt(unsigned int num, char *key) const override;
-    virtual size32_t getSizeAt(unsigned int num) const override;
-    virtual offset_t getFPosAt(unsigned int num) const override;
     virtual int compareValueAt(const char *src, unsigned int index) const override;
-
     virtual int locateGE(const char * search, unsigned minIndex) const override;
 
 protected:
@@ -135,6 +131,22 @@ protected:
     bool scaleFposByNodeSize = false;
 };
 
+
+class jhtree_decl CJHInplaceBranchNode : public CJHInplaceTreeNode
+{
+public:
+    virtual bool getValueAt(unsigned int num, char *key) const override;
+    virtual size32_t getSizeAt(unsigned int num) const override;
+    virtual offset_t getFPosAt(unsigned int num) const override;
+};
+
+class jhtree_decl CJHInplaceLeafNode : public CJHInplaceTreeNode
+{
+public:
+    virtual bool getValueAt(unsigned int num, char *key) const override;
+    virtual size32_t getSizeAt(unsigned int num) const override;
+    virtual offset_t getFPosAt(unsigned int num) const override;
+};
 
 class jhtree_decl CInplaceBranchWriteNode : public CWriteNode
 {
