@@ -33,7 +33,7 @@
 #include "jstats.h"
 
 #ifdef _DEBUG
-#define SANITY_CHECK_INPLACE_BUILDER     // painfully expensive consistency check
+//#define SANITY_CHECK_INPLACE_BUILDER     // painfully expensive consistency check
 #endif
 
 static constexpr size32_t minRepeatCount = 2;       // minimum number of times a 0x00 or 0x20 is repeated to generate a special opcode
@@ -673,6 +673,7 @@ bool PartialMatch::squash()
 
         //Always squash if you have some text - avoids length calculation elsewhere
         size32_t startOffset = isRoot ? 0 : 1;
+        size32_t keyLen = builder->queryKeyLen();
         if (data.length() > startOffset)
         {
             const byte * source = data.bytes();
@@ -687,6 +688,7 @@ bool PartialMatch::squash()
                 byte nextByte = source[offset];
 
                 //MORE Add support for compressing against the null row at somepoint
+                //MORE: Ensure that quoted strings are do not span the key boundary?
                 if (nextByte == prevByte)
                 {
                     repeatCount++;
@@ -696,7 +698,8 @@ bool PartialMatch::squash()
                     //MORE: Revisit and m ake this more sophisticated.  Trade off between space and comparison time.
                     //  if space or /0 decrease the threshold by 1.
                     //  if the start of the string then reduce the threshold.
-                    //  If no child entries increase the threshold (since it may require a special continuation byte)
+                    //  If no child entries increase the threshold (since it may require a special continuation byte)?
+                    //  After the keyed component compress more aggressively
                     if (repeatCount > 3)
                     {
                         appendRepeat(offset, copyOffset, prevByte, repeatCount);
@@ -732,13 +735,29 @@ void PartialMatch::serializeFirst(MemoryBuffer & out)
 
 void PartialMatch::trace(unsigned indent)
 {
-    StringBuffer hex;
+    StringBuffer squashedHex;
     for (unsigned i=0; i < squashedData.length(); i++)
-        hex.append(' ').appendhex(squashedData.bytes()[i], true);
-    printf("%*s(%.*s %u:%u[%u] [%s]", indent, "", (int)data.length(), data.toByteArray(), data.length(), squashedData.length(), getSize(), hex.str());
+    {
+        byte next = squashedData.bytes()[i];
+        squashedHex.append(' ').appendhex(next, true);
+    }
+
+    StringBuffer clean;
+    StringBuffer dataHex;
+    for (unsigned i=0; i < data.length(); i++)
+    {
+        byte next = data.bytes()[i];
+        dataHex.appendhex(next, true);
+        if (isprint(next))
+            clean.append(next);
+        else
+            clean.append('.');
+    }
+
+    printf("%*s(%s[%s] %u:%u[%u] [%s]", indent, "", clean.str(), dataHex.str(), data.length(), squashedData.length(), getSize(), squashedHex.str());
     if (next.ordinality())
     {
-        printf(", {\n");
+        printf(", %u{\n", next.ordinality());
         ForEachItemIn(i, next)
             next.item(i).trace(indent+1);
         printf("%*s}", indent, "");
@@ -783,11 +802,14 @@ void PartialMatchBuilder::trace()
 {
     if (root)
         root->trace(0);
+    printf("\n");
+#if 0
     MemoryBuffer out;
     root->serialize(out);
     for (unsigned i=0; i < out.length(); i++)
         printf("%02x ", out.bytes()[i]);
     printf("\n\n");
+#endif
 }
 
 unsigned PartialMatchBuilder::getCount()
@@ -839,16 +861,22 @@ int InplaceNodeSearcher::compareValueAt(const char * search, unsigned int compar
             {
                 const byte nextSearch = search[i];
                 const byte nextFinger = finger[i];
-                if (nextFinger > nextSearch)
+                if (nextFinger != nextSearch)
                 {
-                    //This entry is larger than the search value => we have a match
-                    return -1;
-                }
-                else if (nextFinger < nextSearch)
-                {
-                    //This entry (and all children) are less than the search value
-                    //=> the next entry is the match
-                    return +1;
+                    if (offset + i >= keyLen)
+                        return 0;
+
+                    if (nextFinger > nextSearch)
+                    {
+                        //This entry is larger than the search value => we have a match
+                        return -1;
+                    }
+                    else
+                    {
+                        //This entry (and all children) are less than the search value
+                        //=> the next entry is the match
+                        return +1;
+                    }
                 }
             }
             search += numBytes;
@@ -864,10 +892,15 @@ int InplaceNodeSearcher::compareValueAt(const char * search, unsigned int compar
             for (unsigned i=0; i < numBytes; i++)
             {
                 const byte nextSearch = search[i];
-                if (nextFinger > nextSearch)
-                    return -1;
-                else if (nextFinger < nextSearch)
-                    return +1;
+                if (nextFinger != nextSearch)
+                {
+                    if (offset + i >= keyLen)
+                        return 0;
+                    if (nextFinger > nextSearch)
+                        return -1;
+                    else
+                        return +1;
+                }
             }
             search += numBytes;
             offset += numBytes;
@@ -880,10 +913,15 @@ int InplaceNodeSearcher::compareValueAt(const char * search, unsigned int compar
             for (unsigned i=0; i < numBytes; i++)
             {
                 const byte nextSearch = search[i];
-                if (nextFinger > nextSearch)
-                    return -1;
-                else if (nextFinger < nextSearch)
-                    return +1;
+                if (nextFinger != nextSearch)
+                {
+                    if (offset + i >= keyLen)
+                        return 0;
+                    if (nextFinger > nextSearch)
+                        return -1;
+                    else
+                        return +1;
+                }
             }
             search += numBytes;
             offset += numBytes;
@@ -997,45 +1035,26 @@ unsigned InplaceNodeSearcher::findGE(const unsigned len, const byte * search) co
         {
         case SqQuote:
         {
-            unsigned i=0;
             unsigned numBytes = count;
-#if 0
-            if (unlikely(numBytes >= 4))
-            {
-                do
-                {
-                    //Technically undefined behaviour because the data was not originally
-                    //defined as unsigned values, access will be misaligned.
-                    const unsigned nextSearch = *(const unsigned *)(search + i);
-                    const unsigned nextFinger = *(const unsigned *)(finger + i);
-                    if (nextSearch != nextFinger)
-                    {
-                        const unsigned revNextSearch = reverseBytes(nextSearch);
-                        const unsigned revNextFinger = reverseBytes(nextFinger);
-                        if (revNextFinger > revNextSearch)
-                            return resultPrev;
-                        else
-                            return resultNext;
-                    }
-                    i += 4;
-                } while (i + 4 <= numBytes);
-            }
-#endif
-
-            for (; i < numBytes; i++)
+            for (unsigned i=0; i < numBytes; i++)
             {
                 const byte nextSearch = search[i];
                 const byte nextFinger = finger[i];
-                if (nextFinger > nextSearch)
+                if (nextFinger != nextSearch)
                 {
-                    //This entry is larger than the search value => we have a match
-                    return resultPrev;
-                }
-                else if (nextFinger < nextSearch)
-                {
-                    //This entry (and all children) are less than the search value
-                    //=> the next entry is the match
-                    return resultNext;
+                    if (offset + i >= keyLen)
+                        return resultPrev;
+                    if (nextFinger > nextSearch)
+                    {
+                        //This entry is larger than the search value => we have a match
+                        return resultPrev;
+                    }
+                    else
+                    {
+                        //This entry (and all children) are less than the search value
+                        //=> the next entry is the match
+                        return resultNext;
+                    }
                 }
             }
             search += numBytes;
@@ -1051,10 +1070,15 @@ unsigned InplaceNodeSearcher::findGE(const unsigned len, const byte * search) co
             for (unsigned i=0; i < numBytes; i++)
             {
                 const byte nextSearch = search[i];
-                if (nextFinger > nextSearch)
-                    return resultPrev;
-                else if (nextFinger < nextSearch)
-                    return resultNext;
+                if (nextFinger != nextSearch)
+                {
+                    if (offset + i >= keyLen)
+                        return resultPrev;
+                    if (nextFinger > nextSearch)
+                        return resultPrev;
+                    else
+                        return resultNext;
+                }
             }
             search += numBytes;
             offset += numBytes;
@@ -1067,10 +1091,15 @@ unsigned InplaceNodeSearcher::findGE(const unsigned len, const byte * search) co
             for (unsigned i=0; i < numBytes; i++)
             {
                 const byte nextSearch = search[i];
-                if (nextFinger > nextSearch)
-                    return resultPrev;
-                else if (nextFinger < nextSearch)
-                    return resultNext;
+                if (nextFinger != nextSearch)
+                {
+                    if (offset + i >= keyLen)
+                        return resultPrev;
+                    if (nextFinger > nextSearch)
+                        return resultPrev;
+                    else
+                        return resultNext;
+                }
             }
             search += numBytes;
             offset += numBytes;
@@ -1145,19 +1174,6 @@ unsigned InplaceNodeSearcher::findGE(const unsigned len, const byte * search) co
     nextTree:
         ;
     }
-
-#if 0
-    //compare with the null value
-    for (unsigned i=offset; i < keyLen; i++)
-    {
-        const byte nextSearch = search[i-offset];
-        const byte nextFinger = nullRow[i];
-        if (nextFinger > nextSearch)
-            return resultPrev;
-        else if (nextFinger < nextSearch)
-            return resultNext;
-    }
-#endif
 
     return resultPrev;
 }
@@ -1391,24 +1407,18 @@ void CJHInplaceTreeNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _f
 
 //=========================================================================================================
 
-CNewBranchWriteNode::CNewBranchWriteNode(offset_t _fpos, CKeyHdr *_keyHdr, const byte * _nullRow)
+CInplaceBranchWriteNode::CInplaceBranchWriteNode(offset_t _fpos, CKeyHdr *_keyHdr, const byte * _nullRow)
 : CWriteNode(_fpos, _keyHdr, false), builder(keyLen, _nullRow, false), nullRow(_nullRow)
 {
     nodeSize = _keyHdr->getNodeSize();
 }
 
-bool CNewBranchWriteNode::add(offset_t pos, const void * _data, size32_t size, unsigned __int64 sequence)
+bool CInplaceBranchWriteNode::add(offset_t pos, const void * _data, size32_t size, unsigned __int64 sequence)
 {
     if (0xffff == hdr.numKeys)
         return false;
 
     const byte * data = (const byte *)_data;
-#if 0
-    //Disable this until nullrows are passed to the reading code.
-    while (size && data[size-1]==nullRow[size-1])
-        size--;
-#endif
-
     unsigned oldSize = getDataSize();
     builder.add(size, data);
     if (positions.ordinality())
@@ -1422,6 +1432,7 @@ bool CNewBranchWriteNode::add(offset_t pos, const void * _data, size32_t size, u
             positions.pop();
             unsigned nowSize = getDataSize();
             assertex(oldSize == nowSize);
+            builder.trace();
             return false;
         }
     }
@@ -1432,7 +1443,7 @@ bool CNewBranchWriteNode::add(offset_t pos, const void * _data, size32_t size, u
     return true;
 }
 
-unsigned CNewBranchWriteNode::getDataSize()
+unsigned CInplaceBranchWriteNode::getDataSize()
 {
     if (positions.ordinality() == 0)
         return 0;
@@ -1444,18 +1455,18 @@ unsigned CNewBranchWriteNode::getDataSize()
     //b) scaling by nodeSize if possible.
     //c) storing in the minimum number of bytes possible.
     unsigned __int64 firstPosition = positions.item(0);
-    unsigned __int64 maxPosition = positions.tos() - firstPosition;
+    unsigned __int64 maxDeltaPosition = positions.tos() - firstPosition;
     if (scaleFposByNodeSize)
-        maxPosition /= nodeSize;
+        maxDeltaPosition /= nodeSize;
     unsigned bytesPerPosition = 0;
-    if (maxPosition + 1 != positions.ordinality())
-        bytesPerPosition = bytesRequired(maxPosition);
+    if (maxDeltaPosition + 1 != positions.ordinality())
+        bytesPerPosition = bytesRequired(maxDeltaPosition);
 
     unsigned posSize = 1 + sizePacked(firstPosition) + bytesPerPosition * (positions.ordinality() - 1);
     return posSize + builder.getSize();
 }
 
-void CNewBranchWriteNode::write(IFileIOStream *out, CRC32 *crc)
+void CInplaceBranchWriteNode::write(IFileIOStream *out, CRC32 *crc)
 {
     hdr.keyBytes = getDataSize();
 
@@ -1486,6 +1497,113 @@ void CNewBranchWriteNode::write(IFileIOStream *out, CRC32 *crc)
                 unsigned __int64 delta = positions.item(i) - firstPosition;
                 if (scaleFposByNodeSize)
                     delta /= nodeSize;
+                serializeBytes(data, delta, bytesPerPosition);
+            }
+        }
+
+        builder.serialize(data);
+
+        assertex(data.length() == getDataSize());
+    }
+
+    CWriteNode::write(out, crc);
+}
+
+
+//=========================================================================================================
+
+CInplaceLeafWriteNode::CInplaceLeafWriteNode(offset_t _fpos, CKeyHdr *_keyHdr, const byte * _nullRow)
+: CWriteNode(_fpos, _keyHdr, false), builder(keyLen, _nullRow, false), nullRow(_nullRow)
+{
+    nodeSize = _keyHdr->getNodeSize();
+}
+
+bool CInplaceLeafWriteNode::add(offset_t pos, const void * _data, size32_t size, unsigned __int64 sequence)
+{
+    if (0xffff == hdr.numKeys)
+        return false;
+
+    __uint64 savedMinPosition = minPosition;
+    __uint64 savedMaxPosition = maxPosition;
+    const byte * data = (const byte *)_data;
+    unsigned oldSize = getDataSize();
+    builder.add(size, data);
+    if (positions.ordinality())
+    {
+        if (pos < minPosition)
+            minPosition = pos;
+        if (pos > maxPosition)
+            maxPosition = pos;
+    }
+    else
+    {
+        minPosition = pos;
+        maxPosition = pos;
+    }
+
+    positions.append(pos);
+    if (getDataSize() > maxBytes-hdr.keyBytes)
+    {
+        if (getDataSize() > maxBytes-hdr.keyBytes)
+        {
+            builder.removeLast();
+            positions.pop();
+            minPosition = savedMinPosition;
+            maxPosition = savedMaxPosition;
+            unsigned nowSize = getDataSize();
+            assertex(oldSize == nowSize);
+            builder.trace();
+            return false;
+        }
+    }
+
+    saveLastKey(data, keyLen, sequence);
+    return true;
+}
+
+unsigned CInplaceLeafWriteNode::getDataSize()
+{
+    if (positions.ordinality() == 0)
+        return 0;
+
+    //MORE: Cache this, and calculate the incremental increase in size
+
+    //Compress the filepositions by
+    //a) storing them as deltas from the first
+    //b) scaling by nodeSize if possible.
+    //c) storing in the minimum number of bytes possible.
+    unsigned bytesPerPosition = 0;
+    if (minPosition != maxPosition)
+        bytesPerPosition = bytesRequired(maxPosition-minPosition);
+
+    unsigned posSize = 1 + sizePacked(minPosition) + bytesPerPosition * positions.ordinality();
+    return posSize + builder.getSize();
+}
+
+void CInplaceLeafWriteNode::write(IFileIOStream *out, CRC32 *crc)
+{
+    hdr.keyBytes = getDataSize();
+
+    MemoryBuffer data;
+    data.setBuffer(maxBytes, keyPtr, false);
+    data.setWritePos(0);
+
+    if (positions.ordinality())
+    {
+        //Pack these by scaling and reducing the number of bytes
+        unsigned bytesPerPosition = 0;
+        if (minPosition != maxPosition)
+            bytesPerPosition = bytesRequired(maxPosition-minPosition);
+
+        byte sizeMask = (byte)bytesPerPosition | (scaleFposByNodeSize ? 0x80 : 0);
+        data.append(sizeMask);
+        serializePacked(data, minPosition);
+
+        if (bytesPerPosition != 0)
+        {
+            for (unsigned i=0; i < positions.ordinality(); i++)
+            {
+                unsigned __int64 delta = positions.item(i) - minPosition;
                 serializeBytes(data, delta, bytesPerPosition);
             }
         }

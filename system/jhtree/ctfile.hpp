@@ -177,6 +177,7 @@ public:
     inline bool hasSpecialFileposition() const { return true; }
     inline bool isRowCompressed() const { return (hdr.keyFlags & (HTREE_QUICK_COMPRESSED_KEY|HTREE_VARSIZE)) == HTREE_QUICK_COMPRESSED_KEY; }
     inline bool isInplaceCompressedBranch() const { return (hdr.keyFlags & INPLACE_COMPRESS_BRANCH) != 0; }
+    inline bool isInplaceCompressedLeaf() const { return (hdr.keyFlags & INPLACE_COMPRESS_LEAF) != 0; }
     __uint64 getPartitionFieldMask()
     {
         if (hdr.partitionFieldMask == (__uint64) -1)

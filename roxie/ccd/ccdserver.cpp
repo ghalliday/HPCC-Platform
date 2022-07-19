@@ -419,7 +419,7 @@ static const StatisticsMapping diskStatistics({StNumServerCacheHits, StNumDiskRo
 static const StatisticsMapping soapStatistics({ StTimeSoapcall }, actStatistics);
 static const StatisticsMapping groupStatistics({ StNumGroups, StNumGroupMax }, actStatistics);
 static const StatisticsMapping sortStatistics({ StTimeSortElapsed }, actStatistics);
-static const StatisticsMapping indexWriteStatistics({ StNumDuplicateKeys }, actStatistics);
+static const StatisticsMapping indexWriteStatistics({ StNumDuplicateKeys, StNumLeafCacheAdds, StNumNodeCacheAdds }, actStatistics);
 
 // These ones get accumulated and reported in COMPLETE: line (and workunit).
 // Excludes ones that are not sensible to sum across activities, other than StTimeTotalExecute which must be explicitly overwritten at global level before we report it
@@ -12577,6 +12577,8 @@ public:
                 flags |= USE_TRAILING_HEADER;
             if (metadata->getPropBool("_inplace", ctx->queryOptions().inplaceBuildIndex))
                 flags |= INPLACE_COMPRESS_BRANCH;
+            if (metadata->getPropBool("_inplaceleaf", ctx->queryOptions().inplaceBuildIndex))
+                flags |= INPLACE_COMPRESS_LEAF;
             Owned<IFileIOStream> out = createBufferedIOStream(io, 0x100000);
             if (!needsSeek)
                 out.setown(createNoSeekIOStream(out));
@@ -12615,6 +12617,8 @@ public:
             duplicateKeyCount = builder->getDuplicateCount();
             cummulativeDuplicateKeyCount += duplicateKeyCount;
             builder->finish(metadata, &fileCrc);
+            noteStatistic(StNumLeafCacheAdds, builder->getNumLeaves());
+            noteStatistic(StNumNodeCacheAdds, builder->getNumBranches());
             clearKeyStoreCache(false);
         }
     }

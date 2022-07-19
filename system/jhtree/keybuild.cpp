@@ -203,11 +203,19 @@ public:
     CWriteNode * createWriteNode(offset_t fpos, CKeyHdr *keyHdr, bool isLeaf)
     {
         if (isLeaf)
-            return new CLeafWriteNode(fpos, keyHdr);
-        else if (keyHdr->isInplaceCompressedBranch())
-            return new CNewBranchWriteNode(fpos, keyHdr, nullRow);
+        {
+            if (keyHdr->isInplaceCompressedLeaf())
+                return new CInplaceLeafWriteNode(fpos, keyHdr, nullRow);
+            else
+                return new CLeafWriteNode(fpos, keyHdr);
+        }
         else
-            return new CBranchWriteNode(fpos, keyHdr);
+        {
+            if (keyHdr->isInplaceCompressedBranch())
+                return new CInplaceBranchWriteNode(fpos, keyHdr, nullRow);
+            else
+                return new CBranchWriteNode(fpos, keyHdr);
+        }
     }
 
     void buildLevel(NodeInfoArray &thisLevel, NodeInfoArray &parents)
@@ -660,5 +668,5 @@ int compareParts(CInterface * const * _left, CInterface * const * _right)
 
 extern jhtree_decl bool checkReservedMetadataName(const char *name)
 {
-    return strsame(name, "_nodeSize") || strsame(name, "_noSeek") || strsame(name, "_useTrailingHeader") || strsame(name, "_inplace");
+    return strsame(name, "_nodeSize") || strsame(name, "_noSeek") || strsame(name, "_useTrailingHeader") || strsame(name, "_inplace") || strsame(name, "_inplaceleaf");
 }

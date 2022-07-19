@@ -103,6 +103,7 @@ public:
     void serialize(MemoryBuffer & out);
     void trace();
 
+    size32_t queryKeyLen() const { return keyLen; }
     const byte * queryNullRow() const { return nullRow; }
     unsigned getCount();
     unsigned getSize();
@@ -135,10 +136,10 @@ protected:
 };
 
 
-class jhtree_decl CNewBranchWriteNode : public CWriteNode
+class jhtree_decl CInplaceBranchWriteNode : public CWriteNode
 {
 public:
-    CNewBranchWriteNode(offset_t fpos, CKeyHdr *keyHdr, const byte * nullRow);
+    CInplaceBranchWriteNode(offset_t fpos, CKeyHdr *keyHdr, const byte * nullRow);
 
     virtual bool add(offset_t pos, const void *data, size32_t size, unsigned __int64 sequence) override;
     virtual void write(IFileIOStream *, CRC32 *crc) override;
@@ -154,5 +155,26 @@ protected:
     bool scaleFposByNodeSize = true;
 };
 
+
+class jhtree_decl CInplaceLeafWriteNode : public CWriteNode
+{
+public:
+    CInplaceLeafWriteNode(offset_t fpos, CKeyHdr *keyHdr, const byte * nullRow);
+
+    virtual bool add(offset_t pos, const void *data, size32_t size, unsigned __int64 sequence) override;
+    virtual void write(IFileIOStream *, CRC32 *crc) override;
+
+protected:
+    unsigned getDataSize();
+
+protected:
+    PartialMatchBuilder builder;
+    const byte * nullRow;
+    Unsigned64Array positions;
+    __uint64 minPosition = 0;
+    __uint64 maxPosition = 0;
+    unsigned nodeSize;
+    bool scaleFposByNodeSize = false;
+};
 
 #endif

@@ -186,6 +186,8 @@ public:
             flags |= USE_TRAILING_HEADER;
         if (metadata->getPropBool("_inplace", defaultInplace))
             flags |= INPLACE_COMPRESS_BRANCH;
+        if (metadata->getPropBool("_inplaceleaf", defaultInplace))
+            flags |= INPLACE_COMPRESS_LEAF;
         unsigned twFlags = isUrl(partFname) ? TW_Direct : TW_RenameToPrimary;
         builderIFileIO.setown(createMultipleWrite(this, partDesc, 0, twFlags, compress, NULL, this, &abortSoon));
         Owned<IFileIOStream> out = createBufferedIOStream(builderIFileIO, 0x100000);
