@@ -1041,6 +1041,8 @@ ESPResponse [exceptions_inline] WUDetailsMetaResponse
     ESParray<ESPStruct WUDetailsActivityInfo, Activity> Activities;
 };
 
+// ----------------------------------------------------------------------------------
+
 ESPrequest [nil_remove] WUEclDefinitionActionRequest
 {
     ESParray<string> EclDefinitions;
@@ -1079,6 +1081,8 @@ ESPresponse [exceptions_inline] WUEclDefinitionActionResponse
     [min_ver("1.89")] string DfuPublisherState;
 };
 
+// ----------------------------------------------------------------------------------
+
 ESPrequest [nil_remove] WUGetPluginsRequest
 {
 };
@@ -1087,4 +1091,64 @@ ESPresponse [exceptions_inline] WUGetPluginsResponse
 {
     ESParray<ESPstruct WUEclPluginsInFolder> Plugins;
 };
+
+// ----------------------------------------------------------------------------------
+
+ESPrequest [nil_remove] WUAnalyseHotspotRequest
+{
+    string Wuid;
+    string RootScope;
+    bool OptOnlyActive(false);
+    bool OnlyCriticalPath(false);
+    double ThresholdPercent(1.0);
+};
+
+ESPStruct WUHotspotItem
+{
+    string Scope;
+    string ParentScope;
+    double TotalTimePercent;
+    double StartTimePercent;
+    double StartAndDependentsTimePercent;
+    double ExecuteTimePercent;
+};
+
+ESPresponse [exceptions_inline] WUAnalyseHotspotResponse
+{
+    string rootScope;
+    int64 rootTime;
+    ESParray<ESPstruct WUEclPluginsInFolder> Activities;
+    ESParray<ESPstruct WUEclPluginsInFolder> Graphs;
+};
+
+// ----------------------------------------------------------------------------------
+
+
+ESPrequest [nil_remove] WUAnalyseCriticalPathRequest
+{
+    string Wuid;
+    string RootScope;
+    bool OptOnlyActive(false);
+    bool OnlyCriticalPath(false);
+    double ThresholdPercent(1.0);
+};
+
+
+//Actually a graph - probably want the inverse of what is currently generated.  Cna have multiple roots.
+ESPStruct WUCriticalPathItem
+{
+    string Scope;
+    string ParentScope;
+    unsigned Indent;
+    int64 StartTime;        // Times are relative to the start of the query
+    int64 EndTime;
+    bool IsRootActivity;
+    ESParray<ESPstruct WUCriticalPathItem> nested;
+};
+
+ESPresponse [exceptions_inline] WUAnalyseCriticalPathResponse
+{
+    ESParray<ESPstruct WUCriticalPathItem> path;
+};
+
 // ----------------------------------------------------------------------------------

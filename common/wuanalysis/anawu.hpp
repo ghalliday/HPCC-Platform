@@ -31,5 +31,6 @@ void WUANALYSIS_API analyseActivity(IConstWorkUnit * wu, IPropertyTree * cfg, co
 void WUANALYSIS_API analyseDependencies(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args);
 void WUANALYSIS_API analyseCriticalPath(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args);
 void WUANALYSIS_API analyseHotspots(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args);
+void WUANALYSIS_API analyseOutputDependencyGraph(IConstWorkUnit * wu, IPropertyTree * cfg);
 
 #endif

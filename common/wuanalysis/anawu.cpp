@@ -1677,7 +1677,26 @@ public:
         gatherPath(direct, scope, false);
     }
 
-    void trace(WaActivityPath * other)
+    unsigned getDirectDependency(WaActivityPath & other)
+    {
+        ForEachItemIn(j, path)
+        {
+            WaThread & thread = *path.item(j);
+            if (&thread == other.scope->executionThread)
+                return j;
+            else
+            {
+                for (auto dependency : other.scope->dependencies)
+                {
+                    if (dependency->executionThread == &thread)
+                        return j;
+                }
+            }
+        }
+        return UINT_MAX;
+    }
+
+    void trace(WaActivityPath * other, unsigned from)
     {
         PointerArrayOf<WaThread> direct;
         PointerArrayOf<WaThread> otherDirect;
@@ -1687,8 +1706,7 @@ public:
             other->gatherDirectDependencies(otherDirect);
         }
 
-        printf("%s\n", id);
-        ForEachItemIn(j, path)
+        for (unsigned j=from; j < path.ordinality(); j++)
         {
             WaThread & thread = *path.item(j);
             const char * creatorName = thread.creator ? thread.creator->queryName() : "<root>";
@@ -1709,6 +1727,7 @@ public:
                     unsigned matchFirst = NotFound;
                     unsigned matchSecond = NotFound;
 
+                    //For the current execution thread, which of the threads' dependencies are included in the path
                     PointerArrayOf<WuScope> & dependencies = thread.dependencies;
                     ForEachItemIn(iDep, dependencies)
                     {
@@ -1763,15 +1782,36 @@ public:
             printf(" %s%s%s%4s %5s@%u %6s", single, marker, blocked, dependName.str(), thread.queryName(), thread.queryDepth(), creatorName);
             if (thread.creator)
                 printf(" {%" I64F "u..%" I64F "u}", thread.creator->getBeginTimestamp(), thread.creator->getEndTimestamp());
+
             if (thread.creator)
             {
                 printf(" [");
                 for (auto cur : thread.creator->callers)
                 {
                     printf(" %s", cur->queryName());
+                    //If the caller
                 }
                 printf("]");
             }
+
+            if (other)
+            {
+                if (&thread == other->scope->executionThread)
+                    printf(" ****** match ******");
+                else
+                {
+                    for (auto dependency : other->scope->dependencies)
+                    {
+                        if (dependency->executionThread == &thread)
+                        {
+                            printf(" ****** Dependency of %s ******", other->scope->queryName());
+                        }
+                    }
+                }
+            }
+
+
+            //If this activity is a dependency, indicate if it is a dependency of the other activity
             printf("\n");
         }
     }
@@ -1811,15 +1851,23 @@ void WorkunitAnalyser::spotCommonPath(const StringArray & args)
         "Information about 1st activity, and dependence of second activity on the first:\n"
         "Format:  [!][*][=][Dnn] thread@depth activity [callers]\n"
         "!   only path with this depth.\n"
-        "Dnn a dependency of the first activity on the second\n"
         "*   a common path between the first and second activities\n"
-        "=   a path that all subsequent paths go through\n");
+        "=   a path that all subsequent paths go through\n"
+        "Dnn a dependency of the first activity on the second\n"
+    );
 
     for (unsigned j=1; j < extracted.ordinality(); j++)
     {
-        extracted.item(0).trace(&extracted.item(j));
-        extracted.item(j).trace(&extracted.item(0));
-
+        unsigned direct = extracted.item(0).getDirectDependency(extracted.item(j));
+        if (direct != UINT_MAX)
+        {
+            extracted.item(0).trace(&extracted.item(j), direct);
+        }
+        else
+        {
+            extracted.item(0).trace(&extracted.item(j), 0);
+            extracted.item(j).trace(&extracted.item(0), 0);
+        }
     }
 }
 
@@ -1991,7 +2039,7 @@ void WorkunitAnalyser::reportActivity(const StringArray & args)
     stat_type totalTime = (maxTime - minTime);
     stat_type interesting = (stat_type)(totalTime * opts.thresholdPercent / 100.0);
     printf("Activity for (%llu..%llu %.2f%%):\n", minTime, maxTime, opts.thresholdPercent);
-    printf("name [R](parent total%% start%% run%%)\n");
+    printf("name {startTimeRange executeTimeRange} [R](parent total%% start%% run%%) type\n");
 
     opts.timeThreshold = interesting;
     opts.minTime = minTime;
@@ -2197,12 +2245,21 @@ void analyseDependencies(IConstWorkUnit * wu, IPropertyTree * cfg, const StringA
     analyser.analyse(wu);
     analyser.adjustTimestamps();
     analyser.calcDependencies();
-    analyser.traceDependencies();
     analyser.spotCommonPath(args);
     analyser.findActiveActivities(args);
     analyser.findHotspotsOld(args);
     analyser.walkStartupTimes(args);
     analyser.traceWhyWaiting(args);     // ?<activity>:startTime.  What dependencies are there of the threads that call activity that could be causing the delay in loading.
+}
+
+void analyseOutputDependencyGraph(IConstWorkUnit * wu, IPropertyTree * cfg)
+{
+    WorkunitAnalyser analyser;
+    analyser.applyOptions(cfg);
+    analyser.analyse(wu);
+    analyser.adjustTimestamps();
+    analyser.calcDependencies();
+    analyser.traceDependencies();
 }
 
 void analyseCriticalPath(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args)
@@ -2342,5 +2399,14 @@ c. For any soapcalls with large latencies, investigate if they start late
 d. [Why] is an activity waiting for another activity?
    wutool depend <other-activity> <main-activity>
 
+
+Useful eclwatch functionality
+- For a range of times or activities, highlight which activities are
+  i) starting
+  ii) active
+  Allow a threshold for a percentage to be interesting.
+
+- If the time range can be moved through the range it gives a picture of the execution order
+- For range (0..activity->beginTime), the activities that are starting gives a picture of possible delay causes.
 
 */

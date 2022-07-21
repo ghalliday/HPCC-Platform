@@ -101,6 +101,14 @@ void usage(const char * action = nullptr)
                "   clear               - Delete entire workunit repository (requires entire=1 repository=1)\n"
                "   initialize          - Initialize new workunit repository\n"
                "\n"
+               "   graph <wu>          - Generate an alternative representation of the graph with execution details\n"
+               "   activity <wu> [\">scope|mintime\"] [\"<scope|maxtime\"] [threshold=n%%]\n"
+               "                       - What activities are executed between a range of times (in time order)\n"
+               "   hotspot <wu> [<activity>] - Find the hotspots for workunit (or one particular activity)\n"
+               "   critical <wu> <activity>  - What activities are executed in order to execute activity\n"
+               "   depend <wu> <activity> <activity> - Find the common paths between two activities\n"
+               "   depend <wu> ?<activity>:startTime - Which dependencies take a large %% of the start time for this activity\n"
+               "\n"
                "   help <command>      - More help on a command\n"
                "\n"
                "If CASSANDRASERVER is specified, you can specify some connection options including:\n"
@@ -258,6 +266,12 @@ static void process(IConstWorkUnit &w, IProperties *globals, const StringArray &
             factory->deleteWorkUnit(wuid.str());
         }
         printf("deleted %s\n", wuid.str());
+    }
+    else if (stricmp(action, "graph")==0)
+    {
+        Owned<IPropertyTree> options = createPTree();
+        applyProperties(options, globals);
+        analyseOutputDependencyGraph(&w, options);
     }
     else if (stricmp(action, "hotspot")==0)
     {
@@ -666,7 +680,7 @@ int main(int argc, const char *argv[])
         }
         else if (strieq(action, "list") || strieq(action, "dump") || strieq(action, "results") || strieq(action, "delete") ||
                  strieq(action, "archive") || strieq(action, "info") || strieq(action, "analyze") || strieq(action, "analyse") ||
-                 strieq(action, "depend") || strieq(action, "hotspot") || strieq(action, "critical") || strieq(action, "activity") ||
+                 strieq(action, "depend") || strieq(action, "hotspot") || strieq(action, "critical") || strieq(action, "activity") || strieq(action, "graph") ||
                  strieq(action, "postmortem"))
         {
             if (strieq(action, "info") && args.empty())
