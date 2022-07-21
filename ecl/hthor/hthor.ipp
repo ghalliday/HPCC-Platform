@@ -387,7 +387,7 @@ class CHThorIndexWriteActivity : public CHThorActivityBase
     bool defaultNoSeek = false;
     offset_t sizeLimit;
     unsigned __int64 duplicateKeyCount = 0;
-    unsigned __int64 cummulativeDuplicateKeyCount = 0;
+    unsigned __int64 cumulativeDuplicateKeyCount = 0;
     stat_type numDiskWrites = 0;
     cost_type diskAccessCost = 0;
     void close();
@@ -397,7 +397,7 @@ class CHThorIndexWriteActivity : public CHThorActivityBase
     {
         CHThorActivityBase::updateProgress(progress);
         StatsActivityScope scope(progress, activityId);
-        progress.addStatistic(StNumDuplicateKeys, cummulativeDuplicateKeyCount);
+        progress.addStatistic(StNumDuplicateKeys, cumulativeDuplicateKeyCount);
         progress.addStatistic(StNumDiskWrites, numDiskWrites);
         progress.addStatistic(StCostFileAccess, diskAccessCost);
     }

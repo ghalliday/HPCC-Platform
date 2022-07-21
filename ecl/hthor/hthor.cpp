@@ -1237,7 +1237,7 @@ void CHThorIndexWriteActivity::execute()
         }
         builder->finish(metadata, &fileCrc);
         duplicateKeyCount = builder->getDuplicateCount();
-        cummulativeDuplicateKeyCount += duplicateKeyCount;
+        cumulativeDuplicateKeyCount += duplicateKeyCount;
         numDiskWrites = io->getStatistic(StNumDiskWrites);
         out->flush();
         out.clear();

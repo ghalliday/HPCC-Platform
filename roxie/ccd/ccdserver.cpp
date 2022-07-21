@@ -12358,7 +12358,6 @@ class CRoxieServerIndexWriteActivity : public CRoxieServerInternalSinkActivity, 
     unsigned int fileCrc;
     StringBuffer filename;
     unsigned __int64 duplicateKeyCount = 0;
-    unsigned __int64 cummulativeDuplicateKeyCount = 0;
 
     void updateWorkUnitResult()
     {
@@ -12575,7 +12574,6 @@ public:
                 reccount++;
             }
             duplicateKeyCount = builder->getDuplicateCount();
-            cummulativeDuplicateKeyCount += duplicateKeyCount;
             builder->finish(metadata, &fileCrc);
             clearKeyStoreCache(false);
         }
@@ -12603,7 +12601,7 @@ public:
 
     virtual void reset()
     {
-        noteStatistic(StNumDuplicateKeys, cummulativeDuplicateKeyCount);
+        noteStatistic(StNumDuplicateKeys, duplicateKeyCount);
         CRoxieServerActivity::reset();
         writer.clear();
     }

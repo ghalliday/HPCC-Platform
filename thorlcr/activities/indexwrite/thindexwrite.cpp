@@ -31,7 +31,7 @@ class IndexWriteActivityMaster : public CMasterActivity
 {
     rowcount_t recordsProcessed;
     unsigned __int64 duplicateKeyCount = 0;
-    unsigned __int64 cummulativeDuplicateKeyCount = 0;
+    unsigned __int64 cumulativeDuplicateKeyCount = 0;
     Owned<IFileDescriptor> fileDesc;
     bool buildTlk, isLocal, singlePartKey;
     StringArray clusters;
@@ -244,7 +244,7 @@ public:
         IHThorIndexWriteArg *helper = (IHThorIndexWriteArg *)queryHelper();
         updateActivityResult(container.queryJob().queryWorkUnit(), helper->getFlags(), helper->getSequence(), fileName, recordsProcessed);
 
-        cummulativeDuplicateKeyCount += duplicateKeyCount;
+        cumulativeDuplicateKeyCount += duplicateKeyCount;
         // MORE - add in the extra entry somehow
         if (fileName.get())
         {
@@ -352,7 +352,7 @@ public:
     virtual void getActivityStats(IStatisticGatherer & stats) override
     {
         CMasterActivity::getActivityStats(stats);
-        stats.addStatistic(StNumDuplicateKeys, cummulativeDuplicateKeyCount);
+        stats.addStatistic(StNumDuplicateKeys, cumulativeDuplicateKeyCount);
     }
 };
 
