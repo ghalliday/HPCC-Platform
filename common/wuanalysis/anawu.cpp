@@ -497,7 +497,9 @@ void WuHotspotResult::report()
 {
     const char * prefix = isRoot ? "R" : " ";
     ThorActivityKind kind = activity->queryThorActivityKind();
-    printf("%-6s %s(%-6s %6.2f%%,%6.2f%%,%6.2f%%,%6.2f%%) %s\n", activity->queryName(), prefix, parent.str(), totalPercent, startPercent, myStartPercent, runPercent, activityKindStr(kind));
+    StringBuffer fullName;
+    activity->getFullScopeName(fullName);
+    printf("%-6s %s(%-6s %6.2f%%,%6.2f%%,%6.2f%%,%6.2f%%) %s\n", fullName.str(), prefix, parent.str(), totalPercent, startPercent, myStartPercent, runPercent, activityKindStr(kind));
 }
 
 void WuHotspotResult::reportTime()
