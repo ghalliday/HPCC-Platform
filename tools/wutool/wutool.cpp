@@ -722,12 +722,16 @@ int main(int argc, const char *argv[])
             }
             else if (args.ordinality() && checkFileExists(args.item(0)))
             {
+                const char * filename = args.item(0);
                 StringBuffer xml;
-                xml.loadFile(args.item(0));
-                args.remove(0);
+                xml.loadFile(filename);
 
                 //If the file has come from a roxie control:queryStats call, extract the part that coresponds to the query
                 const char * start = strstr(xml, "<Query");
+                if (!start)
+                    throw MakeStringException(errno, "File %s does not contain a query", filename);
+
+                args.remove(0);
                 if (start != xml.str())
                 {
                     xml.remove(0, start-xml.str());

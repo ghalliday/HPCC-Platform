@@ -147,54 +147,82 @@ public:
 private:
     stat_type wuOptions[watOptMax];
 };
+
 //-----------------------------------------------------------------------------------------------------------
 
-class WorkunitAnalyser
+//MORE: Split this in two - for new code and old code.
+class WorkunitAnalyserBase
 {
 public:
-    WorkunitAnalyser();
-
-    void applyConfig(IPropertyTree *cfg);
-    void applyOptions(IPropertyTree * cfg);
+    WorkunitAnalyserBase();
 
     void analyse(IConstWorkUnit * wu);
+    WuScope * getRootScope() { return LINK(root); }
+
+protected:
+    void collateWorkunitStats(IConstWorkUnit * workunit, const WuScopeFilter & filter);
+    WuScope * selectFullScope(const char * scope);
+    WuScope * resolveActivity(const char * name);
+
+protected:
+    Owned<WuScope> root;
+    stat_type minTimestamp = 0;
+};
+
+//-----------------------------------------------------------------------------------------------------------
+
+class WorkunitRuleAnalyser : public WorkunitAnalyserBase
+{
+public:
+    WorkunitRuleAnalyser();
+
+    void applyConfig(IPropertyTree *cfg, IConstWorkUnit * wu);
+
+    void applyRules();
     void check(const char * scope, IWuActivity & activity);
+    void print();
+    void update(IWorkUnit *wu, double costRate);
+
+protected:
+    CIArrayOf<AActivityRule> rules;
+    CIArrayOf<PerformanceIssue> issues;
+    WuAnalyserOptions options;
+};
+
+
+class WorkunitStatsAnalyser : public WorkunitAnalyserBase
+{
+public:
+    void applyOptions(IPropertyTree * cfg);
+
     void calcDependencies();
     void findActiveActivities(const StringArray & args);
-    void findHotspots(const char * rootScope);
+    void findHotspots(const char * rootScope, stat_type & totalTime, CIArrayOf<WuHotspotResult> & results);
     void findHotspotsOld(const StringArray & args);
-    void print();
     void spotCommonPath(const StringArray & args);
     void reportActivity(const StringArray & args);
     void traceCriticalPaths(const StringArray & args);
     void traceDependencies();
     void traceWhyWaiting(const StringArray & args);
-    void update(IWorkUnit *wu, double costRate);
     void adjustTimestamps();
     void walkStartupTimes(const StringArray & args);
 
-protected:
-    void collateWorkunitStats(IConstWorkUnit * workunit, const WuScopeFilter & filter);
-    WuScope * selectFullScope(const char * scope);
+    double getThresholdPercent() const { return opts.thresholdPercent; }
 
+protected:
 //dependency processing
     WaThread * createThread(WuScope * creator, WaThreadType type);
     WuScope * queryLongestRootActivity() const;
     void processRootActivity(WuScope & scope, WaThread * thread, WaThreadType type);
     void processActivities(WuScope & scope, WaThread * thread, bool isStart);
-    WuScope * resolveActivity(const char * name);
 
 protected:
-    CIArrayOf<AActivityRule> rules;
-    CIArrayOf<PerformanceIssue> issues;
-    WuScope root;
     CIArrayOf<WaThread> threads;
-    WuAnalyserOptions options;
     RoxieOptions opts;
-    stat_type minTimestamp = 0;
 };
 
 //-----------------------------------------------------------------------------------------------------------
+
 void WuScopeHashTable::onRemove(void *et)
 {
     WuScope * elem = reinterpret_cast<WuScope *>(et);
@@ -326,7 +354,7 @@ void WuHotspotResult::reportTime()
 
 //-----------------------------------------------------------------------------------------------------------
 
-void WuScope::applyRules(WorkunitAnalyser & analyser)
+void WuScope::applyRules(WorkunitRuleAnalyser & analyser)
 {
     for (auto & cur : scopes)
     {
@@ -336,7 +364,7 @@ void WuScope::applyRules(WorkunitAnalyser & analyser)
     }
 }
 
-void WuScope::connectActivities(const WuAnalyserOptions & options)
+void WuScope::connectActivities()
 {
     //Yuk - scopes can be added to while they are being iterated, so need to create a list first
     CICopyArrayOf<WuScope> toWalk;
@@ -390,7 +418,7 @@ void WuScope::connectActivities(const WuAnalyserOptions & options)
                     sink->setInput(cur.getAttr(WaTargetIndex), &cur);
             }
         }
-        cur.connectActivities(options);
+        cur.connectActivities();
     }
 }
 
@@ -665,7 +693,7 @@ bool WuScope::gatherCriticalPaths(StringArray & paths, WaThread * childThread, W
         {
             WuScope * creator = caller->creator;
             assertex(creator);
-            //MORE: Add a check on tiomes.  Should it be based on start or end time?  Depends if following a dependency
+            //MORE: Add a check on times.  Should it be based on start or end time?  Depends if following a dependency
             //=> need a flag
             if (maxTime)
             {
@@ -1209,30 +1237,83 @@ public:
 };
 
 
+//-----------------------------------------------------------------------------------------------------------
+
+WorkunitAnalyserBase::WorkunitAnalyserBase() : root(new WuScope("", nullptr))
+{
+}
+
+void WorkunitAnalyserBase::analyse(IConstWorkUnit * wu)
+{
+    WuScopeFilter filter;
+    filter.addOutputProperties(PTstatistics).addOutputProperties(PTattributes);
+    filter.finishedFilter();
+    collateWorkunitStats(wu, filter);
+    root->connectActivities();
+}
+
+void WorkunitAnalyserBase::collateWorkunitStats(IConstWorkUnit * workunit, const WuScopeFilter & filter)
+{
+    Owned<IConstWUScopeIterator> iter = &workunit->getScopeIterator(filter);
+    ForEach(*iter)
+    {
+        try
+        {
+            WuScope * scope = selectFullScope(iter->queryScope());
+
+            StatsGatherer callback(scope->queryAttrs(), minTimestamp);
+            scope->queryAttrs()->setPropInt("@stype", iter->getScopeType());
+            iter->playProperties(callback);
+        }
+        catch (IException * e)
+        {
+            e->Release();
+        }
+    }
+}
+
+WuScope * WorkunitAnalyserBase::selectFullScope(const char * scope)
+{
+    StringBuffer temp;
+    WuScope * resolved = root;
+    for (;;)
+    {
+        if (!*scope)
+            return resolved;
+        const char * dot = strchr(scope, ':');
+        if (!dot)
+            return resolved->select(scope);
+
+        temp.clear().append(dot-scope, scope);
+        resolved = resolved->select(temp.str());
+        scope = dot+1;
+    }
+}
+
+WuScope * WorkunitAnalyserBase::resolveActivity(const char * name)
+{
+    WuScope * activity = root->resolve(name, false);
+    if (!activity)
+        throw MakeStringException(0, "Could not find activity %s", name);
+    return activity;
+}
+
 
 //-----------------------------------------------------------------------------------------------------------
 
-WorkunitAnalyser::WorkunitAnalyser() : root("", nullptr)
+WorkunitRuleAnalyser::WorkunitRuleAnalyser()
 {
     gatherRules(rules);
 }
 
-void WorkunitAnalyser::applyConfig(IPropertyTree *cfg)
+void WorkunitRuleAnalyser::applyConfig(IPropertyTree *cfg, IConstWorkUnit * wu)
 {
     options.applyConfig(cfg);
+    options.applyConfig(wu);
 }
 
-void WorkunitAnalyser::applyOptions(IPropertyTree * cfg)
-{
-    StringBuffer temp;
 
-    opts.onlyActive = cfg->getPropBool("onlyActive", opts.onlyActive);
-    if (cfg->getProp("threshold", temp.clear()))
-        opts.thresholdPercent = atof(temp);
-    opts.onlyCriticalPath = cfg->getPropBool("critical", opts.onlyCriticalPath);
-}
-
-void WorkunitAnalyser::check(const char * scope, IWuActivity & activity)
+void WorkunitRuleAnalyser::check(const char * scope, IWuActivity & activity)
 {
     if (activity.getStatRaw(StTimeLocalExecute, StMaxX) < options.queryOption(watOptMinInterestingTime))
         return;
@@ -1261,29 +1342,48 @@ void WorkunitAnalyser::check(const char * scope, IWuActivity & activity)
     }
 }
 
-void WorkunitAnalyser::analyse(IConstWorkUnit * wu)
+void WorkunitRuleAnalyser::applyRules()
 {
-    options.applyConfig(wu);
-    WuScopeFilter filter;
-    filter.addOutputProperties(PTstatistics).addOutputProperties(PTattributes);
-    filter.finishedFilter();
-    collateWorkunitStats(wu, filter);
-    root.connectActivities(options);
-    // root.trace();
-    root.applyRules(*this);
+    root->applyRules(*this);
     issues.sort(compareIssuesCostOrder);
 }
 
-void WorkunitAnalyser::adjustTimestamps()
+void WorkunitRuleAnalyser::print()
 {
-    //Adjust the first timestamp to 1 - don't set it to 0 so you can differentiate if it is missing
-    root.adjustTimestamps(minTimestamp-1);
+    ForEachItemIn(i, issues)
+        issues.item(i).print();
 }
 
-void WorkunitAnalyser::calcDependencies()
+void WorkunitRuleAnalyser::update(IWorkUnit *wu, double costRate)
+{
+    ForEachItemIn(i, issues)
+        issues.item(i).createException(wu, costRate);
+}
+
+
+
+//-----------------------------------------------------------------------------------------------------------
+
+void WorkunitStatsAnalyser::applyOptions(IPropertyTree * cfg)
+{
+    StringBuffer temp;
+
+    opts.onlyActive = cfg->getPropBool("onlyActive", opts.onlyActive);
+    if (cfg->getProp("threshold", temp.clear()))
+        opts.thresholdPercent = atof(temp);
+    opts.onlyCriticalPath = cfg->getPropBool("critical", opts.onlyCriticalPath);
+}
+
+void WorkunitStatsAnalyser::adjustTimestamps()
+{
+    //Adjust the first timestamp to 1 - don't set it to 0 so you can differentiate if it is missing
+    root->adjustTimestamps(minTimestamp-1);
+}
+
+void WorkunitStatsAnalyser::calcDependencies()
 {
     ScopeVector rootActivities;
-    root.gatherRootActivities(rootActivities);
+    root->gatherRootActivities(rootActivities);
 
     WaThread * rootThread = createThread(nullptr, WaThreadType::Root);
     for (auto & cur : rootActivities)
@@ -1292,7 +1392,7 @@ void WorkunitAnalyser::calcDependencies()
     }
 }
 
-void WorkunitAnalyser::processRootActivity(WuScope & scope, WaThread * thread, WaThreadType type)
+void WorkunitStatsAnalyser::processRootActivity(WuScope & scope, WaThread * thread, WaThreadType type)
 {
     scope.noteCall(thread);
     if (!scope.executed)
@@ -1307,7 +1407,7 @@ void WorkunitAnalyser::processRootActivity(WuScope & scope, WaThread * thread, W
     }
 }
 
-void WorkunitAnalyser::processActivities(WuScope & scope, WaThread * thread, bool isStart)
+void WorkunitStatsAnalyser::processActivities(WuScope & scope, WaThread * thread, bool isStart)
 {
     bool onlyActive = true;
     if (onlyActive && !scope.wasExecuted())
@@ -1362,64 +1462,13 @@ void WorkunitAnalyser::processActivities(WuScope & scope, WaThread * thread, boo
     }
 }
 
-void WorkunitAnalyser::print()
-{
-    ForEachItemIn(i, issues)
-        issues.item(i).print();
-}
-
-void WorkunitAnalyser::update(IWorkUnit *wu, double costRate)
-{
-    ForEachItemIn(i, issues)
-        issues.item(i).createException(wu, costRate);
-}
-
-
-void WorkunitAnalyser::collateWorkunitStats(IConstWorkUnit * workunit, const WuScopeFilter & filter)
-{
-    Owned<IConstWUScopeIterator> iter = &workunit->getScopeIterator(filter);
-    ForEach(*iter)
-    {
-        try
-        {
-            WuScope * scope = selectFullScope(iter->queryScope());
-
-            StatsGatherer callback(scope->queryAttrs(), minTimestamp);
-            scope->queryAttrs()->setPropInt("@stype", iter->getScopeType());
-            iter->playProperties(callback);
-        }
-        catch (IException * e)
-        {
-            e->Release();
-        }
-    }
-}
-
-WaThread * WorkunitAnalyser::createThread(WuScope * creator, WaThreadType type)
+WaThread * WorkunitStatsAnalyser::createThread(WuScope * creator, WaThreadType type)
 {
     WaThread * thread = new WaThread(threads.ordinality(), creator, type);
     threads.append(*thread);
     if (creator)
         creator->noteStarted(thread);
     return thread;
-}
-
-WuScope * WorkunitAnalyser::selectFullScope(const char * scope)
-{
-    StringBuffer temp;
-    WuScope * resolved = &root;
-    for (;;)
-    {
-        if (!*scope)
-            return resolved;
-        const char * dot = strchr(scope, ':');
-        if (!dot)
-            return resolved->select(scope);
-
-        temp.clear().append(dot-scope, scope);
-        resolved = resolved->select(temp.str());
-        scope = dot+1;
-    }
 }
 
 static int compareThreadDepth(void * const * pLeft, void * const * pRight)
@@ -1628,7 +1677,7 @@ public:
     PointerArrayOf<WaThread> path;
 };
 
-void WorkunitAnalyser::spotCommonPath(const StringArray & args)
+void WorkunitStatsAnalyser::spotCommonPath(const StringArray & args)
 {
     /*
      Spot the common path between the first activity 'X' and each of the following activities 'Y'.
@@ -1642,7 +1691,7 @@ void WorkunitAnalyser::spotCommonPath(const StringArray & args)
         const char * arg = args.item(i);
         if (arg[0] != 'a')
             continue;
-        WuScope * resolved = root.resolve(arg, false);
+        WuScope * resolved = root->resolve(arg, false);
         if (!resolved)
             throw MakeStringException(0, "Could not find activity %s", arg);
 
@@ -1695,7 +1744,7 @@ static int compareStartEndTime(void * const * pLeft, void * const * pRight)
 }
 
 
-void WorkunitAnalyser::findActiveActivities(const StringArray & args)
+void WorkunitStatsAnalyser::findActiveActivities(const StringArray & args)
 {
     CIArrayOf<WaActivityPath> extracted;
     ForEachItemIn(i, args)
@@ -1714,7 +1763,7 @@ void WorkunitAnalyser::findActiveActivities(const StringArray & args)
         {
             printf("%s\n", arg);
             PointerArrayOf<WuScope> activities;
-            root.gatherActive(activities, startTime, endTime);
+            root->gatherActive(activities, startTime, endTime);
             activities.sort(compareStartEndTime);
             ForEachItemIn(i, activities)
             {
@@ -1736,7 +1785,7 @@ static int compareLocalTime(void * const * pLeft, void * const * pRight)
 }
 
 
-void WorkunitAnalyser::findHotspotsOld(const StringArray & args)
+void WorkunitStatsAnalyser::findHotspotsOld(const StringArray & args)
 {
     CIArrayOf<WaActivityPath> extracted;
     ForEachItemIn(i, args)
@@ -1757,7 +1806,7 @@ void WorkunitAnalyser::findHotspotsOld(const StringArray & args)
         else
             activity.append(arg);
 
-        WuScope * resolved = root.resolve(activity, false);
+        WuScope * resolved = root->resolve(activity, false);
         if (!resolved)
             throw MakeStringException(0, "Could not find activity %s", activity.str());
 
@@ -1792,12 +1841,12 @@ static int compareHotspotStartTime(CInterface * const * pLeft, CInterface * cons
 }
 
 
-void WorkunitAnalyser::reportActivity(const StringArray & args)
+void WorkunitStatsAnalyser::reportActivity(const StringArray & args)
 {
     stat_type minTime = (stat_type)-1;
     stat_type maxTime = 0;
     ScopeVector rootActivities;
-    root.gatherRootActivities(rootActivities);
+    root->gatherRootActivities(rootActivities);
 
     for (auto scope : rootActivities)
     {
@@ -1874,10 +1923,10 @@ void WorkunitAnalyser::reportActivity(const StringArray & args)
         results.item(iRes).reportTime();
 }
 
-void WorkunitAnalyser::findHotspots(const char * rootScope)
+void WorkunitStatsAnalyser::findHotspots(const char * rootScope, stat_type & totalTime, CIArrayOf<WuHotspotResult> & results)
 {
     WuScope * activity = nullptr;
-    if (rootScope)
+    if (!isEmptyString(rootScope))
     {
         activity = resolveActivity(rootScope);
         if (!activity)
@@ -1889,23 +1938,17 @@ void WorkunitAnalyser::findHotspots(const char * rootScope)
     if (!activity)
         return;
 
-    stat_type totalTime = activity->getLifetimeNs();
+    totalTime = activity->getLifetimeNs();
     stat_type interesting = (stat_type)(totalTime * opts.thresholdPercent / 100.0);
-    printf("Hotspots for %s (%lluns %.2f%%):\n", activity->queryName(), totalTime, opts.thresholdPercent);
-    printf("name [R](parent  total%%, start%%, mysta%%,   run%%)\n");
-
     opts.timeThreshold = interesting;
-    CIArrayOf<WuHotspotResult> results;
     activity->walkHotspots(results, totalTime, "", true, opts);
     results.sort(compareHotspots);
-    ForEachItemIn(iRes, results)
-        results.item(iRes).report();
 }
 
-WuScope * WorkunitAnalyser::queryLongestRootActivity() const
+WuScope * WorkunitStatsAnalyser::queryLongestRootActivity() const
 {
     ScopeVector rootActivities;
-    root.gatherRootActivities(rootActivities);
+    root->gatherRootActivities(rootActivities);
 
     WuScope * best = nullptr;
     for (auto scope : rootActivities)
@@ -1916,15 +1959,7 @@ WuScope * WorkunitAnalyser::queryLongestRootActivity() const
     return best;
 }
 
-WuScope * WorkunitAnalyser::resolveActivity(const char * name)
-{
-    WuScope * activity = root.resolve(name, false);
-    if (!activity)
-        throw MakeStringException(0, "Could not find activity %s", name);
-    return activity;
-}
-
-void WorkunitAnalyser::walkStartupTimes(const StringArray & args)
+void WorkunitStatsAnalyser::walkStartupTimes(const StringArray & args)
 {
     ForEachItemIn(i, args)
     {
@@ -1940,7 +1975,7 @@ void WorkunitAnalyser::walkStartupTimes(const StringArray & args)
     }
 }
 
-void WorkunitAnalyser::traceWhyWaiting(const StringArray & args)
+void WorkunitStatsAnalyser::traceWhyWaiting(const StringArray & args)
 {
     CIArrayOf<WaActivityPath> extracted;
     ForEachItemIn(i, args)
@@ -1972,7 +2007,7 @@ void WorkunitAnalyser::traceWhyWaiting(const StringArray & args)
     }
 }
 
-void WorkunitAnalyser::traceCriticalPaths(const StringArray & args)
+void WorkunitStatsAnalyser::traceCriticalPaths(const StringArray & args)
 {
     /*
      What is the critical path(s) of activities that are executed in ordered to execute a particular activity
@@ -1983,7 +2018,7 @@ void WorkunitAnalyser::traceCriticalPaths(const StringArray & args)
         if (arg[0] != 'a')
             continue;
 
-        root.resetState();
+        root->resetState();
         WuScope * resolved = resolveActivity(arg);
         StringArray paths;
         resolved->gatherCriticalPaths(paths, nullptr, nullptr, 0, 0, opts);
@@ -1993,26 +2028,29 @@ void WorkunitAnalyser::traceCriticalPaths(const StringArray & args)
     }
 }
 
-void WorkunitAnalyser::traceDependencies()
+void WorkunitStatsAnalyser::traceDependencies()
 {
     unsigned mask = 1U | (1U << SSTworkflow) | (1U << SSTgraph) | (1U << SSTsubgraph) | (1U << SSTactivity);
-    root.trace(0, true, 5, mask);
+    root->trace(0, true, 5, mask);
 }
 
 //---------------------------------------------------------------------------------------------------------------------
 
 void WUANALYSIS_API analyseWorkunit(IWorkUnit * wu, IPropertyTree *options, double costPerMs)
 {
-    WorkunitAnalyser analyser;
-    analyser.applyConfig(options);
+    WorkunitRuleAnalyser analyser;
+    analyser.applyConfig(options, wu);
     analyser.analyse(wu);
+    analyser.applyRules();
     analyser.update(wu, costPerMs);
 }
 
 void WUANALYSIS_API analyseAndPrintIssues(IConstWorkUnit * wu, double costRate, bool updatewu)
 {
-    WorkunitAnalyser analyser;
+    WorkunitRuleAnalyser analyser;
+    analyser.applyConfig(nullptr, wu);
     analyser.analyse(wu);
+    analyser.applyRules();
     analyser.print();
     if (updatewu)
     {
@@ -2031,7 +2069,7 @@ H<activity>[:n]     Display the top <n> local times that are an input to a given
 
 void analyseActivity(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args)
 {
-    WorkunitAnalyser analyser;
+    WorkunitStatsAnalyser analyser;
     analyser.applyOptions(cfg);
     analyser.analyse(wu);
     analyser.adjustTimestamps();
@@ -2040,7 +2078,7 @@ void analyseActivity(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray
 
 void analyseDependencies(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args)
 {
-    WorkunitAnalyser analyser;
+    WorkunitStatsAnalyser analyser;
     analyser.applyOptions(cfg);
     analyser.analyse(wu);
     analyser.adjustTimestamps();
@@ -2054,7 +2092,7 @@ void analyseDependencies(IConstWorkUnit * wu, IPropertyTree * cfg, const StringA
 
 void analyseOutputDependencyGraph(IConstWorkUnit * wu, IPropertyTree * cfg)
 {
-    WorkunitAnalyser analyser;
+    WorkunitStatsAnalyser analyser;
     analyser.applyOptions(cfg);
     analyser.analyse(wu);
     analyser.adjustTimestamps();
@@ -2064,7 +2102,7 @@ void analyseOutputDependencyGraph(IConstWorkUnit * wu, IPropertyTree * cfg)
 
 void analyseCriticalPath(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args)
 {
-    WorkunitAnalyser analyser;
+    WorkunitStatsAnalyser analyser;
     analyser.applyOptions(cfg);
     analyser.analyse(wu);
     analyser.adjustTimestamps();
@@ -2074,7 +2112,7 @@ void analyseCriticalPath(IConstWorkUnit * wu, IPropertyTree * cfg, const StringA
 
 void analyseHotspots(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args)
 {
-    WorkunitAnalyser analyser;
+    WorkunitStatsAnalyser analyser;
     analyser.applyOptions(cfg);
     analyser.analyse(wu);
     analyser.adjustTimestamps();
@@ -2088,17 +2126,25 @@ void analyseHotspots(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray
         rootScope = arg;
     }
 
-    analyser.findHotspots(rootScope);
+    stat_type totalTime = 0;
+    CIArrayOf<WuHotspotResult> results;
+    analyser.findHotspots(rootScope, totalTime, results);
+
+    printf("Hotspots for %s (%lluns %.2f%%):\n", rootScope ? rootScope : "<wu>", totalTime, analyser.getThresholdPercent());
+    printf("name [R](parent  total%%, start%%, mysta%%,   run%%)\n");
+    ForEachItemIn(iRes, results)
+        results.item(iRes).report();
 }
 
-void analyseHotspots(IConstWorkUnit * wu, IPropertyTree * cfg)
+void analyseHotspots(WuHotspotResults & results, IConstWorkUnit * wu, IPropertyTree * cfg)
 {
-    WorkunitAnalyser analyser;
+    WorkunitStatsAnalyser analyser;
     analyser.applyOptions(cfg);
     analyser.analyse(wu);
     analyser.adjustTimestamps();
 
-    analyser.findHotspots(cfg->queryProp("@rootScope"));
+    analyser.findHotspots(cfg->queryProp("@rootScope"), results.totalTime, results.hotspots);
+    results.root.setown(analyser.getRootScope());
 }
 
 /*

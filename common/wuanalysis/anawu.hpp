@@ -33,7 +33,6 @@ void WUANALYSIS_API analyseAndPrintIssues(IConstWorkUnit * wu, double costPerMs,
 
 class WuScope;
 class WaThread;
-class WorkunitAnalyser;
 
 class WuScopeHashTable : public SuperHashTableOf<WuScope, const char>
 {
@@ -105,7 +104,7 @@ public:
     void report();
     void reportTime();
 
-protected:
+public:
     Linked<WuScope> activity;
     StringAttr parent;
     bool isRoot;
@@ -117,14 +116,24 @@ protected:
     double runPercent;
 };
 
+struct WuHotspotResults
+{
+public:
+    stat_type totalTime = 0;
+    CIArrayOf<WuHotspotResult> hotspots;
+
+    Owned<WuScope> root;            // To ensure scopes are not freed prematurely
+};
 
 class WuAnalyserOptions;
 class RoxieOptions;
+class WorkunitRuleAnalyser;
+class WorkunitStatsAnalyser;
 
 using ScopeVector = std::vector<WuScope *>;
 class WuScope : public CInterface, implements IWuEdge, implements IWuActivity
 {
-    friend class WorkunitAnalyser;
+    friend class WorkunitStatsAnalyser;
     friend class WaActivityPath;
     friend class WaThread;
 public:
@@ -149,8 +158,8 @@ public:
     virtual IWuEdge * queryOutput(unsigned idx) override { return (idx < outputs.size()) ? outputs[idx]:nullptr; }
 
 //primary processing functions
-    void applyRules(WorkunitAnalyser & analyser);
-    void connectActivities(const WuAnalyserOptions & options);
+    void applyRules(WorkunitRuleAnalyser & analyser);
+    void connectActivities();
     void trace(unsigned indent, bool skipEdges, unsigned maxLevels=UINT_MAX, unsigned scopeMask=0) const;
 
 // Dependency tracking functions
@@ -236,7 +245,7 @@ void WUANALYSIS_API analyseActivity(IConstWorkUnit * wu, IPropertyTree * cfg, co
 void WUANALYSIS_API analyseDependencies(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args);
 void WUANALYSIS_API analyseCriticalPath(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args);
 void WUANALYSIS_API analyseHotspots(IConstWorkUnit * wu, IPropertyTree * cfg, const StringArray & args);
-void WUANALYSIS_API analyseHotspots(IConstWorkUnit * wu, IPropertyTree * cfg);
+void WUANALYSIS_API analyseHotspots(WuHotspotResults & results, IConstWorkUnit * wu, IPropertyTree * cfg);
 void WUANALYSIS_API analyseOutputDependencyGraph(IConstWorkUnit * wu, IPropertyTree * cfg);
 
 #endif
