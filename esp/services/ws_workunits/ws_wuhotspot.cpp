@@ -28,6 +28,11 @@ void processAnalyseHotspot(IConstWorkUnit * wu, IEspWUAnalyseHotspotRequest &req
 {
     Owned<IPropertyTree> options = createPTree();
     options->setPropReal("@threshold", req.getThresholdPercent());
+    options->setProp("@rootScope", req.getRootScope());
     StringArray results;
-    analyseHotspots(wu, options, results);
+    analyseHotspots(wu, options);
+
+    IArrayOf<IEspWUResponseScope> activities;
+    resp.setActivities(activities);
+
 }
