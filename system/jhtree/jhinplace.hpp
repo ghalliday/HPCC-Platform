@@ -181,6 +181,9 @@ protected:
 
 protected:
     PartialMatchBuilder builder;
+    MemoryBuffer uncompressed;      // Muuch better if these could be shared by all nodes -=> refactor
+    MemoryAttr compressed;
+    UnsignedArray payloadLengths;
     const byte * nullRow;
     Unsigned64Array positions;
     __uint64 minPosition = 0;

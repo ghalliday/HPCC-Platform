@@ -140,9 +140,20 @@ public:
         }
     }
 
-    size32_t write(const void *buf,size32_t len)
+    size32_t write(const void *buf,size32_t len) override
     {
-        // no more than wrmax per write (unless dynamically sizing)
+        return doWrite((size32_t)-1, buf, len);
+    }
+
+    size32_t limitWrite(size32_t limit, const void *buf,size32_t len) override
+    {
+        assertex(!outBufMb); // Not supported by all compressors
+        return doWrite(limit, buf, len);
+    }
+
+    size32_t doWrite(size32_t thisLimit, const void *buf,size32_t len)
+    {
+        size32_t limit = (thisLimit < inmax) ? thisLimit : inmax;
         size32_t lenb = wrmax;
         byte *b = (byte *)buf;
         size32_t written = 0;
@@ -150,7 +161,7 @@ public:
         {
             if (len < lenb)
                 lenb = len;
-            if (lenb+inlen>inmax)
+            if (lenb+inlen>limit)
             {
                 if (trailing)
                     return written;
@@ -165,8 +176,13 @@ public:
                         inbuf = (byte *)inma.bufferBase();
                         wrmax = blksz;
                         setinmax();
+                        limit = (thisLimit < inmax) ? thisLimit : inmax;
                     }
-                    lenb = inmax-inlen;
+                }
+
+                if (lenb+inlen>limit)
+                {
+                    lenb = limit-inlen;
                     if (len < lenb)
                         lenb = len;
                 }

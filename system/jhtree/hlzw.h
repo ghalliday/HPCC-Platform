@@ -24,19 +24,24 @@ typedef unsigned short KEYRECSIZE_T;
 #include "jlzw.hpp"
 #define USE_RANDROWDIFF true
 
-class KeyCompressor 
+class KeyCompressor final
 {
 public:
     KeyCompressor() {}
     ~KeyCompressor();
     void open(void *blk,int blksize, bool isVariable, bool rowcompression);
-    void openBlob(void *blk,int blksize);
+
     int writekey(offset_t fPtr,const char *key,unsigned datalength, unsigned __int64 sequence);
+    bool limitWrite(size32_t maxLength, const char *key, size32_t datalength);
+
+    void openBlob(void *blk,int blksize);
     unsigned writeBlob(const char *data, unsigned datalength);
+
     void *bufptr() { return (comp==NULL)?bufp:comp->bufptr();}
-    int buflen() { return (comp==NULL)?bufl:comp->buflen();}
-    virtual void close();
+    size32_t buflen() { return (comp==NULL)?bufl:comp->buflen();}
+    void close();
     unsigned getCurrentOffset() { return (curOffset+0xf) & 0xfffffff0; }
+
 protected:
     bool isVariable = false;
     bool isBlob = false;
@@ -48,4 +53,3 @@ protected:
 };
 
 #endif
-

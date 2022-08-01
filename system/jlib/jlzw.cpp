@@ -316,6 +316,11 @@ void CLZWCompressor::open(void *buf,size32_t max)
 
 size32_t CLZWCompressor::write(const void *buf,size32_t buflen)
 {
+    return doWrite((size32_t)-1, buf, buflen);
+}
+
+size32_t CLZWCompressor::doWrite(size32_t thisLimit, const void *buf,size32_t buflen)
+{
     if (!buflen)
         return 0;
     if (!dict.curbits)
@@ -393,6 +398,12 @@ size32_t CLZWCompressor::write(const void *buf,size32_t buflen)
     inlen += buflen;
     return buflen;
 }
+
+size32_t CLZWCompressor::limitWrite(size32_t limit, const void *buf,size32_t buflen)
+{
+    return doWrite(limit, buf, buflen);
+}
+
 
 void CLZWCompressor::startblock()
 {
@@ -1395,6 +1406,11 @@ public:
         return buflen;
     }
 
+    size32_t limitWrite(size32_t limit, const void *buf,size32_t buflen)
+    {
+        UNIMPLEMENTED_X("CRDiffCompressor::limitWrite");
+    }
+
 
 
     void startblock()
@@ -1669,7 +1685,10 @@ public:
         return buflen;
     }
 
-
+    size32_t limitWrite(size32_t limit, const void *buf,size32_t buflen)
+    {
+        UNIMPLEMENTED_X("CRandRDiffCompressor::limitWrite");
+    }
 
     void startblock()
     {
@@ -2590,6 +2609,11 @@ public:
     size32_t write(const void *buf,size32_t len)
     {
         return comp->write(buf,len);
+    }
+
+    size32_t limitWrite(size32_t limit, const void *buf,size32_t len)
+    {
+        return comp->limitWrite(limit,buf,len);
     }
 
     void * bufptr()

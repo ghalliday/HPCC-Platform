@@ -1402,7 +1402,6 @@ bool CJHInplaceLeafNode::getValueAt(unsigned int index, char *dst) const
         unsigned len = searcher.getValueAt(index, dst);
 
         //MORE: Copy the payload (if exists)
-        MORE;
         throwUnexpected();  // The following logic needs to be checked once we are using this for leaf nodes.
 
         if (keyHdr->hasSpecialFileposition())
@@ -1534,9 +1533,12 @@ void CInplaceBranchWriteNode::write(IFileIOStream *out, CRC32 *crc)
 //=========================================================================================================
 
 CInplaceLeafWriteNode::CInplaceLeafWriteNode(offset_t _fpos, CKeyHdr *_keyHdr, const byte * _nullRow)
-: CWriteNode(_fpos, _keyHdr, false), builder(keyLen, _nullRow, false), nullRow(_nullRow)
+: CWriteNode(_fpos, _keyHdr, true), builder(keyCompareLen, _nullRow, false), nullRow(_nullRow)
 {
     nodeSize = _keyHdr->getNodeSize();
+
+    uncompressed.clear();
+    compressed.allocate(nodeSize);
 }
 
 bool CInplaceLeafWriteNode::add(offset_t pos, const void * _data, size32_t size, unsigned __int64 sequence)
@@ -1544,11 +1546,14 @@ bool CInplaceLeafWriteNode::add(offset_t pos, const void * _data, size32_t size,
     if (0xffff == hdr.numKeys)
         return false;
 
+    if ((0 == hdr.numKeys) && (keyLen != keyCompareLen))
+        lzwcomp.open(compressed.mem(), nodeSize, isVariable, (keyType&HTREE_QUICK_COMPRESSED_KEY)==HTREE_QUICK_COMPRESSED_KEY);
+
     __uint64 savedMinPosition = minPosition;
     __uint64 savedMaxPosition = maxPosition;
     const byte * data = (const byte *)_data;
     unsigned oldSize = getDataSize();
-    builder.add(size, data);
+    builder.add(keyCompareLen, data);
     if (positions.ordinality())
     {
         if (pos < minPosition)
@@ -1563,22 +1568,44 @@ bool CInplaceLeafWriteNode::add(offset_t pos, const void * _data, size32_t size,
     }
 
     positions.append(pos);
-    if (getDataSize() > maxBytes-hdr.keyBytes)
+
+    const char * extraData = (const char *)(data + keyCompareLen);
+    size32_t extraSize = size - keyCompareLen;
+
+    //Save the uncompressed version in case it is smaller than the compressed version...
+    //but only up to a certain size - to prevent very large compression ratios creating giant buffers.
+    const size32_t uncompressedLimit = 0x2000;
+    if (extraSize && (uncompressed.length() < uncompressedLimit))
+        uncompressed.append(extraSize, extraData);
+    if (isVariable)
+        payloadLengths.append(extraSize);
+
+    size32_t required = getDataSize();
+    size32_t available = maxBytes-hdr.keyBytes;
+
+    bool hasSpace = (required <= available);
+    if (hasSpace && (size != keyCompareLen))
     {
-        if (getDataSize() > maxBytes-hdr.keyBytes)
-        {
-            builder.removeLast();
-            positions.pop();
-            minPosition = savedMinPosition;
-            maxPosition = savedMaxPosition;
-            unsigned nowSize = getDataSize();
-            assertex(oldSize == nowSize);
-            builder.trace();
-            return false;
-        }
+        if (!lzwcomp.limitWrite(available, extraData, extraSize))
+            hasSpace = false;
     }
 
-    saveLastKey(data, keyLen, sequence);
+    if (!hasSpace)
+    {
+        if (isVariable)
+            payloadLengths.pop();
+
+        builder.removeLast();
+        positions.pop();
+        minPosition = savedMinPosition;
+        maxPosition = savedMaxPosition;
+        unsigned nowSize = getDataSize();
+        assertex(oldSize == nowSize);
+        builder.trace();
+        return false;
+    }
+
+    saveLastKey(data, size, sequence);
     return true;
 }
 
@@ -1598,11 +1625,21 @@ unsigned CInplaceLeafWriteNode::getDataSize()
         bytesPerPosition = bytesRequired(maxPosition-minPosition);
 
     unsigned posSize = 1 + sizePacked(minPosition) + bytesPerPosition * positions.ordinality();
-    return posSize + builder.getSize();
+    unsigned offsetSize = payloadLengths.ordinality() * 2;  // MORE: Could probably compress
+    unsigned payloadSize = 0;
+    if (keyLen != keyCompareLen)
+    {
+        size32_t payloadLen = lzwcomp.buflen();
+        payloadSize = sizePacked(payloadLen) + payloadLen;
+    }
+    return posSize + builder.getSize() + offsetSize + payloadSize;
 }
 
 void CInplaceLeafWriteNode::write(IFileIOStream *out, CRC32 *crc)
 {
+    if (keyLen != keyCompareLen)
+        lzwcomp.close();
+
     hdr.keyBytes = getDataSize();
 
     MemoryBuffer data;
@@ -1616,9 +1653,30 @@ void CInplaceLeafWriteNode::write(IFileIOStream *out, CRC32 *crc)
         if (minPosition != maxPosition)
             bytesPerPosition = bytesRequired(maxPosition-minPosition);
 
-        byte sizeMask = (byte)bytesPerPosition | (scaleFposByNodeSize ? 0x80 : 0);
+        bool useUncompressed = false;
+        byte sizeMask = (byte)bytesPerPosition | (scaleFposByNodeSize ? 0x80 : 0) | (useUncompressed ? 0x40 : 0);
         data.append(sizeMask);
         serializePacked(data, minPosition);
+
+        if (payloadLengths)
+        {
+            //MORE: These may well benefit from packing....
+            ForEachItemIn(i, payloadLengths)
+                data.append((unsigned short)payloadLengths.item(i));
+
+            if (useUncompressed)
+            {
+                if (isVariable)
+                    serializePacked(data, uncompressed.length());
+                data.append(uncompressed.length(), uncompressed.bufferBase());
+            }
+            else if (keyLen != keyCompareLen)
+            {
+                size32_t payloadLen = lzwcomp.buflen();
+                serializePacked(data, payloadLen);
+                data.append(payloadLen, compressed.get());
+            }
+        }
 
         if (bytesPerPosition != 0)
         {
