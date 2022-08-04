@@ -1820,12 +1820,6 @@ bool CKeyCursor::lookup(bool exact, KeyStatsCollector &stats)
 
 bool CKeyCursor::_lookup(bool exact, unsigned lastSeg, KeyStatsCollector &stats)
 {
-    if ((lastSeg == 0) && !matched)
-    {
-        //Special case reading a file with no filter - fall into the next processing.
-        node.clear();
-        matched = true;
-    }
     bool ret = false;
     unsigned lwildseeks = 0;
     unsigned lseeks = 0;
