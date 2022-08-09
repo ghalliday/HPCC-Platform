@@ -60,6 +60,7 @@ bool canCreateTemporary(IHqlExpression * expr)
     switch (expr->getOperator())
     {
     case no_range:
+    case no_rowsetrange:
     case no_rangefrom:
     case no_rangeto:
     case no_rangecommon:
@@ -263,6 +264,8 @@ void CseSpotter::analyseExpr(IHqlExpression * expr)
     case no_newtransform:
     case no_range:
     case no_rangefrom:
+    case no_createrow:
+    case no_list:
         if (expr->isConstant())
             return;
         break;
