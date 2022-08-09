@@ -273,6 +273,9 @@ void CseSpotter::analyseExpr(IHqlExpression * expr)
         return;
     }
 
+    if (canAlias && !expr->isDataset())
+        extra->canAlias = true;
+
     if (extra->numRefs++ != 0)
     {
         if (op == no_alias)
@@ -290,9 +293,6 @@ void CseSpotter::analyseExpr(IHqlExpression * expr)
 
     if (!containsPotentialCSE(expr))
         return;
-
-    if (canAlias && !expr->isDataset())
-        extra->canAlias = true;
 
     bool savedCanAlias = canAlias;
     bool processed = false;
