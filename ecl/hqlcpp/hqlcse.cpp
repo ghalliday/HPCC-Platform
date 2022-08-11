@@ -266,6 +266,7 @@ void CseSpotter::analyseExpr(IHqlExpression * expr)
     case no_rangefrom:
     case no_createrow:
     case no_list:
+    case no_createdictionary:
         if (expr->isConstant())
             return;
         break;
