@@ -274,6 +274,9 @@ void CseSpotter::analyseExpr(IHqlExpression * expr)
         return;
     }
 
+    if (canAlias && !expr->isDataset())
+        extra->canAlias = true;
+
     if (extra->numRefs++ != 0)
     {
         if (op == no_alias)
@@ -292,16 +295,13 @@ void CseSpotter::analyseExpr(IHqlExpression * expr)
     if (!containsPotentialCSE(expr))
         return;
 
-    if (canAlias && !expr->isDataset())
-        extra->canAlias = true;
-
     bool savedCanAlias = canAlias;
     bool processed = false;
     if (canAlias)
     {
         if (expr->isDataset())
         {
-            if ((op != no_select) && (!spotCseInIfDatasetConditions || (op != no_if)))
+            if ((op != no_select) && (op != no_inlinetable) && (!spotCseInIfDatasetConditions || (op != no_if)))
             {
                 //There is little point looking for CSEs within dataset expressions, because only a very small
                 //minority which would correctly cse, and it can cause lots of problems - e.g., join conditions.
