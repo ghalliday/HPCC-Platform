@@ -22,6 +22,10 @@
 #    Cmake Input File for amazon azure direct reading hook
 #####################################################
 
+set(CMAKE_CXX_STANDARD 14)
+find_package(azure-storage-blobs-cpp CONFIG REQUIRED)
+find_package(azure-storage-common-cpp CONFIG REQUIRED)
+
 if (NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7.0.0)
   set(EXTERNAL_AZURE_CXX_FLAGS "-fno-sanitize=all" )
 endif()
@@ -36,7 +40,6 @@ set (    SRCS
 include_directories (
          ${HPCC_SOURCE_DIR}/system/include
          ${HPCC_SOURCE_DIR}/system/jlib
-         ${HPCC_SOURCE_DIR}/system/azure/azure-storage-cpplite/include
     )
 
 ADD_DEFINITIONS( -D_USRDLL -DAZURE_FILE_EXPORTS )
@@ -44,10 +47,8 @@ ADD_DEFINITIONS( -D_USRDLL -DAZURE_FILE_EXPORTS )
 HPCC_ADD_LIBRARY( azurefile SHARED ${SRCS}  )
 install ( TARGETS azurefile DESTINATION filehooks )
 
-add_dependencies ( azurefile azure-storage-cpplite )
-
 target_link_libraries ( azurefile
         jlib
-        azure-storage-lite
-        curl
+        Azure::azure-storage-common
+        Azure::azure-storage-blobs
     )

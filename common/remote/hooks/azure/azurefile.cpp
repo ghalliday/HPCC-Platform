@@ -26,17 +26,8 @@
 #include "jlog.hpp"
 #include "azurefile.hpp"
 
-#include "storage_credential.h"
-#include "storage_account.h"
-#include "blob/blob_client.h"
-#include "blob/create_block_blob_request.h"
-
-using namespace azure::storage_lite;
-
-//#undef some macros that clash with macros or function defined within the azure library
-#undef GetCurrentThreadId
-#undef __declspec
-
+#include <azure/core.hpp>
+#include <azure/storage/blobs.hpp>
 
 #define TRACE_AZURE
 //#define TEST_AZURE_PAGING
