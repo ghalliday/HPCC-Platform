@@ -423,7 +423,9 @@ public:
         Py_Initialize();
         const wchar_t *argv[] = { nullptr };
         PySys_SetArgvEx(0, (wchar_t **) argv, 0);
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 9
         PyEval_InitThreads();
+#endif
         preservedScopes.setown(PyDict_New());
         tstate = PyEval_SaveThread();
         skipPythonCleanup = true;
