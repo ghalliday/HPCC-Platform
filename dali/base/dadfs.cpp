@@ -13601,6 +13601,112 @@ bool CDistributedFileDirectory::removePhysicalPartFiles(const char *logicalName,
     return afor.ok;
 }
 
+//-----------------------------------------------------------------------------
+
+void DerivedIndexInformation::merge(const DerivedIndexInformation & other)
+{
+    if (!other.knownLeafCount)
+        knownLeafCount = false;
+
+    numLeafNodes += other.numLeafNodes;
+    numBlobNodes += other.numBlobNodes;
+    numBranchNodes += other.numBranchNodes;
+    sizeDiskLeaves += other.sizeDiskLeaves;
+    sizeDiskBlobs += other.sizeDiskBlobs;
+    sizeDiskBranches += other.sizeDiskBranches;
+
+    // These are always known/derived
+    sizeOriginalBranches += other.sizeOriginalBranches;
+    sizeMemoryBranches += other.sizeMemoryBranches;
+
+    //These may or may not be known
+    if (other.sizeOriginalData)
+        sizeOriginalData += other.sizeOriginalData;
+    else
+        sizeOriginalData = 0;
+    if (other.sizeMemoryLeaves)
+        sizeMemoryLeaves += other.sizeMemoryLeaves;
+    else
+        sizeMemoryLeaves = 0;
+}
+
+
+void DerivedIndexInformation::gather(IDistributedFile * file)
+{
+    IPropertyTree & attrs = file->queryAttributes();
+    const unsigned defaultNodeSize = 8192;
+    unsigned nodeSize = attrs.getPropInt64("@nodeSize", defaultNodeSize);
+    if (attrs.hasProp("@numLeafNodes"))
+    {
+        knownLeafCount = true;
+        numLeafNodes = attrs.getPropInt64("@numLeafNodes");
+        numBlobNodes = attrs.getPropInt64("@numBlobNodes");
+        numBranchNodes = attrs.getPropInt64("@numBranchNodes");
+        sizeDiskLeaves = numLeafNodes * nodeSize;
+        sizeDiskBlobs = numBlobNodes * nodeSize;
+        sizeDiskBranches = numBranchNodes * nodeSize;
+    }
+    else
+    {
+        Owned<IDistributedFilePartIterator> parts = file->getIterator();
+        ForEach(*parts)
+        {
+            IDistributedFilePart & curPart = parts->query();
+            //Don't include the TLK in the extended information
+            if (isPartTLK(&curPart))
+                continue;
+
+            IPropertyTree & partAttrs = curPart.queryAttributes();
+            offset_t branchOffset = partAttrs.getPropInt64("@offsetBranches");
+            offset_t compressedSize = partAttrs.getPropInt64("@compressedSize");
+            offset_t uncompressedSize = partAttrs.getPropInt64("@size");
+            //New builds publish compressed and uncompressed sizes, old builds only publish compressed as @size
+            if (compressedSize == 0)
+                compressedSize = uncompressedSize;
+
+            if (branchOffset != 0)
+            {
+                offset_t sizeLeaves = branchOffset - nodeSize;                        // Assume all leaf nodes except leading header (no blobs)
+                offset_t sizeBranches = (compressedSize - branchOffset) - nodeSize;  // An over-estimate - trailing header, meta, blooms
+                numLeafNodes += sizeLeaves / nodeSize;
+                numBranchNodes += sizeBranches / nodeSize;
+                sizeDiskLeaves += sizeLeaves;
+                sizeDiskBranches += sizeBranches;
+            }
+            else
+            {
+                //A single leaf node...
+                numLeafNodes += 1;
+                sizeDiskLeaves += nodeSize;
+            }
+        }
+    }
+
+    unsigned keyLen = attrs.getPropInt64("@keyedSize");
+    sizeOriginalBranches = numLeafNodes * (keyLen + 8);
+    offset_t compressedSize = attrs.getPropInt64("@compressedSize");
+    offset_t uncompressedSize = attrs.getPropInt64("@size");
+    //size only corresponds to the uncompressed size if both size and compressedSize are filled in.
+    if ((uncompressedSize != 0) && (compressedSize != 0))
+        sizeOriginalData = uncompressedSize;
+
+    //The following will depend on the compression format - e.g. if compressed searching is implemented
+    sizeMemoryBranches = sizeOriginalBranches;
+
+    //NOTE: sizeOriginalData now includes the blob sizes that are removed before passing to the builder
+    //      if the original blob size is recorded then use it, otherwise estimate it
+    if (sizeOriginalData)
+    {
+        offset_t originalBlobSize = attrs.getPropInt64("@originalBlobSize");
+        if (numBlobNodes == 0)
+            sizeMemoryLeaves = sizeOriginalData;
+        else if (originalBlobSize)
+            sizeMemoryLeaves = sizeOriginalData - originalBlobSize;
+        else
+            sizeMemoryLeaves = (offset_t)((double)numLeafNodes * sizeOriginalData)/(numLeafNodes + numBlobNodes);
+    }
+}
+
 
 #ifdef _USE_CPPUNIT
 /*

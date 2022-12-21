@@ -228,82 +228,6 @@ bool checkIndexMetaInformation(IDistributedFile * file, bool force)
     }
 }
 
-static void gatherDerivedIndexInformation(DerivedIndexInformation & result, IDistributedFile * file)
-{
-    IPropertyTree & attrs = file->queryAttributes();
-    const unsigned defaultNodeSize = 8192;
-    unsigned nodeSize = attrs.getPropInt64("@nodeSize", defaultNodeSize);
-    if (attrs.hasProp("@numLeafNodes"))
-    {
-        result.knownLeafCount = true;
-        result.numLeafNodes = attrs.getPropInt64("@numLeafNodes");
-        result.numBlobNodes = attrs.getPropInt64("@numBlobNodes");
-        result.numBranchNodes = attrs.getPropInt64("@numBranchNodes");
-        result.sizeDiskLeaves = result.numLeafNodes * nodeSize;
-        result.sizeDiskBlobs = result.numBlobNodes * nodeSize;
-        result.sizeDiskBranches = result.numBranchNodes * nodeSize;
-    }
-    else
-    {
-        Owned<IDistributedFilePartIterator> parts = file->getIterator();
-        ForEach(*parts)
-        {
-            IDistributedFilePart & curPart = parts->query();
-            //Don't include the TLK in the extended information
-            if (isPartTLK(&curPart))
-                continue;
-
-            IPropertyTree & partAttrs = curPart.queryAttributes();
-            offset_t branchOffset = partAttrs.getPropInt64("@offsetBranches");
-            offset_t compressedSize = partAttrs.getPropInt64("@compressedSize");
-            offset_t uncompressedSize = partAttrs.getPropInt64("@size");
-            //New builds publish compressed and uncompressed sizes, old builds only publish compressed as @size
-            if (compressedSize == 0)
-                compressedSize = uncompressedSize;
-
-            if (branchOffset != 0)
-            {
-                offset_t sizeLeaves = branchOffset - nodeSize;                        // Assume all leaf nodes except leading header (no blobs)
-                offset_t sizeBranches = (compressedSize - branchOffset) - nodeSize;  // An over-estimate - trailing header, meta, blooms
-                result.numLeafNodes += sizeLeaves / nodeSize;
-                result.numBranchNodes += sizeBranches / nodeSize;
-                result.sizeDiskLeaves += sizeLeaves;
-                result.sizeDiskBranches += sizeBranches;
-            }
-            else
-            {
-                //A single leaf node...
-                result.numLeafNodes += 1;
-                result.sizeDiskLeaves += nodeSize;
-            }
-        }
-    }
-
-    unsigned keyLen = attrs.getPropInt64("@keyedSize");
-    result.sizeOriginalBranches = result.numLeafNodes * (keyLen + 8);
-    offset_t compressedSize = attrs.getPropInt64("@compressedSize");
-    offset_t uncompressedSize = attrs.getPropInt64("@size");
-    //size only corresponds to the uncompressed size if both size and compressedSize are filled in.
-    if ((uncompressedSize != 0) && (compressedSize != 0))
-        result.sizeOriginalData = uncompressedSize;
-
-    //The following will depend on the compression format - e.g. if compressed searching is implemented
-    result.sizeMemoryBranches = result.sizeOriginalBranches;
-
-    //NOTE: sizeOriginalData now includes the blob sizes that are removed before passing to the builder
-    //      if the original blob size is recorded then use it, otherwise estimate it
-    if (result.sizeOriginalData)
-    {
-        offset_t originalBlobSize = attrs.getPropInt64("@originalBlobSize");
-        if (result.numBlobNodes == 0)
-            result.sizeMemoryLeaves = result.sizeOriginalData;
-        else if (originalBlobSize)
-            result.sizeMemoryLeaves = result.sizeOriginalData - originalBlobSize;
-        else
-            result.sizeMemoryLeaves = (offset_t)((double)result.numLeafNodes * result.sizeOriginalData)/(result.numLeafNodes + result.numBlobNodes);
-    }
-}
-
 bool calculateDerivedIndexInformation(DerivedIndexInformation & result, IDistributedFile * file, bool force)
 {
     if (!checkIndexMetaInformation(file, force))
@@ -320,49 +244,22 @@ bool calculateDerivedIndexInformation(DerivedIndexInformation & result, IDistrib
             if (!first)
             {
                 DerivedIndexInformation nextInfo;
-                gatherDerivedIndexInformation(nextInfo, &cur);
-                mergeDerivedInformation(result, nextInfo);
+                nextInfo.gather(&cur);
+                result.merge(nextInfo);
             }
             else
             {
-                gatherDerivedIndexInformation(result, &cur);
+                result.gather(&cur);
                 first = false;
             }
         }
     }
     else
-        gatherDerivedIndexInformation(result, file);
+        result.gather(file);
 
     return true;
 }
 
-
-void mergeDerivedInformation(DerivedIndexInformation & result, const DerivedIndexInformation & other)
-{
-    if (!other.knownLeafCount)
-        result.knownLeafCount = false;
-
-    result.numLeafNodes += other.numLeafNodes;
-    result.numBlobNodes += other.numBlobNodes;
-    result.numBranchNodes += other.numBranchNodes;
-    result.sizeDiskLeaves += other.sizeDiskLeaves;
-    result.sizeDiskBlobs += other.sizeDiskBlobs;
-    result.sizeDiskBranches += other.sizeDiskBranches;
-
-    // These are always known/derived
-    result.sizeOriginalBranches += other.sizeOriginalBranches;
-    result.sizeMemoryBranches += other.sizeMemoryBranches;
-
-    //These may or may not be known
-    if (other.sizeOriginalData)
-        result.sizeOriginalData += other.sizeOriginalData;
-    else
-        result.sizeOriginalData = 0;
-    if (other.sizeMemoryLeaves)
-        result.sizeMemoryLeaves += other.sizeMemoryLeaves;
-    else
-        result.sizeMemoryLeaves = 0;
-}
 
 //-----------------------------------------------------------------------------
 

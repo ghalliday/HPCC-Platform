@@ -887,4 +887,30 @@ extern da_decl double calcFileAccessCost(const char * cluster, __int64 numDiskWr
 constexpr bool defaultPrivilegedUser = true;
 constexpr bool defaultNonPrivilegedUser = false;
 
+//-----------------------------------------------------------------------------
+
+class da_decl DerivedIndexInformation
+{
+public:
+    double getBranchCompression() const { return sizeOriginalBranches ? (double)sizeDiskBranches / sizeOriginalBranches : 0.0; }
+    double getDataCompression() const { return sizeOriginalData ? (double)(sizeDiskLeaves + sizeDiskBlobs) / sizeOriginalData : 0.0; }
+
+    void gather(IDistributedFile * file);
+    void merge(const DerivedIndexInformation & other);
+
+public:
+    offset_t numLeafNodes = 0;
+    offset_t numBlobNodes = 0;
+    offset_t numBranchNodes = 0;
+    offset_t sizeDiskLeaves = 0;
+    offset_t sizeDiskBlobs = 0;
+    offset_t sizeDiskBranches = 0;
+    offset_t sizeOriginalData = 0;
+    offset_t sizeOriginalBranches = 0;
+    offset_t sizeMemoryLeaves = 0;
+    offset_t sizeMemoryBranches = 0;
+    bool knownLeafCount = false;
+};
+
+
 #endif
