@@ -211,6 +211,7 @@ public:
     bool noDfsResolution;
     bool calcFileSize;
     bool trackSubFiles;
+    DerivedIndexInformation indexDetails;
 };
 
 class ReferencedFileList : implements IReferencedFileList, public CInterface

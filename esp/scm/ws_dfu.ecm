@@ -97,23 +97,6 @@ ESPStruct DFUFileBloom
     string Probability;
 };
 
-ESPStruct DFUIndexInfo
-{
-    bool IsLeafCountEstimated;
-    int64 NumLeafNodes;
-    int64 NumBlobNodes;
-    int64 NumBranchNodes;
-    int64 SizeDiskLeaves;
-    int64 SizeDiskBlobs;
-    int64 SizeDiskBranches;
-    int64 SizeOriginalData;
-    int64 SizeOriginalBranches;
-    int64 SizeMemoryLeaves;
-    int64 SizeMemoryBranches;
-    double BranchCompressionPercent;
-    double DataCompressionPercent;
-};
-
 ESPStruct DFUPart
 {
     int Id;

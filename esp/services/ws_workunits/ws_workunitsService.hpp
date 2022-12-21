@@ -200,6 +200,7 @@ class CWUQueryDetailsReq
     bool includeWsEclAddresses = false;
     bool includeStateOnClusters = false;
     bool checkAllNodes = false;
+    bool includeIndexDetails = false;
 public:
     CWUQueryDetailsReq(IEspWUQueryDetailsRequest &req);
     CWUQueryDetailsReq(IEspWUQueryDetailsLightWeightRequest &req);
@@ -212,6 +213,7 @@ public:
     const bool getIncludeWsEclAddresses() const { return includeWsEclAddresses; }
     const bool getIncludeStateOnClusters() const { return includeStateOnClusters; }
     const bool getCheckAllNodes() const { return checkAllNodes; }
+    const bool getIncludeIndexDetails() const { return includeIndexDetails; }
 };
 
 class CWsWorkunitsEx : public CWsWorkunits

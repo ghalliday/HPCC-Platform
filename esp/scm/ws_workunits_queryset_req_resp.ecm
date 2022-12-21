@@ -20,6 +20,7 @@
 
 EspInclude(common);
 EspInclude(ws_workunits_struct);
+EspInclude(ws_dfu_common);
 
 ESPrequest [nil_remove] WURecreateQueryRequest
 {
@@ -287,6 +288,7 @@ ESPrequest WUQueryDetailsLightWeightRequest
     bool IncludeWsEclAddresses(false);
     bool IncludeStateOnClusters(false);
     bool CheckAllNodes(false);
+    [min_ver("1.96")] bool IncludeIndexDetails(false);
 };
 
 ESPrequest WUQueryDetailsRequest
@@ -299,6 +301,7 @@ ESPrequest WUQueryDetailsRequest
     [min_ver("1.57")] bool CheckAllNodes(true);
     [min_ver("1.78")] bool IncludeWUDetails(true);
     [min_ver("1.78")] bool IncludeWUQueryFiles(true);
+    [min_ver("1.96")] bool IncludeIndexDetails(true);
 };
 
 ESPresponse [exceptions_inline] WUQueryDetailsResponse
@@ -329,6 +332,7 @@ ESPresponse [exceptions_inline] WUQueryDetailsResponse
     [min_ver("1.51")] ESParray<string, Address> WsEclAddresses;
     [min_ver("1.64")] ESParray<ESPstruct ECLGraph> WUGraphs;
     [min_ver("1.64")] ESParray<ESPstruct ECLTimer> WUTimers;
+    [min_ver("1.96")] ESPstruct DFUIndexInfo indexDetails;
 };
 
 ESPrequest WUMultiQuerySetDetailsRequest

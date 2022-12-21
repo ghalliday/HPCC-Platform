@@ -38,10 +38,14 @@ set (    SRCS
          ${ESPSCM_GENERATED_DIR}/ws_workunits_esp.cpp
          ${ESPSCM_GENERATED_DIR}/ws_logaccess_esp.cpp
          ${ESPSCM_GENERATED_DIR}/ws_fs_esp.cpp
+         ${ESPSCM_GENERATED_DIR}/ws_dfu_common_esp.cpp
          ${HPCC_SOURCE_DIR}/esp/scm/ws_workunits_struct.ecm
          ${HPCC_SOURCE_DIR}/esp/scm/ws_workunits_req_resp.ecm
          ${HPCC_SOURCE_DIR}/esp/scm/ws_workunits_queryset_req_resp.ecm
          ${HPCC_SOURCE_DIR}/esp/scm/ws_workunits.ecm
+         ${HPCC_SOURCE_DIR}/esp/scm/ws_logaccess.ecm
+         ${HPCC_SOURCE_DIR}/esp/scm/ws_fs.ecm
+         ${HPCC_SOURCE_DIR}/esp/scm/ws_dfu_common.ecm
          ${HPCC_SOURCE_DIR}/esp/clients/roxiecontrol.cpp
          ws_workunitsPlugin.cpp
          ws_workunitsService.cpp

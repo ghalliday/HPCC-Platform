@@ -60,3 +60,20 @@ ESPStruct DFULogicalFile
     [min_ver("1.63"), nil_remove] int64 MinSkewPart;
     [min_ver("1.63"), nil_remove] int64 MaxSkewPart;
 };
+
+ESPStruct DFUIndexInfo
+{
+    bool IsLeafCountEstimated;
+    int64 NumLeafNodes;
+    int64 NumBlobNodes;
+    int64 NumBranchNodes;
+    int64 SizeDiskLeaves;
+    int64 SizeDiskBlobs;
+    int64 SizeDiskBranches;
+    int64 SizeOriginalData;
+    int64 SizeOriginalBranches;
+    int64 SizeMemoryLeaves;
+    int64 SizeMemoryBranches;
+    double BranchCompressionPercent;
+    double DataCompressionPercent;
+};

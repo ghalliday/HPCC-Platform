@@ -2460,6 +2460,7 @@ CWUQueryDetailsReq::CWUQueryDetailsReq(IEspWUQueryDetailsRequest &req)
     includeWsEclAddresses = req.getIncludeWsEclAddresses();
     includeStateOnClusters = req.getIncludeStateOnClusters();
     checkAllNodes = req.getCheckAllNodes();
+    includeIndexDetails = req.getIncludeIndexDetails();
 }
 
 CWUQueryDetailsReq::CWUQueryDetailsReq(IEspWUQueryDetailsLightWeightRequest &req)
@@ -2472,6 +2473,7 @@ CWUQueryDetailsReq::CWUQueryDetailsReq(IEspWUQueryDetailsLightWeightRequest &req
     includeWsEclAddresses = req.getIncludeWsEclAddresses();
     includeStateOnClusters = req.getIncludeStateOnClusters();
     checkAllNodes = req.getCheckAllNodes();
+    includeIndexDetails = req.getIncludeIndexDetails();
 }
 
 int EspQuerySuperFileCompareFunc(IInterface * const *i1, IInterface * const *i2)
