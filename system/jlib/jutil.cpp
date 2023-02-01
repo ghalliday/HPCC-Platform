@@ -170,6 +170,7 @@ bool safe_ecvt(size_t len, char * buffer, double value, int numDigits, int * dec
     if (!result)
         return false;
     strncpy(buffer, result, len);
+    buffer[len-1] = '\0';
     return true;
 #endif
 }
@@ -184,6 +185,7 @@ bool safe_fcvt(size_t len, char * buffer, double value, int numPlaces, int * dec
     if (!result)
         return false;
     strncpy(buffer, result, len);
+    buffer[len-1] = '\0';
     return true;
 #endif
 }
