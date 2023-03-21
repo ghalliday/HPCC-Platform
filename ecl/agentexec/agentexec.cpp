@@ -14,6 +14,8 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 ############################################################################## */
+
+#include <string>
 #include "jfile.hpp"
 #include "daclient.hpp"
 #include "wujobq.hpp"
@@ -236,14 +238,16 @@ public:
             /* NB: In the case of handling apptype='thor', the queued items is of the form <wuid>/<graphName>
              */
             StringAttr graphName;
+            unsigned wfid = 0;
             bool isThorJob = streq("thor", apptype);
             if (isThorJob)
             {
                 StringArray sArray;
                 sArray.appendList(wuid.get(), "/");
-                assertex(2 == sArray.ordinality());
+                assertex(3 == sArray.ordinality());
                 wuid.set(sArray.item(0));
                 graphName.set(sArray.item(1));
+                wfid = atoi(sArray.item(2));
 
                 // JCSMORE - ideally apptype, image and executable name would all be same.
                 jobSpecName.set("thormanager");
@@ -260,6 +264,19 @@ public:
                 {
                     params.push_back({ "graphName", graphName.get() });
                     jobName.append('-').append(graphName);
+                }
+
+                {
+                    Owned<IWorkUnitFactory> factory = getWorkUnitFactory();
+                    Owned<IConstWorkUnit> wu = factory->openWorkUnit(wuid);
+                    Owned<IWorkUnit> workunit = &wu->lock();
+
+                    StringBuffer scope;
+                    if (isThorJob)
+                        scope.appendf("w%u:%s", wfid, graphName.str());
+                    StatisticScopeType scopeType = getScopeType(scope);
+                    unsigned __int64 timeStamp = getTimeStampNowValue();
+                    workunit->setStatistic(queryStatisticsComponentType(), queryStatisticsComponentName(), scopeType, scope, StWhenK8sLaunched, nullptr, timeStamp, 1, 0, StatsMergeReplace);
                 }
                 runK8sJob(jobSpecName, wuid, jobName, params);
             }

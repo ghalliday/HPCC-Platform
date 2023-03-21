@@ -14181,7 +14181,7 @@ void executeThorGraph(const char * graphName, IConstWorkUnit &workunit, const IP
             VStringBuffer queueName("%s.thor", config.queryProp("@queue"));
             DBGLOG("Queueing wuid=%s, graph=%s, on queue=%s, timelimit=%u seconds", wuid.str(), graphName, queueName.str(), timelimit);
             Owned<IJobQueue> queue = createJobQueue(queueName);
-            VStringBuffer jobName("%s/%s", wuid.get(), graphName);
+            VStringBuffer jobName("%s/%s/%u", wuid.get(), graphName, wfid);
             IJobQueueItem *item = createJobQueueItem(jobName);
             item->setOwner(owner);
             item->setPriority(priority);

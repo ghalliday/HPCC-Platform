@@ -274,6 +274,10 @@ enum StatisticKind
     StCycleAgentQueueCycles,
     StTimeIBYTIDelay,
     StCycleIBYTIDelayCycles,
+    StWhenQueued,
+    StWhenDequeued,
+    StWhenK8sLaunched,
+    StWhenK8sStarted,
     StMax,
 
     //For any quantity there is potentially the following variants.
