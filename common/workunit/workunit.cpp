@@ -12287,6 +12287,11 @@ extern WORKUNIT_API void submitWorkUnit(const char *wuid, const char *username, 
     if (!queue.get())
         throw MakeStringException(WUERR_InvalidQueue, "Could not create workunit queue");
 
+    {
+        Owned<IWorkUnit> wu = cw->lock();
+        addTimeStamp(wu, SSTcompilestage, "compile", StWhenQueued, 0);
+    }
+
     IJobQueueItem *item = createJobQueueItem(wuid);
     queue->enqueue(item);
 }
