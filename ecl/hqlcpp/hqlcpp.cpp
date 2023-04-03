@@ -9681,9 +9681,9 @@ void HqlCppTranslator::doBuildHashMd5Element(BuildCtx & ctx, IHqlExpression * el
     CHqlBoundExpr bound;
 
     Linked<ITypeInfo> type = elem->queryType()->queryPromotedType();        // skip alien data types, to logical type.
-
+    type_t tc = type->getTypeCode();
     HqlExprArray args;
-    switch (type->getTypeCode())
+    switch (tc)
     {
     case type_string:
     case type_unicode:
@@ -9707,9 +9707,13 @@ void HqlCppTranslator::doBuildHashMd5Element(BuildCtx & ctx, IHqlExpression * el
             args.append(*getPointer(bound.expr));
             break;
         }
+    case type_row:
+        throwUnexpectedType(type);
     default:
         buildTempExpr(ctx, elem, bound);
-        args.append(*getSizetConstant(type->getSize()));
+        if (tc == type_groupedtable || tc == type_table)
+            ensureDatasetFormat(ctx, type, bound, FormatBlockedDataset);
+        args.append(*getBoundSize(bound));
         args.append(*getPointer(bound.expr));
         break;
     }
