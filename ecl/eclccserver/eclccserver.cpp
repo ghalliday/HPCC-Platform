@@ -671,6 +671,9 @@ class EclccCompileThread : implements IPooledThread, implements IErrorReporter, 
         {
             eclccCmd.appendf(" -fapplyInstantEclTransformations=1 -fapplyInstantEclTransformationsLimit=%u", workunit->getResultLimit());
         }
+        if (childProcessTimeLimit != 0)
+            eclccCmd.append(" --monitorinterval=0"); // Short lived so no benefit in tracing memory usage periodically
+
         try
         {
             Owned<ErrorReader> errorReader = new ErrorReader(pipe, this);
