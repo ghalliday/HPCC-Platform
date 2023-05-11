@@ -60,7 +60,7 @@ interface IReadSeq : public IInterface
 interface IWriteSeq : public IInterface
 {
 // fixed length record write interface
-    virtual void flush() = 0;
+    virtual void flush(bool wait) = 0;
     virtual void put(const void *dst) = 0;
     virtual void putn(const void *dst, unsigned numrecs) = 0;
     virtual size32_t getRecordSize() = 0;
@@ -74,7 +74,7 @@ interface ISimpleReadStream : public IInterface
 
 interface IIOStream : public ISimpleReadStream
 {
-    virtual void flush() = 0;
+    virtual void flush(bool syncWithDisk) = 0;
     virtual size32_t write(size32_t len, const void * data) = 0;
 };
 
@@ -179,7 +179,7 @@ interface IRowStream : extends IInterface
 interface IRowWriter: extends IInterface
 {
     virtual void putRow(const void *row) = 0; // takes ownership of row
-    virtual void flush() = 0;
+    virtual void flush(bool syncWithDisk) = 0;
 };
 
 interface IRowWriterEx : extends IRowWriter

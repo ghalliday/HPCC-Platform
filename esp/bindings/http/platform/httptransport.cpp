@@ -863,7 +863,7 @@ public:
     }
     ~CHttpMessageIOAdapter();
 
-    virtual void flush() override {};
+    virtual void flush(bool syncWithDisk) override {};
     virtual size32_t read(size32_t len, void * data) override { UNIMPLEMENTED; return 0; }
     virtual size32_t write(size32_t len, const void * data) override;
 };

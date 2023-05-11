@@ -247,13 +247,13 @@ public:
             }
             writeidxofs(start);
         }
-        output->flush();
+        output->flush(false);
         offset_t end = output->getPosition();
         output.clear();
         writeidxofs(end);
         if (idxFileIO)
         {
-            idxFileStream->flush();
+            idxFileStream->flush(false);
             idxFileStream.clear();
             idxFileIO.clear();
         }

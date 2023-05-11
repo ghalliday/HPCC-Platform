@@ -312,9 +312,10 @@ public:
         bufsize = 0;
     }
 
-    virtual ~CFcmpStream() { flush(); }
+    virtual ~CFcmpStream() { flush(false); }    // BUG: If flush was not called in the derived destructor this will call the wrong save()
 
-    virtual bool load()
+    virtual bool load() = 0;
+    /*
     {
         bufpos = 0;
         bufsize = 0;
@@ -340,8 +341,10 @@ public:
         cmpOffset += sz[1];
         return true;
     }
+    */
 
-    virtual void save()
+    virtual void save() = 0;
+    /*
     {
         if (bufsize)
         {
@@ -356,8 +359,9 @@ public:
         }
         bufsize = 0;
     }
+    */
 
-    virtual bool attach(IFileIO *_baseio)
+    virtual bool attach(IFileIO *_baseio) final
     {
         baseio.set(_baseio);
         expOffset = 0;
@@ -375,7 +379,7 @@ public:
         return trailer.compressedType==compType;
     }
 
-    virtual void create(IFileIO *_baseio)
+    virtual void create(IFileIO *_baseio) final
     {
         baseio.set(_baseio);
         expOffset = 0;
@@ -387,7 +391,7 @@ public:
         expSize = (offset_t)-1;
     }
 
-    virtual void seek(offset_t pos, IFSmode origin)
+    virtual void seek(offset_t pos, IFSmode origin) override
     {
         if ((origin==IFScurrent)&&(pos==0))
             return;
@@ -398,17 +402,17 @@ public:
         bufsize = 0;
     }
 
-    virtual offset_t size()
+    virtual offset_t size() override
     {
         return (expSize==(offset_t)-1)?0:expSize;
     }
 
-    virtual offset_t tell()
+    virtual offset_t tell() override
     {
         return expOffset;
     }
 
-    virtual size32_t read(size32_t len, void * data)
+    virtual size32_t read(size32_t len, void * data) override
     {
         if (!reading)
             throw MakeStringException(-1,"CFcmpStream read to stream being written");
@@ -433,7 +437,7 @@ public:
         return ret;
     }
 
-    virtual size32_t write(size32_t len, const void * data)
+    virtual size32_t write(size32_t len, const void * data) override
     {
         if (reading)
             throw MakeStringException(-1,"CFcmpStream write to stream being read");
@@ -453,7 +457,7 @@ public:
         return ret;
     }
 
-    virtual void flush()
+    virtual void flush(bool syncWithDisk) override
     {
         if (!reading&&(expSize!=expOffset))
         {
@@ -463,11 +467,12 @@ public:
             trailer.compressedType = compType;
             trailer.expandedSize = expOffset;
             baseio->write(cmpOffset,sizeof(trailer),&trailer);
+            baseio->flush(syncWithDisk);
             expSize = expOffset;
         }
     }
 
-    virtual unsigned __int64 getStatistic(StatisticKind kind)
+    virtual unsigned __int64 getStatistic(StatisticKind kind) override
     {
         return baseio->getStatistic(kind);
     }

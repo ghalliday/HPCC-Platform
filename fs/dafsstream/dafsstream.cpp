@@ -1452,7 +1452,7 @@ IRowWriter *createRowWriter(IDFUFilePartWriter *partWriter)
         {
             serializer->serialize(*this, (const byte *)row);
         }
-        virtual void flush() override
+        virtual void flush(bool syncWithDisk) override
         {
             // flushing internal to partWriter
         }

@@ -12173,7 +12173,7 @@ StringBuffer &exportWorkUnitToXMLWithHiddenPasswords(IPropertyTree *p, StringBuf
     public:
         IMPLEMENT_IINTERFACE;
         CAdapter(StringBuffer &_out) : out(_out) { }
-        virtual void flush() { }
+        virtual void flush(bool syncWithDisk) { }
         virtual size32_t read(size32_t len, void * data) { UNIMPLEMENTED; return 0; }
         virtual size32_t write(size32_t len, const void * data) { out.append(len, (const char *)data); return len; }
     } adapter(str);

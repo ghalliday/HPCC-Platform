@@ -204,7 +204,7 @@ class CLoopSlaveActivity : public CLoopSlaveActivityBase
                 ::ActPrintLog(activity, e);
                 exception.setown(e);
             }
-            try { writer->flush(); }
+            try { writer->flush(false); }
             catch (IException *e)
             {
                 ::ActPrintLog(activity, e, "Exception in writer->flush");
@@ -378,7 +378,7 @@ public:
                 if (loopAgain) // cannot be 0
                     boundGraph->prepareLoopAgainResult(*this, ownedResults, loopAgain);
 
-                loopPending->flush();
+                loopPending->flush(false);
                 Owned<IThorResult> inputResult = ownedResults->getResult(1);
                 inputResult->setResultStream(loopPending.getClear(), loopPendingCount);
 

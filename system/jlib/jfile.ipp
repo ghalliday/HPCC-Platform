@@ -100,7 +100,7 @@ public:
     virtual size32_t write(offset_t pos, size32_t len, const void * data);
     virtual void setSize(offset_t size);
     virtual offset_t appendFile(IFile *file,offset_t pos,offset_t len);
-    virtual void flush();
+    virtual void flush(bool syncWithDisk);
     virtual void close();
     virtual unsigned __int64 getStatistic(StatisticKind kind);
 
@@ -132,7 +132,7 @@ public:
     virtual size32_t write(offset_t pos, size32_t len, const void * data);
     virtual void setSize(offset_t size) { UNIMPLEMENTED; }
     virtual offset_t appendFile(IFile *file,offset_t pos,offset_t len) { UNIMPLEMENTED; return 0; }
-    virtual void flush() { io->flush(); }
+    virtual void flush(bool syncWithDisk) { io->flush(syncWithDisk); }
     virtual void close() { io->close(); }
     virtual unsigned __int64 getStatistic(StatisticKind kind) { return io->getStatistic(kind); }
 
@@ -155,7 +155,7 @@ public:
     virtual size32_t write(offset_t pos, size32_t len, const void * data) override;
     virtual void setSize(offset_t size) override;
     virtual offset_t appendFile(IFile *file,offset_t pos,offset_t len) override;
-    virtual void flush() override;
+    virtual void flush(bool syncWithDisk) override;
     virtual void close() override;
     virtual unsigned __int64 getStatistic(StatisticKind kind) override;
 
@@ -186,7 +186,7 @@ public:
     virtual offset_t size();
     virtual size32_t write(offset_t pos, size32_t len, const void * data);
     virtual offset_t appendFile(IFile *file,offset_t pos,offset_t len);
-    virtual void flush();
+    virtual void flush(bool syncWithDisk);
     virtual void close();
     virtual unsigned __int64 getStatistic(StatisticKind kind);
 
@@ -212,7 +212,7 @@ class CFileIOStream : implements CInterfaceOf<IFileIOStream>
 public:
     CFileIOStream(IFileIO * _io);
 
-    virtual void flush();
+    virtual void flush(bool syncWithDisk);
     virtual size32_t read(size32_t len, void * data);
     virtual void seek(offset_t pos, IFSmode origin);
     virtual offset_t size();
@@ -231,7 +231,7 @@ class CNoSeekFileIOStream : implements CInterfaceOf<IFileIOStream>
 public:
     CNoSeekFileIOStream(IFileIOStream * _stream);
 
-    virtual void flush();
+    virtual void flush(bool syncWithDisk);
     virtual size32_t read(size32_t len, void * data);
     virtual void seek(offset_t pos, IFSmode origin);
     virtual offset_t size();
@@ -252,7 +252,7 @@ public:
 
     virtual void put(const void *src);
     virtual void putn(const void *src, unsigned n);
-    virtual void flush();
+    virtual void flush(bool syncWithDisk);
     virtual size32_t getRecordSize() { return size; }
     virtual offset_t getPosition();
 

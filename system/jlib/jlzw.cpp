@@ -2277,13 +2277,13 @@ public:
             data = (const byte *)data+done;
             if (len==0)
                 break;
-            flush();
+            flush(false);
         }
         return ret;
     }
     virtual offset_t appendFile(IFile *file,offset_t pos,offset_t len) override { UNIMPLEMENTED; }
     virtual void setSize(offset_t size) override { UNIMPLEMENTED; }
-    virtual void flush() override
+    virtual void flush(bool syncWithDisk) override
     {   
         try
         {
@@ -2312,6 +2312,7 @@ public:
                 compressor->open(compblkptr, trailer.blockSize);
             }
             lastFlushPos = trailer.expandedSize;
+            fileio->flush(syncWithDisk);
         }
         catch (IException *e)
         {
@@ -2329,7 +2330,7 @@ public:
                 overflow.clear();
                 throw MakeStringException(-1,"Partial row written at end of file %d of %d",ol,trailer.recordSize);
             }
-            flush();
+            flush(false);
             trailer.datacrc = trailer.crc;
             if (setcrc) {
                 indexbuf.append(sizeof(trailer)-sizeof(trailer.crc),&trailer);

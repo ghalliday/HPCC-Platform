@@ -82,7 +82,7 @@ public:
     {
         throwUnexpectedX("Setting size of read only azure file");
     }
-    virtual void flush() override
+    virtual void flush(bool syncWithDisk) override
     {
     }
     unsigned __int64 getStatistic(StatisticKind kind) override;
@@ -113,7 +113,7 @@ public:
 
     virtual offset_t size() override;
     virtual void setSize(offset_t size) override;
-    virtual void flush() override;
+    virtual void flush(bool syncWithDisk) override;
 
     virtual unsigned __int64 getStatistic(StatisticKind kind) override;
 
@@ -413,7 +413,7 @@ void AzureFileWriteIO::setSize(offset_t size)
     UNIMPLEMENTED;
 }
 
-void AzureFileWriteIO::flush()
+void AzureFileWriteIO::flush(bool syncWithDisk)
 {
 }
 

@@ -1702,7 +1702,7 @@ class CMultiCoreJoinHelper: public CMultiCoreJoinHelperBase
             }
             // reader will check stopped, which will only be set once all read, becasue flush() will block until all read
             rowWriter->putRow(NULL); // end-of-stream
-            rowWriter->flush();
+            rowWriter->flush(false);
             stopped = true; // NB: will not get past flush(), until all read
             LOG(MCthorDetailedDebugInfo, thorJob, "CMultiCoreJoinHelper::cWorker exit");
             return 0;

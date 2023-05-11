@@ -708,8 +708,9 @@ CrcIOStream::CrcIOStream(IFileIOStream * _stream, unsigned startCRC)
 }
 
 
-void CrcIOStream::flush()
+void CrcIOStream::flush(bool syncWithDisk)
 {
+    stream->flush(syncWithDisk);
 }
 
 size32_t CrcIOStream::read(size32_t len, void * data)

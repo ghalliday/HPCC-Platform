@@ -127,7 +127,7 @@ public:
     CrcIOStream(IFileIOStream * _stream, unsigned startCRC = 0);
     IMPLEMENT_IINTERFACE
 
-    virtual void flush() override;
+    virtual void flush(bool syncWithDisk) override;
     virtual size32_t read(size32_t len, void * data) override;
     virtual void seek(offset_t pos, IFSmode origin) override;
     virtual offset_t size() override;

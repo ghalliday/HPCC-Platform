@@ -337,7 +337,7 @@ public:
         merged.clear();
         streams.kill();
         ActPrintLog("MERGE: gather done");
-        writer->flush();
+        writer->flush(false);
         writer.clear();
         out.setown(createPartitionMerger(sample));
 

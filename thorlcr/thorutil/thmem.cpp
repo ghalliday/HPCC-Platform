@@ -1417,7 +1417,7 @@ rowidx_t CThorSpillableRowArray::save(IFile &iFile, unsigned _spillCompInfo, boo
             const void *row = rows[i];
             if (i == nextCBI)
             {
-                writer->flush(NULL);
+                writer->flush(nullptr);
                 do
                 {
                     nextCB->filePosition(writer->getPosition());
@@ -1444,7 +1444,7 @@ rowidx_t CThorSpillableRowArray::save(IFile &iFile, unsigned _spillCompInfo, boo
             }
             ++i;
         }
-        writer->flush(NULL);
+        writer->flush(nullptr);
     }
     catch (IException *e)
     {
@@ -2097,7 +2097,7 @@ public:
     }
     virtual IRowWriter *getWriter() override
     {
-        class CWriter : public CSimpleInterface, implements IRowWriter
+        class CWriter final : public CSimpleInterface, implements IRowWriter
         {
             Linked<CThorRowCollector> parent;
         public:
@@ -2108,14 +2108,14 @@ public:
             }
             ~CWriter()
             {
-                flush();
+                flush(false);
             }
         // IRowWriter
             virtual void putRow(const void *row)
             {
                 parent->putRow(row);
             }
-            virtual void flush()
+            virtual void flush(bool syncWithDisk)
             {
                 parent->flush();
             }

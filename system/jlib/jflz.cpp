@@ -816,9 +816,9 @@ IExpander *createFastLZExpander()
 
 static const __uint64 FLZSTRMCOMPRESSEDFILEFLAG = I64C(0xc3518de42f15da57);
 
-class CFastLZStream : public CFcmpStream
+class CFastLZStream final : public CFcmpStream
 {
-    bool load()
+    virtual bool load() override
     {
         bufpos = 0;
         bufsize = 0;
@@ -843,7 +843,7 @@ class CFastLZStream : public CFcmpStream
         return true;
     }
 
-    void save()
+    virtual void save() override
     {
         if (bufsize) {
             MemoryAttr dstma;
@@ -861,7 +861,7 @@ class CFastLZStream : public CFcmpStream
 public:
     CFastLZStream() : CFcmpStream(FLZSTRMCOMPRESSEDFILEFLAG) { }
 
-    virtual ~CFastLZStream() { flush(); }
+    virtual ~CFastLZStream() { flush(false); }
 
 };
 

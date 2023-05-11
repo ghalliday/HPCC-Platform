@@ -974,7 +974,7 @@ void CFileTarget::updateFile(const char* content, const Variables& variables, IE
                         e->Release();
                     }
                 }
-                file->m_io->flush();
+                file->m_io->flush(false);
             }
         }
         else

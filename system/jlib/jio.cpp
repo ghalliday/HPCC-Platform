@@ -383,7 +383,7 @@ private:
                 ptr += left;
                 src = (char *)src + left;
                 _size -= left;
-                flush();
+                flush(false);
                 left = bufSize;
             }
             while (_size>=bufSize) // write out directly
@@ -431,7 +431,7 @@ public:
     }
 
 
-    void put(const void *src)
+    virtual void put(const void *src) override
     {
         if (compressed) {
             if (first) {
@@ -452,7 +452,7 @@ public:
         putBytes(src, size);
     }
 
-    void putn(const void *src, unsigned numRecs)
+    virtual void putn(const void *src, unsigned numRecs) override
     {
         if (compressed) {
             while (numRecs) {
@@ -465,7 +465,7 @@ public:
             putBytes(src, size*numRecs);
     }
 
-    void flush()
+    virtual void flush(bool syncWithDisk) override
     {
         if (ptr != buffer)
         {
@@ -474,12 +474,12 @@ public:
         }
     }
 
-    offset_t getPosition()
+    virtual offset_t getPosition() override
     {
         return fpos;
     }
 
-    virtual size32_t getRecordSize() 
+    virtual size32_t getRecordSize() override
     { 
         return size; 
     }
@@ -523,8 +523,10 @@ void CUnbufferedReadWriteSeq::putn(const void *src, unsigned n)
     fpos += size*n;
 }
 
-void CUnbufferedReadWriteSeq::flush()
-{}
+void CUnbufferedReadWriteSeq::flush(bool syncWithDisk)
+{
+    //MORE: if syncWithDisk
+}
 
 offset_t CUnbufferedReadWriteSeq::getPosition()
 {
@@ -599,10 +601,10 @@ void CTeeWriteSeq::putn(const void *src, unsigned n)
     w2->putn(src, n);
 }
 
-void CTeeWriteSeq::flush()
+void CTeeWriteSeq::flush(bool syncWithDisk)
 {
-    w1->flush();
-    w2->flush();
+    w1->flush(syncWithDisk);
+    w2->flush(syncWithDisk);
 }
 
 size32_t CTeeWriteSeq::getRecordSize()
@@ -951,9 +953,9 @@ public:
         ::Release(stream);
         allocator->Release();
     }
-    void flush() { if (stream) stream->flush(); }
-    void put(const void *dst) { putn(dst,1); }
-    void putn(const void *dst, unsigned numrecs)
+    virtual void flush(bool syncWithDisk) override { if (stream) stream->flush(syncWithDisk); }
+    virtual void put(const void *dst) override { putn(dst,1); }
+    virtual void putn(const void *dst, unsigned numrecs) override
     {
         if (numrecs==0) return;
         if (stream==NULL) return; // could raise exception instead
@@ -962,7 +964,7 @@ public:
             stream->putn(out,num);
             pos+=num;
             numrecs-=num;
-            stream->flush();
+            stream->flush(false);
             IWriteSeq *oldstream=stream;
             stream = allocator->next(num);
             oldstream->Release();
@@ -973,8 +975,8 @@ public:
         stream->putn(out,numrecs);
         pos+=numrecs;
     }
-    virtual size32_t getRecordSize() { if ((recsize==0)&&stream) recsize = stream->getRecordSize(); return recsize; }
-    virtual offset_t getPosition()   { return pos; }
+    virtual size32_t getRecordSize() override { if ((recsize==0)&&stream) recsize = stream->getRecordSize(); return recsize; }
+    virtual offset_t getPosition() override   { return pos; }
 };
 
 
@@ -1061,7 +1063,7 @@ size32_t CBufferedIOStreamBase::doread(size32_t len, void * data)
 {
     if (!reading)
     {
-        doflush();
+        doflush(false);
         reading = true;
     }
 
@@ -1106,7 +1108,7 @@ size32_t CBufferedIOStreamBase::dowrite(size32_t len, const void * data)
             wr = std::min(len,bufferSize-curBufferOffset);
             writeToBuffer(wr, data);
             if (numInBuffer==bufferSize)
-                doflush();
+                doflush(false);
             len -= wr;
             if (len==0)
                 break;
@@ -1117,7 +1119,7 @@ size32_t CBufferedIOStreamBase::dowrite(size32_t len, const void * data)
         wr = std::min(len,bufferSize);
         writeToBuffer(wr, data);
         if (numInBuffer==bufferSize)
-            doflush();
+            doflush(false);
         len -= wr;
         data = (char *)data + wr;
     }
@@ -1147,7 +1149,7 @@ public:
         try
         {
             // NOTE - flush may throw an exception and thus cannot be done in the destructor.
-            flush();
+            flush(false);
         }
         catch (IException *E)
         {
@@ -1177,7 +1179,7 @@ public:
     { 
         return io->write(len,data); 
     }
-    virtual void doflush()
+    virtual void doflush(bool syncWithDisk)
     {
         if (!reading && numInBuffer)
         {
@@ -1187,12 +1189,14 @@ public:
             io->write(numToWrite, buffer);
             curBufferOffset = 0;
         }
+        if (!reading)
+            io->flush(syncWithDisk);
     }
 
 // IIOStream impl.
     virtual size32_t read(size32_t len, void * data) { return CBufferedIOStreamBase::doread(len, data); }
     virtual size32_t write(size32_t len, const void * data) { return CBufferedIOStreamBase::dowrite(len, data); }
-    virtual void flush() { doflush(); }
+    virtual void flush(bool syncWithDisk) { doflush(syncWithDisk); }
 };
 
 IIOStream *createBufferedIOStream(IIOStream *io, unsigned bufSize)

@@ -1121,7 +1121,7 @@ bool HqlParseContext::createCache(bool isMacro)
             saveXML(*stream, curMeta().dependencies, 0, XML_Embed|XML_LineBreak);
 
         writeStringToStream(*stream, "</Cache>\n");
-        stream->flush();
+        stream->flush(false);
     }
     try
     {

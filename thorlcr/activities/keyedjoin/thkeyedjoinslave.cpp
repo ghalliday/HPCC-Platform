@@ -288,7 +288,7 @@ protected:
         }
         void updateMarker(offset_t pos, const CJoinGroup::SpillMarker &marker)
         {
-            iFileIOStream->flush();
+            iFileIOStream->flush(false);
             iFileIO->write(pos, sizeof(marker), &marker);
         }
         void writeOffsetTable(unsigned n)

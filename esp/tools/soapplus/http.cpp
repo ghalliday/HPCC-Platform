@@ -381,9 +381,9 @@ __int64 Http::receiveData(ISocket* socket, IByteOutputStream* ostream, bool isCl
     }
 
     if(full_stream.get())
-        full_stream->flush();
+        full_stream->flush(false);
     if(content_stream.get())
-        content_stream->flush();
+        content_stream->flush(false);
 
     return totalresplen;
 }

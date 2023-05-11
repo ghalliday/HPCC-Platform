@@ -75,7 +75,7 @@ public:
     IMPLEMENT_IINTERFACE;
     virtual size32_t read(offset_t pos, size32_t len, void * data) { THROWNOTOPEN; }
     virtual offset_t size() { THROWNOTOPEN; }
-    virtual void flush() { THROWNOTOPEN; }
+    virtual void flush(bool syncWithDisk) { THROWNOTOPEN; }
     virtual size32_t write(offset_t pos, size32_t len, const void * data) { THROWNOTOPEN; }
     virtual void setSize(offset_t size) { UNIMPLEMENTED; }
     virtual offset_t appendFile(IFile *file,offset_t pos,offset_t len) { UNIMPLEMENTED; return 0; }
@@ -383,7 +383,7 @@ public:
         }
     }
 
-    virtual void flush()
+    virtual void flush(bool syncWithDisk)
     {
         Linked<IFileIO> active;
         {
@@ -391,7 +391,7 @@ public:
             active.set(current);
         }
         if (active.get() != &failure)
-            active->flush();
+            active->flush(syncWithDisk);
     }
 
     virtual offset_t size() 

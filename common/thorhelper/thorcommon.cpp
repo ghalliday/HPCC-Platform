@@ -1462,7 +1462,7 @@ class CRowStreamWriter : private IRowSerializerTarget, implements IExtRowWriter,
     {
         try
         {
-            stream->flush();
+            stream->flush(false);
         }
         catch (IException *e)
         {
@@ -1493,7 +1493,7 @@ public:
         PROGLOG("~createRowWriter %d = %p",wrnum--,this);
 #endif
         if (autoflush)
-            flush();
+            flush(false);
         else if (bufpos+extbuf.length()) {
 #ifdef _DEBUG
             PrintStackReport();
@@ -1544,7 +1544,7 @@ public:
         }
     }
 
-    void flush()
+    void flush(bool syncWithDisk)
     {
         flushBuffer(true);
         streamFlush();

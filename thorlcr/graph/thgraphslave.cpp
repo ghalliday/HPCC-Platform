@@ -2105,7 +2105,7 @@ public:
     {
         throwUnexpectedX("CDelayedFileWrapper::setSize() called for a cached IFileIO object");
     }
-    virtual void flush() override
+    virtual void flush(bool syncWithDisk) override
     {
         throwUnexpectedX("CDelayedFileWrapper::flush() called for a cached IFileIO object");
     }

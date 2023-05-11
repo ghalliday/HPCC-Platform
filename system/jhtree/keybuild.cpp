@@ -271,7 +271,7 @@ protected:
     {
         if (out)
         {
-            out->flush();
+            out->flush(false);
             if (keyHdr->getKeyType() & USE_TRAILING_HEADER)
             {
                 keyHdr->setPhyRec(nextPos+keyHdr->getNodeSize()-1);

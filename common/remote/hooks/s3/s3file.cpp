@@ -130,7 +130,7 @@ public:
     {
         throwUnexpected();
     }
-    virtual void flush() override
+    virtual void flush(bool syncWithDisk) override
     {
         //Could implement if we use the async version of the putObject call.
     }
@@ -168,7 +168,7 @@ public:
     virtual offset_t appendFile(IFile *file,offset_t pos=0,offset_t len=(offset_t)-1) override;
     virtual size32_t write(offset_t pos, size32_t len, const void * data) override;
     virtual void setSize(offset_t size) override;
-    virtual void flush() override;
+    virtual void flush(bool syncWithDisk) override;
 
     virtual unsigned __int64 getStatistic(StatisticKind kind) override;
 
@@ -428,7 +428,7 @@ void S3FileWriteIO::setSize(offset_t size)
     UNIMPLEMENTED;
 }
 
-void S3FileWriteIO::flush()
+void S3FileWriteIO::flush(bool syncWithDisk)
 {
 }
 

@@ -1289,7 +1289,7 @@ public:
     void recvloopdone()
     {
         localFinishedSem.wait();
-        pipewr->flush();
+        pipewr->flush(false);
         if (piperd)
             piperd->stop();
         pipewr.clear();
@@ -2279,7 +2279,7 @@ public:
                         break;
                     out->putRow(row);
                 }
-                out->flush();
+                out->flush(false);
                 sz = out->getPosition();
                 activity->stopInput(0);
             }
@@ -2698,19 +2698,19 @@ public:
     {
         if (NULL == writer)
             return;
-        flush();
+        flush(false);
         ::Release(writer);
         writer = NULL;
     }
 // IRowWriter
-    virtual void putRow(const void *row)
+    virtual void putRow(const void *row) override
     {
         writer->putRow(row);
         ++count; // NULL's too (but there won't be any in usage of this impl.)
     }
-    virtual void flush()
+    virtual void flush(bool syncWithDisk) override
     {
-        writer->flush();
+        writer->flush(syncWithDisk);
     }
 };
 

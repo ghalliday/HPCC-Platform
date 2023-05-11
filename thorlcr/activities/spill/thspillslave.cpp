@@ -116,7 +116,7 @@ public:
         if (out)
         {
             if (compress)
-                out->flush();
+                out->flush(false);
             else
                 out->flush(&fileCRC);
             uncompressedBytesWritten = out->getPosition();

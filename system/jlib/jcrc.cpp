@@ -766,7 +766,7 @@ public:
 
     virtual unsigned queryCrc() { return crc.get(); }
 
-    virtual void flush() { io->flush(); }
+    virtual void flush(bool syncWithDisk) { io->flush(syncWithDisk); }
     virtual size32_t read(size32_t len, void * data) { size32_t l = io->read(len, data); crc.tally(l, data); return l; }
     virtual size32_t write(size32_t len, const void * data) { size32_t l = io->write(len, data); crc.tally(l, data); return l; }
 };

@@ -280,9 +280,9 @@ IExpander *createLZ4Expander()
 
 #define LZ4STRMCOMPRESSEDFILEFLAG (I64C(0xc129b02d53545e91))
 
-class CLZ4Stream : public CFcmpStream
+class CLZ4Stream final : public CFcmpStream
 {
-    bool load()
+    virtual bool load() override
     {
         bufpos = 0;
         bufsize = 0;
@@ -308,7 +308,7 @@ class CLZ4Stream : public CFcmpStream
         return true;
     }
 
-    void save()
+    virtual void save() override
     {
         if (bufsize)
         {
@@ -332,7 +332,7 @@ class CLZ4Stream : public CFcmpStream
 public:
     CLZ4Stream() : CFcmpStream(LZ4STRMCOMPRESSEDFILEFLAG) { }
 
-    virtual ~CLZ4Stream() { flush(); }
+    virtual ~CLZ4Stream() { flush(false); }
 
 };
 

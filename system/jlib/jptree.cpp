@@ -6289,7 +6289,7 @@ class CStringBufferMarkupIOAdapter : public CInterfaceOf<IIOStream>
     StringBuffer &out;
 public:
     CStringBufferMarkupIOAdapter(StringBuffer &_out) : out(_out) { }
-    virtual void flush() override { }
+    virtual void flush(bool syncWithDisk) override { }
     virtual size32_t read(size32_t len, void * data) override { UNIMPLEMENTED; return 0; }
     virtual size32_t write(size32_t len, const void * data) override { out.append(len, (const char *)data); return len; }
 };
@@ -9374,7 +9374,7 @@ static int yaml_write_iiostream(void *data, unsigned char *buffer, size_t size)
 {
     IIOStream *out = (IIOStream *) data;
     out->write(size, (void *)buffer);
-    out->flush();
+    out->flush(false);
     return 1;
 }
 

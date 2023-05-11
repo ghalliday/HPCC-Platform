@@ -170,7 +170,7 @@ class CSkipCatchSlaveActivity : public CCatchSlaveActivityBase
                 }
                 overflowBuf->putRow(row.getClear());
             }
-            overflowBuf->flush();
+            overflowBuf->flush(false);
             gatheredInputStream.setown(overflowBuf->getReader());
         }
         catch (IException *)

@@ -445,7 +445,7 @@ void CHThorDiskWriteActivity::execute()
 
 void CHThorDiskWriteActivity::stop()
 {
-    outSeq->flush(NULL);
+    outSeq->flush(nullptr);
     if(blockcompressed)
         uncompressedBytesWritten = outSeq->getPosition();
     close();
@@ -649,7 +649,7 @@ void CHThorDiskWriteActivity::close()
     outSeq.clear();
     if (io)
     {
-        io->flush();
+        io->flush(false);
         numDiskWrites = io->getStatistic(StNumDiskWrites);
         io.clear();
     }
@@ -1266,7 +1266,7 @@ void CHThorIndexWriteActivity::execute()
         totalBlobNodes += numBlobNodes;
         numDiskWrites = io->getStatistic(StNumDiskWrites);
         offsetBranches = builder->getOffsetBranches();
-        out->flush();
+        out->flush(false);
         out.clear();
     }
 
@@ -4224,7 +4224,7 @@ void CSimpleSorterBase::spillSortedToDisk(IDiskMerger * merger)
         out->putRow(row);
     }
     finger = 0;
-    out->flush();
+    out->flush(false);
     rowsToSort.noteSpilled(rowsToSort.numCommitted());
 }
 

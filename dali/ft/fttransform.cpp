@@ -531,7 +531,7 @@ void TransferServer::appendTransformed(unsigned chunkIndex, ITransformer * input
 
         if (gpfFrequency || !gotLength || ((unsigned)(msTick() - lastTick)) > updateFrequency)
         {
-            out->flush();
+            out->flush(false);
 
             lastTick = msTick();
 

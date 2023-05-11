@@ -393,7 +393,7 @@ public:
         return ret;
     }
 
-    void flush()
+    void flush(bool syncWithDisk)
     {
         // I think flush should wait til all rows read or stopped
 #ifdef _FULL_TRACE
@@ -581,7 +581,7 @@ public:
 //      return pos;
 //  }
 
-    void flush()
+    void flush(bool syncWithDisk)
     {
         // I think flush should wait til all rows read
         SpinBlock block(lock);
@@ -645,7 +645,7 @@ public:
 // IRowWriterMultiReader
     virtual IRowStream *getReader()
     {
-        flush();
+        flush(false);
         return collector->getStream(shared);
     }
 // IRowWriter
@@ -654,7 +654,7 @@ public:
         assertex(!eoi);
         writer->putRow(row);
     }
-    virtual void flush()
+    virtual void flush(bool syncWithDisk)
     {
         eoi = true;
     }
@@ -1146,7 +1146,7 @@ public:
     {
         return putRow(row, NULL);
     }
-    virtual void flush()
+    virtual void flush(bool syncWithDisk)
     {
         CriticalBlock b(crit);
         writeAtEof = true;
@@ -1681,17 +1681,17 @@ class CRowMultiWriterReader : public CSimpleInterface, implements IRowMultiWrite
         }
         ~CAWriter()
         {
-            flush();
+            flush(false);
             owner.writerStopped();
         }
     // IRowWriter impl.
-        virtual void putRow(const void *row)
+        virtual void putRow(const void *row) override
         {
             if (rows.ordinality() >= owner.writeGranularity)
                 owner.addRows(rows);
             rows.append(row);
         }
-        virtual void flush()
+        virtual void flush(bool syncWithDisk) override
         {
             if (rows.ordinality())
                 owner.addRows(rows);

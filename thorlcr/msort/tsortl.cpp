@@ -218,7 +218,7 @@ public:
             return;
         stopped = true;
         if (outbuf.length())
-            flush();
+            flush(false);
         try {
 #ifdef _FULL_TRACE
             LOG(MCthorDetailedDebugInfo, thorJob, "CSocketRowWriter.stop(%x)",(unsigned)(memsize_t)socket.get());
@@ -246,11 +246,11 @@ public:
             }
             serializer->serialize(rsz,(const byte *)row);
             if (outbuf.length()>bufsize) 
-                flush();
+                flush(false);
         }
         ReleaseThorRow(row);
     }
-    void flush()
+    void flush(bool syncWithDisk)
     {
         size32_t l = outbuf.length();
 #ifdef _FULL_TRACE

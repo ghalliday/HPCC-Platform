@@ -1676,7 +1676,7 @@ IFileIO *_createIFileIO(const void *buffer, unsigned sz, bool readOnly)
             memcpy((byte *)buffer+pos, data, len);
             return len;
         }
-        virtual void flush() {}
+        virtual void flush(bool syncWithDisk) {}
         virtual void close() {}
         virtual unsigned __int64 getStatistic(StatisticKind kind)
         {
@@ -1913,9 +1913,9 @@ void CFileIO::close()
     }
 }
 
-void CFileIO::flush()
+void CFileIO::flush(bool syncWithDisk)
 {
-    if (!FlushFileBuffers(file))
+    if (syncWithDisk && !FlushFileBuffers(file))
         throw makeOsException(GetLastError(),"CFileIO::flush");
 }
 
@@ -2047,19 +2047,22 @@ void CFileIO::close()
     }
 }
 
-void CFileIO::flush()
+void CFileIO::flush(bool syncWithDisk)
 {
-    CriticalBlock procedure(cs);
+    if (syncWithDisk)
+    {
+        CriticalBlock procedure(cs);
 #ifdef F_FULLFSYNC
-    if (fcntl(file, F_FULLFSYNC) != 0)
+        if (fcntl(file, F_FULLFSYNC) != 0)
 #else
-    if (fdatasync(file) != 0)
+        if (fdatasync(file) != 0)
 #endif
-        throw makeOsException(DISK_FULL_EXCEPTION_CODE, "CFileIO::flush");
+            throw makeOsException(DISK_FULL_EXCEPTION_CODE, "CFileIO::flush");
 #ifdef POSIX_FADV_DONTNEED
-    if (extraFlags & IFEnocache)
-        posix_fadvise(file, 0, 0, POSIX_FADV_DONTNEED);
+        if (extraFlags & IFEnocache)
+            posix_fadvise(file, 0, 0, POSIX_FADV_DONTNEED);
 #endif
+    }
 }
 
 
@@ -2242,9 +2245,9 @@ offset_t CCheckingFileIO::appendFile(IFile *file,offset_t pos,offset_t len)
     return io->appendFile(file, pos, len);
 }
 
-void CCheckingFileIO::flush()
+void CCheckingFileIO::flush(bool syncWithDisk)
 {
-    io->flush();
+    io->flush(syncWithDisk);
 }
 
 void CCheckingFileIO::close()
@@ -2288,7 +2291,7 @@ CFileAsyncIO::~CFileAsyncIO()
     }
 }
 
-void CFileAsyncIO::flush()
+void CFileAsyncIO::flush(bool syncWithDisk)
 {
     // wait for all outstanding results
     CriticalBlock block(cs);
@@ -2296,6 +2299,8 @@ void CFileAsyncIO::flush()
         size32_t dummy;
         results.item(i).getResult(dummy,true);
     }
+
+    //if syncWithDisk?
 }
 
 offset_t CFileAsyncIO::appendFile(IFile *file,offset_t pos,offset_t len)
@@ -2380,7 +2385,7 @@ CFileAsyncIO::CFileAsyncIO(HANDLE handle, IFSHmode _sharemode)
 
 void CFileAsyncIO::close()
 {
-    flush();
+    flush(false);
     // wait for all outstanding results
     if (file != NULLFILE)
     {
@@ -2650,9 +2655,9 @@ CFileIOStream::CFileIOStream(IFileIO * _io)
 }
 
 
-void CFileIOStream::flush()
+void CFileIOStream::flush(bool syncWithDisk)
 {
-    io->flush();
+    io->flush(syncWithDisk);
 }
 
 
@@ -2705,9 +2710,9 @@ CNoSeekFileIOStream::CNoSeekFileIOStream(IFileIOStream * _stream) : stream(_stre
 }
 
 
-void CNoSeekFileIOStream::flush()
+void CNoSeekFileIOStream::flush(bool syncWithDisk)
 {
-    stream->flush();
+    stream->flush(syncWithDisk);
 }
 
 
@@ -2769,12 +2774,12 @@ public:
 
     CBufferedFileIOStreamBase(unsigned bufSize) : CBufferedIOStreamBase(bufSize), curOffset(0) { }
 
-    virtual void flush() { doflush(); }
+    virtual void flush(bool syncWithDisk) { doflush(syncWithDisk); }
 
 
 
 
-    void seek(offset_t pos, IFSmode origin)
+    virtual void seek(offset_t pos, IFSmode origin) override
     {
         offset_t newOffset = 0;
         switch (origin)
@@ -2808,7 +2813,7 @@ public:
                 curBufferOffset = (size32_t)(newOffset - curOffset);
                 return;
             }
-            flush();
+            flush(false);
         }
 
         curOffset = newOffset;
@@ -2816,7 +2821,7 @@ public:
         curBufferOffset = 0;
     }
 
-    offset_t size()
+    virtual offset_t size() override
     {
         offset_t curSize = directSize();
         if (!reading)
@@ -2824,19 +2829,19 @@ public:
         return curSize;
     }
 
-    offset_t tell()
+    virtual offset_t tell() override
     {
         if (reading)
             return curOffset - numInBuffer + curBufferOffset;
         return curOffset + curBufferOffset;
     }
 
-    size32_t read(size32_t len, void * data)
+    virtual size32_t read(size32_t len, void * data) override
     {
         return CBufferedIOStreamBase::doread(len, data);
     }
 
-    size32_t write(size32_t len, const void * data)
+    virtual size32_t write(size32_t len, const void * data) override
     {
         if (reading)
             curOffset -= bytesRemaining();
@@ -2857,12 +2862,12 @@ public:
     }
     ~CBufferedFileIOStream()
     {
-        flush();
+        flush(false);
         delete [] buffer;
     }
 
 protected:
-    virtual void doflush()
+    virtual void doflush(bool syncWithDisk) override
     {
         if (!reading && numInBuffer)
         {
@@ -2879,8 +2884,10 @@ protected:
             numInBuffer = 0;
             curBufferOffset = 0;
         }
+        if (!reading)
+            io->flush(syncWithDisk);
     }
-    virtual bool fillBuffer()
+    virtual bool fillBuffer() override
     {
         reading = true;
         numInBuffer = io->read(curOffset, bufferSize, buffer);
@@ -2888,20 +2895,20 @@ protected:
         curBufferOffset = 0;
         return numInBuffer!=0;
     }
-    virtual size32_t directRead(size32_t len, void * data)
+    virtual size32_t directRead(size32_t len, void * data) override
     {
         size32_t sz = io->read(curOffset,len,data);
         curOffset += sz;
         return sz;
     }
-    virtual size32_t directWrite(size32_t len, const void * data)
+    virtual size32_t directWrite(size32_t len, const void * data) override
     {
         size32_t sz = io->write(curOffset,len,data);
         curOffset += sz;
         return sz;
     }
-    virtual offset_t directSize() { return io->size(); }
-    virtual unsigned __int64 getStatistic(StatisticKind kind)
+    virtual offset_t directSize() override { return io->size(); }
+    virtual unsigned __int64 getStatistic(StatisticKind kind) override
     {
         return io->getStatistic(kind);
     }
@@ -2936,7 +2943,7 @@ public:
 
     ~CBufferedAsyncIOStream()
     {
-        flush();
+        flush(false);
         waitAsyncWrite();
         waitAsyncRead();
         delete [] blk1;
@@ -3000,7 +3007,7 @@ public:
             readeof = true;
         return !readeof;
     }
-    virtual void doflush()
+    virtual void doflush(bool syncWithDisk)
     {
         if (!reading && numInBuffer)
         {
@@ -3011,6 +3018,8 @@ public:
             numInBuffer = 0;
             curBufferOffset = 0;
         }
+        if (!reading)
+            io->flush(syncWithDisk);
     }
     virtual size32_t directRead(size32_t len, void * data) { assertex(false); return 0; }           // shouldn't get called
     virtual size32_t directWrite(size32_t len, const void * data) { assertex(false); return 0; }    // shouldn't get called
@@ -3074,9 +3083,9 @@ void CIOStreamReadWriteSeq::putn(const void *src, unsigned n)
     stream->write(size*n, src);
 }
 
-void CIOStreamReadWriteSeq::flush()
+void CIOStreamReadWriteSeq::flush(bool syncWithDisk)
 {
-    stream->flush();
+    stream->flush(syncWithDisk);
 }
 
 offset_t CIOStreamReadWriteSeq::getPosition()
@@ -6928,7 +6937,7 @@ public:
 
     virtual bool Release(void) const;
     
-    unsigned __int64 getStatistic(StatisticKind kind)
+    virtual unsigned __int64 getStatistic(StatisticKind kind)
     {
         CriticalBlock block(sect);
         unsigned __int64 openValue = cachedio ? cachedio->getStatistic(kind) : 0;
@@ -6955,11 +6964,11 @@ public:
         Owned<IFileIO> io = open();
         return io->write(pos,len,data);
     }
-    virtual void flush()
+    virtual void flush(bool syncWithDisk)
     {
         CriticalBlock block(sect);
         if (cachedio)
-            cachedio->flush();
+            cachedio->flush(syncWithDisk);
     }
     virtual void close()
     {

@@ -179,7 +179,7 @@ interface IFileIO : public IInterface
     virtual size32_t write(offset_t pos, size32_t len, const void * data) = 0;
     virtual offset_t appendFile(IFile *file,offset_t pos=0,offset_t len=(offset_t)-1) =0;
     virtual void setSize(offset_t size) = 0;
-    virtual void flush() = 0;
+    virtual void flush(bool syncWithDisk) = 0;
     virtual void close() = 0;       // no other access is allowed after this call
     virtual unsigned __int64 getStatistic(StatisticKind kind) = 0;
 };
@@ -197,7 +197,7 @@ interface IMemoryMappedFile: extends IInterface
     virtual offset_t fileSize()=0;          // size of total file
     virtual int compareWithin(const void *p)=0;   // return 0 if pointer within mapped section -1 if lt +1 if gt
     virtual bool writeAccess()=0;           // true if write enabled map
-    virtual void flush()=0;                 // flushed written buffers 
+    virtual void flush()=0;                 // flushed written buffers
     virtual byte *nextPtr(const void *ptr,offset_t skip, memsize_t extent, memsize_t &got)=0; // used to move about in partially mapped file
     virtual void reinit(offset_t ofs, memsize_t len=(memsize_t)-1, bool write=false)=0; // move map
 };

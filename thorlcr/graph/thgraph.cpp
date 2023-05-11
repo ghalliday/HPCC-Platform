@@ -79,7 +79,7 @@ class CThorGraphResult : implements IThorResult, implements IRowWriter, public C
         {
             rows.append(row);
         }
-        virtual void flush() { }
+        virtual void flush(bool syncWithDisk) { }
         virtual IRowStream *getReader()
         {
             return rows.createRowStream(0, (rowidx_t)-1, false);
@@ -111,7 +111,7 @@ public:
         ++rowStreamCount;
         rowBuffer->putRow(row);
     }
-    virtual void flush() { }
+    virtual void flush(bool syncWithDisk) { }
     virtual offset_t getPosition() { UNIMPLEMENTED; return 0; }
 
 // IThorResult

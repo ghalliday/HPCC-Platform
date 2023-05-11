@@ -514,7 +514,7 @@ public:
     }
 
 
-    void flush()
+    void flush(bool syncWithDisk)
     {
         // not needed?
     }
@@ -594,7 +594,7 @@ public:
             readTLKCRC();
         MemoryBuffer buff;
         buff.append(oldCRC).append(newCRC).append(patchCRC).append(tlkCRC);
-        stream->flush();
+        stream->flush(false);
         stream->seek(crcStreamPos, IFSbegin);
         stream->write(buff.length(), buff.toByteArray());
         crcHeadCRCs.reset();

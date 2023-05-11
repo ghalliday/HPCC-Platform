@@ -218,7 +218,7 @@ public:
     {
         throwUnexpected();
     }
-    virtual void flush()
+    virtual void flush(bool syncWithDisk)
     {
         throwUnexpected();
     }

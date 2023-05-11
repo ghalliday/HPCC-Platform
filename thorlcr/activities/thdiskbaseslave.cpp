@@ -461,12 +461,12 @@ void CDiskWriteSlaveActivityBase::close()
                         out->flush(&fileCRC);
                 }
                 else if (!abortSoon)
-                    out->flush();
+                    out->flush(false);
                 out.clear();
             }
             else if (outraw)
             {
-                outraw->flush();
+                outraw->flush(false);
                 uncompressedBytesWritten = outraw->tell();
                 outraw.clear();
             }

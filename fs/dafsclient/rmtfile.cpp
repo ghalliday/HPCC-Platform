@@ -1375,7 +1375,7 @@ public:
         return got;
     }
 
-    virtual void flush()
+    virtual void flush(bool syncWithDisk)
     {
     }
 
@@ -2243,7 +2243,7 @@ public:
     virtual size32_t write(offset_t pos, size32_t len, const void * data) override { throwUnexpected(); }
     virtual offset_t appendFile(IFile *file,offset_t pos=0,offset_t len=(offset_t)-1) override { throwUnexpected(); }
     virtual void setSize(offset_t size) override { throwUnexpected(); }
-    virtual void flush() override { throwUnexpected(); }
+    virtual void flush(bool syncWithDisk) override { throwUnexpected(); }
     virtual void close() override
     {
         PARENT::close(handle);

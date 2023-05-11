@@ -201,7 +201,7 @@ class CSkipLimitSlaveActivity : public CLimitSlaveActivityBase
             // Alternatively, could do via IDiskUsage whish smart buffer used to take...
             //throw MakeActivityException(this, 0, "SkipLimit(%" ACTPF "d) exceeded activity buffering limit", container.queryId());
         }
-        buf->flush();
+        buf->flush(false);
         sendResult(count);
         stopInput(0);
         rowcount_t total = container.queryLocal() ? count : getResult();

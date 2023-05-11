@@ -153,7 +153,7 @@ class DummyFileIOStream : public CInterfaceOf<IFileIOStream>
 {
 public:
     virtual size32_t read(size32_t max_len, void * data) override { throwUnexpected(); }
-    virtual void flush() override { }
+    virtual void flush(bool syncWithDisk) override { }
     virtual size32_t write(size32_t len, const void * data) override 
     {
         stats.ioWriteBytes.fetch_add(len);

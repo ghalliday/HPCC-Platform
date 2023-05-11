@@ -42,16 +42,16 @@ public:
 
     CUnbufferedReadWriteSeq(int _fh, offset_t offset, size32_t _size);
 
-    virtual void put(const void *src);
-    virtual void putn(const void *src, unsigned n);
-    virtual void flush();
-    virtual size32_t getRecordSize() { return size; }
-    virtual offset_t getPosition();
+    virtual void put(const void *src) override;
+    virtual void putn(const void *src, unsigned n) override;
+    virtual void flush(bool syncWithDisk) override;
+    virtual size32_t getRecordSize() override { return size; }
+    virtual offset_t getPosition() override;
 
-    virtual bool get(void *dst);
-    virtual unsigned getn(void *dst, unsigned n);
-    virtual void reset();
-    virtual void stop() {} // no action required
+    virtual bool get(void *dst) override;
+    virtual unsigned getn(void *dst, unsigned n) override;
+    virtual void reset() override;
+    virtual void stop() override {} // no action required
 };
 
 class CTeeWriteSeq : public IWriteSeq, public CInterface
@@ -66,11 +66,11 @@ public:
     CTeeWriteSeq(IWriteSeq *f1, IWriteSeq *f2);
     ~CTeeWriteSeq();
 
-    virtual void put(const void *src);
-    virtual void putn(const void *src, unsigned n);
-    virtual void flush();
-    virtual size32_t getRecordSize();
-    virtual offset_t getPosition();
+    virtual void put(const void *src) override;
+    virtual void putn(const void *src, unsigned n) override;
+    virtual void flush(bool syncWithDisk) override;
+    virtual size32_t getRecordSize() override;
+    virtual offset_t getPosition() override;
 };
 
 
@@ -103,7 +103,7 @@ protected:
     virtual bool fillBuffer()=0;
     virtual size32_t directRead(size32_t len, void * data)=0;
     virtual size32_t directWrite(size32_t len, const void * data)=0;
-    virtual void doflush()=0;
+    virtual void doflush(bool syncWithDisk)=0;
     size32_t doread(size32_t len, void * data);
     size32_t dowrite(size32_t len, const void * data);
 

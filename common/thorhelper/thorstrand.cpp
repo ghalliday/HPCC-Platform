@@ -1562,7 +1562,7 @@ public:
         }
     }
 
-    virtual void flush()
+    virtual void flush(bool syncWithDisk)
     {
         if (curBlock)
         {
@@ -1574,7 +1574,7 @@ public:
 
     virtual void noteStopped()
     {
-        flush();
+        flush(false);
         queue->noteWriterStopped();
     }
 

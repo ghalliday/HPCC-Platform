@@ -983,7 +983,7 @@ void writeDelta(StringBuffer &xml, IFile &iFile, const char *msg="", unsigned re
             }
             stream->seek(0, IFSend);
             stream->write(xml.length(), xml.str());
-            stream->flush();
+            stream->flush(false);
             stream.clear();
             offset_t fLen = lastGood + xml.length();
             unsigned crc = crc32(xml.str(), xml.length(), startCrc);
@@ -5521,10 +5521,10 @@ public:
 #else
                 toXML(root, *ios, 0, 0);
 #endif
-                ios->flush(); // ensure flushed outside of dtor (to ensure any exception thrown)
+                ios->flush(false); // ensure flushed outside of dtor (to ensure any exception thrown)
                 ios.clear();
                 fstream.clear();
-                crcPipeStream->flush(); // ensure flushed outside of dtor. NB: calls wrapped stream flush()
+                crcPipeStream->flush(false); // ensure flushed outside of dtor. NB: calls wrapped stream flush()
                 crc = crcPipeStream->queryCrc();
                 crcPipeStream.clear();
                 iFileIOTmpStore->close(); // ensure flushed outside of dtor

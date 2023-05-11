@@ -87,7 +87,7 @@ public:
         if (notify)
             notify->onInputFinished(count);
         if (smartbuf)
-            smartbuf->queryWriter()->flush();
+            smartbuf->queryWriter()->flush(false);
     }
 
     int run()
@@ -717,7 +717,7 @@ public:
     virtual offset_t appendFile(IFile *file,offset_t pos=0,offset_t len=-1) { return primaryio->appendFile(file, pos, len); }
     virtual unsigned __int64 getStatistic(StatisticKind kind) { return primaryio->getStatistic(kind); }
     virtual void setSize(offset_t size) { primaryio->setSize(size); }
-    virtual void flush() { primaryio->flush(); }
+    virtual void flush(bool syncWithDisk) { primaryio->flush(syncWithDisk); }
     virtual void close() 
     {
         checkAndHandleClose();

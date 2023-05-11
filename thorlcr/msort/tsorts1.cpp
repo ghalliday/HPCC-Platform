@@ -207,7 +207,7 @@ public:
                 OwnedConstThorRow row = iseq->nextRow();
                 if (!row) {
                     if (sent)
-                        out->flush();
+                        out->flush(false);
                     break;
                 }
                 out->putRow(row.getClear());     
