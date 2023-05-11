@@ -670,6 +670,7 @@ bool checkExternFoldable(IHqlExpression* expr, unsigned foldOptions, StringBuffe
                 throw MakeStringException(ERR_TMPLT_NONEXTERNCFUNC, "%s/%s is not declared as extern C, can't constant fold it", library.str(), entry.str());
             return false;
         }
+        DBGLOG("Resolving %s", mangledEntry.str());
         entry.set(mangledEntry);
     }
     return true;

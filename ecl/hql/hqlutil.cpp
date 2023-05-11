@@ -8604,14 +8604,17 @@ public:
     {
         IHqlExpression *body = funcdef->queryChild(0);
         IHqlExpression *formals = funcdef->queryChild(1);
+        ITypeInfo * retType = funcdef->queryType()->queryChildType();
 
-        enum { ServiceApi, RtlApi, BcdApi, CApi, LocalApi } api = ServiceApi;
+        enum { ServiceApi, RtlApi, BcdApi, CApi, CppApi, LocalApi } api = ServiceApi;
         if (body->hasAttribute(eclrtlAtom))
             api = RtlApi;
         else if (body->hasAttribute(bcdAtom))
             api = BcdApi;
         else if (body->hasAttribute(cAtom))
             api = CApi;
+        else if (body->hasAttribute(cppAtom))
+            api = CppApi;
         else if (body->hasAttribute(localAtom))
             api = LocalApi;
 
@@ -8629,7 +8632,16 @@ public:
         if (body->hasAttribute(oldSetFormatAtom))
             return false;
 
-        mangled.append("?").append(entrypoint).append("@@").append("Y");
+        StringBuffer element;
+        mangled.append("?");
+        lookupRepeat(mangled, entrypoint);
+        element.append(entrypoint).append("@");
+        StringBuffer namespaceValue;
+        getAttribute(body, namespaceAtom, namespaceValue);
+        if (namespaceValue.length())
+            lookupRepeat(mangled, namespaceValue);
+
+        mangled.append("@").append("Y");
         switch (api)
         {
         case CApi:
@@ -8646,7 +8658,6 @@ public:
 
         StringBuffer mangledReturn;
         StringBuffer mangledReturnParameters;
-        ITypeInfo * retType = funcdef->queryType()->queryChildType();
         mangleFunctionReturnType(mangledReturn, mangledReturnParameters, retType);
 
         mangled.append(mangledReturn);
@@ -8687,6 +8698,7 @@ protected:
         if (!type)
             return false;
 
+        StringBuffer complex;
         switch (type->getTypeCode())
         {
         case type_boolean:
@@ -8707,24 +8719,24 @@ protected:
         case type_utf8:
             if (type->getSize() == UNKNOWN_LENGTH)
                 result.append("I");
-            appendPtr(result, hasConst).append("D");
-            return true;
+            appendPtr(complex, hasConst).append("D");
+            break; // process complex
         case type_varstring:
-            appendPtr(result, hasConst).append("D");
-            return true;
+            appendPtr(complex, hasConst).append("D");
+            break; // process complex
         case type_data:
             if (type->getSize() == UNKNOWN_LENGTH)
                 result.append("I");
-            appendPtr(result, hasConst).append("X");
-            return true;
+            appendPtr(complex, hasConst).append("X");
+            break; // process complex
         case type_unicode:
             if (type->getSize() == UNKNOWN_LENGTH)
                 result.append("I");
-            appendPtr(result, hasConst).append("G");
-            return true;
+            appendPtr(complex, hasConst).append("G");
+            break; // process complex
         case type_varunicode:
-            appendPtr(result, hasConst).append("G");
-            return true;
+            appendPtr(complex, hasConst).append("G");
+            break; // process complex
         case type_char:
             result.append("D");
             return true;
@@ -8738,16 +8750,16 @@ protected:
         case type_table:
         case type_groupedtable:
             result.append("I"); // size32_t
-            appendPtr(result, hasConst).append("X");
-            return true;
+            appendPtr(complex, hasConst).append("X");
+            break; // process complex
         case type_set:
             result.append("_N");    // bool
             result.append("I"); // unsigned
-            appendPtr(result, hasConst).append("X");
-            return true;
+            appendPtr(complex, hasConst).append("X");
+            break; // process complex
         case type_row:
-            appendPtr(result, hasConst).append("E");
-            return true;
+            appendPtr(complex, hasConst).append("E");
+            break; // process complex
         case type_void:
             result.append("X");
             return true;
@@ -8761,6 +8773,11 @@ protected:
         case type_date:
             //may possibly have some support in the future, but not yet...
             return false;
+        }
+        if (complex.length())
+        {
+            lookupRepeat(result, complex);
+            return true;
         }
         throwUnexpected();
     }
@@ -8847,6 +8864,22 @@ protected:
             appendPtr(params, false).append(suffix);    // X *
         return params;
     }
+
+    StringArray repeatsSeen;
+    StringBuffer thisRepeat;
+    StringBuffer & lookupRepeat(StringBuffer & out, const char *typeStr)
+    {
+        ForEachItemIn(idx, repeatsSeen)
+        {
+            if (streq(repeatsSeen.item(idx), typeStr))
+                return out.append(idx);
+        }
+        if (repeatsSeen.length() < 9)
+            repeatsSeen.append(typeStr);
+
+        return out.append(typeStr).append("@");
+    }
+
 
 protected:
     StringAttr pointerBaseCode;

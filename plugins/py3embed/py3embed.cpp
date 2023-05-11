@@ -420,7 +420,7 @@ public:
             pythonLibrary = dlopen(modname.str(), RTLD_NOW|RTLD_GLOBAL);
 #endif
         // Initialize the Python Interpreter
-        Py_Initialize();
+        Py_InitializeEx(0);
         const wchar_t *argv[] = { nullptr };
         PySys_SetArgvEx(0, (wchar_t **) argv, 0);
         PyEval_InitThreads();
