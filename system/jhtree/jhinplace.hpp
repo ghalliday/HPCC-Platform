@@ -72,11 +72,13 @@ public:
 
 protected:
     bool allNextAreEnd() const;
+    bool allNextAreIdentical() const;
     unsigned appendRepeat(size32_t offset, size32_t copyOffset, byte repeatByte, size32_t repeatCount);
     void cacheSizes();
     void describeSquashed(StringBuffer & out);
     size32_t getMaxOffset();
     byte getSequentialOptionFlags() const;
+    bool matches(PartialMatch & other, bool ignoreLeadingByte) const;
 
 protected:
     PartialMatchBuilder * builder;
