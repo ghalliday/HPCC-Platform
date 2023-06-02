@@ -2157,23 +2157,23 @@ bool CInplaceLeafWriteNode::add(offset_t pos, const void * _data, size32_t size,
         ctx.numLeafNodes++;
     }
 
-    __uint64 savedMinPosition = minPosition;
-    __uint64 savedMaxPosition = maxPosition;
+    __uint64 savedMinPosition = positionInfo.minPosition;
+    __uint64 savedMaxPosition = positionInfo.maxPosition;
     const byte * data = (const byte *)_data;
     unsigned oldSize = getDataSize(true);
     builder.add(keyCompareLen, data);
 
     if (positions.ordinality())
     {
-        if (pos < minPosition)
-            minPosition = pos;
-        if (pos > maxPosition)
-            maxPosition = pos;
+        if (pos < positionInfo.minPosition)
+            positionInfo.minPosition = pos;
+        if (pos > positionInfo.maxPosition)
+            positionInfo.maxPosition = pos;
     }
     else
     {
-        minPosition = pos;
-        maxPosition = pos;
+        positionInfo.minPosition = pos;
+        positionInfo.maxPosition = pos;
     }
     positions.append(pos);
 
@@ -2291,8 +2291,8 @@ bool CInplaceLeafWriteNode::add(offset_t pos, const void * _data, size32_t size,
 
         builder.removeLast();
         positions.pop();
-        minPosition = savedMinPosition;
-        maxPosition = savedMaxPosition;
+        positionInfo.minPosition = savedMinPosition;
+        positionInfo.maxPosition = savedMaxPosition;
         unsigned nowSize = getDataSize(true);
         assertex(oldSize == nowSize);
 #ifdef TRACE_BUILDING
@@ -2339,7 +2339,7 @@ unsigned CInplaceLeafWriteNode::getDataSize(bool includePayload)
     //b) scaling by nodeSize if possible.
     //c) storing in the minimum number of bytes possible.
     unsigned bytesPerPosition = 0;
-    if (minPosition != maxPosition)
+    if (positionInfo.minPosition != positionInfo.maxPosition)
         bytesPerPosition = bytesRequired(maxPosition-minPosition);
 
     constexpr unsigned sizeOfCompressionMethodByte = 1;
@@ -2388,20 +2388,20 @@ void CInplaceLeafWriteNode::write(IFileIOStream *out, CRC32 *crc)
     {
         //Pack these by scaling and reducing the number of bytes
         unsigned bytesPerPosition = 0;
-        if (minPosition != maxPosition)
-            bytesPerPosition = bytesRequired(maxPosition-minPosition);
+        if (positionInfo.minPosition != positionInfo.maxPosition)
+            bytesPerPosition = bytesRequired(positionInfo.maxPosition-positionInfo.minPosition);
 
         byte sizeMask = (byte)bytesPerPosition;
         if (ctx.options.recompress)
             sizeMask |= NSFcompressTrailing;
 
         data.append(sizeMask);
-        serializePacked(data, minPosition);
+        serializePacked(data, positionInfo.minPosition);
         if (bytesPerPosition != 0)
         {
             for (unsigned i=0; i < positions.ordinality(); i++)
             {
-                unsigned __int64 delta = positions.item(i) - minPosition;
+                unsigned __int64 delta = positions.item(i) - positionInfo.minPosition;
                 serializeBytes(data, delta, bytesPerPosition);
             }
         }

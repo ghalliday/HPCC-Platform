@@ -236,6 +236,13 @@ protected:
     bool scaleFposByNodeSize = true;
 };
 
+
+struct LeafFilepositionInfo
+{
+    __uint64 minPosition = 0;
+    __uint64 maxPosition = 0;
+};
+
 class jhtree_decl CInplaceLeafWriteNode : public CInplaceWriteNode
 {
 public:
@@ -256,8 +263,7 @@ protected:
     MemoryAttr compressed;
     UnsignedArray payloadLengths;
     Unsigned64Array positions;
-    __uint64 minPosition = 0;
-    __uint64 maxPosition = 0;
+    LeafFilepositionInfo positionInfo;
     __uint64 firstSequence = 0;
     unsigned nodeSize;
     size32_t keyLen = 0;
