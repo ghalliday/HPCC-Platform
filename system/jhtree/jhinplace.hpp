@@ -241,6 +241,8 @@ struct LeafFilepositionInfo
 {
     __uint64 minPosition = 0;
     __uint64 maxPosition = 0;
+    unsigned scaleFactor = 0;
+    bool linear = true;
 };
 
 class jhtree_decl CInplaceLeafWriteNode : public CInplaceWriteNode

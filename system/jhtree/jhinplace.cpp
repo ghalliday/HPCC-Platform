@@ -1956,9 +1956,7 @@ bool CJHInplaceLeafNode::fetchPayload(unsigned int index, char *dst) const
         }
         if (keyHdr->hasSpecialFileposition())
         {
-            offset_t filePosition = minPosition;
-            if (bytesPerPosition > 0)
-                filePosition += readBytesEntry64(positionData, index, bytesPerPosition);
+            offset_t filePosition = getFPosAt(index);
             _cpyrev8(dst+len, &filePosition);
         }
     }
@@ -2157,18 +2155,30 @@ bool CInplaceLeafWriteNode::add(offset_t pos, const void * _data, size32_t size,
         ctx.numLeafNodes++;
     }
 
-    __uint64 savedMinPosition = positionInfo.minPosition;
-    __uint64 savedMaxPosition = positionInfo.maxPosition;
+    LeafFilepositionInfo savedPositionInfo = positionInfo;
     const byte * data = (const byte *)_data;
     unsigned oldSize = getDataSize(true);
     builder.add(keyCompareLen, data);
 
     if (positions.ordinality())
     {
+        if (positionInfo.linear)
+        {
+            if (pos != positions.tos() + 1)
+            {
+                positionInfo.linear = false;
+            }
+        }
+
         if (pos < positionInfo.minPosition)
             positionInfo.minPosition = pos;
         if (pos > positionInfo.maxPosition)
             positionInfo.maxPosition = pos;
+
+        if (!positionInfo.linear)
+        {
+            //MORE: could recalulate scaleFactor as a highest common factor which would help fixed size filepositions
+        }
     }
     else
     {
@@ -2291,8 +2301,7 @@ bool CInplaceLeafWriteNode::add(offset_t pos, const void * _data, size32_t size,
 
         builder.removeLast();
         positions.pop();
-        positionInfo.minPosition = savedMinPosition;
-        positionInfo.maxPosition = savedMaxPosition;
+        positionInfo = savedPositionInfo;
         unsigned nowSize = getDataSize(true);
         assertex(oldSize == nowSize);
 #ifdef TRACE_BUILDING
@@ -2340,10 +2349,13 @@ unsigned CInplaceLeafWriteNode::getDataSize(bool includePayload)
     //c) storing in the minimum number of bytes possible.
     unsigned bytesPerPosition = 0;
     if (positionInfo.minPosition != positionInfo.maxPosition)
-        bytesPerPosition = bytesRequired(maxPosition-minPosition);
+    {
+        if (!positionInfo.linear)
+            bytesPerPosition = bytesRequired(positionInfo.maxPosition-positionInfo.minPosition);
+    }
 
     constexpr unsigned sizeOfCompressionMethodByte = 1;
-    unsigned posSize = sizeOfCompressionMethodByte + sizePacked(minPosition) + bytesPerPosition * positions.ordinality() + sizePacked(firstSequence);
+    unsigned posSize = sizeOfCompressionMethodByte + sizePacked(positionInfo.minPosition) + bytesPerPosition * positions.ordinality() + sizePacked(firstSequence);
     unsigned offsetSize = payloadLengths.ordinality() * 2;  // MORE: Could probably compress, might fail if nodeSize > 64K
     unsigned payloadSize = 0;
     if ((keyLen != keyCompareLen) && includePayload)
@@ -2389,11 +2401,16 @@ void CInplaceLeafWriteNode::write(IFileIOStream *out, CRC32 *crc)
         //Pack these by scaling and reducing the number of bytes
         unsigned bytesPerPosition = 0;
         if (positionInfo.minPosition != positionInfo.maxPosition)
-            bytesPerPosition = bytesRequired(positionInfo.maxPosition-positionInfo.minPosition);
+        {
+            if (!positionInfo.linear)
+                bytesPerPosition = bytesRequired(positionInfo.maxPosition-positionInfo.minPosition);
+        }
 
         byte sizeMask = (byte)bytesPerPosition;
         if (ctx.options.recompress)
             sizeMask |= NSFcompressTrailing;
+        if (positionInfo.linear)
+            sizeMask |= NSFlinear;
 
         data.append(sizeMask);
         serializePacked(data, positionInfo.minPosition);
