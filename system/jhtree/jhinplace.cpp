@@ -395,6 +395,18 @@ unsigned __int64 readBytesEntry64(const byte * address, unsigned index, unsigned
 class PartialMatchBuilder;
 //---------------------------------------------------------------------------------------------------------------------
 
+#ifdef _DEBUG
+static unsigned globalSeq = 0;
+#endif
+
+PartialMatch::PartialMatch(PartialMatchBuilder * _builder, size32_t _len, const void * _data, unsigned _rowOffset, bool _isRoot)
+: builder(_builder), data(_len, _data), rowOffset(_rowOffset), isRoot(_isRoot)
+{
+#ifdef _DEBUG
+    seq = ++globalSeq;
+#endif
+}
+
 bool PartialMatch::allNextAreEnd() const
 {
     ForEachItemIn(i, next)
@@ -405,19 +417,28 @@ bool PartialMatch::allNextAreEnd() const
     return true;
 }
 
-bool PartialMatch::allNextAreIdentical() const
+bool PartialMatch::allNextAreIdentical(bool allowCache) const
 {
     unsigned max = next.ordinality();
     for (unsigned i = 1; i < max; i++)
     {
-        if (!next.item(0).matches(next.item(i), true))
+        if (!next.item(i).matches(next.item(i-1), true, allowCache))
             return false;
     }
     return true;
 }
 
-bool PartialMatch::matches(PartialMatch & other, bool ignoreLeadingByte) const
+bool PartialMatch::matches(PartialMatch & other, bool ignoreLeadingByte, bool allowCache)
 {
+#ifdef _DEBUG
+    //Always compare newer nodes with older nodes.
+    //This is because the cache of previous matches is invalidated when a new child node is added, and new items
+    //are always applied to the most recent entry at a given level.
+    assertex((int)(seq - other.seq) > 0);
+#endif
+    if (allowCache && prevMatch[ignoreLeadingByte] == &other)
+        return true;
+
     if (next.ordinality() != other.next.ordinality())
         return false;
 
@@ -432,13 +453,15 @@ bool PartialMatch::matches(PartialMatch & other, bool ignoreLeadingByte) const
             return false;
     }
 
-    //Check if all the next nodes are identical (including the leading byte)
-    ForEachItemIn(i, next)
+    //Check if all the next nodes are identical (including the leading byte).
+    //Walk in reverse since most recent is most likely to differ if it will eventually match
+    ForEachItemInRev(i, next)
     {
-        if (!next.item(i).matches(other.next.item(i), false))
+        if (!next.item(i).matches(other.next.item(i), false, allowCache))
             return false;
     }
 
+    prevMatch[ignoreLeadingByte] = &other;
     return true;
 }
 
@@ -467,7 +490,7 @@ void PartialMatch::cacheSizes()
         {
             size32_t offset = 0;
             byte sequentialFlags = getSequentialOptionFlags();
-            bool optimizeNext = allNextAreIdentical();
+            bool optimizeNext = allNextAreIdentical(true);
             maxCount = 0;
             for (unsigned i=0; i < numNext; i++)
             {
@@ -518,7 +541,7 @@ bool PartialMatch::combine(size32_t newLen, const byte * newData)
 
     if (matchLen || isRoot)
     {
-        dirty = true;
+        noteDirty();
         if (next.ordinality() == 0)
         {
             next.append(*new PartialMatch(builder, curLen - matchLen, curData + matchLen, rowOffset + matchLen, false));
@@ -567,9 +590,16 @@ size32_t PartialMatch::getMaxOffset()
     return maxOffset;
 }
 
-bool PartialMatch::removeLast()
+void PartialMatch::noteDirty()
 {
     dirty = true;
+    prevMatch[false] = nullptr;
+    prevMatch[true] = nullptr;
+}
+
+bool PartialMatch::removeLast()
+{
+    noteDirty();
     if (next.ordinality() == 0)
         return true; // merge with caller
     if (next.tos().removeLast())
@@ -647,7 +677,10 @@ void PartialMatch::serialize(MemoryBuffer & out)
             byte offsetBytes = maxOffset ? bytesRequired(maxOffset) : 0;
             byte countBytes = bytesRequired(getCount()-1);
             byte sequentialFlags = getSequentialOptionFlags();
-            bool optimizeNext = allNextAreIdentical();
+            bool optimizeNext = allNextAreIdentical(true);
+
+            //Check that the next are identical has not been cached incorrectly
+            assertex(allNextAreIdentical(false) == optimizeNext);
 
             byte sizeInfo = sequentialFlags | offsetBytes;
             if (getCount() != numNext)
@@ -945,7 +978,7 @@ void PartialMatch::trace(unsigned indent)
     text.appendf("%*s(%s[%s] %u:%u[%u] [%s]", indent, "", clean.str(), dataHex.str(), data.length(), squashedData.length(), getSize(), squashedText.str());
     if (next.ordinality())
     {
-        if (allNextAreIdentical())
+        if (allNextAreIdentical(true))
         {
             if (next.item(0).getCount() > 1)
                 text.append("!MDedup! ");
