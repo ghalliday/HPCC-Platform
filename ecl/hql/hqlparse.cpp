@@ -208,10 +208,15 @@ bool HqlLex::assertNextComma()
 }
 
 
-StringBuffer &HqlLex::getTokenText(StringBuffer &ret)
+StringBuffer &HqlLex::getTokenText(StringBuffer &ret, int tok, const attribute & returnToken)
 {
+    if (tok == DYNAMIC_STRING_CONST)
+    {
+        returnToken.queryExpr()->queryValue()->generateECL(ret);
+        return ret;
+    }
     if (inmacro)
-        return inmacro->getTokenText(ret);
+        return inmacro->getTokenText(ret, tok, returnToken);
     return ret.append(yyPosition - yyStartPos, yyBuffer+yyStartPos);
 }
 
@@ -450,7 +455,7 @@ void HqlLex::pushMacro(IHqlExpression *expr)
                     }
                 }
                 if (!done)
-                    getTokenText(curParam.append(' '));
+                    getTokenText(curParam.append(' '), tok, nextToken);
                 break;
             }
         case EOF:
@@ -463,7 +468,7 @@ void HqlLex::pushMacro(IHqlExpression *expr)
             break;
         default:
             curParam.append(' ');
-            getTokenText(curParam);
+            getTokenText(curParam, tok, nextToken);
             break;
         }
         nextToken.release();
@@ -586,7 +591,8 @@ void HqlLex::processEncrypted()
     StringBuffer encoded64;
     for (;;)
     {
-        if (yyLex(nextToken, LEXstring, 0) != STRING_CONST)
+        int tok = yyLex(nextToken, LEXstring, 0);
+        if ((tok != STRING_CONST) && (tok != DYNAMIC_STRING_CONST))
         {
             reportError(nextToken, ERR_EXPECTED, "String expected");
             nextToken.release();
@@ -662,7 +668,7 @@ bool HqlLex::getParameter(StringBuffer &curParam, const char* directive, const E
             return false;
         default:
             curParam.append(' ');
-            getTokenText(curParam);
+            getTokenText(curParam, tok, nextToken);
             break;
         }
         nextToken.release();
@@ -1208,7 +1214,7 @@ void HqlLex::doFor(attribute & returnToken, bool doAll)
         if (tok == HASHEND && !skipNesting)
             break;
         forBodyText.append(' ');
-        getTokenText(forBodyText);
+        getTokenText(forBodyText, tok, returnToken);
         returnToken.release();
     }
     ::Release(forLoop);
@@ -1247,7 +1253,7 @@ void HqlLex::doLoop(attribute & returnToken)
         if (tok == HASHEND && !skipNesting)
             break;
         forBodyText.append(' ');
-        getTokenText(forBodyText);
+        getTokenText(forBodyText, tok, returnToken);
         returnToken.release();
     }
     if (!hasHashbreak)
@@ -1266,7 +1272,7 @@ void HqlLex::doLoop(attribute & returnToken)
         checkNextLoop(true);
 }
 
-void HqlLex::doGetDataType(attribute & returnToken)
+int HqlLex::doGetDataType(attribute & returnToken)
 {
     ECLlocation location = returnToken.pos;
     const char * directive = "#GETDATATYPE";
@@ -1286,7 +1292,10 @@ void HqlLex::doGetDataType(attribute & returnToken)
 
     StringBuffer type;
     doGetDataType(type, curParam.str(), returnToken.pos.lineno, returnToken.pos.column);
+    returnToken.setExpr(createConstant(createStringValue(type.str(), type.length())));
+    return (DYNAMIC_STRING_CONST);
     pushText(type.str());
+    return INTERNAL_READ_NEXT_TOKEN;
 }
 
 StringBuffer& HqlLex::doGetDataType(StringBuffer & type, const char * text, int lineno, int column)
@@ -1294,13 +1303,11 @@ StringBuffer& HqlLex::doGetDataType(StringBuffer & type, const char * text, int 
     OwnedHqlExpr expr = parseECL(text, queryTopXmlScope(), lineno, column);
     if(expr)
     {
-        type.append('\'');
         if (expr->queryType())
             expr->queryType()->getECLType(type);
-        type.append('\'');
     }
     else
-        type.append("'unknown_type'");
+        type.append("unknown_type");
     return type;
 }
 
@@ -1427,7 +1434,7 @@ void HqlLex::doUniqueName(attribute & returnToken)
         if (tok == ',')
         {
             tok = yyLex(returnToken, LEXstring,0);
-            if (tok == STRING_CONST)
+            if ((tok == STRING_CONST) || (tok == DYNAMIC_STRING_CONST))
             {
                 StringBuffer text;
                 OwnedHqlExpr str = returnToken.getExpr();
@@ -1568,7 +1575,7 @@ void HqlLex::checkNextLoop(bool first)
 }
 
 
-void HqlLex::doPreprocessorLookup(const attribute & errpos, bool stringify, int extra)
+int HqlLex::doPreprocessorLookup(attribute & returnToken, bool stringify, int extra)
 {
     StringBuffer out;
 
@@ -1579,38 +1586,11 @@ void HqlLex::doPreprocessorLookup(const attribute & errpos, bool stringify, int 
 
     StringBuffer in;
     in.append(len, text);
-    bool matched = lookupXmlSymbol(errpos, in.str(), out);
+    bool matched = lookupXmlSymbol(returnToken, in.str(), out);
     if (stringify)
     {
-        char *expanded = (char *) malloc(out.length()*2 + 3); // maximum it could be (might be a bit big for alloca)
-        char *s = expanded;
-        *s++='\'';
-        const char *finger = out.str();
-        for (;;)
-        {
-            char c = *finger++;
-            if (!c)
-                break;
-            switch(c)
-            {
-            case '\r':
-                *s++='\\'; *s++ ='r';
-                break;
-            case '\n':
-                *s++='\\'; *s++ ='n';
-                break;
-            case '\\':
-            case '\'':
-                *s++='\\';
-                // fallthrough
-            default:
-                *s++=c;
-            }
-        }
-        *s++ = '\'';
-        *s = '\0';
-        pushText(expanded);
-        free(expanded);
+        returnToken.setExpr(createConstant(createStringValue(out.str(), out.length())));
+        return (DYNAMIC_STRING_CONST);
     }
     else
     {
@@ -1625,9 +1605,10 @@ void HqlLex::doPreprocessorLookup(const attribute & errpos, bool stringify, int 
         {
             //Don't report errors accessing attributes, but do complain about missing symbols
             if (!matched && (*text != '@'))
-                reportError(errpos, WRN_UNRESOLVED_SYMBOL, "Symbol %%%s not resolved", text);
+                reportError(returnToken, WRN_UNRESOLVED_SYMBOL, "Symbol %%%s not resolved", text);
             pushText(" 0");
         }
+        return INTERNAL_READ_NEXT_TOKEN;
     }
 }
 
@@ -1718,7 +1699,7 @@ bool HqlLex::getDefinedParameter(StringBuffer &curParam, attribute & returnToken
             curParam.append(' ');
             break;
         }
-        getTokenText(curParam);
+        getTokenText(curParam, tok, returnToken);
         returnToken.release();
     }
 }

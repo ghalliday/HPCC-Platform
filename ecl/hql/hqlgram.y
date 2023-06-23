@@ -566,6 +566,7 @@ static void eclsyntaxerror(HqlGram * parser, const char * s, short yystate, int 
   BOOL_CONST
   INTEGER_CONST
   STRING_CONST
+  DYNAMIC_STRING_CONST
   DATA_CONST
   REAL_CONST
   UNICODE_CONST
@@ -4652,7 +4653,7 @@ recordOptions
     ;
 
 recordOption
-    : LOCALE '(' STRING_CONST ')'
+    : LOCALE '(' stringConstExpr ')'
                         {
                             OwnedHqlExpr lExpr = $3.getExpr();
                             StringBuffer lstr;
@@ -5001,14 +5002,14 @@ fieldAttr
                         {
                             $$.setExpr(createExprAttribute(defaultAtom, $3.getExpr()), $1);
                         }
-    | STRING_CONST
+    | stringConstExpr
                         {
                             OwnedHqlExpr expr = $1.getExpr();
                             StringBuffer text;
                             getStringValue(text, expr);
                             $$.setExpr(createAttribute(createAtom(text.str())), $1);
                         }
-    | STRING_CONST '(' expression ')'
+    | stringConstExpr '(' expression ')'
                         {
                             parser->normalizeExpression($3);
                             OwnedHqlExpr expr = $1.getExpr();
@@ -12450,6 +12451,7 @@ const
 
 stringConstExpr
     : STRING_CONST
+    | DYNAMIC_STRING_CONST
     ;
 
 stringOrUnicodeConstExpr

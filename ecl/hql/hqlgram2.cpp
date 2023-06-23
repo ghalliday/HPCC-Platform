@@ -3438,6 +3438,7 @@ void HqlGram::processForwardModuleDefinition(const attribute & errpos)
         case SIMPLE_TYPE:
         case CPPBODY:
         case STRING_CONST:
+        case DYNAMIC_STRING_CONST:
         case REAL_CONST:
         case UNICODE_CONST:
         case DATA_CONST:
@@ -11860,6 +11861,7 @@ static void getTokenText(StringBuffer & msg, int token)
     case REAL_CONST:
     case INTEGER_CONST: msg.append("number"); break;
     case STRING_CONST: msg.append("string"); break;
+    case DYNAMIC_STRING_CONST: msg.append("string"); break;
     case UNICODE_CONST: msg.append("unicode-string"); break;
     case DATA_CONST: msg.append("constant"); break;
     case TYPE_LPAREN: msg.append("(>"); break;
@@ -11944,7 +11946,7 @@ void HqlGram::simplifyExpected(int *expected)
                        MATCHED, MATCHLENGTH, MATCHPOSITION, MATCHTEXT, MATCHUNICODE, MATCHUTF8, NOFOLD, NOHOIST, NOTHOR, OPT, REGEXFIND, REGEXREPLACE, RELATIONSHIP, SEQUENTIAL, SKIP, TOUNICODE, UNICODEORDER, UNSORTED,
                        KEYUNICODE, TOK_TRUE, TOK_FALSE, BOOL_CONST, NOT, EXISTS, WITHIN, LEFT, RIGHT, SELF, '[', HTTPCALL, SOAPCALL, ALL, TOK_ERROR, TOK_CATCH, __COMMON__, __COMPOUND__, RECOVERY, CLUSTERSIZE, CHOOSENALL, BNOT, STEPPED, ECLCRC, NAMEOF,
                        TOXML, TOJSON, '@', SECTION, EVENTEXTRA, EVENTNAME, __SEQUENCE__, IFF, OMITTED, GETENV, __DEBUG__, __STAND_ALONE__, LIKELY, UNLIKELY, 0);
-    simplify(expected, DATA_CONST, REAL_CONST, STRING_CONST, INTEGER_CONST, UNICODE_CONST, 0);
+    simplify(expected, DATA_CONST, REAL_CONST, STRING_CONST, DYNAMIC_STRING_CONST, INTEGER_CONST, UNICODE_CONST, 0);
     simplify(expected, VALUE_MACRO, DEFINITIONS_MACRO, 0);
     simplify(expected, DICTIONARY_ID, DICTIONARY_FUNCTION, DICTIONARY, 0);
     simplify(expected, ACTION_ID, ORDERED, 0); // more include other actions

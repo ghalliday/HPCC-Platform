@@ -524,8 +524,7 @@ xpathseq      ([^}\r\n])+
                         setupdatepos;
                         if (lexer->skipNesting || lexer->macroGathering)
                             return SKIPPED;
-                        lexer->doGetDataType(returnToken);
-                        return INTERNAL_READ_NEXT_TOKEN;
+                        return lexer->doGetDataType(returnToken);
                     }
 
 #INMODULE           {
@@ -1084,31 +1083,27 @@ __CONTAINERIZED__   {   setupdatepos;
                         setupdatepos;
                         if (lexer->skipNesting || lexer->macroGathering)
                             return SKIPPED;
-                        lexer->doPreprocessorLookup(returnToken, false, 0);
-                        return INTERNAL_READ_NEXT_TOKEN;
+                        return lexer->doPreprocessorLookup(returnToken, false, 0);
                     };
 
 {percent}'{alphanumcolon}*'{percent} {
                         setupdatepos;
                         if (lexer->skipNesting || lexer->macroGathering)
                             return SKIPPED;
-                        lexer->doPreprocessorLookup(returnToken, true, 1);
-                        return INTERNAL_READ_NEXT_TOKEN;
+                        return lexer->doPreprocessorLookup(returnToken, true, 1);
                     };
 {percent}\{{xpathseq}\}{percent} {
                         setupdatepos;
                         if (lexer->skipNesting || lexer->macroGathering)
                             return SKIPPED;
-                        lexer->doPreprocessorLookup(returnToken, false, 1);
-                        return INTERNAL_READ_NEXT_TOKEN;
+                        return lexer->doPreprocessorLookup(returnToken, false, 1);
                     };
 
 {percent}'\{{xpathseq}\}'{percent} {
                         setupdatepos;
                         if (lexer->skipNesting || lexer->macroGathering)
                             return SKIPPED;
-                        lexer->doPreprocessorLookup(returnToken, true, 2);
-                        return INTERNAL_READ_NEXT_TOKEN;
+                        return lexer->doPreprocessorLookup(returnToken, true, 2);
                     };
 INTEGER{digit}+ {
                       setupdatepos;

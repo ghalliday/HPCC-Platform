@@ -1154,7 +1154,7 @@ class HqlLex
         /* push back a string to the input */
         HqlLex*  getMacroLex() { return inmacro; }
         char *get_yyText(void);
-        StringBuffer &getTokenText(StringBuffer &);
+        StringBuffer & getTokenText(StringBuffer &ret, int tok, const attribute & returnToken);
         HqlLex* getParentLex() { return parentLex; }
         void setParentLex(HqlLex* pLex) { parentLex = pLex; }
         const char* getMacroName() { return (macroExpr) ? str(macroExpr->queryName()) : "<param>"; }
@@ -1269,7 +1269,7 @@ class HqlLex
         unsigned getTypeSize(unsigned lengthTypeName);
         static IHqlExpression * createIntegerConstant(__int64 value, bool isSigned);
 
-        void doPreprocessorLookup(const attribute & errpos, bool stringify, int extra);
+        int doPreprocessorLookup(attribute & returnToken, bool stringify, int extra);
         void doApply(attribute & returnToken);
         int doElse(attribute & returnToken, LexerFlags lookupFlags, const short * activeState, bool isElseIf);
         int doEnd(attribute & returnToken, LexerFlags lookupFlags, const short * activeState);
@@ -1285,7 +1285,7 @@ class HqlLex
         void doLine(attribute & returnToken);
         void doDeclare(attribute & returnToken);
         void doDefined(attribute & returnToken);
-        void doGetDataType(attribute & returnToken);
+        int doGetDataType(attribute & returnToken);
         bool doIsDefined(attribute & returnToken);
         void doIsValid(attribute & returnToken);
         void doInModule(attribute & returnToken);
