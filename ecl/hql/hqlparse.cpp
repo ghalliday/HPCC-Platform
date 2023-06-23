@@ -894,20 +894,17 @@ void HqlLex::doSet(attribute & returnToken, bool append)
         return;
     }
 
-    StringBuffer curParam("(");
-    if (getParameter(curParam, directive, location))
+    Owned<IValue> value;
+    if (getConstantParameter(value, directive, location))
     {
         reportError(returnToken, ERR_OPERANDS_TOOMANY, "Too many operands");
         skipRemainingParameters(directive, location);
     }
-    curParam.append(')');
-    IValue *value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope());
     if (value)
     {
         StringBuffer buf;
         value->getStringValue(buf);
         setXmlSymbol(returnToken, str(name), buf.str(), append);
-        value->Release();
     }
 }
 
@@ -922,37 +919,33 @@ void HqlLex::doLine(attribute & returnToken)
         returnToken.release();
         return;
     }
-    StringBuffer curParam("(");
-    bool moreParams = getParameter(curParam, directive, location);
-    curParam.append(')');
 
-    IValue *value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope());
+    Owned<IValue> value;
+    bool moreParams = getConstantParameter(value, directive, location);
+
     if (value && value->getTypeCode()==type_int)
     {
         returnToken.pos.lineno = yyLineNo = (int)value->getIntValue();
     }
     else
         reportError(returnToken, ERR_EXPECTED_CONST, "Constant integer expression expected");
-    ::Release(value);
 
     if (moreParams)
     {
         ECLlocation extrapos;
         getPosition(extrapos);
 
-        if (getParameter(curParam, directive, location))
+        Owned<IValue> value;
+        if (getConstantParameter(value, directive, location))
         {
             reportError(extrapos, ERR_OPERANDS_TOOMANY, "Too many operands");
             skipRemainingParameters(directive, location);
         }
-        curParam.append(')');
-        IValue *value = parseConstExpression(extrapos, curParam, queryTopXmlScope());
         if (value && value->getTypeCode()==type_string)
         {
             StringBuffer buf;
             value->getStringValue(buf);
             // MORE - set filename here
-            value->Release();
         }
         else
             reportError(returnToken, ERR_EXPECTED_CONST, "Constant string expression expected");
@@ -1033,6 +1026,7 @@ void HqlLex::doError(attribute & returnToken, bool isError)
         returnToken.release();
         return;
     }
+
     StringBuffer curParam("(");
     if (getParameter(curParam, directive, location))
     {
@@ -1042,12 +1036,12 @@ void HqlLex::doError(attribute & returnToken, bool isError)
     curParam.append(')');
     StringBuffer buf;
     OwnedIValue value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope());
+    //Odd behaviour, so can't replace with getConstantParameter
     if (value)
-    {
         value->getStringValue(buf);
-    }
     else
         buf.append(curParam.length()-2, curParam.str()+1);
+
     if (isError)
         reportError(returnToken, ERR_HASHERROR, "#ERROR: %s", buf.str());
     else
@@ -1135,15 +1129,13 @@ void HqlLex::doTrace(attribute & returnToken)
         returnToken.release();
         return;
     }
-    StringBuffer curParam("(");
 
-    if (getParameter(curParam, directive, location))
+    Owned<IValue> value;
+    if (getConstantParameter(value, directive, location))
     {
         reportError(returnToken, ERR_OPERANDS_TOOMANY, "Too many operands");
         skipRemainingParameters(directive, location);
     }
-    curParam.append(')');
-    Owned<IValue> value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope());
     if (value)
     {
         StringBuffer buf;
@@ -1324,6 +1316,7 @@ int HqlLex::doHashText(attribute & returnToken)
     bool moreParams = getParameter(parameterText, directive, location);
     if (!moreParams)
     {
+        //MORE: Count the number of spaces and then create the constant direct from the substring
         while (parameterText.length() && parameterText.charAt(0)==' ')
             parameterText.remove(0, 1);
     }
@@ -1853,19 +1846,16 @@ void HqlLex::doMangle(attribute & returnToken, bool de)
     if (tok != '(')
         reportError(returnToken, ERR_EXPECTED_LEFTCURLY, "( expected"); // MORE - make it fatal!
 
-    ECLlocation pos = returnToken.pos;
-    StringBuffer curParam("(");
-    if (getParameter(curParam, directive, location))
+    Owned<IValue> value;
+    if (getConstantParameter(value, directive, location))
     {
         reportError(returnToken, ERR_OPERANDS_TOOMANY, "too many operands");
         skipRemainingParameters(directive, location);
     }
-    curParam.append(')');
-    IValue *value = parseConstExpression(pos, curParam, queryTopXmlScope());
     if (value)
     {
-        const char *str = value->getStringValue(curParam.clear());
-        value->Release();
+        StringBuffer unmangled;
+        const char *str = value->getStringValue(unmangled);
 
         StringBuffer mangled;
         mangle(yyParser->errorHandler,str,mangled,de);
