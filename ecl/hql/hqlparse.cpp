@@ -662,9 +662,7 @@ bool HqlLex::getParameter(StringBuffer &curParam, const char* directive, const E
             curParam.append(',');
             break;
         case EOF:
-            {
-                reportError(location, ERR_TMPLT_EOFINPARAM, "EOF encountered while gathering parameters for %s", directive);
-            }
+            reportError(location, ERR_TMPLT_EOFINPARAM, "EOF encountered while gathering parameters for %s", directive);
             return false;
         default:
             curParam.append(' ');
@@ -675,12 +673,81 @@ bool HqlLex::getParameter(StringBuffer &curParam, const char* directive, const E
     }
 }
 
+bool HqlLex::getParameter(StringBuffer &curParam, const char* directive, const ECLlocation & location, int & single, attribute & singleToken)
+{
+    unsigned parenDepth = 1;
+    attribute nextToken;
+    single = 0;
+    for (;;)
+    {
+        int tok = yyLex(nextToken, LEXconstparam, 0);
+        switch(tok)
+        {
+        case '(':
+        case '[':
+            parenDepth++;
+            curParam.append((char) tok);
+            break;
+        case ')':
+            if (parenDepth==1)
+                return false;
+            // fallthrough
+        case ']':
+            parenDepth--;
+            curParam.append((char) tok);
+            break;
+        case ',':
+            if (parenDepth==1)
+                return true;
+            curParam.append(',');
+            break;
+        case EOF:
+            reportError(location, ERR_TMPLT_EOFINPARAM, "EOF encountered while gathering parameters for %s", directive);
+            return false;
+        default:
+            curParam.append(' ');
+            getTokenText(curParam, tok, nextToken);
+
+            if (single == 0)
+            {
+                single = tok;
+                singleToken.inherit(nextToken);
+            }
+            else
+                single = YY_LAST_TOKEN;
+            break;
+        }
+        nextToken.release();
+    }
+}
+
 bool HqlLex::getConstantParameter(Owned<IValue> & result, const char* directive, const ECLlocation & location)
 {
+    dbgassertex(!result);
     StringBuffer parameterText("(");
-    bool more = getParameter(parameterText, directive, location);
-    parameterText.append(')');
-    result.setown(parseConstExpression(location, parameterText, queryTopXmlScope()));
+    int singleTok;
+    attribute singleToken;
+    bool more = getParameter(parameterText, directive, location, singleTok, singleToken);
+    if (singleTok != YY_LAST_TOKEN)
+    {
+        switch (singleTok)
+        {
+        case TOK_TRUE:
+            result.setown(createBoolValue(true));
+            break;
+        case TOK_FALSE:
+            result.setown(createBoolValue(false));
+            break;
+        case DYNAMIC_STRING_CONST:
+            result.set(singleToken.queryExpr()->queryValue());
+            break;
+        }
+    }
+    if (!result)
+    {
+        parameterText.append(')');
+        result.setown(parseConstExpression(location, parameterText, queryTopXmlScope()));
+    }
     return more;
 }
 
@@ -1556,7 +1623,7 @@ void HqlLex::checkNextLoop(bool first)
 }
 
 
-int HqlLex::doPreprocessorLookup(attribute & returnToken, bool stringify, int extra)
+int HqlLex::doPreprocessorLookup(attribute & returnToken, bool stringify, int extra, unsigned lookupFlags)
 {
     StringBuffer out;
 

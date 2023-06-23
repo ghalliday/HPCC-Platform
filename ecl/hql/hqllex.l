@@ -70,6 +70,10 @@ extern void hex2str(char * target, const char * digits, unsigned len);
         if (mapped && LOOKUPSYM(mapped)) return mapped; \
         return lookupIdentifierToken(returnToken, lexer, lookupFlags, activeState, CUR_TOKEN_TEXT)
 
+#define RETURNBOOL(sym) \
+        setupdatepos; \
+        return likely(lookupFlags & (LEXresolve|LEXconstparam|LEXidentifier)) ? sym : UNKNOWN_ID;
+
 #define RETURNHARD(sym) \
         setupdatepos; return sym;
 
@@ -1083,27 +1087,27 @@ __CONTAINERIZED__   {   setupdatepos;
                         setupdatepos;
                         if (lexer->skipNesting || lexer->macroGathering)
                             return SKIPPED;
-                        return lexer->doPreprocessorLookup(returnToken, false, 0);
+                        return lexer->doPreprocessorLookup(returnToken, false, 0, lookupFlags);
                     };
 
 {percent}'{alphanumcolon}*'{percent} {
                         setupdatepos;
                         if (lexer->skipNesting || lexer->macroGathering)
                             return SKIPPED;
-                        return lexer->doPreprocessorLookup(returnToken, true, 1);
+                        return lexer->doPreprocessorLookup(returnToken, true, 1, lookupFlags);
                     };
 {percent}\{{xpathseq}\}{percent} {
                         setupdatepos;
                         if (lexer->skipNesting || lexer->macroGathering)
                             return SKIPPED;
-                        return lexer->doPreprocessorLookup(returnToken, false, 1);
+                        return lexer->doPreprocessorLookup(returnToken, false, 1, lookupFlags);
                     };
 
 {percent}'\{{xpathseq}\}'{percent} {
                         setupdatepos;
                         if (lexer->skipNesting || lexer->macroGathering)
                             return SKIPPED;
-                        return lexer->doPreprocessorLookup(returnToken, true, 2);
+                        return lexer->doPreprocessorLookup(returnToken, true, 2, lookupFlags);
                     };
 INTEGER{digit}+ {
                       setupdatepos;
@@ -1440,8 +1444,8 @@ UNSIGNED            {
                         return(UNSIGNED);
                     }
 
-TRUE                { RETURNSYM(TOK_TRUE); }
-FALSE               { RETURNSYM(TOK_FALSE); }
+TRUE                { RETURNBOOL(TOK_TRUE); }
+FALSE               { RETURNBOOL(TOK_FALSE); }
 
 AND                 { RETURNSYM(AND); }
 OR                  { RETURNSYM(OR); }

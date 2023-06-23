@@ -56,6 +56,7 @@ enum LexerFlags : unsigned
     LEXnumeric      = 0x00008,  // Do numeric tokens evaluate their value?
     LEXembed        = 0x00010,  // Create strings for the body of embedded code
     LEXexpand       = 0x00020,  // process #expand
+    LEXconstparam   = 0x00040,  // processing a constant parameter
 
     LEXall          = 0xFFFFFFFF,
     LEXnoresolve    = (LEXall & ~LEXresolve)
@@ -1260,6 +1261,7 @@ class HqlLex
         void pushText(IFileContents * text, int startLineNo, int startColumn);
         void pushText(const char *s, int startLineNo, int startColumn);
         bool getParameter(StringBuffer &curParam, const char* directive, const ECLlocation & location);
+        bool getParameter(StringBuffer &curParam, const char* directive, const ECLlocation & location, int & single, attribute & singleToken);
         bool getConstantParameter(Owned<IValue> & result, const char* directive, const ECLlocation & location);
         void skipRemainingParameters(const char * directive, const ECLlocation & location);
 
@@ -1272,7 +1274,7 @@ class HqlLex
         unsigned getTypeSize(unsigned lengthTypeName);
         static IHqlExpression * createIntegerConstant(__int64 value, bool isSigned);
 
-        int doPreprocessorLookup(attribute & returnToken, bool stringify, int extra);
+        int doPreprocessorLookup(attribute & returnToken, bool stringify, int extra, unsigned lookupFlags);
         void doApply(attribute & returnToken);
         int doElse(attribute & returnToken, LexerFlags lookupFlags, const short * activeState, bool isElseIf);
         int doEnd(attribute & returnToken, LexerFlags lookupFlags, const short * activeState);
