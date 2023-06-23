@@ -1260,6 +1260,9 @@ class HqlLex
         void pushText(IFileContents * text, int startLineNo, int startColumn);
         void pushText(const char *s, int startLineNo, int startColumn);
         bool getParameter(StringBuffer &curParam, const char* directive, const ECLlocation & location);
+        bool getConstantParameter(Owned<IValue> & result, const char* directive, const ECLlocation & location);
+        void skipRemainingParameters(const char * directive, const ECLlocation & location);
+
         IValue *foldConstExpression(const ECLlocation & errpos, IHqlExpression * expr, IXmlScope *xmlScope);
         IValue *parseConstExpression(const ECLlocation & errpos, StringBuffer &curParam, IXmlScope *xmlScope);
         IValue *parseConstExpression(const ECLlocation & errpos, IFileContents * contents, IXmlScope *xmlScope);

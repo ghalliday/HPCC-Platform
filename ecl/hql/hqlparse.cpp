@@ -675,6 +675,22 @@ bool HqlLex::getParameter(StringBuffer &curParam, const char* directive, const E
     }
 }
 
+bool HqlLex::getConstantParameter(Owned<IValue> & result, const char* directive, const ECLlocation & location)
+{
+    StringBuffer parameterText("(");
+    bool more = getParameter(parameterText, directive, location);
+    parameterText.append(')');
+    result.setown(parseConstExpression(location, parameterText, queryTopXmlScope()));
+    return more;
+}
+
+void HqlLex::skipRemainingParameters(const char * directive, const ECLlocation & location)
+{
+    StringBuffer dummy;
+    while (getParameter(dummy, directive, location))
+        ;
+}
+
 void HqlLex::doSkipUntilEnd(attribute & returnToken, const char* directive, const ECLlocation & location)
 {
     while (skipNesting)
@@ -699,16 +715,12 @@ void HqlLex::doIf(attribute & returnToken, bool isElseIf)
     if (tok != '(')
         reportError(returnToken, ERR_EXPECTED_LEFTCURLY, "( expected"); // MORE - make it fatal!
 
-    StringBuffer curParam("(");
-    if (getParameter(curParam, directive, location))
+    Owned<IValue> value;
+    if (getConstantParameter(value, directive, location))
     {
         reportError(returnToken, ERR_OPERANDS_TOOMANY, "too many operands");
-        StringBuffer dummy;
-        while (getParameter(dummy, directive, location))
-            ;
+        skipRemainingParameters(directive, location);
     }
-    curParam.append(')');
-    Owned<IValue> value = parseConstExpression(location, curParam, queryTopXmlScope());
     if (value && !value->getBoolValue())
     {
         setHashEndFlags(0);
@@ -842,16 +854,12 @@ void HqlLex::doExpand(attribute & returnToken)
         return;
     }
 
-    StringBuffer curParam("(");
-    if (getParameter(curParam, directive, location))
+    Owned<IValue> value;
+    if (getConstantParameter(value, directive, location))
     {
         reportError(returnToken, ERR_OPERANDS_TOOMANY, "Too many operands");
-        StringBuffer dummy;
-        while (getParameter(dummy, directive, location))
-            ;
+        skipRemainingParameters(directive, location);
     }
-    curParam.append(')');
-    Owned<IValue> value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope());
     if (value)
     {
         StringBuffer buf;
@@ -890,9 +898,7 @@ void HqlLex::doSet(attribute & returnToken, bool append)
     if (getParameter(curParam, directive, location))
     {
         reportError(returnToken, ERR_OPERANDS_TOOMANY, "Too many operands");
-        StringBuffer dummy;
-        while (getParameter(dummy, directive, location))
-            ;
+        skipRemainingParameters(directive, location);
     }
     curParam.append(')');
     IValue *value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope());
@@ -937,9 +943,7 @@ void HqlLex::doLine(attribute & returnToken)
         if (getParameter(curParam, directive, location))
         {
             reportError(extrapos, ERR_OPERANDS_TOOMANY, "Too many operands");
-            StringBuffer dummy;
-            while (getParameter(dummy, directive, location))
-                ;
+            skipRemainingParameters(directive, location);
         }
         curParam.append(')');
         IValue *value = parseConstExpression(extrapos, curParam, queryTopXmlScope());
@@ -1033,9 +1037,7 @@ void HqlLex::doError(attribute & returnToken, bool isError)
     if (getParameter(curParam, directive, location))
     {
         reportError(returnToken, ERR_OPERANDS_TOOMANY, "Too many operands");
-        StringBuffer dummy;
-        while (getParameter(dummy, directive, location))
-            ;
+        skipRemainingParameters(directive, location);
     }
     curParam.append(')');
     StringBuffer buf;
@@ -1138,9 +1140,7 @@ void HqlLex::doTrace(attribute & returnToken)
     if (getParameter(curParam, directive, location))
     {
         reportError(returnToken, ERR_OPERANDS_TOOMANY, "Too many operands");
-        StringBuffer dummy;
-        while (getParameter(dummy, directive, location))
-            ;
+        skipRemainingParameters(directive, location);
     }
     curParam.append(')');
     Owned<IValue> value = parseConstExpression(returnToken.pos, curParam, queryTopXmlScope());
@@ -1284,18 +1284,14 @@ int HqlLex::doGetDataType(attribute & returnToken)
     if (getParameter(curParam, directive, location))
     {
         reportError(returnToken, ERR_OPERANDS_TOOMANY, "too many operands");
-        StringBuffer dummy;
-        while (getParameter(dummy, directive, location))
-            ;
+        skipRemainingParameters(directive, location);
     }
     curParam.append(')');
 
     StringBuffer type;
     doGetDataType(type, curParam.str(), returnToken.pos.lineno, returnToken.pos.column);
     returnToken.setExpr(createConstant(createStringValue(type.str(), type.length())));
-    return (DYNAMIC_STRING_CONST);
-    pushText(type.str());
-    return INTERNAL_READ_NEXT_TOKEN;
+    return DYNAMIC_STRING_CONST;
 }
 
 StringBuffer& HqlLex::doGetDataType(StringBuffer & type, const char * text, int lineno, int column)
@@ -1334,9 +1330,7 @@ int HqlLex::doHashText(attribute & returnToken)
     else
     {
         reportError(returnToken, ERR_OPERANDS_TOOMANY, "Too many operands");
-        StringBuffer dummy;
-        while (getParameter(dummy, directive, location))
-            ;
+        skipRemainingParameters(directive, location);
     }
 
     returnToken.setExpr(createConstant(parameterText));
@@ -1360,11 +1354,7 @@ void HqlLex::doInModule(attribute & returnToken)
         if (getParameter(attrName, directive, location))
         {
             reportError(returnToken, ERR_OPERANDS_TOOMANY, "too many operands");
-
-            /* skip the rest */
-            StringBuffer dummy;
-            while (getParameter(dummy, directive, location))
-                ;
+            skipRemainingParameters(directive, location);
         }
     }
     else
@@ -1501,9 +1491,7 @@ void HqlLex::doIsValid(attribute & returnToken)
     if (getParameter(curParam, directive, location))
     {
         reportError(returnToken, ERR_OPERANDS_TOOMANY, "too many operands");
-        StringBuffer dummy;
-        while (getParameter(dummy, directive, location))
-            ;
+        skipRemainingParameters(directive, location);
     }
     curParam.append(')');
 
@@ -1590,7 +1578,7 @@ int HqlLex::doPreprocessorLookup(attribute & returnToken, bool stringify, int ex
     if (stringify)
     {
         returnToken.setExpr(createConstant(createStringValue(out.str(), out.length())));
-        return (DYNAMIC_STRING_CONST);
+        return DYNAMIC_STRING_CONST;
     }
     else
     {
@@ -1844,9 +1832,7 @@ void HqlLex::doApply(attribute & returnToken)
     if (getParameter(curParam, directive, location))
     {
         reportError(returnToken, ERR_OPERANDS_TOOMANY, "too many operands");
-        StringBuffer dummy;
-        while (getParameter(dummy, directive, location))
-            ;
+        skipRemainingParameters(directive, location);
     }
     curParam.append(')');
     OwnedHqlExpr actions = parseECL(curParam, queryTopXmlScope(), line, col);
@@ -1872,9 +1858,7 @@ void HqlLex::doMangle(attribute & returnToken, bool de)
     if (getParameter(curParam, directive, location))
     {
         reportError(returnToken, ERR_OPERANDS_TOOMANY, "too many operands");
-        StringBuffer dummy;
-        while (getParameter(dummy, directive, location))
-            ;
+        skipRemainingParameters(directive, location);
     }
     curParam.append(')');
     IValue *value = parseConstExpression(pos, curParam, queryTopXmlScope());
