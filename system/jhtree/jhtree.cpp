@@ -672,24 +672,30 @@ public:
     }
 };
 
-class CNodeMapping : public HTMapping<CNodeCacheEntry, CKeyIdAndPos>
+class CNodeMapping : public CInterface
 {
 public:
-    CNodeMapping(CKeyIdAndPos &fp, CNodeCacheEntry &et) : HTMapping<CNodeCacheEntry, CKeyIdAndPos>(et, fp) { }
-    ~CNodeMapping() { this->et.Release(); }
+    CNodeMapping(const CKeyIdAndPos &fp, const CJHTreeNode *_node) : key(fp), value(_node) { }
     const CJHTreeNode *queryNode()
     {
-        return queryElement().queryNode();
+        return value.queryNode();
     }
+
+    const CKeyIdAndPos & queryFindValue() const { return key; }
+    const void *queryFindParam() const { return &key; }
+
+    CNodeCacheEntry & queryElement() { return value; }
     CNodeCacheEntry &query() { return queryElement(); }
 
 //The following pointers are used to maintain the position in the LRU cache
     CNodeMapping * prev = nullptr;
     CNodeMapping * next = nullptr;
+    CKeyIdAndPos key;
+    CNodeCacheEntry value;
 };
 
 typedef OwningSimpleHashTableOf<CNodeMapping, CKeyIdAndPos> CNodeTable;
-class CNodeMRUCache : public CMRUCacheOf<CKeyIdAndPos, CNodeCacheEntry, CNodeMapping, CNodeTable>
+class CNodeMRUCache : public CMRUCacheOf<CKeyIdAndPos, CJHTreeNode, CNodeMapping, CNodeTable>
 {
     std::atomic<size32_t> sizeInMem{0};
     size32_t memLimit = 0;
@@ -2621,8 +2627,7 @@ const CJHTreeNode *CNodeCache::getNode(const INodeLoader *keyIndex, unsigned iD,
         cacheEntry = cache[cacheType].query(key);
         if (unlikely(!cacheEntry))
         {
-            cacheEntry = new CNodeCacheEntry;
-            cache[cacheType].replace(key, *cacheEntry);
+            cache[cacheType].replace(key, nullptr);
             alreadyExists = false;
         }
 
