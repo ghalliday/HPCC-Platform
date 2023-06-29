@@ -64,4 +64,4 @@ createSamples(iters, numRows) := FUNCTIONMACRO
     RETURN o;
 ENDMACRO;
 
-createSamples(40, 60000);
+createSamples(10, 60000);
