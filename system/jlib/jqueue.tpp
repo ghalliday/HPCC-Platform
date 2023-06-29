@@ -33,7 +33,7 @@ class QueueOf
     unsigned headp;
     unsigned tailp;
     unsigned max;
-    unsigned num;
+    RelaxedAtomic<unsigned> num; // atomic so that it can be read without a critical section
     void expand()
     {
         unsigned inc;
@@ -87,7 +87,7 @@ public:
             if (tailp==max)
                 tailp=0;
             ptrs[tailp] = e;
-            num++;
+            num.fastAdd(1); // Do not use increment which is atomic
         }
     }
     void enqueueHead(BASE *e)
@@ -100,7 +100,7 @@ public:
                 headp=max;
             headp--;
             ptrs[headp] = e;
-            num++;
+            num.fastAdd(1); // Do not use increment which is atomic
         }
     }
     void enqueue(BASE *e,unsigned i)
@@ -128,7 +128,7 @@ public:
                     p = n;
                 } while (p!=i);
                 ptrs[i] = e;
-                num++;
+                num.fastAdd(1); // Do not use increment which is atomic
             }
         }
     }
@@ -154,7 +154,7 @@ public:
         headp++;
         if (headp==max)
             headp = 0;
-        num--;
+        num.fastAdd(-1); // Do not use decrement which is atomic
         return ret;
     }
     BASE *dequeueTail()
@@ -165,7 +165,7 @@ public:
         if (tailp==0)
             tailp=max;
         tailp--;
-        num--;
+        num.fastAdd(-1); // Do not use decrement which is atomic
         return ret;
     }
     BASE *dequeue(unsigned i)
@@ -191,7 +191,7 @@ public:
         headp++;
         if (headp==max)
             headp = 0;
-        num--;
+        num.fastAdd(-1); // Do not use decrement which is atomic
         return ret;
     }
     void set(unsigned idx, BASE *v)
@@ -265,7 +265,7 @@ public:
     BASE *dequeue(unsigned i) { CriticalBlock b(crit); return QueueOf<BASE, ALLOWNULLS>::dequeue(i); }
     unsigned find(BASE *e) { CriticalBlock b(crit); return QueueOf<BASE, ALLOWNULLS>::find(e); }
     void dequeue(BASE *e) { CriticalBlock b(crit); return QueueOf<BASE, ALLOWNULLS>::dequeue(e); }
-    inline unsigned ordinality() const { CriticalBlock b(crit); return QueueOf<BASE, ALLOWNULLS>::ordinality(); }
+    inline unsigned ordinality() const { return QueueOf<BASE, ALLOWNULLS>::ordinality(); }
     void set(unsigned idx, BASE *e) { CriticalBlock b(crit); return QueueOf<BASE, ALLOWNULLS>::set(idx, e); }
 };
 
