@@ -25859,7 +25859,7 @@ public:
         ActivityTimer t(activityStats, timeActivities);
         for (;;)
         {
-            if (eof)
+            if (unlikely(eof))
                 return NULL;
             processAgentResults();
             if (ready.ordinality())
