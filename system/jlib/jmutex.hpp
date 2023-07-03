@@ -36,6 +36,8 @@ extern jlib_decl void spinUntilReady(std::atomic_uint &value);
 #define _ASSERT_LOCK_SUPPORT
 #endif
 
+#define _ASSERT_LOCK_SUPPORT
+
 #ifdef SPINLOCK_USE_MUTEX
 #define NRESPINLOCK_USE_SPINLOCK
 #endif
@@ -260,13 +262,16 @@ public:
 /**
  * Mutex locking wrapper. Use enter/leave to lock/unlock.
  */
-class CriticalSection 
+class jlib_decl CriticalSection
 {
 private:
     MutexId mutex;
 #ifdef _ASSERT_LOCK_SUPPORT
     ThreadId owner;
     unsigned depth;
+    unsigned contended = 0;
+    unsigned uncontended = 0;
+    bool wasContended = false;
 #endif
     CriticalSection (const CriticalSection &);  
 public:
@@ -297,6 +302,7 @@ public:
 
     inline void enter()
     {
+        ThreadId prevOwner = owner;
         pthread_mutex_lock(&mutex);
 #ifdef _ASSERT_LOCK_SUPPORT
         if (owner)
@@ -305,20 +311,37 @@ public:
             depth++;
         }
         else
+        {
+            wasContended = false;
             owner = GetCurrentThreadId();
+            if (prevOwner)
+            {
+                contended++;
+                wasContended = true;
+            }
+            else
+                uncontended++;
+        }
 #endif
     }
 
     inline void leave()
     {
+        bool savedWasContended = false;
 #ifdef _ASSERT_LOCK_SUPPORT
         assertex(owner==GetCurrentThreadId());
         if (depth)
             depth--;
         else
+        {
+            savedWasContended = wasContended;
+            wasContended = false;
             owner = 0;
+        }
 #endif
         pthread_mutex_unlock(&mutex);
+        if (savedWasContended)
+            reportContended();
     }
     inline void assertLocked()
     {
@@ -326,6 +349,7 @@ public:
         assertex(owner == GetCurrentThreadId());
 #endif
     }
+    void reportContended();
 };
 #endif
 

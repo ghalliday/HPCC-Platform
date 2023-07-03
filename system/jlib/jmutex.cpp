@@ -200,6 +200,17 @@ static void unlock_file(const char *lfpath)
     IERRLOG("NamedMutex cannot unlock file (%d)",errno);
 }
 
+static SpinLock sl;
+void CriticalSection::reportContended()
+{
+    if (contended * 2 > uncontended && contended % 1000 == 0)
+    {
+        SpinBlock block(sl);
+        DBGLOG("Heavily contended critsec %u/%u", contended, contended+uncontended);
+        printStackReport();
+    }
+}
+
 static CriticalSection lockPrefixCS;
 static StringBuffer lockPrefix;
 NamedMutex::NamedMutex(const char *name)
