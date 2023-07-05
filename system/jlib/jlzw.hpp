@@ -66,6 +66,8 @@ interface jlib_decl IExpander : public IInterface
     virtual void   expand(void *target)=0;
     virtual void * bufptr()=0;
     virtual size32_t buflen()=0;
+    virtual size32_t expandFirst(MemoryBuffer & target, const void * src) = 0;
+    virtual size32_t expandNext(MemoryBuffer & target) = 0;
 };
 
 

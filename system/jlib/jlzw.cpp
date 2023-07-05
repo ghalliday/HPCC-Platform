@@ -448,6 +448,20 @@ void CLZWCompressor::close()
     }
 }
 
+
+size32_t CExpanderBase::expandFirst(MemoryBuffer & target, const void * src)
+{
+    size32_t size = init(src);
+    void * buffer = target.reserve(size);
+    expand(buffer);
+    return size;
+}
+
+size32_t CExpanderBase::expandNext(MemoryBuffer & target)
+{
+    return 0;
+}
+
 CLZWExpander::CLZWExpander(bool _supportbigendian)
 {
     outbuf = NULL;
@@ -1467,7 +1481,7 @@ public:
 };
 
 
-class jlib_decl CRDiffExpander : public IExpander, public CInterface
+class jlib_decl CRDiffExpander : public CExpanderBase
 {
     unsigned char *outbuf;
     size32_t outlen;
@@ -1475,8 +1489,6 @@ class jlib_decl CRDiffExpander : public IExpander, public CInterface
     unsigned char *in;
     size32_t recsize;
 public:
-    IMPLEMENT_IINTERFACE;
-
     CRDiffExpander()
     {
         outbuf = NULL;
@@ -1985,10 +1997,13 @@ class CCompressedFile : implements ICompressedFileIO, public CInterface
     MemoryAttr prevrowbuf; 
     bool setcrc;
     bool writeException;
+    bool keepInputBlock = true; // depends on new expansion code
     Owned<ICompressor> compressor;
     Owned<IExpander> expander;
+    MemoryAttr compressedInputBlock;
     unsigned compMethod;
     offset_t lastFlushPos = (offset_t)-1;
+    offset_t nextExpansionPos = (offset_t)-1;
 
     unsigned indexNum() { return indexbuf.length()/sizeof(offset_t); }
 
@@ -2017,6 +2032,17 @@ class CCompressedFile : implements ICompressedFileIO, public CInterface
     void getblock(offset_t pos)
     {
         curblockbuf.clear();
+        if (pos == nextExpansionPos)
+        {
+            size32_t nextSize = expander->expandNext(curblockbuf);
+            if (nextSize != 0)
+            {
+                curblockpos = pos;
+                nextExpansionPos = pos+nextSize;
+                return;
+            }
+        }
+
         size32_t expsize;
         curblocknum = lookupIndex(pos,curblockpos,expsize);
         size32_t toread = trailer.blockSize;
@@ -2027,11 +2053,12 @@ class CCompressedFile : implements ICompressedFileIO, public CInterface
         if (!toread) 
             return;
         if (fileio) {
-            MemoryAttr comp;
-            void *b=comp.allocate(toread);
+            void * b = compressedInputBlock.allocate(trailer.blockSize);
             size32_t r = fileio->read(p,toread,b);
             assertex(r==toread);
             expand(b,curblockbuf,expsize);
+            if (!keepInputBlock)
+                compressedInputBlock.clear();
         }
         else { // memory mapped
             assertex((memsize_t)p==p);
@@ -2070,11 +2097,11 @@ class CCompressedFile : implements ICompressedFileIO, public CInterface
         }
         else { // lzw or fastlz or lz4
             assertex(expander.get());
-            size32_t exp = expander->init(compbuf);
+            size32_t exp = expander->expandFirst(expbuf, compbuf);
             if (exp!=expsize) {
                 throw MakeStringException(-1,"Compressed file format failure(%d,%d) - Encrypted?",exp,expsize);
             }
-            expander->expand(expbuf.reserve(exp));
+            nextExpansionPos = curblockpos + exp;
         }
     }
 
@@ -2224,6 +2251,9 @@ public:
                         compMethod = COMPRESS_METHOD_LZW;
                         expander.setown(createLZWExpander(true));
                     }
+                    //Preallocate the expansion target to the block size - to ensure it is the right size and
+                    //avoid reallocation when expanding lz4
+                    curblockbuf.reserve(trailer.blockSize);
                 }
             }
         }
@@ -2685,13 +2715,12 @@ public:
     virtual CompressionMethod getCompressionMethod() const override { return (CompressionMethod)(COMPRESS_METHOD_AES | comp->getCompressionMethod()); }
 };
 
-class CAESExpander : implements IExpander, public CInterface
+class CAESExpander : implements CExpanderBase
 {
     Owned<IExpander> exp;   // base expander
     MemoryBuffer compbuf;
     MemoryAttr key;
 public:
-    IMPLEMENT_IINTERFACE;
     CAESExpander(const void *_key, unsigned _keylen)
         : key(_keylen,_key)
     {

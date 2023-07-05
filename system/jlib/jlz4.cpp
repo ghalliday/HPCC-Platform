@@ -177,8 +177,9 @@ public:
 
 class jlib_decl CLZ4Expander : public CFcmpExpander
 {
+    size32_t totalExpanded = 0;
 public:
-    virtual void expand(void *buf)
+    virtual void expand(void *buf) override
     {
         if (!outlen)
             return;
@@ -221,6 +222,57 @@ public:
         }
     }
 
+    size32_t expandFirst(MemoryBuffer & target, const void * src)
+    {
+        init(src);
+        totalExpanded = 0;
+        return expandNext(target);
+    }
+
+    size32_t expandNext(MemoryBuffer & target)
+    {
+        if (totalExpanded == outlen)
+            return 0;
+
+        const size32_t szchunk = *in;
+        in++;
+
+        target.clear();
+        size32_t written;
+        if (szchunk+totalExpanded<outlen)
+        {
+            size32_t maxOut = target.capacity();
+            size32_t maxEstimate = (outlen - totalExpanded);
+            size32_t estimate = szchunk; // possible * 2/5 but don't want to expand too much
+            if (estimate > maxEstimate)
+                estimate = maxEstimate;
+            if (maxOut < estimate)
+                maxOut = estimate;
+
+            for (;;)
+            {
+                //MORE: How do we calculate the target buffer size?  Loop and repeat
+                written = LZ4_decompress_safe((const char *)in, (char *)target.reserve(maxOut), szchunk, maxOut);
+                if ((int)written > 0)
+                    break;
+
+                maxOut += szchunk; // Likely to quickly approach the actual expanded size
+                target.clear();
+            }
+        }
+        else
+        {
+            void * buf = target.reserve(szchunk);
+            written = szchunk;
+            memcpy(buf,in,szchunk);
+        }
+
+        in = (const size32_t *)(((const byte *)in)+szchunk);
+        totalExpanded += written;
+        if (totalExpanded > outlen)
+            throw MakeStringException(0, "LZ4Expander - corrupt data(3) %d %d",written,szchunk);
+        return written;
+    }
 };
 
 void LZ4CompressToBuffer(MemoryBuffer & out, size32_t len, const void * src)
