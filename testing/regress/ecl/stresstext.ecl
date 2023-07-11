@@ -26,6 +26,7 @@
 import ^ as root;
 multiPart := #IFDEFINED(root.multiPart, true);
 variant := #IFDEFINED(root.variant, '');
+numJoins := #IFDEFINED(root.numJoins, 40);
 
 //--- end of version configuration ---
 
@@ -64,4 +65,4 @@ createSamples(iters, numRows) := FUNCTIONMACRO
     RETURN o;
 ENDMACRO;
 
-createSamples(40, 60000);
+createSamples(numJoins, 60000);
