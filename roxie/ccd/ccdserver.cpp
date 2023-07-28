@@ -3483,6 +3483,16 @@ public:
         return ret;
     }
 
+    virtual bool getNext(void * target, int length) override
+    {
+        const void * next = getNext(length);
+        if (!next)
+            return false;
+        memcpy(target, next, length);
+        ReleaseRoxieRow(next);
+        return true;
+    }
+
 };
 
 // MORE - should possibly move more over to the lazy version used in indexread?
@@ -4298,11 +4308,17 @@ public:
             return mu->getNext(meta.getFixedSize());
         else
         {
+#if 0
             RecordLengthType *rowlen = (RecordLengthType *) mu->getNext(sizeof(RecordLengthType));
             if (rowlen)
             {
                 RecordLengthType len = *rowlen;
                 ReleaseRoxieRow(rowlen);
+#else
+            RecordLengthType len;
+            if (mu->getNext(&len, sizeof(RecordLengthType)))
+            {
+#endif
                 const void *agentRec = mu->getNext(len);
                 if (deserializer && mu->isSerialized())
                 {
@@ -23917,11 +23933,20 @@ public:
             EOFseen = true;
             return NULL;
         }
-        virtual bool atEOF() const
+        virtual bool getNext(void * target, int length) override
+        {
+            const void * next = getNext(length);
+            if (!next)
+                return false;
+            memcpy(target, next, length);
+            ReleaseRoxieRow(next);
+            return true;
+        }
+        virtual bool atEOF() const override
         {
             return EOFseen;
         }
-        virtual bool isSerialized() const
+        virtual bool isSerialized() const override
         {
             return false;
         }
@@ -26514,6 +26539,9 @@ public:
 
     void processCompletedGroups()
     {
+        if (groups.ordinality() == 0)
+            return;
+
         CriticalBlock c(groupsCrit);
         while (groups.ordinality())
         {

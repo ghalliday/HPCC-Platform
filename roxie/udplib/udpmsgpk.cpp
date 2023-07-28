@@ -454,6 +454,17 @@ public:
         return res;
     }
 
+    virtual bool getNext(void * target, int length) override
+    {
+        //MORE: Likely to be worth coding correctly
+        const void * next = getNext(length);
+        if (!next)
+            return false;
+        memcpy(target, next, length);
+        ReleaseRoxieRow(next);
+        return true;
+    }
+
 };
 
  

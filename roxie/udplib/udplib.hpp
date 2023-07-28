@@ -107,6 +107,7 @@ interface IMessageUnpackCursor : extends IInterface
     virtual const void *getNext(int length) = 0;
     virtual bool atEOF() const = 0;
     virtual bool isSerialized() const = 0;
+    virtual bool getNext(void * target, int length) = 0;
     //    if one tries to read past the last record then NULL will be returned, 
     //    if one asks for more data than available then throws exception.
 };

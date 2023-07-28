@@ -3174,6 +3174,19 @@ public:
         //No need for finalize since only contains plain data.
         return ret;
     }
+
+    virtual bool getNext(void * target, int length) override
+    {
+        if (pos==datalen)
+            return false;
+
+        assertex(pos + length <= datalen);
+        void * cur = ((char *) data) + pos;
+        pos += length;
+        memcpy(target, cur, length);
+        //No need for finalize since only contains plain data.
+        return true;
+    }
 };
 
 class CLocalMessageResult : implements IMessageResult, public CInterface
