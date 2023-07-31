@@ -6369,6 +6369,7 @@ IHqlExpression * CExprFolderTransformer::percolateConstants(IHqlExpression * exp
     return updated.getClear();
 }
 
+//static IHqlExpression * queryCombineRegex(IHqlExpression * left, IHqlExpression * right);
 IHqlExpression * CExprFolderTransformer::createTransformed(IHqlExpression * expr)
 {   
     if (foldOptions & HFOloseannotations)
@@ -6422,6 +6423,36 @@ IHqlExpression * CExprFolderTransformer::createTransformed(IHqlExpression * expr
                 dft.set(expr);
             else
             {
+                if (false)//op == no_or)
+                {
+                    unsigned max = transformedArgs.ordinality();
+                    for (unsigned i=max-1; i != 0; i--)
+                    {
+                        IHqlExpression & left = transformedArgs.item(i-1);
+                        IHqlExpression & right = transformedArgs.item(i);
+                        if ((left.getOperator() == no_regex_find) && (right.getOperator() == no_regex_find))
+                        {
+                            if ((left.queryChild(1) == right.queryChild(1)))
+                            {
+                                Owned<ITypeInfo> leftType = getStretchedType(UNKNOWN_LENGTH, left.queryChild(0)->queryType());
+                                Owned<ITypeInfo> rightType = getStretchedType(UNKNOWN_LENGTH, right.queryChild(0)->queryType());
+                                if (leftType == rightType)
+                                {
+                                    //MORE: check following parameters match
+                                    OwnedHqlExpr alternativePattern = createConstant("|");
+                                    HqlExprArray args;
+                                    args.append(OLINK(*left.queryChild(0)));
+                                    args.append(*ensureExprType(alternativePattern, leftType));
+                                    args.append(OLINK(*right.queryChild(0)));
+                                    OwnedHqlExpr combinedPattern = createUnbalanced(no_concat, leftType, args);
+                                    OwnedHqlExpr combinedRegexFind = replaceChild(&left, 0, combinedPattern);
+                                    transformedArgs.replace(*combinedRegexFind.getClear(), i-1);
+                                    transformedArgs.replace(*createConstant(false), i);
+                                }
+                            }
+                        }
+                    }
+                }
                 //Need to preserve the no_and/no_or structure so that cse/alias opportunities aren't lost.
                 //e.g.  x := a and b;    if (d and x and c, f(x), ...)
                 dft.setown(createListMatchStructure(op, expr, transformedArgs));
@@ -6511,6 +6542,34 @@ IHqlExpression * CExprFolderTransformer::createTransformed(IHqlExpression * expr
 
             if (result)
                 return cloneAnnotationAndTransform(expr, result);
+
+            if (false)//num > 1)
+            {
+                bool combined = false;
+                HqlExprArray mergedArgs;
+                mergedArgs.append(*LINK(expr->queryChild(0)));
+                for (unsigned i=1; i < num-1; i++)
+                {
+                    IHqlExpression & left = mergedArgs.tos();
+                    IHqlExpression * right = expr->queryChild(i);
+                    if (left.queryChild(1) == right->queryChild(1))
+                    {
+                        OwnedHqlExpr newCond = createBoolExpr(no_or, LINK(left.queryChild(0)), LINK(right->queryChild(0)));
+                        OwnedHqlExpr newMap = replaceChild(&left, 0, newCond);
+                        mergedArgs.pop();
+                        mergedArgs.append(*LINK(newMap));
+                        combined = true;
+                    }
+                    else
+                        mergedArgs.append(OLINK(*right));
+                }
+                if (combined)
+                {
+                    mergedArgs.append(*LINK(expr->queryChild(num)));
+                    OwnedHqlExpr mapped = expr->clone(mergedArgs);
+                    return transform(mapped);
+                }
+            }
             break;
         }
     case no_call:
