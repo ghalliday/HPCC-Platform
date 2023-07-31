@@ -4256,9 +4256,18 @@ BoundRow * HqlCppTranslator::buildDatasetIterate(BuildCtx & ctx, IHqlExpression 
                 bool special = false;
                 switch (values->getOperator())
                 {
+                //Any operator that always generates the result in a set is worth treating specially.
                 case no_getresult:
                 case no_null:
+                case no_regex_findset:
+                case no_call:
+                case no_externalcall:
+                case no_createset:
+                case no_select:
                     special = true;
+                    break;
+                default:
+                    DBGLOG("Not special %s", getOpString(values->getOperator()));
                     break;
                 }
                 if (special)
