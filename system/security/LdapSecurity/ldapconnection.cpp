@@ -466,13 +466,12 @@ public:
             for(int retries = 0; retries <= LDAPSEC_MAX_RETRIES; retries++)
             {
                 rc = LdapUtils::getServerInfo(hostbuf.str(), sysUserDN.str(), m_sysuser_password.str(), m_protocol, port, m_cipherSuite, dcbuf, m_serverType, ldapDomain, m_timeout);
-                if(!LdapServerDown(rc) || retries >= LDAPSEC_MAX_RETRIES)
+                if(rc != LDAP_TIMEOUT)
+                    break;
+                if (retries >= LDAPSEC_MAX_RETRIES)
                     break;
                 sleep(LDAPSEC_RETRY_WAIT);
-                if(retries < LDAPSEC_MAX_RETRIES)
-                {
-                    DBGLOG("LDAP AD Server %s temporarily unreachable for user %s on port %d, retrying...", hostbuf.str(), sysUserDN.str(), port);
-                }
+                DBGLOG("LDAP AD Server %s temporarily unreachable for user %s on port %d, retrying...", hostbuf.str(), sysUserDN.str(), port);
             }
             if (rc != LDAP_SUCCESS)
             {
@@ -991,11 +990,12 @@ public:
             for(int retries = 0; retries <= LDAPSEC_MAX_RETRIES; retries++)
             {
                 rc = connect(hostbuf.str(), proto);
-                if(!LdapServerDown(rc) || retries > LDAPSEC_MAX_RETRIES)
+                if(rc != LDAP_TIMEOUT)
+                    break;
+                if (retries >= LDAPSEC_MAX_RETRIES)
                     break;
                 sleep(LDAPSEC_RETRY_WAIT);
-                if(retries < LDAPSEC_MAX_RETRIES)
-                    DBGLOG("Server temporarily unreachable, retrying ...");
+                DBGLOG("Server temporarily unreachable, retrying ...");
             }
 
             if(rc == LDAP_SERVER_DOWN)
@@ -1968,11 +1968,12 @@ public:
                     LDAP_UNBIND(user_ld);
                 }
                 DBGLOG("finished LdapBind for user %s, rc=%d", username, rc);
-                if(!LdapServerDown(rc) || retries > LDAPSEC_MAX_RETRIES)
+                if(rc != LDAP_TIMEOUT)
+                    break;
+                if (retries >= LDAPSEC_MAX_RETRIES)
                     break;
                 sleep(LDAPSEC_RETRY_WAIT);
-                if(retries < LDAPSEC_MAX_RETRIES)
-                    DBGLOG("Server temporarily unreachable, retrying ...");
+                DBGLOG("Server temporarily unreachable, retrying ...");
                 // Retrying next ldap sever, might be the same server
                 m_ldapconfig->getLdapHost(hostbuf);
             }
