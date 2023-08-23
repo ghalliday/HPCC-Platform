@@ -1757,8 +1757,7 @@ void CJHInplaceTreeNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _f
         {
             //Always calculate payload location so we can perform a consistency check later on.
             originalPayload = queryPayload(originalData);
-            bool expandOnDemand = false;
-            if (!expandOnDemand && originalPayload)
+            if (!queryExpandPayloadOnDemand() && originalPayload)
             {
                 CompressionMethod payloadCompression = (CompressionMethod)*originalPayload;
                 switch (payloadCompression)
@@ -1827,6 +1826,7 @@ void CJHInplaceTreeNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _f
                 assertex(originalPayload && (originalPayload-originalData) == (data - (const byte *)keyBuf));
                 if (!keepCompressedPayload)
                     data = originalPayload;
+                const byte * startOfPayload = data;
                 CompressionMethod payloadCompression = (CompressionMethod)*data++;
                 size32_t compressedLen;
                 if (!isVariablePayload && (payloadCompression == COMPRESS_METHOD_NONE))
@@ -1852,41 +1852,48 @@ void CJHInplaceTreeNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _f
                     }
                     default:
                     {
-                        //Currently the uncompressed data is retained in memory after the node has been unpacked
-                        //A reduced size could be cloned if the data is compressed
-                        //
-                        //However, retaining the compressed original provides the scope to dynamically throw away
-                        //the decompressed data and re-expand from nodes cached in memory, and would also allow
-                        //the payload to be decompressed on demand (i.e. only if any keyed elements match)
-                        ICompressHandler * handler = queryCompressHandler(payloadCompression);
-                        assertex(handler);
-                        const char * options = nullptr;
-                        Owned<IExpander> exp = handler->getExpander(options);
-                        size32_t len = exp->init(data);
-                        data += compressedLen;
-
-                        size32_t trailingLen = 0;
-                        if (sizeMask & NSFcompressTrailing)
+                        if (queryExpandPayloadOnDemand())
                         {
-                            trailingLen = readPacked32(data);
+                            compressedPayload = startOfPayload;
                         }
-
-                        if (len || trailingLen)
+                        else
                         {
-                            payload = (byte *)malloc(len+trailingLen);
-                            expandedSize += (len+trailingLen);
-                            ownedPayload = true;
-                        }
+                            //Currently the uncompressed data is retained in memory after the node has been unpacked
+                            //A reduced size could be cloned if the data is compressed
+                            //
+                            //However, retaining the compressed original provides the scope to dynamically throw away
+                            //the decompressed data and re-expand from nodes cached in memory, and would also allow
+                            //the payload to be decompressed on demand (i.e. only if any keyed elements match)
+                            ICompressHandler * handler = queryCompressHandler(payloadCompression);
+                            assertex(handler);
+                            const char * options = nullptr;
+                            Owned<IExpander> exp = handler->getExpander(options);
+                            size32_t len = exp->init(data);
+                            data += compressedLen;
 
-                        if (len)
-                        {
-                            exp->expand(payload);
-                        }
+                            size32_t trailingLen = 0;
+                            if (sizeMask & NSFcompressTrailing)
+                            {
+                                trailingLen = readPacked32(data);
+                            }
 
-                        if (trailingLen)
-                        {
-                            memcpy(payload+len, data, trailingLen);
-                            data += trailingLen;
+                            if (len || trailingLen)
+                            {
+                                payload = (byte *)malloc(len+trailingLen);
+                                expandedSize += (len+trailingLen);
+                                ownedPayload = true;
+                            }
+
+                            if (len)
+                            {
+                                exp->expand(payload);
+                            }
+
+                            if (trailingLen)
+                            {
+                                memcpy(payload+len, data, trailingLen);
+                                data += trailingLen;
+                            }
                         }
                         break;
                     }
@@ -2007,29 +2014,63 @@ bool CJHInplaceLeafNode::fetchPayload(unsigned int index, char *dst) const
         }
         else
         {
+            size32_t payloadOffset;
+            size32_t payloadSize;
             if (payloadOffsets.ordinality())
             {
-                size32_t offset = 0;
+                payloadOffset = 0;
                 if (index)
-                    offset = payloadOffsets.item(index-1);
+                    payloadOffset = payloadOffsets.item(index-1);
                 size32_t endOffset = payloadOffsets.item(index);
-                size32_t copyLen = endOffset - offset;
-
-                if (copyLen)
-                {
-                    memcpy(dst + len, payload + offset, copyLen);
-                    len += copyLen;
-                }
+                payloadSize = endOffset - payloadOffset;
             }
             else
             {
                 //Fixed size payload...
-                unsigned payloadSize = keyLen - keyCompareLen;
-                if (likely(payloadSize))
+                payloadSize = keyLen - keyCompareLen;
+                payloadOffset = index * payloadSize;
+            }
+
+            if (likely(payloadSize))
+            {
+                if (payload)
                 {
-                    memcpy(dst + len, payload + index * payloadSize, payloadSize);
-                    len += payloadSize;
+                    memcpy(dst + len, payload + payloadOffset, payloadSize);
                 }
+                else
+                {
+                    //Expand the payload on demand.....
+                    //MORE: Cache previous expansions - needs to be thread safe, efficient, and not have false-positives
+
+                    byte * uncompressedPayload;
+                    MemoryAttr temp;
+                    {
+                        const byte * data = compressedPayload;
+                        CompressionMethod payloadCompression = (CompressionMethod)*data++;
+                        size32_t compressedLen = readPacked32(data);
+
+                        ICompressHandler * handler = queryCompressHandler(payloadCompression);
+                        assertex(handler);
+                        const char * options = nullptr;
+                        Owned<IExpander> exp = handler->getExpander(options);
+                        size32_t len = exp->init(data);
+                        data += compressedLen;
+
+                        size32_t trailingLen = 0;
+                        if (sizeMask & NSFcompressTrailing)
+                            trailingLen = readPacked32(data);
+
+                        uncompressedPayload = (byte *)temp.allocate(len+trailingLen);
+                        if (len)
+                            exp->expand(uncompressedPayload);
+
+                        if (trailingLen)
+                            memcpy(uncompressedPayload+len, data, trailingLen);
+                    }
+
+                    memcpy(dst + len, uncompressedPayload + payloadOffset, payloadSize);
+                }
+                len += payloadSize;
             }
         }
         if (keyHdr->hasSpecialFileposition())

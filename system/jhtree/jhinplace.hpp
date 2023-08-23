@@ -202,6 +202,7 @@ protected:
     const byte * positionData = nullptr;
     UnsignedArray payloadOffsets;
     byte * payload = nullptr;
+    const byte * compressedPayload = nullptr;
     unsigned __int64 firstSequence = 0;
     unsigned __int64 minPosition = 0;
     size32_t keyLen = 0;

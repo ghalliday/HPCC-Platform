@@ -76,6 +76,7 @@ bool useMemoryMappedIndexes = false;
 bool linuxYield = false;
 bool traceSmartStepping = false;
 bool flushJHtreeCacheOnOOM = true;
+bool expandPayloadOnDemand = false;
 std::atomic<unsigned __int64> branchSearchCycles{0};
 std::atomic<unsigned __int64> leafSearchCycles{0};
 
@@ -2528,13 +2529,17 @@ extern jhtree_decl size32_t setBlobCacheMem(size32_t cacheSize)
     return queryNodeCache()->setBlobCacheMem(cacheSize);
 }
 
-void setNodeFetchThresholdNs(__uint64 thresholdNs)
+static void setNodeFetchThresholdNs(__uint64 thresholdNs)
 {
     fetchThresholdCycles = nanosec_to_cycle(thresholdNs);
 }
 
-void setIndexWarningThresholds(IPropertyTree * options)
+void setIndexNodeOptions(IPropertyTree * options)
 {
+    if (options->hasProp("@nodeFetchThresholdNs"))
+        setNodeFetchThresholdNs(options->getPropInt64("@nodeFetchThresholdNs"));
+    expandPayloadOnDemand = options->getPropBool("@expandPayloadOnDemand", expandPayloadOnDemand);
+
     if (options->hasProp("@traceCacheLockingFrequencyNs"))
         traceCacheLockingFrequency = nanosec_to_cycle(options->getPropInt64("@traceCacheLockingFrequencyNs"));
     if (options->hasProp("@traceNodeLoadFrequencyNs"))
@@ -2549,6 +2554,11 @@ extern jhtree_decl void getNodeCacheInfo(ICacheInfoRecorder &cacheInfo)
 {
     // MORE - consider reporting root nodes of open IKeyIndexes too?
     queryNodeCache()->getCacheInfo(cacheInfo);
+}
+
+bool queryExpandPayloadOnDemand()
+{
+    return expandPayloadOnDemand;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

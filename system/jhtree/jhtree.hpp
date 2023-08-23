@@ -156,8 +156,7 @@ extern jhtree_decl void logCacheState();
 extern jhtree_decl size32_t setNodeCacheMem(size32_t cacheSize);
 extern jhtree_decl size32_t setLeafCacheMem(size32_t cacheSize);
 extern jhtree_decl size32_t setBlobCacheMem(size32_t cacheSize);
-extern jhtree_decl void setNodeFetchThresholdNs(__uint64 thresholdNs);
-extern jhtree_decl void setIndexWarningThresholds(IPropertyTree * options);
+extern jhtree_decl void setIndexNodeOptions(IPropertyTree * options);
 
 extern jhtree_decl void getNodeCacheInfo(ICacheInfoRecorder &cacheInfo);
 
@@ -333,6 +332,10 @@ extern jhtree_decl bool isIndexFile(IFileIO *fileIO);
 extern jhtree_decl bool isIndexFile(IFile *filename);
 
 extern jhtree_decl IIndexLookup *createIndexLookup(IKeyManager *keyManager);
+
+//Unexported functions.
+bool queryExpandPayloadOnDemand();
+
 
 #define JHTREE_KEY_NOT_SORTED JHTREE_ERROR_START
 
