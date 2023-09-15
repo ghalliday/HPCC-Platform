@@ -2004,7 +2004,7 @@ FUNCTIONMACRO|MACRO {
                     }
 
 
-.                   { setupdatepos; return (CUR_TOKEN_TEXT[0]); }
+.                   { setupdatepos; return ((const byte *)CUR_TOKEN_TEXT)[0]; }
 %%
 void HqlLex::doEnterEmbeddedMode(yyscan_t yyscanner)
 {

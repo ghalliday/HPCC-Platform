@@ -530,13 +530,17 @@ public:
     virtual const char * getText() override
     {
         ensureLoaded();
-        return (const char *)fileContents.get();
+        if (fileContents.length())
+            return (const char *)fileContents.get();
+        return "";
     }
     //NB: This is the string length, so subtract one to remove the null terminator
     virtual size32_t length() override
     { 
         ensureLoaded();
-        return (size32_t)(fileContents.length()-1);
+        if (fileContents.length())
+            return (size32_t)(fileContents.length()-1);
+        return 0;
     }
     virtual bool isImplicitlySigned() override
     {
