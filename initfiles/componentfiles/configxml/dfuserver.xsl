@@ -89,6 +89,7 @@
             <!--
             # Generated for configuration info. accessed by getGlobalConfig()
             -->
+            <xsl:copy-of select="tracing"/>
             <global>
               <storage>
                 <xsl:copy-of select="/Environment/Software/RemoteStorage/*"/>

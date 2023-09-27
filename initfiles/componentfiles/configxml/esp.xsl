@@ -61,6 +61,7 @@
         </xsl:choose>
     </xsl:variable>
 
+    <xsl:copy-of select="tracing"/>
     <xsl:template match="/Environment">
         <xsl:copy>
             <Software>

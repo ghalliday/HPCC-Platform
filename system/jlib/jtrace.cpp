@@ -813,7 +813,7 @@ private:
         {
 #ifdef TRACECONFIGDEBUG
             Owned<IPropertyTree> testTree;
-            if (!traceConfig || !traceConfig->hasProp("tracing"))
+            if (!traceConfig)
             {
                 const char * simulatedGlobalYaml = R"!!(global:
     tracing:
@@ -882,10 +882,11 @@ private:
 
 public:
     IMPLEMENT_IINTERFACE;
-    CTraceManager(const char * componentName, IPropertyTree * traceConfig)
+    CTraceManager(const char * componentName, IPropertyTree * componentConfig)
     {
+        assertex(componentConfig);
         moduleName.set(componentName);
-        initTracer(traceConfig);
+        initTracer(componentConfig->queryPropTree("tracing"));
 
         auto provider = opentelemetry::trace::Provider::GetTracerProvider();
         tracer = provider->GetTracer(moduleName.get());
@@ -934,9 +935,9 @@ MODULE_EXIT()
     theTraceManager.destroy();
 }
 
-void initTraceManager(const char * componentName, IPropertyTree * config)
+void initTraceManager(const char * componentName, IPropertyTree * componentConfig)
 {
-    theTraceManager.query([=] () { return new CTraceManager(componentName, config); });
+    theTraceManager.query([=] () { return new CTraceManager(componentName, componentConfig); });
 }
 
 ITraceManager & queryTraceManager()
