@@ -1411,7 +1411,7 @@ void EclCC::processSingleQuery(const EclRepositoryManager & localRepositoryManag
         if (exportDependencies || optMetaLocation)
             parseCtx.nestedDependTree.setown(createPTree("Dependencies", ipt_fast));
 
-        addTimeStamp(instance.wu, SSToperation, "compile:parse", StWhenStarted);
+        addTimeStamp(instance.wu, SSToperation, ">compile:>parse", StWhenStarted);
         try
         {
             HqlLookupContext ctx(parseCtx, &errorProcessor, instance.dataServer);
@@ -1464,10 +1464,10 @@ void EclCC::processSingleQuery(const EclRepositoryManager & localRepositoryManag
             unsigned __int64 parseTimeNs = cycle_to_nanosec(get_cycles_now() - startCycles);
             instance.stats.parseTime = (unsigned)nanoToMilli(parseTimeNs);
 
-            updateWorkunitStat(instance.wu, SSToperation, "compile:parse", StTimeElapsed, NULL, parseTimeNs);
+            updateWorkunitStat(instance.wu, SSToperation, ">compile:>parse", StTimeElapsed, NULL, parseTimeNs);
             stat_type sourceDownloadTime = localRepositoryManager.getStatistic(StTimeElapsed);
             if (sourceDownloadTime)
-                updateWorkunitStat(instance.wu, SSToperation, "compile:parse:download", StTimeElapsed, NULL, sourceDownloadTime);
+                updateWorkunitStat(instance.wu, SSToperation, ">compile:>parse:>download", StTimeElapsed, NULL, sourceDownloadTime);
 
             if (optExtraStats)
             {
