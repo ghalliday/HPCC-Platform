@@ -29,6 +29,8 @@
 #define FileScopePrefix "p"
 #define ChannelScopePrefix "x"
 #define DFUWorkunitScopePrefix "D"
+#define SectionScopePrefix "n"
+#define OperationScopePrefix ">"
 
 #define MATCHES_CONST_PREFIX(search, prefix) (strncmp(search, prefix, strlen(prefix)) == 0)
 

@@ -72,7 +72,7 @@ void setStatisticsComponentName(StatisticCreatorType processType, const char * p
 // Textual forms of the different enumerations, first items are for none and all.
 static constexpr const char * const measureNames[] = { "", "all", "ns", "ts", "cnt", "sz", "cpu", "skw", "node", "ppm", "ip", "cy", "en", "txt", "bool", "id", "fname", "cost", NULL };
 static constexpr const char * const creatorTypeNames[]= { "", "all", "unknown", "hthor", "roxie", "roxie:s", "thor", "thor:m", "thor:s", "eclcc", "esp", "summary", NULL };
-static constexpr const char * const scopeTypeNames[] = { "", "all", "global", "graph", "subgraph", "activity", "allocator", "section", "compile", "dfu", "edge", "function", "workflow", "child", "file", "channel", "unknown", nullptr };
+static constexpr const char * const scopeTypeNames[] = { "", "all", "global", "graph", "subgraph", "activity", "allocator", "section", "stage", "dfu", "edge", "function", "workflow", "child", "file", "channel", "unknown", nullptr };
 
 static unsigned matchString(const char * const * names, const char * search, unsigned dft)
 {
@@ -1431,6 +1431,10 @@ StringBuffer & StatsScopeId::getScopeText(StringBuffer & out) const
         return out.append(ChannelScopePrefix).append(id);
     case SSTdfuworkunit:
         return out.append(DFUWorkunitScopePrefix).append(name);
+    case SSTsection:
+        return out.append(SectionScopePrefix).append(name);
+    case SSToperation:
+        return out.append(OperationScopePrefix).append(name);
     case SSTunknown:
         return out.append(name);
     case SSTglobal:
@@ -1673,6 +1677,11 @@ bool StatsScopeId::setScopeText(const char * text, const char * * _next)
             setChildGraphId(strtoul(text+ strlen(ChildGraphScopePrefix), next, 10));
             return true;
         }
+        if (MATCHES_CONST_PREFIX(text, "compile"))
+        {
+            setOperationId("compile");
+            return true;
+        }
         break;
     case ChannelScopePrefix[0]:
         if (MATCHES_CONST_PREFIX(text, ChannelScopePrefix) && isdigit(text[strlen(ChannelScopePrefix)]))
@@ -1685,6 +1694,24 @@ bool StatsScopeId::setScopeText(const char * text, const char * * _next)
         if (MATCHES_CONST_PREFIX(text, DFUWorkunitScopePrefix))
         {
             setDfuWorkunitId(text+ strlen(DFUWorkunitScopePrefix));
+            if (_next)
+                *_next = text + strlen(text);
+            return true;
+        }
+        break;
+    case SectionScopePrefix[0]:
+        if (MATCHES_CONST_PREFIX(text, SectionScopePrefix))
+        {
+            setSectionId(text+strlen(SectionScopePrefix));
+            if (_next)
+                *_next = text + strlen(text);
+            return true;
+        }
+        break;
+    case OperationScopePrefix[0]:
+        if (MATCHES_CONST_PREFIX(text, OperationScopePrefix))
+        {
+            setOperationId(text+strlen(OperationScopePrefix));
             if (_next)
                 *_next = text + strlen(text);
             return true;
@@ -1760,6 +1787,17 @@ void StatsScopeId::setDfuWorkunitId(const char * _name)
     scopeType = SSTdfuworkunit;
     name.set(_name);
 }
+void StatsScopeId::setSectionId(const char * _name)
+{
+    scopeType = SSTsection;
+    name.set(_name);
+}
+void StatsScopeId::setOperationId(const char * _name)
+{
+    scopeType = SSToperation;
+    name.set(_name);
+}
+
 //--------------------------------------------------------------------------------------------------------------------
 
 enum
