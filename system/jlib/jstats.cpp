@@ -72,7 +72,7 @@ void setStatisticsComponentName(StatisticCreatorType processType, const char * p
 // Textual forms of the different enumerations, first items are for none and all.
 static constexpr const char * const measureNames[] = { "", "all", "ns", "ts", "cnt", "sz", "cpu", "skw", "node", "ppm", "ip", "cy", "en", "txt", "bool", "id", "fname", "cost", NULL };
 static constexpr const char * const creatorTypeNames[]= { "", "all", "unknown", "hthor", "roxie", "roxie:s", "thor", "thor:m", "thor:s", "eclcc", "esp", "summary", NULL };
-static constexpr const char * const scopeTypeNames[] = { "", "all", "global", "graph", "subgraph", "activity", "allocator", "section", "stage", "dfu", "edge", "function", "workflow", "child", "file", "channel", "unknown", nullptr };
+static constexpr const char * const scopeTypeNames[] = { "", "all", "global", "graph", "subgraph", "activity", "allocator", "section", "operation", "dfu", "edge", "function", "workflow", "child", "file", "channel", "unknown", nullptr };
 
 static unsigned matchString(const char * const * names, const char * search, unsigned dft)
 {
@@ -1452,8 +1452,11 @@ unsigned StatsScopeId::getHash() const
     switch (scopeType)
     {
     case SSTfunction:
-    case SSTunknown:
     case SSTdfuworkunit:
+    case SSTfile:
+    case SSTsection:
+    case SSToperation:
+    case SSTunknown:
         return hashcz((const byte *)name.get(), (unsigned)scopeType);
     default:
         return hashc((const byte *)&id, sizeof(id), (unsigned)scopeType);
@@ -1501,9 +1504,11 @@ void StatsScopeId::describe(StringBuffer & description) const
     case SSTedge:
         description.append(' ').append(id).append(',').append(extra);
         break;
-    case SSTfile:
     case SSTfunction:
     case SSTdfuworkunit:
+    case SSTfile:
+    case SSTsection:
+    case SSToperation:
         description.append(' ').append(name);
         break;
     default:
@@ -1550,9 +1555,11 @@ void StatsScopeId::deserialize(MemoryBuffer & in, unsigned version)
         in.read(id);
         in.read(extra);
         break;
-    case SSTfile:
     case SSTfunction:
     case SSTdfuworkunit:
+    case SSTfile:
+    case SSTsection:
+    case SSToperation:
         in.read(name);
         break;
     default:
@@ -1578,9 +1585,11 @@ void StatsScopeId::serialize(MemoryBuffer & out) const
         out.append(id);
         out.append(extra);
         break;
-    case SSTfile:
     case SSTfunction:
     case SSTdfuworkunit:
+    case SSTfile:
+    case SSTsection:
+    case SSToperation:
         out.append(name);
         break;
     default:
