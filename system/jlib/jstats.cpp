@@ -106,7 +106,7 @@ static const StatisticScopeType scoreOrder[] = {
     SSTsubgraph,
     SSTallocator,
     SSTsection,
-    SSTcompilestage,
+    SSToperation,
     SSTdfuworkunit,
     SSTfunction,
     SSTworkflow,
@@ -554,7 +554,7 @@ StatisticScopeType getScopeType(const char * scope)
     if (nullptr == scope)
         id.setId(SSTglobal, 0);
     else if (startsWith(scope, "compile"))
-        id.setId(SSTcompilestage, 0);
+        id.setId(SSToperation, 0);
     else
     {
         const char * colon = strchr(scope, ':');

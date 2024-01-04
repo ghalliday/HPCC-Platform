@@ -1465,8 +1465,8 @@ void HqlLookupContext::reportTiming(const char * name)
 
         StringBuffer scope;
         scope.append("compiler::parse::").append(name);
-        parseCtx.statsTarget.addStatistic(SSTcompilestage, scope, StTimeTotalExecute, nullptr, totalTime, 1, 0, StatsMergeSum);
-        parseCtx.statsTarget.addStatistic(SSTcompilestage, scope, StTimeLocalExecute, nullptr, localTime, 1, 0, StatsMergeSum);
+        parseCtx.statsTarget.addStatistic(SSToperation, scope, StTimeTotalExecute, nullptr, totalTime, 1, 0, StatsMergeSum);
+        parseCtx.statsTarget.addStatistic(SSToperation, scope, StTimeLocalExecute, nullptr, localTime, 1, 0, StatsMergeSum);
 
         childCycles = 0;
     }

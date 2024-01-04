@@ -6245,7 +6245,7 @@ bool HqlCppTranslator::buildCpp(IHqlCppInstance & _code, HqlQueryContext & query
 void HqlCppTranslator::ensureWorkUnitUpdated()
 {
     if (timeReporter)
-        updateWorkunitTimings(wu(), SSTcompilestage, StTimeTotalExecute, timeReporter);
+        updateWorkunitTimings(wu(), SSToperation, StTimeTotalExecute, timeReporter);
 }
 
 double HqlCppTranslator::getComplexity(IHqlExpression * expr, ClusterType cluster)
