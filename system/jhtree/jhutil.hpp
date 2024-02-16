@@ -46,6 +46,7 @@ protected:
             if (!tail)
                 break;
             table.removeExact(tail);
+            numEvictions.fastInc();
             if ((-1 != count) && (0 == --count))
                 break;
         }
@@ -62,6 +63,7 @@ public:
         MAPPING * mapping = new MAPPING(key, entry); // owns entry
         table.replace(*mapping);
         mruList.enqueueHead(mapping);
+        numAdds.fastInc();
     }
     unsigned getKeyHash(KEY & key) const
     {
@@ -71,6 +73,7 @@ public:
     {
         MAPPING *mapping = table.find(key);
         if (!mapping) return NULL;
+        numHits.fastInc();
 
         if (doPromote)
             promote(mapping);
@@ -80,6 +83,7 @@ public:
     {
         MAPPING *mapping = table.find(hashcode, *key);
         if (!mapping) return NULL;
+        numHits.fastInc();
 
         if (doPromote)
             promote(mapping);
@@ -95,6 +99,7 @@ public:
         if (!table.removeExact(_mapping))
             return false;
         mruList.dequeue(mapping);
+        numRemovals.fastInc();
         return true;
     }
     bool remove(KEY key)
@@ -104,6 +109,7 @@ public:
             return false;
         table.removeExact(mapping);
         mruList.dequeue(mapping);
+        numRemovals.fastInc();
         return true;
     }
     void kill() { clear(-1); }
@@ -119,6 +125,14 @@ public:
     virtual bool full() { return false; }
     virtual void elementAdded(MAPPING *mapping) { }
     virtual void elementRemoved(MAPPING *mapping) { }
+
+protected:
+    //All of the following are incremented non-atomically because they are always used within a critical section
+    //But they are defined as atomic to guarantee that they are always visible to other threads
+    RelaxedAtomic<unsigned> numHits;
+    RelaxedAtomic<unsigned> numAdds;
+    RelaxedAtomic<unsigned> numEvictions; // removals to make space
+    RelaxedAtomic<unsigned> numRemovals;  // Explit removals
 };
 
 template <class KEY, class ENTRY, class MAPPING, class TABLE>
