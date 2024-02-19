@@ -730,7 +730,13 @@ public:
     void traceState(StringBuffer & out)
     {
         //Should be safe to call outside of a critical section, but values may be inconsistent
-        out.append(table.ordinality()).append(":").append(sizeInMem);
+        out.append("count:").append(table.ordinality())
+           .append(",size:").append(sizeInMem)
+           .append(",hits:").append(numHits)
+           .append(",adds:").append(numAdds)
+           .append(",dupadds:").append(numDupAdds)
+           .append(",evicts:").append(numEvictions)
+           .append(",removal:").append(numRemovals);
     }
 };
 
@@ -773,13 +779,17 @@ public:
             cache[i].kill();
         }
     }
+    void clearStats()
+    {
+        for (unsigned i=0; i < CacheMax; i++)
+            cache[i].clearStats();
+    }
     void traceState(StringBuffer & out)
     {
         for (unsigned i=0; i < CacheMax; i++)
         {
             out.append(cacheTypeText[i]).append('(');
             cache[i].traceState(out);
-            out.appendf(" [%u:%u:%u]", hitMetric[i]->load(), addMetric[i]->load(), dupMetric[i]->load());
             out.append(") ");
         }
     }
@@ -821,6 +831,12 @@ void logCacheState()
     DBGLOG("Search times branch(%lluns) leaf(%lluns)", cycle_to_nanosec(branchSearchCycles), cycle_to_nanosec(leafSearchCycles));
     branchSearchCycles = 0;
     leafSearchCycles = 0;
+}
+
+void traceIndexCacheState(StringBuffer & out)
+{
+    if (nodeCache)
+        nodeCache->traceState(out);
 }
 
 inline CKeyStore *queryKeyStore()
@@ -2742,6 +2758,8 @@ RelaxedAtomic<unsigned> nodeCacheDups;
 void clearNodeStats()
 {
     nodesLoaded.store(0);
+    if (nodeCache)
+        nodeCache->clearStats();
     blobCacheHits.store(0);
     blobCacheAdds.store(0);
     blobCacheDups.store(0);

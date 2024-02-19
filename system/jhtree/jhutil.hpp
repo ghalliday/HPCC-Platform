@@ -125,6 +125,14 @@ public:
     virtual bool full() { return false; }
     virtual void elementAdded(MAPPING *mapping) { }
     virtual void elementRemoved(MAPPING *mapping) { }
+    void clearStats()
+    {
+        numHits.store(0);
+        numAdds.store(0);
+        numEvictions.store(0);
+        numRemovals.store(0);
+        numDupAdds.store(0);
+    }
 
 protected:
     //All of the following are incremented non-atomically because they are always used within a critical section
@@ -133,6 +141,7 @@ protected:
     RelaxedAtomic<unsigned> numAdds;
     RelaxedAtomic<unsigned> numEvictions; // removals to make space
     RelaxedAtomic<unsigned> numRemovals;  // Explit removals
+    RelaxedAtomic<unsigned> numDupAdds;   // Number of concurrent duplicate adds
 };
 
 template <class KEY, class ENTRY, class MAPPING, class TABLE>

@@ -1795,9 +1795,11 @@ void CJobSlave::endJob()
 void CJobSlave::reportGraphEnd(graph_id gid)
 {
     if (nodesLoaded) // wouldn't mean much if parallel jobs running
-        PROGLOG("Graph[%" GIDPF "u] - JHTree node stats:\ncacheAdds=%d\ncacheHits=%d\nnodesLoaded=%d\nblobCacheHits=%d\nblobCacheAdds=%d\nleafCacheHits=%d\nleafCacheAdds=%d\nnodeCacheHits=%d\nnodeCacheAdds=%d\n",
-             gid, blobCacheAdds + leafCacheAdds + nodeCacheAdds, blobCacheHits + leafCacheHits + nodeCacheHits,
-             nodesLoaded.load(), blobCacheHits.load(), blobCacheAdds.load(), leafCacheHits.load(), leafCacheAdds.load(), nodeCacheHits.load(), nodeCacheAdds.load());
+    {
+        StringBuffer cacheState;
+        traceIndexCacheState(cacheState);
+        PROGLOG("Graph[%" GIDPF "u] - JHTree node stats: %s", gid, cacheState.str());
+    }
     if (!REJECTLOG(MCthorDetailedDebugInfo))
     {        
         JSocketStatistics stats;
