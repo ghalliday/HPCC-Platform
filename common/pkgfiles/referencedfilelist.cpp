@@ -968,7 +968,7 @@ bool ReferencedFileList::addFilesFromQuery(IConstWorkUnit *cw, const IHpccPackag
     Owned<IConstWUGraphIterator> graphs = &cw->getGraphs(GraphTypeActivities);
     ForEach(*graphs)
     {
-        Owned <IPropertyTree> xgmml = graphs->query().getXGMMLTree(false, false);
+        Owned <IPropertyTree> xgmml = graphs->query().getXGMMLTree(false, false, false);
         Owned<IPropertyTreeIterator> iter = xgmml->getElements("//node[att/@name='_*ileName']");
         ForEach(*iter)
         {

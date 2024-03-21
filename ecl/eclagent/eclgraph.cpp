@@ -1540,7 +1540,7 @@ EclGraph * EclAgent::loadGraph(const char * graphName, IConstWorkUnit * wu, ILoa
 {
     Owned<IConstWUGraph> wuGraph = wu->getGraph(graphName);
     assertex(wuGraph);
-    Owned<IPropertyTree> xgmml = wuGraph->getXGMMLTree(false, false);
+    Owned<IPropertyTree> xgmml = wuGraph->getXGMMLTree(false, false, false);
 
     Owned<EclGraph> eclGraph = new EclGraph(*this, graphName, wu, isLibrary, debugContext, probeManager, wuGraph->getWfid());
     eclGraph->createFromXGMML(dll, xgmml);

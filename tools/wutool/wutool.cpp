@@ -1234,7 +1234,7 @@ protected:
         ASSERT(graph->getType() == GraphTypeActivities);
         ASSERT(streq(graph->getName(s).str(),"Graph1"));
         ASSERT(streq(graph->getLabel(s).str(),"graphLabel"));
-        ASSERT(streq(graph->getXGMML(s, false, false).str(), "<graph/>\n"));
+        ASSERT(streq(graph->getXGMML(s, false, false, false).str(), "<graph/>\n"));
 
         // Then the lightweight meta....
         wu.setown(factory->openWorkUnit(wuid));
@@ -1269,7 +1269,7 @@ protected:
         {
             ASSERT(it2->query().getType() == GraphTypeActivities);
             ASSERT(streq(it2->query().getLabel(s).str(),"graphLabel"));
-            ASSERT(streq(it2->query().getXGMML(s, false, false).str(), "<graph/>\n"));
+            ASSERT(streq(it2->query().getXGMML(s, false, false, false).str(), "<graph/>\n"));
             numIterated++;
         }
         ASSERT(numIterated==2);
@@ -1281,7 +1281,7 @@ protected:
         ForEach (*it2)
         {
             ASSERT(streq(it2->query().getLabel(s).str(),"graphLabel"));
-            ASSERT(streq(it2->query().getXGMML(s, false, false).str(), "<graph/>\n"));
+            ASSERT(streq(it2->query().getXGMML(s, false, false, false).str(), "<graph/>\n"));
             numIterated++;
         }
         ASSERT(numIterated==3);
@@ -1305,7 +1305,7 @@ protected:
         {
             ASSERT(it2->query().getType() == GraphTypeActivities);
             ASSERT(streq(it2->query().getLabel(s).str(),"graphLabel"));
-            ASSERT(streq(it2->query().getXGMML(s, false, false).str(), "<graph/>\n"));
+            ASSERT(streq(it2->query().getXGMML(s, false, false, false).str(), "<graph/>\n"));
             numIterated++;
         }
         ASSERT(numIterated==2);
@@ -1319,7 +1319,7 @@ protected:
         {
             ASSERT(it2->query().getType() == GraphTypeActivities);
             ASSERT(streq(it2->query().getLabel(s).str(),"graphLabel"));
-            ASSERT(streq(it2->query().getXGMML(s, false, false).str(), "<graph/>\n"));
+            ASSERT(streq(it2->query().getXGMML(s, false, false, false).str(), "<graph/>\n"));
             numIterated++;
         }
         ASSERT(numIterated==2);

@@ -183,7 +183,7 @@ bool copyWULogicalFiles(IEspContext &context, IConstWorkUnit &cw, const char *cl
     Owned<IConstWUGraphIterator> graphs = &cw.getGraphs(GraphTypeActivities);
     ForEach(*graphs)
     {
-        Owned <IPropertyTree> xgmml = graphs->query().getXGMMLTree(false, false);
+        Owned <IPropertyTree> xgmml = graphs->query().getXGMMLTree(false, false, false);
         Owned<IPropertyTreeIterator> iter = xgmml->getElements(".//node");
         ForEach(*iter)
         {

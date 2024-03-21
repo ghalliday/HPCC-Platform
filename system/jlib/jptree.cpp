@@ -1248,16 +1248,19 @@ unsigned CPTArray::find(const IPropertyTree *search) const
 
 //////////////////
 
+RelaxedAtomic<unsigned> numActiveTrees;
 
 PTree::PTree(byte _flags, IPTArrayValue *_value, ChildMap *_children)
 {
     flags = _flags;
     children = LINK(_children);
     value = _value;
+    numActiveTrees++;
 }
 
 PTree::~PTree()
 {
+    numActiveTrees--;
     if (value) delete value;
     ::Release(children);
 }

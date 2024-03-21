@@ -2660,7 +2660,7 @@ CJobBase::CJobBase(ILoadedDllEntry *_querySo, const char *_graphName) : querySo(
     if (!localWU)
         throw MakeStringException(0, "Failed to locate workunit info in query : %s", querySo->queryName());
     Owned<IConstWUGraph> graph = localWU->getGraph(graphName);
-    graphXGMML.setown(graph->getXGMMLTree(false, false));
+    graphXGMML.setown(graph->getXGMMLTree(false, false, false));
     if (!graphXGMML)
         throwUnexpected();
 }

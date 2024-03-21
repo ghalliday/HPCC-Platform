@@ -641,14 +641,14 @@ public:
     IMPLEMENT_IINTERFACE;
     CLocalWUGraph(const CLocalWorkUnit &owner, IPropertyTree *p);
 
-    virtual IStringVal & getXGMML(IStringVal & ret, bool mergeProgress, bool doFormatStats) const override;
+    virtual IStringVal & getXGMML(IStringVal & ret, bool mergeProgress, bool doFormatStats, bool cacheTree) const override;
     virtual IStringVal & getName(IStringVal & ret) const override;
     virtual IStringVal & getLabel(IStringVal & ret) const override;
     virtual IStringVal & getTypeName(IStringVal & ret) const override;
     virtual WUGraphType getType() const override;
     virtual WUGraphState getState() const override;
     virtual unsigned getWfid() const override;
-    virtual IPropertyTree * getXGMMLTree(bool mergeProgress, bool doFormatStats) const override;
+    virtual IPropertyTree * getXGMMLTree(bool mergeProgress, bool doFormatStats, bool cacheTree) const override;
     virtual IPropertyTree * getXGMMLTreeRaw() const override;
 
     void setName(const char *str);

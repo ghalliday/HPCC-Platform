@@ -1504,7 +1504,7 @@ public:
                     ForEach(*graphs)
                     {
                         IConstWUGraph &graph = graphs->query();
-                        Owned<IPropertyTree> xgmml = graph.getXGMMLTree(true, false);  // We can't merge between nodes if we format the values
+                        Owned<IPropertyTree> xgmml = graph.getXGMMLTree(true, false, false);  // We can't merge between nodes if we format the values
                         unsigned wfid = xgmml->getPropInt("@wfid");
                         SCMStringBuffer s;
                         reply.appendf("<Graph name='%s' wfid='%u'>\n <xgmml>\n", graph.getName(s).str(), wfid);

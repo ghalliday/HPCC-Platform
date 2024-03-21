@@ -1666,7 +1666,7 @@ private:
             {
                 //Walk dependencies - should possibly have a different SST e.g., SSTdependency since they do not
                 //share many characteristics with edges - e.g. no flowing records => few/no stats.
-                curGraph.setown(graphIter->query().getXGMMLTree(false, false));
+                curGraph.setown(graphIter->query().getXGMMLTree(false, false, true));
                 Owned<IPropertyTreeIterator> treeIter = curGraph->getElements("edge");
                 if (treeIter && treeIter->first())
                 {
@@ -9902,7 +9902,7 @@ IPropertyTree *CLocalWorkUnit::getUnpackedTree(bool includeProgress) const
     ForEach(*graphIter)
     {
         IConstWUGraph &graph  = graphIter->query();
-        Owned<IPropertyTree> graphTree = graph.getXGMMLTree(includeProgress, false);
+        Owned<IPropertyTree> graphTree = graph.getXGMMLTree(includeProgress, false, false);
         SCMStringBuffer gName;
         graph.getName(gName);
         StringBuffer xpath("Graphs/Graph[@name=\"");
@@ -9991,7 +9991,7 @@ IStringVal& CLocalWUGraph::getLabel(IStringVal &str) const
     }
     else
     {
-        Owned<IPropertyTree> xgmml = getXGMMLTree(false, false);
+        Owned<IPropertyTree> xgmml = getXGMMLTree(false, false, true);
         str.set(xgmml->queryProp("@label"));
         return str;
     }
@@ -10003,9 +10003,9 @@ WUGraphState CLocalWUGraph::getState() const
 }
 
 
-IStringVal& CLocalWUGraph::getXGMML(IStringVal &str, bool mergeProgress, bool doFormatStats) const
+IStringVal& CLocalWUGraph::getXGMML(IStringVal &str, bool mergeProgress, bool doFormatStats, bool cacheTree) const
 {
-    Owned<IPropertyTree> xgmml = getXGMMLTree(mergeProgress, doFormatStats);
+    Owned<IPropertyTree> xgmml = getXGMMLTree(mergeProgress, doFormatStats, cacheTree);
     if (xgmml)
     {
         StringBuffer x;
@@ -10397,8 +10397,9 @@ IPropertyTree * CLocalWUGraph::getXGMMLTreeRaw() const
     return p->getPropTree("xgmml");
 }
 
-IPropertyTree * CLocalWUGraph::getXGMMLTree(bool doMergeProgress, bool doFormatStats) const
+IPropertyTree * CLocalWUGraph::getXGMMLTree(bool doMergeProgress, bool doFormatStats, bool cacheTree) const
 {
+    Owned<IPropertyTree> localGraph;
     {
         CriticalBlock block(owner.crit);
         if (!graph)
@@ -10407,18 +10408,22 @@ IPropertyTree * CLocalWUGraph::getXGMMLTree(bool doMergeProgress, bool doFormatS
             // daliadmin can retrospectively compress existing graphs, so need to check for all versions
             MemoryBuffer mb;
             if (p->getPropBin("xgmml/graphBin", mb))
-                graph.setown(createPTree(mb, ipt_lowmem));
+                localGraph.setown(createPTree(mb, ipt_lowmem));
             else
-                graph.setown(p->getBranch("xgmml/graph"));
-            if (!graph)
+                localGraph.setown(p->getBranch("xgmml/graph"));
+            if (!localGraph)
                 return NULL;
+            if (cacheTree)
+                graph.set(localGraph);
         }
+        else
+            localGraph.set(graph);
     }
     if (!doMergeProgress)
-        return graph.getLink();
+        return localGraph.getClear();
     else
     {
-        Owned<IPropertyTree> copy = createPTreeFromIPT(graph, ipt_lowmem);
+        Owned<IPropertyTree> copy = cacheTree ? createPTreeFromIPT(localGraph, ipt_lowmem) : LINK(localGraph) ;
         Owned<IConstWUGraphProgress> progress = owner.getGraphProgress(p->queryProp("@name"));
         if (progress)
         {

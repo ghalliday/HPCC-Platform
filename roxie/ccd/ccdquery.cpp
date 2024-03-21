@@ -1321,7 +1321,8 @@ static hash64_t getQueryHash(const char *id, const IQueryDll *dll, const IRoxieP
                         Owned<IConstWUGraphIterator> graphs = &wu->getGraphs(GraphTypeActivities);
                         ForEach(*graphs)
                         {
-                            Owned<IPropertyTree> graphXgmml = graphs->query().getXGMMLTree(false, false);
+                            const bool cacheTree = false; // Do not keep a copy of the workunit graph in memory - it can be very big
+                            Owned<IPropertyTree> graphXgmml = graphs->query().getXGMMLTree(false, false, cacheTree);
                             Owned<IPropertyTreeIterator> nodes = graphXgmml->getElements(".//node");
                             ForEach(*nodes)
                             {
@@ -1414,7 +1415,8 @@ static hash64_t getQueryHash(const char *id, const IQueryDll *dll, const IRoxieP
                 {
                     graphs->query().getName(graphNameStr);
                     const char *graphName = graphNameStr.s.str();
-                    Owned<IPropertyTree> graphXgmml = graphs->query().getXGMMLTree(false, false);
+                    const bool cacheTree = false; // Do not keep a copy of the workunit graph in memory - it can be very big
+                    Owned<IPropertyTree> graphXgmml = graphs->query().getXGMMLTree(false, false, cacheTree);
                     try
                     {
                         ActivityArray *activities = loadGraph(*graphXgmml, graphName);
@@ -1489,10 +1491,10 @@ static hash64_t getQueryHash(const char *id, const IQueryDll *dll, const IRoxieP
         {
             graphs->query().getName(graphNameStr);
             const char *graphName = graphNameStr.s.str();
-            Owned<IPropertyTree> graphXgmml = graphs->query().getXGMMLTree(false, false);
+            Owned<IPropertyTree> graphXgmml = graphs->query().getXGMMLTree(false, false, false);
             IPropertyTree *newGraph = tree->addPropTree("Graph");
             newGraph->setProp("@id", graphName);
-            newGraph->addPropTree("xgmml")->addPropTree("graph", graphXgmml.getLink());
+            newGraph->addPropTree("xgmml")->addPropTree("graph", graphXgmml.getClear());
         }
         return tree.getClear();
     }

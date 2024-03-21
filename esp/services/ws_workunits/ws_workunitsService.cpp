@@ -4045,7 +4045,7 @@ bool CWsWorkunitsEx::onWUProcessGraph(IEspContext &context,IEspWUProcessGraphReq
 
         PROGLOG("WUProcessGraph: %s, Graph Name %s", wuid.str(), req.getName());
         StringBuffer xml;
-        Owned<IPropertyTree> xgmml = graph->getXGMMLTree(true, true); // merge in graph progress information
+        Owned<IPropertyTree> xgmml = graph->getXGMMLTree(true, true, false); // merge in graph progress information
         toXML(xgmml.get(), xml);
         resp.setTheGraph(xml.str());
     }
@@ -4098,7 +4098,7 @@ void CWsWorkunitsEx::readGraph(IEspContext& context, const char* subGraphId, WUG
             g->setFailed(true);
     }
 
-    Owned<IPropertyTree> xgmml = graph->getXGMMLTree(true, true);
+    Owned<IPropertyTree> xgmml = graph->getXGMMLTree(true, true, false);
 
     // New functionality, if a subgraph id is specified and we only want to load the xgmml for that subgraph
     // then we need to conditionally pull a propertytree from the xgmml graph one and use that for the xgmml.

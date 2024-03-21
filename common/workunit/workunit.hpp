@@ -207,8 +207,8 @@ interface IConstWUGraphMeta : extends IInterface
 
 interface IConstWUGraph : extends IConstWUGraphMeta
 {
-    virtual IStringVal & getXGMML(IStringVal & ret, bool mergeProgress, bool doFormatStats) const = 0;
-    virtual IPropertyTree * getXGMMLTree(bool mergeProgress, bool doFormatStats) const = 0;
+    virtual IStringVal & getXGMML(IStringVal & ret, bool mergeProgress, bool doFormatStats, bool cacheTree) const = 0;
+    virtual IPropertyTree * getXGMMLTree(bool mergeProgress, bool doFormatStats, bool cacheTree) const = 0;
     virtual IPropertyTree * getXGMMLTreeRaw() const = 0;
 };
 
