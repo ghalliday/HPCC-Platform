@@ -4005,331 +4005,190 @@ CPPUNIT_TEST_SUITE_REGISTRATION( JLibOpensslAESTest );
 CPPUNIT_TEST_SUITE_NAMED_REGISTRATION( JLibOpensslAESTest, "JLibOpensslAESTest" );
 #endif
 
-class JLibSecretsTest : public CppUnit::TestFixture
+class JLibThreadPerfomanceStressTest : public CppUnit::TestFixture
 {
 public:
-    CPPUNIT_TEST_SUITE(JLibSecretsTest);
-        CPPUNIT_TEST(setup);
-        CPPUNIT_TEST(testUpdate1);
-        CPPUNIT_TEST(testUpdate2);
-        CPPUNIT_TEST(testBackgroundUpdate);
-        CPPUNIT_TEST(testKeyEncoding);
+    CPPUNIT_TEST_SUITE(JLibThreadPerfomanceStressTest);
+        CPPUNIT_TEST(testThreadedCs);
     CPPUNIT_TEST_SUITE_END();
 
-    //Each test creates a different instance of the class(!) so member values cannot be used to pass items
-    //from one test to another
-    StringBuffer secretRoot;
 
-protected:
-    void checkSecret(const IPropertyTree * match, const char * key, const char * expectedValue)
+    class ProcessThread : public Thread
     {
-        if (match)
+    public:
+        ProcessThread(unsigned _freeWork, unsigned _lockedWork, unsigned _iters, Semaphore & _startSem, Semaphore & _doneSem)
+        : freeWork(_freeWork), lockedWork(_lockedWork), iters(_iters), startSem(_startSem), doneSem(_doneSem)
         {
-            const char * secretValue = match->queryProp(key);
-            if (secretValue)
+        }
+
+        unsigned result = 0;
+    protected:
+        unsigned freeWork;
+        unsigned lockedWork;
+        unsigned iters;
+        Semaphore & startSem;
+        Semaphore & doneSem;
+    };
+
+    class CsThread : public ProcessThread
+    {
+    public:
+        CsThread(unsigned _freeWork, unsigned _lockedWork, unsigned _iters, Semaphore & _startSem, Semaphore & _doneSem, CriticalSection & _sharedCs)
+        : ProcessThread(_freeWork, _lockedWork, _iters, _startSem, _doneSem), sharedCs(_sharedCs)
+        {
+        }
+
+        virtual int run()
+        {
+            startSem.wait();
+
+            unsigned value = 0;
+            for (unsigned i=0; i < iters; i++)
             {
-                CPPUNIT_ASSERT_EQUAL_STR(secretValue, expectedValue);
+                for (unsigned w1=0; w1 < freeWork; w1++)
+                    value = value * 0x01000193 + w1;
+
+                CriticalBlock block(sharedCs);
+                for (unsigned w2=0; w2 < lockedWork; w2++)
+                    value = value * 0x01000193 + w2;
             }
+
+            result = value;
+            doneSem.signal();
+            return 0;
+        }
+    protected:
+        CriticalSection & sharedCs;
+    };
+
+    class SemThread : public ProcessThread
+    {
+    public:
+        SemThread(unsigned _freeWork, unsigned _lockedWork, unsigned _iters, Semaphore & _startSem, Semaphore & _doneSem, Semaphore & _sharedSem)
+        : ProcessThread(_freeWork, _lockedWork, _iters, _startSem, _doneSem), sharedSem(_sharedSem)
+        {
+        }
+
+        virtual int run()
+        {
+            startSem.wait();
+
+            unsigned value = 0;
+            for (unsigned i=0; i < iters; i++)
+            {
+                for (unsigned w1=0; w1 < freeWork; w1++)
+                    value = value * 0x01000193 + w1;
+
+                sharedSem.wait();
+                for (unsigned w2=0; w2 < lockedWork; w2++)
+                    value = value * 0x01000193 + w2;
+
+                sharedSem.signal();
+            }
+
+            result = value;
+            doneSem.signal();
+            return 0;
+        }
+    protected:
+        Semaphore & sharedSem;
+    };
+
+    unsigned runThreads(unsigned numThreads, unsigned freeWork, unsigned lockedWork, unsigned iters, unsigned baseline, double scale, unsigned numParallel)
+    {
+        Semaphore startSem;
+        Semaphore doneSem;
+        CriticalSection sharedCs;
+        Semaphore sharedSem;
+        CIArrayOf<ProcessThread> threads;
+        for (unsigned i=0; i < numThreads; i++)
+        {
+            if (numParallel == 0)
+                threads.append(* new CsThread(freeWork, lockedWork, iters, startSem, doneSem, sharedCs));
             else
-            {
-                //IPropertyTree doesn't allow blank values, so a missing value is the same as a blank value
-                //We should probably revisit some day, but it is likely to break existing code if we do.
-                CPPUNIT_ASSERT_EQUAL_STR("", expectedValue);
-            }
+                threads.append(* new SemThread(freeWork, lockedWork, iters, startSem, doneSem, sharedSem));
+            threads.tos().start();
         }
-        else
-            CPPUNIT_ASSERT_EQUAL_STR("", expectedValue);
-    }
-    void checkSecret(const char * secret, const char * key, const char * expectedValue)
-    {
-        Owned<const IPropertyTree> match = getSecret("testing", secret);
-        checkSecret(match, key, expectedValue);
-    }
 
-    void checkSecret(ISyncedPropertyTree * secret, const char * key, const char * expectedValue)
-    {
-        Owned<const IPropertyTree> match = secret->getTree();
-        checkSecret(match, key, expectedValue);
-    }
+        Sleep(5);
+        sharedSem.signal(numParallel);
 
-    bool hasSecret(const char * name)
-    {
-        Owned<const IPropertyTree> match = getSecret("testing", name);
-        return match != nullptr;
+        CCycleTimer timer;
+        startSem.signal(numThreads);
+        for (unsigned i=0; i < numThreads; i++)
+            doneSem.wait();
+
+        __uint64 elapsed = timer.elapsedMs();
+        DBGLOG("Threads: %d [%u], freeWork: %d, lockedWork: %d, time: %" I64F "dms %.2fx expected %.0fms", numThreads, numParallel, freeWork, lockedWork, elapsed, (double)elapsed/baseline/scale, baseline*scale);
+        unsigned total = 0;
+        for (unsigned i=0; i < numThreads; i++)
+            total += threads.item(i).result;
+        CPPUNIT_ASSERT(total != 0);
+        return elapsed;
     }
 
-    void initPath()
+    unsigned getTime(unsigned freeWork, unsigned lockedWork, unsigned numThreads, unsigned numParallel, unsigned maxThreads)
     {
-        char cwd[1024];
-        CPPUNIT_ASSERT(GetCurrentDirectory(1024, cwd));
-        secretRoot.set(cwd).append(PATHSEPCHAR).append("unittest-secrets");
-        secretRoot.append(PATHSEPCHAR).append("testing"); // catgegory
+        //Each thread needs to perform its free work, plus the locked work
+        //If the number of threads exceeds the number of parallel execution threads, then assume it is evenly shared.
+        unsigned singleThreadWork = freeWork + lockedWork;
+        unsigned totalLockedWork = lockedWork * numThreads;
+        if (totalLockedWork <= singleThreadWork * numParallel)
+            return singleThreadWork;
+        return totalLockedWork / numParallel;
+//        return singleThreadWork + (totalLockedWork - singleThreadWork * numParallel) / numParallel;
+    }
+    double getScale(unsigned freeWork, unsigned lockedWork, unsigned numThreads, unsigned numParallel, unsigned maxThreads)
+    {
+        return (double)getTime(freeWork, lockedWork, numThreads, numParallel, maxThreads) / getTime(freeWork, lockedWork, 1, 1, 0);
     }
 
-    void setup()
+    void testThreadedCs()
     {
-        char cwd[1024];
-        CPPUNIT_ASSERT(GetCurrentDirectory(1024, cwd));
-        secretRoot.append(cwd).append(PATHSEPCHAR).append("unittest-secrets");
+        getScale(1000, 1000, 6, 1, 0);
+        //Same work in and outside the critical section - scales to 2 cores
+        double baseline = runThreads(1, 100000, 100000, 1000, 1, 1, 0);
 
-        recursiveRemoveDirectory(secretRoot);
-        CPPUNIT_ASSERT(recursiveCreateDirectory(secretRoot.str()));
-        setSecretMount(secretRoot);
-        setSecretTimeout(100); // Set the timeout so we can check it is working.
-
-        secretRoot.append(PATHSEPCHAR).append("testing"); // catgegory
-        CPPUNIT_ASSERT(recursiveCreateDirectory(secretRoot.str()));
-    }
-
-    void testUpdate1()
-    {
-        initPath(); // secretRoot needs to be called for each test
-
-        CPPUNIT_ASSERT(!hasSecret("secret1"));
-        writeTestingSecret("secret1", "value", "secret1Value");
-        //Secret should not appear yet - null should be cached.
-        CPPUNIT_ASSERT(!hasSecret("secret1"));
-
-        Owned<ISyncedPropertyTree> secret2 = getSyncedSecret("testing", "secret2", nullptr, nullptr);
-        CPPUNIT_ASSERT(!secret2->isValid());
-        CPPUNIT_ASSERT(!secret2->isStale());
-
-        MilliSleep(50);
-        //Secret should not appear yet - null should be cached.
-        CPPUNIT_ASSERT(!hasSecret("secret1"));
-        CPPUNIT_ASSERT(!secret2->isValid());
-        CPPUNIT_ASSERT(!secret2->isStale());
-
-        MilliSleep(100);
-        //Secret1 should now be updated - enough time has passed
-        checkSecret("secret1", "value", "secret1Value");
-        CPPUNIT_ASSERT(!secret2->isValid());
-        CPPUNIT_ASSERT(secret2->isStale());
-
-        //Cleanup
-        writeTestingSecret("secret1", "value", nullptr);
-    }
-
-    void testUpdate2()
-    {
-        initPath(); // secretRoot needs to be called for each test
-
-        Owned<ISyncedPropertyTree> secret3 = getSyncedSecret("testing", "secret3", nullptr, nullptr);
-        unsigned version = secret3->getVersion();
-        CPPUNIT_ASSERT(!secret3->isValid());
-        CPPUNIT_ASSERT(!secret3->isStale());
-        writeTestingSecret("secret3", "value", "secret3Value");
-        CPPUNIT_ASSERT(!secret3->isValid());
-        CPPUNIT_ASSERT_EQUAL(version, secret3->getVersion());
-
-        //After sleep new value should not have been picked up
-        MilliSleep(50);
-        CPPUNIT_ASSERT(!secret3->isValid());
-        CPPUNIT_ASSERT_EQUAL(version, secret3->getVersion());
-
-        //After sleep new value should now have been picked up
-        MilliSleep(100);
-        checkSecret("secret3", "value", "secret3Value");
-        unsigned version2 = secret3->getVersion();
-        CPPUNIT_ASSERT(!secret3->isStale());
-        CPPUNIT_ASSERT(secret3->isValid());
-        CPPUNIT_ASSERT(version != version2);
-
-        //Sleep and check that the hash value has not changed
-        MilliSleep(200);
-        checkSecret("secret3", "value", "secret3Value");
-        CPPUNIT_ASSERT(!secret3->isStale());
-        CPPUNIT_ASSERT(secret3->isValid());
-        CPPUNIT_ASSERT_EQUAL(version2, secret3->getVersion());
-
-        //Remove the secret - should have no immediate effect
-        writeTestingSecret("secret3", "value", nullptr);
-        CPPUNIT_ASSERT(!secret3->isStale());
-        CPPUNIT_ASSERT(secret3->isValid());
-        CPPUNIT_ASSERT_EQUAL(version2, secret3->getVersion());
-
-        MilliSleep(50);
-        CPPUNIT_ASSERT(!secret3->isStale());
-        CPPUNIT_ASSERT(secret3->isValid());
-        CPPUNIT_ASSERT_EQUAL(version2, secret3->getVersion());
-        checkSecret("secret3", "value", "secret3Value");
-
-        MilliSleep(100);
-        CPPUNIT_ASSERT(secret3->isStale()); // Value has gone, but the old value is still returned
-        CPPUNIT_ASSERT(secret3->isValid());
-        CPPUNIT_ASSERT_EQUAL(version2, secret3->getVersion());
-        checkSecret("secret3", "value", "secret3Value");
-
-        //Update the value = the change should not be seen until the cache entry expires
-        writeTestingSecret("secret3", "value", "secret3NewValue");
-        CPPUNIT_ASSERT(secret3->isStale());
-        CPPUNIT_ASSERT(secret3->isValid());
-        CPPUNIT_ASSERT_EQUAL(version2, secret3->getVersion());
-        checkSecret("secret3", "value", "secret3Value");
-
-        MilliSleep(50);
-        CPPUNIT_ASSERT(secret3->isStale());
-        CPPUNIT_ASSERT(secret3->isValid());
-        CPPUNIT_ASSERT_EQUAL(version2, secret3->getVersion());
-        checkSecret("secret3", "value", "secret3Value");
-
-        MilliSleep(100);
-        //These functions do not check for up to date values, so they return the same as before
-        CPPUNIT_ASSERT(secret3->isStale()); // Value still appears to be out of date
-        CPPUNIT_ASSERT(secret3->isValid());
-
-        //The getVersion() should force the value to be updated
-        unsigned version3 = secret3->getVersion();
-        CPPUNIT_ASSERT(version2 != version3);
-        CPPUNIT_ASSERT(!secret3->isStale()); // New value has now been picked up
-        CPPUNIT_ASSERT(secret3->isValid());
-        checkSecret("secret3", "value", "secret3NewValue");
-
-        //Finally check that writing a blank value is spotted as a change.
-        writeTestingSecret("secret3", "value", "");
-        MilliSleep(150);
-        //Check the version to ensure that the value has been updated
-        CPPUNIT_ASSERT(version3 != secret3->getVersion());
-        CPPUNIT_ASSERT(secret3->isValid());
-        checkSecret("secret3", "value", "");
-
-        //Cleanup
-        writeTestingSecret("secret3", "value", nullptr);
-    }
-
-    void testBackgroundUpdate()
-    {
-        initPath(); // secretRoot needs to be called for each test
-        startSecretUpdateThread(20);    // 100ms expiry, check every 5ms for items expiring in 20ms time.
-
-        //--------- First check that a missed secret is checked in the background ---------
-        Owned<ISyncedPropertyTree> secret4 = getSyncedSecret("testing", "secret4", nullptr, nullptr);
-        CPPUNIT_ASSERT(!secret4->isValid());
-        CPPUNIT_ASSERT(!secret4->isStale());
-
-        //Sleep for less than the update interval
-        MilliSleep(50);
-        CPPUNIT_ASSERT(!secret4->isValid());
-        CPPUNIT_ASSERT(!secret4->isStale());
-
-        //Sleep so the cache entry should have expired, and no data around to make it not stale.
-        MilliSleep(60);
-        CPPUNIT_ASSERT(!secret4->isValid());
-        CPPUNIT_ASSERT(secret4->isStale());
-
-        //--------- Now update the value in the background ---------
-        //First check that a missed secret is checked in the background
-        Owned<ISyncedPropertyTree> secret5 = getSyncedSecret("testing", "secret5", nullptr, nullptr);
-        CPPUNIT_ASSERT(!secret5->isValid());
-        CPPUNIT_ASSERT(!secret5->isStale());
-        //And write a value so it is picked up on the next refresh
-        writeTestingSecret("secret5", "value", "secret5Value");
-
-        //Sleep for less than the update interval
-        MilliSleep(50); // elapsed=50
-        CPPUNIT_ASSERT(!secret5->isValid());
-        CPPUNIT_ASSERT(!secret5->isStale());
-
-        //Sleep so the cache entry should have expired and the value reread since reading ahead
-        MilliSleep(60); // elapsed=110 = 80 + 30
-        CPPUNIT_ASSERT(secret5->isValid());
-        CPPUNIT_ASSERT(!secret5->isStale());
-
-        //Sleep again so it is not accessed within the timeout period - it should now be marked as stale but valid
-        MilliSleep(100); // elapsed=210 = 80 + 80 + 50
-        CPPUNIT_ASSERT(secret5->isValid());
-        CPPUNIT_ASSERT(secret5->isStale());
-
-        //--------- Check that accessing the function marks the value so it is refreshed ---------
-        Owned<ISyncedPropertyTree> secret6 = getSyncedSecret("testing", "secret6", nullptr, nullptr);
-        CPPUNIT_ASSERT(!secret6->isValid());
-        CPPUNIT_ASSERT(!secret6->isStale());
-        //And write a value so it is picked up on the next refresh
-        writeTestingSecret("secret6", "value", "secret6Value");
-
-        //Sleep for less than the update interval
-        MilliSleep(50); // elapsed=50
-        CPPUNIT_ASSERT(!secret6->isValid());
-        CPPUNIT_ASSERT(!secret6->isStale());
-
-        //Sleep so the cache entry should have expired and the value reread since reading ahead
-        MilliSleep(60); // elapsed=110 = 80 + 30
-        CPPUNIT_ASSERT(secret6->isValid());
-        CPPUNIT_ASSERT(!secret6->isStale());
-        unsigned version1 = secret6->getVersion(); // Mark the value as accessed, but too early to be refreshed
-        writeTestingSecret("secret6", "value", "secret6Value2");
-
-        MilliSleep(40); // elapsed=150 = 80 + 70
-        CPPUNIT_ASSERT(secret6->isValid());
-        CPPUNIT_ASSERT(!secret6->isStale());
-        unsigned version2 = secret6->getVersion(); // Mark the value as accessed, but too early to be refreshed
-        CPPUNIT_ASSERT(version2 == version1);
-
-        MilliSleep(30); // elapsed=180 = 80 + 80 + 20
-        CPPUNIT_ASSERT(secret6->isValid());
-        CPPUNIT_ASSERT(!secret6->isStale());
-        unsigned version3 = secret6->getVersion(); // Mark the value as accessed, but will now have been refreshed
-        CPPUNIT_ASSERT(version3 != version1);
-        checkSecret(secret4, "value", "");
-        checkSecret(secret5, "value", "secret5Value");
-        checkSecret(secret6, "value", "secret6Value2");
-
-        //Cleanup
-        writeTestingSecret("secret5", "value", nullptr);
-        writeTestingSecret("secret6", "value", nullptr);
-        stopSecretUpdateThread();
-    }
-
-    void testKeyEncoding()
-    {
-        for (auto category : { "abc", "def" })
+        //For an infinite number of cores, time taken should be freeWork + lockedWork * numThreads / numParallel;
+        for (unsigned threads=1; threads<8; threads++)
         {
-            for (auto name : { "x", "y" })
-            {
-                for (auto vault : { "vaultx", "" })
-                {
-                    for (auto version : { "", "v1" })
-                    {
-                        std::string encoded = testBuildSecretKey(category, name, vault, version);
+            double expectedScale = getScale(100000, 100000, threads, 1, 0);
+            runThreads(threads, 100000, 100000, 1000, baseline, expectedScale, 0);
+            runThreads(threads, 100000, 100000, 1000, baseline, expectedScale, 1);
 
-                        std::string readCategory;
-                        std::string readName;
-                        std::string readVaultId;
-                        std::string readVersion;
-                        testExpandSecretKey(readCategory, readName, readVaultId, readVersion, encoded.c_str());
+            double expectedScale2 = getScale(100000, 100000, threads, 2, 0);
+            runThreads(threads, 100000, 100000, 1000, baseline, expectedScale2, 2);
 
-                        CPPUNIT_ASSERT_EQUAL_STR(category, readCategory.c_str());
-                        CPPUNIT_ASSERT_EQUAL_STR(name, readName.c_str());
-                        CPPUNIT_ASSERT_EQUAL_STR(vault, readVaultId.c_str());
-                        CPPUNIT_ASSERT_EQUAL_STR(version, readVersion.c_str());
-                    }
-                }
-            }
+            double expectedScale4 = getScale(100000, 100000, threads, 4, 0);
+            runThreads(threads, 100000, 100000, 1000, baseline, expectedScale4, 4);
         }
-    }
-
-    void writeTestingSecret(const char * secret, const char * key, const char * value)
-    {
-        StringBuffer filename;
-        filename.append(secretRoot).append(PATHSEPCHAR).append(secret);
-        CPPUNIT_ASSERT(recursiveCreateDirectory(filename.str()));
-
-        filename.append(PATHSEPCHAR).append(key);
-
-        Owned<IFile> file = createIFile(filename.str());
-        if (value)
+        for (unsigned threads=8; threads<=64; threads *= 2)
         {
-            Owned<IFileIO> io = file->open(IFOcreate);
-            io->write(0, strlen(value), value);
+            double expectedScale = getScale(100000, 100000, threads, 1, 0);
+            runThreads(threads, 100000, 100000, 1000, baseline, expectedScale, 0);
+            runThreads(threads, 100000, 100000, 1000, baseline, expectedScale, 1);
+
+            double expectedScale2 = getScale(100000, 100000, threads, 2, 0);
+            runThreads(threads, 100000, 100000, 1000, baseline, expectedScale2, 2);
+
+            double expectedScale4 = getScale(100000, 100000, threads, 4, 0);
+            runThreads(threads, 100000, 100000, 1000, baseline, expectedScale4, 4);
         }
-        else
-            file->remove();
+
+
+        double baseline5 = runThreads(1, 500000, 100000, 1000, 1, 1, 0);
+
+        //5 times the work outside as inside - should scale to 6 cores
+        for (unsigned threads=1; threads<16; threads++)
+        {
+            double expectedScale = getScale(500000, 100000, threads, 1, 0);
+            runThreads(threads, 500000, 100000, 1000, baseline5, expectedScale, 0);
+        }
     }
 };
 
-CPPUNIT_TEST_SUITE_REGISTRATION( JLibSecretsTest );
-CPPUNIT_TEST_SUITE_NAMED_REGISTRATION( JLibSecretsTest, "JLibSecretsTest" );
-
+CPPUNIT_TEST_SUITE_REGISTRATION( JLibThreadPerfomanceStressTest );
+CPPUNIT_TEST_SUITE_NAMED_REGISTRATION( JLibThreadPerfomanceStressTest, "JLibThreadPerfomanceStressTest" );
 
 
 #endif // _USE_CPPUNIT
