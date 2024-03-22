@@ -4453,6 +4453,8 @@ public:
             { return c->getFileAccessCost(); }
     virtual cost_type getCompileCost() const
             { return c->getCompileCost(); }
+    virtual void minimizeMemoryUsage() const override
+            { c->minimizeMemoryUsage(); }
     virtual void import(IPropertyTree *wuTree, IPropertyTree *graphProgressTree)
             { return c->import(wuTree, graphProgressTree); }
 
@@ -12726,6 +12728,13 @@ cost_type CLocalWorkUnit::getCompileCost() const
 {
     CriticalBlock block(crit);
     return p->getPropInt64("@costCompile");
+}
+
+void CLocalWorkUnit::minimizeMemoryUsage() const
+{
+    CriticalBlock block(crit);
+    graphs.kill();
+    graphsCached = 0;
 }
 
 #if 0

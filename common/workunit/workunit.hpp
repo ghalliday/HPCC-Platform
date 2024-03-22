@@ -1311,6 +1311,7 @@ interface IConstWorkUnit : extends IConstWorkUnitInfo
     virtual cost_type getExecuteCost() const = 0;
     virtual cost_type getFileAccessCost() const = 0;
     virtual cost_type getCompileCost() const = 0;
+    virtual void minimizeMemoryUsage() const = 0;
 };
 
 
