@@ -558,7 +558,7 @@ void CGitEclRepository::ensureCollection()
     if (resolved)
         return;
 
-    collection.setown(container->resolveGitCollection(repoPath, urn));
+    collection.setown(container->resolveGitCollection(repoPath, urn, false));
     resolved = true;
 }
 
@@ -674,6 +674,17 @@ void EclRepositoryManager::processArchive(IPropertyTree * archiveTree)
     addRepository(archiveCollection, nullptr, true);
 }
 
+void EclRepositoryManager::prefetchRepository(const char * defaultUrl)
+{
+    StringBuffer path;
+    StringBuffer repoUrn, repo, version;
+    if (!splitRepoVersion(repoUrn, repo, version, defaultUrl, options.defaultGitPrefix))
+        return;
+
+    addPathSepChar(path.append(options.eclRepoPath)).append(repo);
+    Owned<IEclSourceCollection> resolved = resolveGitCollection(path, defaultUrl, true);
+}
+
 IEclPackage * EclRepositoryManager::queryRepository(IIdAtom * name, const char * defaultUrl, IEclSourceCollection * overrideSource, bool includeDefinitions)
 {
     //Check to see if the reference is to a filename.  Should possibly be disabled on a switch.
@@ -782,7 +793,7 @@ static bool checkGitDirIsValid(const char * path)
     return true;
 }
 
-IEclSourceCollection * EclRepositoryManager::resolveGitCollection(const char * repoPath, const char * defaultUrl)
+IEclSourceCollection * EclRepositoryManager::resolveGitCollection(const char * repoPath, const char * defaultUrl, bool onlyFetch)
 {
     if (options.optVerbose)
         printf("Dynamically resolve package '%s' to '%s'\n", defaultUrl, repoPath);
@@ -861,6 +872,9 @@ IEclSourceCollection * EclRepositoryManager::resolveGitCollection(const char * r
     gitUpdateLock.clear();
 
     gitDownloadCycles += gitDownloadTimer.elapsedCycles();
+    if (onlyFetch)
+        return nullptr;
+
     if (error)
     {
         if (errorReceiver)

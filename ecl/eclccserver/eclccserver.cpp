@@ -283,6 +283,10 @@ class EclccCompileThread : implements IPooledThread, implements IErrorReporter, 
     StringBuffer repoRootPath;
     unsigned defaultMaxCompileThreads = 1;
     bool saveTemps = false;
+    StringBuffer optPrefetchRepos;
+    unsigned __int64 lastPrefetch = 0;
+    unsigned __int64 prefetchCheckPeriodNs = 5 * 60 * 1000000000; // 5 minutes
+    CriticalSection prefetchCs;
 
     virtual void reportError(IException *e)
     {
@@ -598,6 +602,25 @@ class EclccCompileThread : implements IPooledThread, implements IErrorReporter, 
     }
 #endif
 
+    void prefetchDefaultRepo()
+    {
+        if (!optPrefetchRepos.isEmpty())
+        {
+            //This code aims to prefetch the repository if it has not been fetched within the last 5 minutes.
+            //The aim is to avoid eclcc fetching large numbers of changes within the 10second window for
+            //a child query.
+            CriticalBlock block(prefetchCs);
+            stat_type now = nsTick();
+            if ((now - lastPrefetch) > prefetchCheckPeriodNs)
+            {
+                EclRepositoryManager tempManager(nullptr);
+                tempManager.setOptions(const char * _eclRepoPath, const char * _gitUser, const char * _gitPasswordPath, const char * _defaultGitPrefix,
+                    bool _fetchRepos, bool _updateRepos, bool _cleanRepos, bool _cleanInvalidRepos, bool _verbose)
+                tempManager.prefetchRepository(optPrefetchRepo);
+            }
+        }
+    }
+
     bool compile(const char *wuid, const char *target, const char *targetCluster, bool &timedOut)
     {
         timedOut = false;
@@ -630,6 +653,8 @@ class EclccCompileThread : implements IPooledThread, implements IErrorReporter, 
                 mainDefinition.s.append(syntaxCheckAttr.str());
             }
         }
+
+        prefetchDefaultRepo();
 
         StringBuffer eclccProgName;
         splitDirTail(queryCurrentProcessPath(), eclccProgName);
@@ -890,6 +915,15 @@ public:
         }
         else
             OWARNLOG("Could not deduce the directory to store cached git repositories");
+
+        Owned<IPropertyTree> config = getComponentConfig();
+        const char * defaultRepo = config->queryProp("@defaultRepo");
+        const char * prefetchRepos = config->queryProp("@prefetchRepos");
+
+        if (config->getPropBool("@prefetchDefaultRepo", true) && !isEmptyString(defaultRepo))
+            optPrefetchRepos.set(defaultRepo);
+        else if (!isEmptyString(prefetchRepos))
+            optPrefetchRepos.set(prefetchRepos);
     }
 
     virtual void init(void *param) override

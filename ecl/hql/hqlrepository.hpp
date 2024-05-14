@@ -57,6 +57,7 @@ public:
     void kill();
     unsigned __int64 getStatistic(StatisticKind kind) const;
 
+    void prefetchRepository(const char * defaultUrl);
     void processArchive(IPropertyTree * archiveTree);
     IEclPackage * queryDependentRepository(IIdAtom * name, const char * defaultUrl);
     IEclPackage * queryRepositoryAsRoot(const char * defaultUrl, IEclSourceCollection * overrideSources);
@@ -75,7 +76,7 @@ public:
         options.optVerbose = _verbose;
     }
 
-    IEclSourceCollection * resolveGitCollection(const char * repoPath, const char * defaultUrl);
+    IEclSourceCollection * resolveGitCollection(const char * repoPath, const char * defaultUrl, bool onlyFetch);
     void setErrorReceiver(IErrorReceiver * _errorReceiver) const
     {
         errorReceiver = _errorReceiver;

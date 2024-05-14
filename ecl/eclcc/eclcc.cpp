@@ -1325,6 +1325,14 @@ void EclCC::processSingleQuery(const EclRepositoryManager & localRepositoryManag
         cache.setown(createEclFileCachedDefinitionCollection(instance.dataServer, optMetaLocation));
     }
 
+    if (!optDefaultRepo.isEmpty())
+    {
+        DBGLOG("Before preload");
+        EclRepositoryManager & tempManager = const_cast<EclRepositoryManager &>(localRepositoryManager);
+        tempManager.prefetchRepository(optDefaultRepo);
+        DBGLOG("After preload");
+    }
+
     if (instance.archive)
     {
         instance.archive->setPropBool("@legacyImport", instance.legacyImport);
