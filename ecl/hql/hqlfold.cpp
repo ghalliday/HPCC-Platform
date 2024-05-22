@@ -4539,7 +4539,8 @@ IHqlExpression * NullFolderMixin::foldNullDataset(IHqlExpression * expr)
             }
 
             //JOIN with false condition - can occur once constants are folded.
-            IValue * condValue = expr->queryChild(2)->queryValue();
+            IHqlExpression * cond = expr->queryChild(2);
+            IValue * condValue = cond->queryValue();
             if (condValue)
             {
                 if (!condValue->getBoolValue())
@@ -4567,6 +4568,31 @@ IHqlExpression * NullFolderMixin::foldNullDataset(IHqlExpression * expr)
                             return createDataset(no_datasetfromrow, createRow(no_createrow, LINK(transform)));
                         }
                     }
+
+                    {
+                        //If the left hand side is a single row with no fields, then it is equivalent to an index read
+                        IHqlExpression * selSeq = querySelSeq(expr);
+                        OwnedHqlExpr right = createSelector(no_right, rhs, selSeq);
+                        OwnedHqlExpr mappedRight = createSelector(no_left, rhs, selSeq);
+                        OwnedHqlExpr mappedTransform = replaceSelector(expr->queryChild(3), right, mappedRight);
+                        return createDataset(no_hqlproject, { LINK(rhs), mappedTransform.getClear(), LINK(selSeq) });
+                    }
+
+                }
+            }
+
+            IHqlExpression * selSeq = querySelSeq(expr);
+            OwnedHqlExpr left = createSelector(no_left, child, selSeq);
+            if (!exprReferencesDataset(cond, left) && isInnerJoin(expr) && hasSingleRow(child))
+            {
+                if (hasSingleRow(child) && queryRealChild(child->queryRecord(), 0) == nullptr)
+                {
+                    //If the left hand side is a single row with no fields, then it is equivalent to an index read
+                    OwnedHqlExpr right = createSelector(no_right, rhs, selSeq);
+                    OwnedHqlExpr mappedCond = replaceSelector(cond, right, rhs);
+                    OwnedHqlExpr mappedTransform = replaceSelector(expr->queryChild(3), right, rhs);
+                    OwnedHqlExpr filtered = createDataset(no_filter, LINK(rhs), mappedCond.getClear());
+                    return createDataset(no_newusertable, { filtered.getClear(), LINK(mappedTransform->queryRecord()), LINK(mappedTransform) });
                 }
             }
 
