@@ -55,6 +55,23 @@ extern graph_decl ISmartRowBuffer * createSmartInMemoryBuffer(CActivityBase *act
                                                       IThorRowInterfaces *rowIf,
                                                       size32_t buffsize);
 
+struct SharedRowStreamReaderOptions
+{
+    offset_t storageBlockSize = 256 * 1024;           // block size of read/write streams
+    memsize_t compressionBlockSize = 256 * 1024;      // compression buffer size of read streams
+    memsize_t inMemMaxMem = 2000 * 1024;              // before spilling begins.
+    memsize_t inMemReadAheadGranularity = 256 * 1024; // granularity of read ahead (will allow readers to get in)
+    // JCSMORE - better name (because this is only applicable once starts spilling)
+    offset_t spillWriteAheadSize = 4000 * 1024;       // once spilling, maximum size to write ahead
+};
+interface ISharedRowStreamReader : extends IInterface
+{
+    virtual IRowStream *queryOutput(unsigned output) = 0;
+    virtual void cancel()=0;
+    virtual void reset() = 0;
+};
+
+
 // Multiple readers, one writer
 interface ISharedSmartBufferCallback
 {
@@ -62,18 +79,20 @@ interface ISharedSmartBufferCallback
     virtual void blocked() = 0;
     virtual void unblocked() = 0;
 };
-interface ISharedSmartBuffer : extends IRowWriter
+
+interface ISharedSmartBufferRowWriter : extends IRowWriter
 {
-    using IRowWriter::putRow;
     virtual void putRow(const void *row, ISharedSmartBufferCallback *callback) = 0; // extended form of putRow, which signals when pages out via callback
-    virtual IRowStream *queryOutput(unsigned output) = 0;
-    virtual void cancel()=0;
-    virtual void reset() = 0;
+};
+
+interface ISharedSmartBuffer : extends ISharedRowStreamReader
+{
+    virtual ISharedSmartBufferRowWriter *getWriter() = 0;
 };
 
 extern graph_decl ISharedSmartBuffer *createSharedSmartMemBuffer(CActivityBase *activity, unsigned outputs, IThorRowInterfaces *rowif, unsigned buffSize=((unsigned)-1));
 extern graph_decl ISharedSmartBuffer *createSharedSmartDiskBuffer(CActivityBase *activity, const char *tempname, unsigned outputs, IThorRowInterfaces *rowif);
-
+extern graph_decl ISharedRowStreamReader *createSharedFullSpillingWriteAhead(CActivityBase *_activity, unsigned numOutputs, IRowStream *_input, bool _inputGrouped, const SharedRowStreamReaderOptions &options, IThorRowInterfaces *_rowIf, const char *tempFileName, ICompressHandler *compressHandler);
 
 interface IRowWriterMultiReader : extends IRowWriter
 {
