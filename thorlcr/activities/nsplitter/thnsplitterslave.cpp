@@ -166,7 +166,7 @@ public:
         ForEachItemIn(o, container.outputs)
             appendOutput(new CSplitterOutput(*this, o));
         newSplitter = getOptBool("newsplitter", false);
-        if (getOptBool("forcenewsplitter", false))
+        if (getOptBool("forcenewsplitter", true))
         {
             newSplitter = true;
             spill = true;
