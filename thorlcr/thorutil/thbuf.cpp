@@ -1520,7 +1520,6 @@ public:
         spillFileIO.clear();
         if (spillFile)
             spillFile->remove();
-
         for (;;)
         {
             Owned<Chunk> chunk = savedChunks.dequeue();
@@ -1961,16 +1960,31 @@ public:
     }
     ~CSharedFullSpillingWriteAhead()
     {
-        if (iFile)
+        if (outputStream) // should have already been closed when inputs all stopped
+        {
+            closeWriter();
             iFile->remove();
+        }
         freeRows();
     }
     void outputStopped(unsigned output)
     {
-        // Mark finished output with max, so that it is not considered by getLowestOutput()
-        CriticalBlock b(readAheadCS); // read ahead could be active and considering this output
-        outputs[output]->setLastKnownAvailable((rowcount_t)-1);
-
+        bool allStopped = false;
+        {
+            // Mark finished output with max, so that it is not considered by getLowestOutput()
+            CriticalBlock b(readAheadCS); // read ahead could be active and considering this output
+            outputs[output]->setLastKnownAvailable((rowcount_t)-1);
+            if ((rowcount_t)-1 == getLowestOutput())
+                allStopped = true;
+        }
+        if (allStopped)
+        {
+            if (totalInputRowsRead) // only set if spilt
+            {
+                closeWriter();
+                iFile->remove();
+            }
+        }
     }
     IBufferedSerialInputStream *getReadStream()
     {
@@ -2030,7 +2044,7 @@ public:
 
             if (rowsMemUsage >= options.inMemMaxMem) // too much in memory, spill
             {
-                // NB: this will reset rowMemUsage, however, each reader will retain some rows until they catch up (or stop)
+                // NB: this will reset rowMemUsage, however, each reader will continue to consume rows until they catch up (or stop)
                 ActPrintLog(&activity, "Spilling to temp storage [file = %s, outputRowsAvailable = %" I64F "u, start = %" I64F "u, end = %" I64F "u, count = %u]", iFile->queryFilename(), outputRowsAvailable, inMemTotalRows - rows.size(), inMemTotalRows, (unsigned)rows.size());
                 createOutputStream();
                 return false;
@@ -2093,11 +2107,13 @@ public:
     }
     virtual void reset() override
     {
-        closeWriter();
+        if (outputStream) // should have already been closed when inputs all stopped
+        {
+            closeWriter();
+            iFile->remove();
+        }
         for (auto &output: outputs)
             output->reset();
-        if (iFile)
-            iFile->remove();
         freeRows();
         rows.clear();
         rowsMemUsage = 0;
