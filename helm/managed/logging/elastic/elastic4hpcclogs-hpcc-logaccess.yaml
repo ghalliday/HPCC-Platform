@@ -31,6 +31,7 @@ global:
           - code: PRO
           - code: MON
           - code: ADT
+          - code: MON
           columnMode: "DEFAULT"
           columnType: "enum"
         - type: "class"                              #Search by log class specific log mapping
@@ -43,6 +44,7 @@ global:
           - code: PRO
           - code: EVT
           - code: MET
+          - code: EVT
           columnMode: "DEFAULT"
           columnType: "enum"
         - type: "instance"                           #Search by log source instance specific mapping

@@ -42,6 +42,7 @@ global:
       - code: PRO
       - code: MON
       - code: ADT
+      - code: MON
       columnMode: "DEFAULT"
       columnType: "enum"
     - type: "class"
@@ -54,6 +55,7 @@ global:
       - code: PRO
       - code: EVT
       - code: MET
+      - code: EVT
       columnMode: "DEFAULT"
       columnType: "enum"
     - type: "instance"
