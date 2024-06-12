@@ -262,8 +262,8 @@ public:
                             Owned<ISharedSmartBuffer> smartBuf = createSharedSmartDiskBuffer(this, tempname.str(), numOutputs, queryRowInterfaces(input));
                             sharedRowStream.set(smartBuf);
                             sharedSmartRowWriter.setown(smartBuf->getWriter());
+                            ActPrintLog("Using temp spill file: %s", tempname.str());
                         }
-                        ActPrintLog("Using temp spill file: %s", tempname.str());
                     }
                     else
                     {
