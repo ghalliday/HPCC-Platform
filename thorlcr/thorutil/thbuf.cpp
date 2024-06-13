@@ -2050,7 +2050,7 @@ public:
                 return false;
             }
 
-            // read more, up to inMemReadAheadGranularity before relinquishing
+            // read more, up to inMemReadAheadGranularity or inMemReadAheadGranularityRows before relinquishing
             rowcount_t previousNumRows = rows.size();
             while (true)
             {
@@ -2061,7 +2061,8 @@ public:
                     size32_t sz = thorRowMemoryFootprint(serializer, row);
                     rows.emplace_back(row, sz);
                     rowsMemUsage += sz;
-                    if (rowsMemUsage >= options.inMemReadAheadGranularity)
+                    if ((rowsMemUsage >= options.inMemReadAheadGranularity) ||
+                        (rows.size() >= options.inMemReadAheadGranularityRows))
                         break;
                 }
                 else

@@ -60,7 +60,8 @@ struct SharedRowStreamReaderOptions
     offset_t storageBlockSize = 256 * 1024;           // block size of read/write streams
     memsize_t compressionBlockSize = 256 * 1024;      // compression buffer size of read streams
     memsize_t inMemMaxMem = 2000 * 1024;              // before spilling begins.
-    memsize_t inMemReadAheadGranularity = 256 * 1024; // granularity of read ahead (will allow readers to get in)
+    memsize_t inMemReadAheadGranularity = 128 * 1024; // granularity (K) of read ahead
+    rowcount_t inMemReadAheadGranularityRows = 64;    // granularity (rows) of read ahead. NB: whichever granularity is hit first
     // JCSMORE - better name (because this is only applicable once starts spilling)
     offset_t spillWriteAheadSize = 4000 * 1024;       // once spilling, maximum size to write ahead
 };
