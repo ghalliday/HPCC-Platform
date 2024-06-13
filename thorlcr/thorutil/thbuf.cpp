@@ -1822,12 +1822,15 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
             freeRows();
             ds.setStream(nullptr);
 
-            StringBuffer tracing;
-            getFileIOStats(tracing, iFileIO);
-            owner.activity.ActPrintLog("CSharedFullSpillingWriteAhead::COutputRowStream: input stream finished: output=%u%s", whichOutput, tracing.str());
+            if (inputStream)
+            {
+                StringBuffer tracing;
+                getFileIOStats(tracing, iFileIO);
+                owner.activity.ActPrintLog("CSharedFullSpillingWriteAhead::COutputRowStream: input stream finished: output=%u%s", whichOutput, tracing.str());
 
-            iFileIO.clear();
-            inputStream.clear();
+                iFileIO.clear();
+                inputStream.clear();
+            }
 
             // NB: this will set lastKnownAvailable to max[(rowcount_t)-1] (within owner.readAheadCS) to prevent it being considered as lowest any longer
             owner.outputStopped(whichOutput);
