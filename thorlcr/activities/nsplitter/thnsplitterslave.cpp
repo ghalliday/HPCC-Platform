@@ -166,7 +166,7 @@ public:
         ForEachItemIn(o, container.outputs)
             appendOutput(new CSplitterOutput(*this, o));
         newSplitter = getOptBool("newsplitter", false);
-        if (getOptBool("forcenewsplitter", true))
+        if (getOptBool("forcenewsplitter", false))
         {
             newSplitter = true;
             spill = true;
@@ -255,7 +255,7 @@ public:
                             options.inMemReadAheadGranularity = getOptInt(THOROPT_SPLITTER_READAHEADGRANULARITYK, options.inMemReadAheadGranularity / 1024) * 1024;
                             options.inMemReadAheadGranularityRows = getOptInt(THOROPT_SPLITTER_READAHEADGRANULARITYROWS, options.inMemReadAheadGranularity);
 
-                            ICompressHandler *compressHandler = queryDefaultCompressHandler();
+                            ICompressHandler *compressHandler = options.compressionBlockSize ? queryDefaultCompressHandler() : nullptr;
                             sharedRowStream.setown(createSharedFullSpillingWriteAhead(this, numOutputs, inputStream, isGrouped(), options, queryRowInterfaces(input), tempname.str(), compressHandler));
                         }
                         else

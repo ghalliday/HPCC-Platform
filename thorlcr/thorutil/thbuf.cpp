@@ -1517,9 +1517,18 @@ public:
     }
     ~CSharedWriteAheadDisk()
     {
-        spillFileIO.clear();
         if (spillFile)
+        {
+            __int64 readCycles = spillFileIO->getStatistic(StCycleDiskReadIOCycles);
+            __int64 writeCycles = spillFileIO->getStatistic(StCycleDiskWriteIOCycles);
+            __int64 numReads = spillFileIO->getStatistic(StNumDiskReads);
+            __int64 numWrites = spillFileIO->getStatistic(StNumDiskWrites);
+            offset_t bytesRead = spillFileIO->getStatistic(StSizeDiskRead);
+            offset_t bytesWritten = spillFileIO->getStatistic(StSizeDiskWrite);
+            DBGLOG("CSharedWriteAheadDisk: removing spill file: %s, read-time(ms)=%" I64F "d, write-time(ms)=%" I64F "d, numReads=%" I64F "d, numWrites=%" I64F "d, bytesRead=%" I64F "d, bytesWritten=%" I64F "d", spillFile->queryFilename(), cycle_to_millisec(readCycles), cycle_to_millisec(writeCycles), numReads, numWrites, bytesRead, bytesWritten);
+            spillFileIO.clear();
             spillFile->remove();
+        }
         for (;;)
         {
             Owned<Chunk> chunk = savedChunks.dequeue();
@@ -1840,6 +1849,7 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
     rowcount_t inMemTotalRows = 0; // whilst in memory, represents count of all rows seen
     CriticalSection readAheadCS; // ensure single reader (leader), reads ahead (updates rows/totalInputRowsRead/inMemTotalRows)
     Owned<IFile> iFile;
+    Owned<IFileIO> iFileIO;
     Owned<IBufferedSerialOutputStream> outputStream;
     Linked<ICompressHandler> compressHandler;
     bool nextInputReadEog = false;
@@ -1872,13 +1882,14 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
     }
     void closeWriter()
     {
+        iFileIO.clear();
         outputStream.clear();
     }
     void createOutputStream()
     {
         // NB: Called once, when spilling starts.
-        Owned<IFileIO> io = iFile->open(IFOcreate);
-        Owned<ISerialOutputStream> out = createSerialOutputStream(io);
+        iFileIO.setown(iFile->open(IFOcreate)); // kept for stats purposes
+        Owned<ISerialOutputStream> out = createSerialOutputStream(iFileIO);
         outputStream.setown(createBufferedOutputStream(out, options.storageBlockSize)); //prefered plane block size
         if (compressHandler)
         {
@@ -1977,6 +1988,13 @@ public:
         {
             if (totalInputRowsRead) // only set if spilt
             {
+                __int64 readCycles = iFileIO->getStatistic(StCycleDiskReadIOCycles);
+                __int64 writeCycles = iFileIO->getStatistic(StCycleDiskWriteIOCycles);
+                __int64 numReads = iFileIO->getStatistic(StNumDiskReads);
+                __int64 numWrites = iFileIO->getStatistic(StNumDiskWrites);
+                offset_t bytesRead = iFileIO->getStatistic(StSizeDiskRead);
+                offset_t bytesWritten = iFileIO->getStatistic(StSizeDiskWrite);
+                DBGLOG("CSharedFullSpillingWriteAhead: removing spill file: %s, read-time(ms)=%" I64F "d, write-time(ms)=%" I64F "d, numReads=%" I64F "d, numWrites=%" I64F "d, bytesRead=%" I64F "d, bytesWritten=%" I64F "d", iFile->queryFilename(), cycle_to_millisec(readCycles), cycle_to_millisec(writeCycles), numReads, numWrites, bytesRead, bytesWritten);
                 closeWriter();
                 iFile->remove();
             }
