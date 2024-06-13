@@ -1707,6 +1707,7 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
         rowcount_t currentRow = 0;
         Rows rows;
         OwnedIFileIO iFileIO;
+        Owned<IEngineRowAllocator> allocator;
         Owned<IBufferedSerialInputStream> inputStream;
         CThorStreamDeserializerSource ds;
         std::atomic<bool> eof = false;
@@ -1745,7 +1746,7 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
                 }
             }
             currentRow++;
-            RtlDynamicRowBuilder rowBuilder(owner.allocator);
+            RtlDynamicRowBuilder rowBuilder(allocator);
             size32_t sz = owner.deserializer->deserialize(rowBuilder, ds);
             return rowBuilder.finalizeRowClear(sz);
         }
@@ -1753,6 +1754,7 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
         explicit COutputRowStream(CSharedFullSpillingWriteAhead &_owner, unsigned _whichOutput)
             : owner(_owner), whichOutput(_whichOutput)
         {
+            allocator.setown(owner.activity.getRowAllocator(owner.meta, roxiemem::RHFunique));
         }
         ~COutputRowStream()
         {
@@ -1811,7 +1813,9 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
                 }
                 else
                 {
-                    inputStream.setown(owner.getReadStream(iFileIO));
+                    auto [_inputStream, _iFileIO] = owner.getReadStream();
+                    inputStream.setown(_inputStream);
+                    iFileIO.setown(_iFileIO);
                     ds.setStream(inputStream);
                     return getRowFromStream(); // NB: will increment currentRow
                 }
@@ -1869,6 +1873,7 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
 
     CActivityBase &activity;
     Linked<IRowStream> input;
+    Linked<IOutputMetaData> meta;
     Linked<IOutputRowSerializer> serializer;
     Linked<IOutputRowDeserializer> deserializer;
     Linked<IEngineRowAllocator> allocator;
@@ -1982,7 +1987,7 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
 public:
     explicit CSharedFullSpillingWriteAhead(CActivityBase *_activity, unsigned numOutputs, IRowStream *_input, bool _inputGrouped, const SharedRowStreamReaderOptions &_options, IThorRowInterfaces *rowIf, const char *tempFileName, ICompressHandler *_compressHandler)
         : activity(*_activity), input(_input), inputGrouped(_inputGrouped), options(_options), compressHandler(_compressHandler),
-        serializer(rowIf->queryRowSerializer()), allocator(rowIf->queryRowAllocator()), deserializer(rowIf->queryRowDeserializer())
+        meta(rowIf->queryRowMetaData()), serializer(rowIf->queryRowSerializer()), allocator(rowIf->queryRowAllocator()), deserializer(rowIf->queryRowDeserializer())
     {
         assertex(input);
 
@@ -2026,9 +2031,9 @@ public:
             }
         }
     }
-    IBufferedSerialInputStream *getReadStream(OwnedIFileIO &iFileIO) // also pass back IFileIO for stats purposes
+    std::tuple<IBufferedSerialInputStream *, IFileIO *> getReadStream() // also pass back IFileIO for stats purposes
     {
-        iFileIO.setown(iFile->open(IFOread));
+        Owned<IFileIO> iFileIO = iFile->open(IFOread);
         Owned<ISerialInputStream> in = createSerialInputStream(iFileIO);
         Owned<IBufferedSerialInputStream> inputStream = createBufferedInputStream(in, options.storageBlockSize, 0);
         if (compressHandler)
@@ -2038,7 +2043,7 @@ public:
             Owned<ISerialInputStream> decompressed = createDecompressingInputStream(inputStream, decompressor);
             inputStream.setown(createBufferedInputStream(decompressed, options.compressionBlockSize, 0));
         }
-        return inputStream.getClear();
+        return { inputStream.getClear(), iFileIO.getClear() };
     }
     bool checkWriteAhead(rowcount_t &outputRowsAvailable)
     {
