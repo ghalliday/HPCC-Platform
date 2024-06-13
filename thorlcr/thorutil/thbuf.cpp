@@ -1754,7 +1754,7 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
         explicit COutputRowStream(CSharedFullSpillingWriteAhead &_owner, unsigned _whichOutput)
             : owner(_owner), whichOutput(_whichOutput)
         {
-            allocator.setown(owner.activity.getRowAllocator(owner.meta, roxiemem::RHFunique));
+            allocator.setown(owner.activity.getRowAllocator(owner.meta, (roxiemem::RoxieHeapFlags)owner.options.heapFlags));
         }
         ~COutputRowStream()
         {
@@ -1824,6 +1824,7 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
         virtual void stop() override
         {
             freeRows();
+            allocator->emptyCache();
             ds.setStream(nullptr);
 
             if (inputStream)

@@ -64,6 +64,7 @@ struct SharedRowStreamReaderOptions
     rowcount_t inMemReadAheadGranularityRows = 64;    // granularity (rows) of read ahead. NB: whichever granularity is hit first
     // JCSMORE - better name (because this is only applicable once starts spilling)
     offset_t spillWriteAheadSize = 4000 * 1024;       // once spilling, maximum size to write ahead
+    unsigned heapFlags = roxiemem::RHFunique;
 };
 interface ISharedRowStreamReader : extends IInterface
 {

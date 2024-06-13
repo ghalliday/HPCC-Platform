@@ -254,6 +254,7 @@ public:
                             options.spillWriteAheadSize = getOptInt64(THOROPT_SPLITTER_WRITEAHEADK, options.spillWriteAheadSize / 1024) * 1024;
                             options.inMemReadAheadGranularity = getOptInt(THOROPT_SPLITTER_READAHEADGRANULARITYK, options.inMemReadAheadGranularity / 1024) * 1024;
                             options.inMemReadAheadGranularityRows = getOptInt(THOROPT_SPLITTER_READAHEADGRANULARITYROWS, options.inMemReadAheadGranularity);
+                            options.heapFlags = getOptInt("spillheapflags", options.heapFlags);
 
                             ICompressHandler *compressHandler = options.compressionBlockSize ? queryDefaultCompressHandler() : nullptr;
                             sharedRowStream.setown(createSharedFullSpillingWriteAhead(this, numOutputs, inputStream, isGrouped(), options, this, tempname.str(), compressHandler));
