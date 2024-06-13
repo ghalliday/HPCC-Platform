@@ -256,11 +256,11 @@ public:
                             options.inMemReadAheadGranularityRows = getOptInt(THOROPT_SPLITTER_READAHEADGRANULARITYROWS, options.inMemReadAheadGranularity);
 
                             ICompressHandler *compressHandler = options.compressionBlockSize ? queryDefaultCompressHandler() : nullptr;
-                            sharedRowStream.setown(createSharedFullSpillingWriteAhead(this, numOutputs, inputStream, isGrouped(), options, queryRowInterfaces(input), tempname.str(), compressHandler));
+                            sharedRowStream.setown(createSharedFullSpillingWriteAhead(this, numOutputs, inputStream, isGrouped(), options, this, tempname.str(), compressHandler));
                         }
                         else
                         {
-                            Owned<ISharedSmartBuffer> smartBuf = createSharedSmartDiskBuffer(this, tempname.str(), numOutputs, queryRowInterfaces(input));
+                            Owned<ISharedSmartBuffer> smartBuf = createSharedSmartDiskBuffer(this, tempname.str(), numOutputs, this);
                             sharedRowStream.set(smartBuf);
                             sharedSmartRowWriter.setown(smartBuf->getWriter());
                             ActPrintLog("Using temp spill file: %s", tempname.str());
@@ -269,7 +269,7 @@ public:
                     else
                     {
                         ActPrintLog("Spill is 'balanced'");
-                        Owned<ISharedSmartBuffer> smartBuf = createSharedSmartMemBuffer(this, numOutputs, queryRowInterfaces(input), NSPLITTER_SPILL_BUFFER_SIZE);
+                        Owned<ISharedSmartBuffer> smartBuf = createSharedSmartMemBuffer(this, numOutputs, this, NSPLITTER_SPILL_BUFFER_SIZE);
                         sharedRowStream.set(smartBuf);
                         sharedSmartRowWriter.setown(smartBuf->getWriter());
                         cachedMetaInfo.canStall = true;
