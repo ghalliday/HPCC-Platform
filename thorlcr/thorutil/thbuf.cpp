@@ -1198,6 +1198,29 @@ bool CRowSet::Release() const
     return CSimpleInterface::Release();
 }
 
+static StringBuffer &getFileIOStats(StringBuffer &output, IFileIO *iFileIO)
+{
+    __int64 readCycles = iFileIO->getStatistic(StCycleDiskReadIOCycles);
+    __int64 writeCycles = iFileIO->getStatistic(StCycleDiskWriteIOCycles);
+    __int64 numReads = iFileIO->getStatistic(StNumDiskReads);
+    __int64 numWrites = iFileIO->getStatistic(StNumDiskWrites);
+    offset_t bytesRead = iFileIO->getStatistic(StSizeDiskRead);
+    offset_t bytesWritten = iFileIO->getStatistic(StSizeDiskWrite);
+    if (readCycles)
+        output.appendf(", read-time(ms)=%" I64F "d", cycle_to_millisec(readCycles));
+    if (writeCycles)
+        output.appendf(", write-time(ms)=%" I64F "d", cycle_to_millisec(writeCycles));
+    if (numReads)
+        output.appendf(", numReads=%" I64F "d", numReads);
+    if (numWrites)
+        output.appendf(", numWrites=%" I64F "d", numWrites);
+    if (bytesRead)
+        output.appendf(", bytesRead=%" I64F "d", bytesRead);
+    if (bytesWritten)
+        output.appendf(", bytesWritten=%" I64F "d", bytesWritten);
+    return output;
+}
+
 class CSharedWriteAheadDisk : public CSharedWriteAheadBase
 {
     Owned<IFile> spillFile;
@@ -1519,13 +1542,9 @@ public:
     {
         if (spillFile)
         {
-            __int64 readCycles = spillFileIO->getStatistic(StCycleDiskReadIOCycles);
-            __int64 writeCycles = spillFileIO->getStatistic(StCycleDiskWriteIOCycles);
-            __int64 numReads = spillFileIO->getStatistic(StNumDiskReads);
-            __int64 numWrites = spillFileIO->getStatistic(StNumDiskWrites);
-            offset_t bytesRead = spillFileIO->getStatistic(StSizeDiskRead);
-            offset_t bytesWritten = spillFileIO->getStatistic(StSizeDiskWrite);
-            DBGLOG("CSharedWriteAheadDisk: removing spill file: %s, read-time(ms)=%" I64F "d, write-time(ms)=%" I64F "d, numReads=%" I64F "d, numWrites=%" I64F "d, bytesRead=%" I64F "d, bytesWritten=%" I64F "d", spillFile->queryFilename(), cycle_to_millisec(readCycles), cycle_to_millisec(writeCycles), numReads, numWrites, bytesRead, bytesWritten);
+            StringBuffer tracing;
+            getFileIOStats(tracing, spillFileIO);
+            activity->ActPrintLog("CSharedWriteAheadDisk: removing spill file: %s%s", spillFile->queryFilename(), tracing.str());
             spillFileIO.clear();
             spillFile->remove();
         }
@@ -1687,6 +1706,7 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
         rowcount_t lastKnownAvailable = 0;
         rowcount_t currentRow = 0;
         Rows rows;
+        OwnedIFileIO iFileIO;
         Owned<IBufferedSerialInputStream> inputStream;
         CThorStreamDeserializerSource ds;
         std::atomic<bool> eof = false;
@@ -1754,6 +1774,7 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
         {
             freeRows();
             ds.setStream(nullptr);
+            iFileIO.clear();
             inputStream.clear();
             eof = false;
             currentRow = 0;
@@ -1790,7 +1811,7 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
                 }
                 else
                 {
-                    inputStream.setown(owner.getReadStream());
+                    inputStream.setown(owner.getReadStream(iFileIO));
                     ds.setStream(inputStream);
                     return getRowFromStream(); // NB: will increment currentRow
                 }
@@ -1800,6 +1821,12 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
         {
             freeRows();
             ds.setStream(nullptr);
+
+            StringBuffer tracing;
+            getFileIOStats(tracing, iFileIO);
+            owner.activity.ActPrintLog("CSharedFullSpillingWriteAhead::COutputRowStream: input stream finished: output=%u%s", whichOutput, tracing.str());
+
+            iFileIO.clear();
             inputStream.clear();
 
             // NB: this will set lastKnownAvailable to max[(rowcount_t)-1] (within owner.readAheadCS) to prevent it being considered as lowest any longer
@@ -1988,21 +2015,17 @@ public:
         {
             if (totalInputRowsRead) // only set if spilt
             {
-                __int64 readCycles = iFileIO->getStatistic(StCycleDiskReadIOCycles);
-                __int64 writeCycles = iFileIO->getStatistic(StCycleDiskWriteIOCycles);
-                __int64 numReads = iFileIO->getStatistic(StNumDiskReads);
-                __int64 numWrites = iFileIO->getStatistic(StNumDiskWrites);
-                offset_t bytesRead = iFileIO->getStatistic(StSizeDiskRead);
-                offset_t bytesWritten = iFileIO->getStatistic(StSizeDiskWrite);
-                DBGLOG("CSharedFullSpillingWriteAhead: removing spill file: %s, read-time(ms)=%" I64F "d, write-time(ms)=%" I64F "d, numReads=%" I64F "d, numWrites=%" I64F "d, bytesRead=%" I64F "d, bytesWritten=%" I64F "d", iFile->queryFilename(), cycle_to_millisec(readCycles), cycle_to_millisec(writeCycles), numReads, numWrites, bytesRead, bytesWritten);
+                StringBuffer tracing;
+                getFileIOStats(tracing, iFileIO);
+                activity.ActPrintLog("CSharedFullSpillingWriteAhead: removing spill file: %s%s", iFile->queryFilename(), tracing.str());
                 closeWriter();
                 iFile->remove();
             }
         }
     }
-    IBufferedSerialInputStream *getReadStream()
+    IBufferedSerialInputStream *getReadStream(OwnedIFileIO &iFileIO) // also pass back IFileIO for stats purposes
     {
-        Owned<IFileIO> iFileIO = iFile->open(IFOread);
+        iFileIO.setown(iFile->open(IFOread));
         Owned<ISerialInputStream> in = createSerialInputStream(iFileIO);
         Owned<IBufferedSerialInputStream> inputStream = createBufferedInputStream(in, options.storageBlockSize, 0);
         if (compressHandler)
