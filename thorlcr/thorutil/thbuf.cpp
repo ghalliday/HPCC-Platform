@@ -1802,7 +1802,9 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
     class COutputStreamSerializer : public CSimpleInterfaceOf<IRowSerializerTarget>
     {
         IBufferedSerialOutputStream *outputStream;
-        std::vector<size32_t> nestedSizes;
+        unsigned nesting = 0;
+        offset_t outerNestingOffset = 0;
+
     public:
         COutputStreamSerializer(IBufferedSerialOutputStream *_outputStream) : outputStream(_outputStream)
         {
@@ -1810,30 +1812,19 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
         virtual void put(size32_t len, const void * ptr) override
         {
             outputStream->put(len, ptr);
-            if (nestedSizes.size())
-                nestedSizes.back() += len;
         }
         virtual size32_t beginNested(size32_t count) override
         {
-            // JCSMORE - change this to: (but need to change use of CThorStreamDeserializeSource on reader side too)
-            // virtual size32_t beginNested(size32_t count) override
-            // {
-            //     outputStream->write(sizeof(size32_t), &count);
-            //     return 0;
-            // }
-            // virtual void endNested(size32_t sizePos) override
-            // {
-            // }
-
-            nestedSizes.push_back(0);
             outputStream->suspend(sizeof(size32_t));
-            return 0;
+            if (nesting++ == 0)
+                outerNestingOffset = outputStream->tell();
+            return outputStream->tell()-outerNestingOffset;
         }
-        virtual void endNested(size32_t sizePos) override
+        virtual void endNested(size32_t delta) override
         {
-            size32_t nestedSize = nestedSizes.back();
-            nestedSizes.pop_back();
-            outputStream->resume(sizeof(size32_t), &nestedSize);
+            size32_t patchedLength = outputStream->tell() - (delta + outerNestingOffset);
+            outputStream->resume(sizeof(size32_t), &patchedLength);
+            nesting--;
         }
     };
 
@@ -1855,6 +1846,7 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
     bool endOfInput = false;
     bool inputGrouped = false;
     SharedRowStreamReaderOptions options;
+    size32_t inMemReadAheadGranularity = 0;
 
     rowcount_t getLowestOutput()
     {
@@ -1952,7 +1944,11 @@ public:
         serializer(rowIf->queryRowSerializer()), allocator(rowIf->queryRowAllocator()), deserializer(rowIf->queryRowDeserializer())
     {
         assertex(input);
-        assertex(options.inMemReadAheadGranularity < options.inMemMaxMem);
+
+        // cap inMemReadAheadGranularity to inMemMaxMem
+        inMemReadAheadGranularity = options.inMemReadAheadGranularity;
+        if (inMemReadAheadGranularity > options.inMemMaxMem)
+            inMemReadAheadGranularity = options.inMemMaxMem;
 
         for (unsigned o=0; o<numOutputs; o++)
             outputs.push_back(new COutputRowStream(*this, o));
