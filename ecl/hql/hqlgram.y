@@ -1784,7 +1784,7 @@ persistOpts
 persistOpt
     : fewMany
     | expireAttr
-    | queueAttr
+    | planeAttr
     | REFRESH '(' expression ')'
                         {
                             parser->normalizeExpression($3, type_boolean, true);
@@ -3851,23 +3851,6 @@ onFailAction
     | ONFAIL '(' transform ')'
                         {
                             $$.setExpr(createExprAttribute(onFailAtom, $3.getExpr()));
-                            $$.setPosition($1);
-                        }
-    ;
-
-queueAttr
-    : CLUSTER '(' stringExpressionList ')'
-                        {
-                            HqlExprArray args;
-                            $3.unwindCommaList(args);
-                            $$.setExpr(createExprAttribute(clusterAtom, args));
-                            $$.setPosition($1);
-                        }
-    | QUEUE '(' stringExpressionList ')'
-                        {
-                            HqlExprArray args;
-                            $3.unwindCommaList(args);
-                            $$.setExpr(createExprAttribute(clusterAtom, args));
                             $$.setPosition($1);
                         }
     ;
