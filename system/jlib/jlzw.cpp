@@ -2491,6 +2491,10 @@ public:
     {
         return fileio->getStatistic(kind);
     }
+    virtual const char * queryFilename() const override
+    {
+        return fileio->queryFilename();
+    }
 
 // CCompressedFile impl.
     virtual unsigned dataCRC() override
@@ -2540,11 +2544,19 @@ static bool isCompressedType(__int64 compressedType)
     return 0 != getCompressedMethod(compressedType);
 }
 
-static bool isCompressedFile(IFileIO *iFileIO, CompressedFileTrailer *trailer=nullptr)
+static bool isCompressedFile(IFileIO *iFileIO, offset_t expectedSize, CompressedFileTrailer *trailer=nullptr)
 {
     if (iFileIO)
     {
         offset_t fsize = iFileIO->size();
+        if (expectedSize != unknownFileSize)
+        {
+            if (fsize != expectedSize)
+            {
+                const char * filename = iFileIO->queryFilename();
+                throw MakeStringException(-1, "File %s expected size %llu, actually %llu", filename ? filename : "unknown", expectedSize, fsize);
+            }
+        }
         if (fsize>=sizeof(WinCompressedFileTrailer))  // thats 8 bytes bigger but I think doesn't matter
         {
             WinCompressedFileTrailer wintrailer;
@@ -2574,22 +2586,22 @@ static bool isCompressedFile(IFileIO *iFileIO, CompressedFileTrailer *trailer=nu
 
 
 
-bool isCompressedFile(const char *filename)
+bool isCompressedFile(const char *filename, offset_t expectedSize)
 {
     Owned<IFile> iFile = createIFile(filename);
-    return isCompressedFile(iFile);
+    return isCompressedFile(iFile, expectedSize);
 }
 
-bool isCompressedFile(IFile *iFile)
+bool isCompressedFile(IFile *iFile, offset_t expectedSize)
 {
     Owned<IFileIO> iFileIO = iFile->open(IFOread);
-    return isCompressedFile(iFileIO);
+    return isCompressedFile(iFileIO, expectedSize);
 }
 
-ICompressedFileIO *createCompressedFileReader(IFileIO *fileio,IExpander *expander)
+ICompressedFileIO *createCompressedFileReader(IFileIO *fileio,IExpander *expander, offset_t expectedSize)
 {
     CompressedFileTrailer trailer;
-    if (isCompressedFile(fileio, &trailer))
+    if (isCompressedFile(fileio, expectedSize, &trailer))
     {
         if (expander&&(trailer.recordSize!=0))
             throw MakeStringException(-1, "Compressed file format error(%d), Encrypted?",trailer.recordSize);
@@ -2600,7 +2612,7 @@ ICompressedFileIO *createCompressedFileReader(IFileIO *fileio,IExpander *expande
 }
 
 
-ICompressedFileIO *createCompressedFileReader(IFile *file,IExpander *expander, bool memorymapped, IFEflags extraFlags)
+ICompressedFileIO *createCompressedFileReader(IFile *file,IExpander *expander, offset_t expectedSize, bool memorymapped, IFEflags extraFlags)
 {
     if (file)
     {
@@ -2628,7 +2640,7 @@ ICompressedFileIO *createCompressedFileReader(IFile *file,IExpander *expander, b
         }
         Owned<IFileIO> fileio = file->open(IFOread, extraFlags);
         if (fileio) 
-            return createCompressedFileReader(fileio,expander);
+            return createCompressedFileReader(fileio,expander, expectedSize);
     }
     return NULL;
 }

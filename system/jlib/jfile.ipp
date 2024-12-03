@@ -104,7 +104,10 @@ public:
     virtual unsigned __int64 getStatistic(StatisticKind kind);
 
     HANDLE queryHandle() { return file; } // for debugging
-    const char * queryFilename() const { return creator ? creator->queryFilename() : nullptr; }
+    virtual const char * queryFilename() const override
+    {
+        return creator ? creator->queryFilename() : nullptr;
+    }
     const char * querySafeFilename() const
     {
         const char * name = queryFilename();
