@@ -472,6 +472,17 @@ IErrnoException *makeErrnoExceptionV(MessageAudience aud, const char *msg, ...)
     return new ErrnoException(-1, eStr.str(), aud);
 }
 
+
+IException * makeStdException(const std::exception & exception, const char * func)
+{
+    if(dynamic_cast<std::bad_alloc *>(&es))
+        return makeStringExceptionV(JLIBERR_OutOfMemoryError, "std::exception: out of memory (std::bad_alloc) in %s", func);
+
+    const char * what = exception.what();
+    return makeStringException(JLIBERR_StdLibError, "std::exception: standard library exception (%s) in %s", what, func);
+}
+
+
 const char* serializeMessageAudience(MessageAudience ma)
 {
     const char* ret;

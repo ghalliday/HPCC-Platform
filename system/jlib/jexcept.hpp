@@ -94,6 +94,8 @@ IOSException jlib_decl *makeOsException(int code);
 IOSException jlib_decl *makeOsException(int code, const char *msg);
 IOSException jlib_decl *makeOsExceptionV(int code, const char *msg, ...) __attribute__((format(printf, 2, 3)));
 
+IException * jlib_decl makeStdException(const std::exception & exception, const char * func);
+
 #define DISK_FULL_EXCEPTION_CODE ENOSPC
 
 interface jlib_thrown_decl IErrnoException: extends IException{};

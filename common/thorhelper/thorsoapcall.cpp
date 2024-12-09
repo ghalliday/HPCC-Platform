@@ -2762,18 +2762,14 @@ public:
                 master->activitySpanScope->recordException(e, false, false);
                 e->Release();
             }
-            catch (std::exception & es)
+            catch (const std::exception & es)
             {
                 if (master->usePersistConnections() && isReused)
                     persistentHandler->doneUsing(socket, false);
-                if(dynamic_cast<std::bad_alloc *>(&es))
-                {
-                    master->activitySpanScope->recordError("std::exception: out of memory (std::bad_alloc) in CWSCAsyncFor processQuery");
-                    throw MakeStringException(-1, "std::exception: out of memory (std::bad_alloc) in CWSCAsyncFor processQuery");
-                }
 
-                master->activitySpanScope->recordError(es.what());
-                throw MakeStringException(-1, "std::exception: standard library exception (%s) in CWSCAsyncFor processQuery",es.what());
+                Owned<IException> exception = makeStdException(es, __func__);
+                master->activitySpanScope->recordException(exception, true, true);
+                throw exception.getClear();
             }
             catch (...)
             {
