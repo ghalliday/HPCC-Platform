@@ -3078,6 +3078,7 @@ protected:
 
 //---------------------------------------------------------------------------------------------------------------------
 
+#if 0
 //Could be a useful general class for caching workunit debug and tree values
 template <class T>
 class CachedValue
@@ -3239,6 +3240,8 @@ public:
 protected:
     void onLimitExceeded();
 };
+#endif
+
 
 
 #define MAKEFACTORY(NAME) \

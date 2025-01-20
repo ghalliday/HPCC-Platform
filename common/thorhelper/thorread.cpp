@@ -365,12 +365,11 @@ public:
     LocalDiskRowReader(IRowReadFormatMapping * _mapping);
 
     virtual bool matches(const char * format, bool streamRemote, IRowReadFormatMapping * otherMapping) override;
+    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
     virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
     virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
-    virtual bool setInputFile(const CLogicalFileSlice & slice, const FieldFilterArray & expectedFilter, unsigned copy) override;
 
 protected:
-    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter);
     virtual bool isBinary() const = 0;
 
 protected:
@@ -497,22 +496,6 @@ bool LocalDiskRowReader::setInputFile(const RemoteFilename & filename, const cha
     Owned<IFile> inputFile = createIFile(filename);
     return setInputFile(inputFile, _logicalFilename, _partNumber, _baseOffset, 0, unknownFileSize, inputOptions, expectedFilter);
 }
-
-bool LocalDiskRowReader::setInputFile(const CLogicalFileSlice & slice, const FieldFilterArray & expectedFilter, unsigned copy)
-{
-    const char * logicalFilename = slice.queryLogicalFilename();
-    offset_t baseOffset = slice.queryOffsetOfPart();
-
-    StringBuffer url;
-    slice.getURL(url, copy);
-    Owned<IFile> inputFile = createIFile(url);
-
-    //MORE: These need to be passed on to the input reader
-    offset_t startOffset = slice.queryStartOffset();
-    offset_t length = slice.queryLength();
-    return setInputFile(inputFile, logicalFilename, slice.queryPartNumber(), baseOffset, startOffset, length, slice.queryFileMeta(), expectedFilter);
-}
-
 
 //---------------------------------------------------------------------------------------------------------------------
 
@@ -1478,9 +1461,9 @@ public:
         return false;
     }
 
-    virtual bool setInputFile(const CLogicalFileSlice & slice, const FieldFilterArray & expectedFilter, unsigned copy) override
+    virtual bool setInputFile(IFile * inputFile, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override
     {
-        if (inputReader->setInputFile(slice, expectedFilter, copy))
+        if (inputReader->setInputFile(inputFile, logicalFilename, partNumber, baseOffset, startOffset, length, inputOptions, expectedFilter))
         {
             rawInputStream = inputReader->queryAllocatedRowStream(nullptr);
             return true;
@@ -1590,14 +1573,14 @@ public:
         return activeReader->setInputFile(filename, logicalFilename, partNumber, baseOffset, inputOptions, expectedFilter);
     }
 
-    virtual bool setInputFile(const CLogicalFileSlice & slice, const FieldFilterArray & expectedFilter, unsigned copy) override
+    virtual bool setInputFile(IFile * inputFile, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override
     {
         bool useProjected = canFilterDirectly(expectedFilter);
         if (useProjected)
             activeReader = directReader;
         else
             activeReader = compoundReader;
-        return activeReader->setInputFile(slice, expectedFilter, copy);
+        return activeReader->setInputFile(inputFile, logicalFilename, partNumber, baseOffset, startOffset, length, inputOptions, expectedFilter);
     }
 
 protected:
@@ -1660,9 +1643,9 @@ public:
     virtual bool matches(const char * _format, bool _streamRemote, IRowReadFormatMapping * _mapping) override;
 
 // IDiskRowReader
+    virtual bool setInputFile(IFile * inputFile, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
     virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
     virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
-    virtual bool setInputFile(const CLogicalFileSlice & slice, const FieldFilterArray & expectedFilter, unsigned copy) override;
 
 protected:
     parquetembed::ParquetReader * parquetFileReader = nullptr;
@@ -1780,22 +1763,11 @@ bool ParquetDiskRowReader::setInputFile(const RemoteFilename & filename, const c
 {
     throwUnexpected();
 }
-
-bool ParquetDiskRowReader::setInputFile(const CLogicalFileSlice & slice, const FieldFilterArray & expectedFilter, unsigned copy)
+bool ParquetDiskRowReader::setInputFile(IFile * inputFile, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter)
 {
-    StringBuffer localPath;
-    slice.getURL(localPath, copy);
-
-    // getURL returns a filename in the format ./file/127.0.0.1/path/to/file/data.parquet
-    // To use it with the ParquetReader constructor we need just the file path
-    // Skip leading .
-    const char * slash = strstr(localPath, "/");
-    // Skip file
-    slash = strstr(slash+1, "/");
-    // Skip ip
-    slash = strstr(slash+1, "/");
-
-    return setInputFile(slash, slice.queryLogicalFilename(), slice.queryPartNumber(), slice.queryStartOffset(), slice.queryFileMeta(), expectedFilter);
+    assertex(startOffset == 0);
+    assertex(length == unknownFileSize);
+    return setInputFile(inputFile->queryFilename(), logicalFilename, partNumber, baseOffset, inputOptions, expectedFilter);
 }
 #endif
 //---------------------------------------------------------------------------------------------------------------------
@@ -1821,9 +1793,9 @@ public:
     virtual bool matches(const char * _format, bool _streamRemote, IRowReadFormatMapping * _mapping) override;
 
 // IDiskRowReader
+    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
     virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
     virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
-    virtual bool setInputFile(const CLogicalFileSlice & slice, const FieldFilterArray & expectedFilter, unsigned copy) override;
 
 private:
     template <class PROCESS>
@@ -1921,7 +1893,7 @@ bool RemoteDiskRowReader::setInputFile(const char * localFilename, const char * 
     throwUnexpected();
 }
 
-bool RemoteDiskRowReader::setInputFile(const CLogicalFileSlice & slice, const FieldFilterArray & expectedFilter, unsigned copy)
+bool RemoteDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter)
 {
     UNIMPLEMENTED;
 }

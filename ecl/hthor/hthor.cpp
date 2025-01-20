@@ -10737,6 +10737,9 @@ CHThorNewDiskReadBaseActivity::CHThorNewDiskReadBaseActivity(IAgentContext &_age
 
     CPropertyTreeWriter writer(formatOptions);
     helper.getFormatOptions(writer);
+
+    //bool isGeneric = (helper.getFlags() & TDXgeneric) != 0;
+
 }
 
 CHThorNewDiskReadBaseActivity::~CHThorNewDiskReadBaseActivity()
@@ -11452,6 +11455,7 @@ const void *CHThorNewDiskReadActivity::nextRow()
 }
 
 //=====================================================================================================
+#if 0
 
 bool RemoteReadChecker::onlyReadLocally(const CLogicalFileSlice & slice, unsigned copy)
 {
@@ -12010,6 +12014,7 @@ const void *CHThorGenericDiskReadActivity::nextRow()
     }
     return NULL;
 }
+#endif
 
 //=====================================================================================================
 
@@ -12071,11 +12076,6 @@ extern HTHOR_API IHThorActivity *createChildIfActivity(IAgentContext &_agent, un
 extern HTHOR_API IHThorActivity *createHashAggregateActivity(IAgentContext &_agent, unsigned _activityId, unsigned _subgraphId, IHThorHashAggregateArg &arg, ThorActivityKind kind, EclGraph & _graph, bool _isGroupedAggregate)
 {
     return new CHThorHashAggregateActivity(_agent, _activityId, _subgraphId, arg, kind, _graph, _isGroupedAggregate);
-}
-
-extern HTHOR_API IHThorActivity *createGenericDiskReadActivity(IAgentContext &_agent, unsigned _activityId, unsigned _subgraphId, IHThorNewDiskReadArg &arg, ThorActivityKind kind, EclGraph & _graph, IPropertyTree * node)
-{
-    return new CHThorGenericDiskReadActivity(_agent, _activityId, _subgraphId, arg, kind, _graph, node);
 }
 
 MAKEFACTORY(Null);
