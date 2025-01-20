@@ -44,7 +44,6 @@
 #include "roxiemem.hpp"
 #include "roxierowbuff.hpp"
 
-#include "thormeta.hpp"
 #include "thorread.hpp"
 
 roxiemem::IRowManager * queryRowManager();

@@ -33,7 +33,6 @@
 #include "rtlcommon.hpp"
 #include "thorcommon.hpp"
 #include "csvsplitter.hpp"
-#include "thormeta.hpp"
 #include "thorxmlread.hpp"
 
 #ifdef _USE_PARQUET
@@ -43,10 +42,10 @@
 //---------------------------------------------------------------------------------------------------------------------
 
 /*
- * A class that implements IDiskReadMapping - which provides all the information representing a translation from actual->expected->projected.
+ * A class that implements IRowReadFormatMapping - which provides all the information representing a translation from actual->expected->projected.
  */
 //It might be sensible to have result structure which is (mode, expected, projected) shared by all actual->result mappings
-class DiskReadMapping : public CInterfaceOf<IDiskReadMapping>
+class DiskReadMapping : public CInterfaceOf<IRowReadFormatMapping>
 {
 public:
     DiskReadMapping(RecordTranslationMode _mode, const char * _format, unsigned _actualCrc, IOutputMetaData & _actual, unsigned _expectedCrc, IOutputMetaData & _expected, unsigned _projectedCrc, IOutputMetaData & _output, const IPropertyTree * _fileOptions)
@@ -74,7 +73,7 @@ public:
         return keyedTranslator;
     }
 
-    virtual bool matches(const IDiskReadMapping * other) const
+    virtual bool matches(const IRowReadFormatMapping * other) const
     {
         if ((mode != other->queryTranslationMode()) || !streq(format, other->queryFormat()))
             return false;
@@ -196,16 +195,16 @@ void DiskReadMapping::ensureTranslators() const
     checkedTranslators = true;
 }
 
-THORHELPER_API IDiskReadMapping * createDiskReadMapping(RecordTranslationMode mode, const char * format, unsigned actualCrc, IOutputMetaData & actual, unsigned expectedCrc, IOutputMetaData & expected, unsigned projectedCrc, IOutputMetaData & projected, const IPropertyTree * fileOptions)
+THORHELPER_API IRowReadFormatMapping * createRowReadFormatMapping(RecordTranslationMode mode, const char * format, unsigned actualCrc, IOutputMetaData & actual, unsigned expectedCrc, IOutputMetaData & expected, unsigned projectedCrc, IOutputMetaData & projected, const IPropertyTree * formatOptions)
 {
     assertex(expectedCrc);
-    assertex(fileOptions);
-    return new DiskReadMapping(mode, format, actualCrc, actual, expectedCrc, expected, projectedCrc, projected, fileOptions);
+    assertex(formatOptions);
+    return new DiskReadMapping(mode, format, actualCrc, actual, expectedCrc, expected, projectedCrc, projected, formatOptions);
 }
 
-THORHELPER_API IDiskReadMapping * createUnprojectedMapping(IDiskReadMapping * mapping)
+static IRowReadFormatMapping * createUnprojectedMapping(IRowReadFormatMapping * mapping)
 {
-    return createDiskReadMapping(mapping->queryTranslationMode(), mapping->queryFormat(), mapping->getActualCrc(), *mapping->queryActualMeta(), mapping->getExpectedCrc(), *mapping->queryExpectedMeta(), mapping->getExpectedCrc(), *mapping->queryExpectedMeta(), mapping->queryFileOptions());
+    return createRowReadFormatMapping(mapping->queryTranslationMode(), mapping->queryFormat(), mapping->getActualCrc(), *mapping->queryActualMeta(), mapping->getExpectedCrc(), *mapping->queryExpectedMeta(), mapping->getExpectedCrc(), *mapping->queryExpectedMeta(), mapping->queryFileOptions());
 }
 
 
@@ -220,7 +219,7 @@ constexpr size32_t defaultReadBufferSize = 0x10000;
 class DiskRowReader : public CInterfaceOf<IDiskRowStream>, implements IDiskRowReader, implements IThorDiskCallback
 {
 public:
-    DiskRowReader(IDiskReadMapping * _mapping);
+    DiskRowReader(IRowReadFormatMapping * _mapping);
     IMPLEMENT_IINTERFACE_USING(CInterfaceOf<IDiskRowStream>)
 
     virtual IDiskRowStream * queryAllocatedRowStream(IEngineRowAllocator * _outputAllocator) override;
@@ -230,7 +229,7 @@ public:
     virtual void stop() override;
 
     virtual void clearInput() override;
-    virtual bool matches(const char * format, bool streamRemote, IDiskReadMapping * mapping) override;
+    virtual bool matches(const char * format, bool streamRemote, IRowReadFormatMapping * mapping) override;
 
 // IThorDiskCallback
     virtual offset_t getFilePosition(const void * row) override;
@@ -250,7 +249,7 @@ protected:
     RtlDynamicRowBuilder allocatedBuilder;
     const IDynamicTransform * translator = nullptr;
     const IKeyTranslator * keyedTranslator = nullptr;
-    Linked<IDiskReadMapping> mapping;
+    Linked<IRowReadFormatMapping> mapping;
     IOutputMetaData * actualDiskMeta = nullptr;
     MemoryBuffer encryptionKey;
     size32_t readBufferSize = defaultReadBufferSize;
@@ -267,7 +266,7 @@ protected:
 };
 
 
-DiskRowReader::DiskRowReader(IDiskReadMapping * _mapping)
+DiskRowReader::DiskRowReader(IRowReadFormatMapping * _mapping)
 : allocatedBuilder(nullptr), mapping(_mapping), actualDiskMeta(_mapping->queryActualMeta())
 {
     //Options contain information that is the same for each file that is being read, and potentially expensive to reconfigure.
@@ -295,7 +294,7 @@ void DiskRowReader::clearInput()
     inputStream.clear();
 }
 
-bool DiskRowReader::matches(const char * format, bool streamRemote, IDiskReadMapping * otherMapping)
+bool DiskRowReader::matches(const char * format, bool streamRemote, IRowReadFormatMapping * otherMapping)
 {
     if (!mapping->matches(otherMapping))
         return false;
@@ -363,9 +362,9 @@ offset_t DiskRowReader::getLocalOffset()
 class LocalDiskRowReader : public DiskRowReader
 {
 public:
-    LocalDiskRowReader(IDiskReadMapping * _mapping);
+    LocalDiskRowReader(IRowReadFormatMapping * _mapping);
 
-    virtual bool matches(const char * format, bool streamRemote, IDiskReadMapping * otherMapping) override;
+    virtual bool matches(const char * format, bool streamRemote, IRowReadFormatMapping * otherMapping) override;
     virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
     virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
     virtual bool setInputFile(const CLogicalFileSlice & slice, const FieldFilterArray & expectedFilter, unsigned copy) override;
@@ -381,12 +380,12 @@ protected:
 };
 
 
-LocalDiskRowReader::LocalDiskRowReader(IDiskReadMapping * _mapping)
+LocalDiskRowReader::LocalDiskRowReader(IRowReadFormatMapping * _mapping)
 : DiskRowReader(_mapping), bufferBuilder(tempOutputBuffer, 0)
 {
 }
 
-bool LocalDiskRowReader::matches(const char * format, bool streamRemote, IDiskReadMapping * otherMapping)
+bool LocalDiskRowReader::matches(const char * format, bool streamRemote, IRowReadFormatMapping * otherMapping)
 {
     if (streamRemote)
         return false;
@@ -523,7 +522,7 @@ bool LocalDiskRowReader::setInputFile(const CLogicalFileSlice & slice, const Fie
 class BinaryDiskRowReader : public LocalDiskRowReader
 {
 public:
-    BinaryDiskRowReader(IDiskReadMapping * _mapping);
+    BinaryDiskRowReader(IRowReadFormatMapping * _mapping);
 
     virtual const void *nextRow() override;
     virtual const void *prefetchRow(size32_t & resultSize) override;
@@ -533,7 +532,7 @@ public:
     virtual void stop() override;
 
     virtual void clearInput() override;
-    virtual bool matches(const char * format, bool streamRemote, IDiskReadMapping * otherMapping) override;
+    virtual bool matches(const char * format, bool streamRemote, IRowReadFormatMapping * otherMapping) override;
 
 protected:
     virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
@@ -568,7 +567,7 @@ protected:
 };
 
 
-BinaryDiskRowReader::BinaryDiskRowReader(IDiskReadMapping * _mapping)
+BinaryDiskRowReader::BinaryDiskRowReader(IRowReadFormatMapping * _mapping)
 : LocalDiskRowReader(_mapping)
 {
     actualRowPrefetcher.setown(actualDiskMeta->createDiskPrefetcher());
@@ -583,7 +582,7 @@ void BinaryDiskRowReader::clearInput()
     eogPending = false;
 }
 
-bool BinaryDiskRowReader::matches(const char * format, bool streamRemote, IDiskReadMapping * otherMapping)
+bool BinaryDiskRowReader::matches(const char * format, bool streamRemote, IRowReadFormatMapping * otherMapping)
 {
     if (!strieq(format, "flat"))
         return false;
@@ -776,7 +775,7 @@ size32_t BinaryDiskRowReader::getFixedDiskRecordSize()
 class ExternalFormatDiskRowReader : public LocalDiskRowReader
 {
 public:
-    ExternalFormatDiskRowReader(IDiskReadMapping * _mapping) : LocalDiskRowReader(_mapping)
+    ExternalFormatDiskRowReader(IRowReadFormatMapping * _mapping) : LocalDiskRowReader(_mapping)
     {
         projectedRecord = &mapping->queryProjectedMeta()->queryRecordAccessor(true);
     }
@@ -882,7 +881,7 @@ private:
     };
 
 public:
-    CsvDiskRowReader(IDiskReadMapping * _mapping);
+    CsvDiskRowReader(IRowReadFormatMapping * _mapping);
 
     virtual const void *nextRow() override;
     virtual const void *prefetchRow(size32_t & resultSize) override;
@@ -890,7 +889,7 @@ public:
 
     virtual void stop() override;
 
-    virtual bool matches(const char * format, bool streamRemote, IDiskReadMapping * otherMapping) override;
+    virtual bool matches(const char * format, bool streamRemote, IRowReadFormatMapping * otherMapping) override;
 
 protected:
     virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
@@ -907,7 +906,7 @@ protected:
 };
 
 
-CsvDiskRowReader::CsvDiskRowReader(IDiskReadMapping * _mapping)
+CsvDiskRowReader::CsvDiskRowReader(IRowReadFormatMapping * _mapping)
 : ExternalFormatDiskRowReader(_mapping)
 {
     const IPropertyTree & fileOptions = *mapping->queryFileOptions();
@@ -933,7 +932,7 @@ CsvDiskRowReader::CsvDiskRowReader(IDiskReadMapping * _mapping)
 }
 
 
-bool CsvDiskRowReader::matches(const char * format, bool streamRemote, IDiskReadMapping * otherMapping)
+bool CsvDiskRowReader::matches(const char * format, bool streamRemote, IRowReadFormatMapping * otherMapping)
 {
     if (!strieq(format, "csv"))
         return false;
@@ -1229,14 +1228,14 @@ private:
 
 public:
     IMPLEMENT_IINTERFACE_USING(ExternalFormatDiskRowReader);
-    MarkupDiskRowReader(IDiskReadMapping * _mapping, ThorActivityKind _kind);
+    MarkupDiskRowReader(IRowReadFormatMapping * _mapping, ThorActivityKind _kind);
 
     virtual const void *nextRow() override;
     virtual const void *prefetchRow(size32_t & resultSize) override;
     virtual const void *nextRow(MemoryBufferBuilder & builder) override;
 
     virtual void stop() override;
-    virtual bool matches(const char * format, bool streamRemote, IDiskReadMapping * otherMapping) override;
+    virtual bool matches(const char * format, bool streamRemote, IRowReadFormatMapping * otherMapping) override;
     // IXMLSelect impl.
     virtual void match(IColumnProvider &entry, offset_t startOffset, offset_t endOffset) { lastMatch.set(&entry); }
 
@@ -1262,7 +1261,7 @@ protected:
     bool opened = false;
 };
 
-MarkupDiskRowReader::MarkupDiskRowReader(IDiskReadMapping * _mapping, ThorActivityKind _kind)
+MarkupDiskRowReader::MarkupDiskRowReader(IRowReadFormatMapping * _mapping, ThorActivityKind _kind)
 : ExternalFormatDiskRowReader(_mapping), kind(_kind)
 {
     const IPropertyTree & fileOptions = *mapping->queryFileOptions();
@@ -1340,7 +1339,7 @@ void MarkupDiskRowReader::stop()
     opened = false;
 }
 
-bool MarkupDiskRowReader::matches(const char * format, bool streamRemote, IDiskReadMapping * otherMapping)
+bool MarkupDiskRowReader::matches(const char * format, bool streamRemote, IRowReadFormatMapping * otherMapping)
 {
     return ExternalFormatDiskRowReader::matches(format, streamRemote, otherMapping);
 }
@@ -1391,7 +1390,7 @@ bool MarkupDiskRowReader::checkOpen()
 class XmlDiskRowReader : public MarkupDiskRowReader
 {
 public:
-    XmlDiskRowReader(IDiskReadMapping * _mapping)
+    XmlDiskRowReader(IRowReadFormatMapping * _mapping)
     : MarkupDiskRowReader(_mapping, TAKxmlread)
     {
         const IPropertyTree & fileOptions = *mapping->queryFileOptions();
@@ -1406,7 +1405,7 @@ public:
         }
     }
 
-    bool matches(const char * format, bool streamRemote, IDiskReadMapping * otherMapping)
+    bool matches(const char * format, bool streamRemote, IRowReadFormatMapping * otherMapping)
     {
         if (!strieq(format, "xml"))
             return false;
@@ -1422,7 +1421,7 @@ public:
  */
 class CompoundProjectRowReader : extends CInterfaceOf<IDiskRowStream>, implements IDiskRowReader
 {
-    Linked<IDiskReadMapping> mapping;
+    Linked<IRowReadFormatMapping> mapping;
     Linked<IDiskRowReader> inputReader;
     UnexpectedVirtualFieldCallback unexpectedCallback;
     Owned<const IDynamicTransform> translator;
@@ -1432,7 +1431,7 @@ class CompoundProjectRowReader : extends CInterfaceOf<IDiskRowStream>, implement
     Linked<IEngineRowAllocator> outputAllocator;
     IDiskRowStream * rawInputStream = nullptr;
 public:
-    CompoundProjectRowReader(IDiskRowReader * _input, IDiskReadMapping * _mapping)
+    CompoundProjectRowReader(IDiskRowReader * _input, IRowReadFormatMapping * _mapping)
     : mapping(_mapping), inputReader(_input), bufferBuilder(tempOutputBuffer, 0), allocatedBuilder(nullptr)
     {
         const RtlRecord &inRecord = mapping->queryExpectedMeta()->queryRecordAccessor(true);
@@ -1448,7 +1447,7 @@ public:
         return this;
     }
 
-    virtual bool matches(const char * _format, bool _streamRemote, IDiskReadMapping * _mapping) override
+    virtual bool matches(const char * _format, bool _streamRemote, IRowReadFormatMapping * _mapping) override
     {
         return false;
     }
@@ -1544,7 +1543,7 @@ public:
 class AlternativeDiskRowReader : public CInterfaceOf<IDiskRowReader>
 {
 public:
-    AlternativeDiskRowReader(IDiskRowReader * projectedReader, IDiskRowReader * expectedReader, IDiskReadMapping * mapping)
+    AlternativeDiskRowReader(IDiskRowReader * projectedReader, IDiskRowReader * expectedReader, IRowReadFormatMapping * mapping)
     {
         directReader.set(projectedReader);
         compoundReader.setown(new CompoundProjectRowReader(expectedReader, mapping));
@@ -1556,7 +1555,7 @@ public:
         return activeReader->queryAllocatedRowStream(_outputAllocator);
     }
 
-    virtual bool matches(const char * _format, bool _streamRemote, IDiskReadMapping * _mapping) override
+    virtual bool matches(const char * _format, bool _streamRemote, IRowReadFormatMapping * _mapping) override
     {
         return directReader->matches(_format, _streamRemote, _mapping);
     }
@@ -1644,7 +1643,7 @@ protected:
 class ParquetDiskRowReader : public ExternalFormatDiskRowReader
 {
 public:
-    ParquetDiskRowReader(IDiskReadMapping * _mapping);
+    ParquetDiskRowReader(IRowReadFormatMapping * _mapping);
     ~ParquetDiskRowReader();
     IMPLEMENT_IINTERFACE_USING(CInterfaceOf<IDiskRowStream>)
 
@@ -1658,7 +1657,7 @@ public:
     virtual void stop() override;
 
     virtual void clearInput() override;
-    virtual bool matches(const char * _format, bool _streamRemote, IDiskReadMapping * _mapping) override;
+    virtual bool matches(const char * _format, bool _streamRemote, IRowReadFormatMapping * _mapping) override;
 
 // IDiskRowReader
     virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
@@ -1670,7 +1669,7 @@ protected:
     CParquetActivityContext * parquetActivityCtx = nullptr;
 };
 
-ParquetDiskRowReader::ParquetDiskRowReader(IDiskReadMapping * _mapping)
+ParquetDiskRowReader::ParquetDiskRowReader(IRowReadFormatMapping * _mapping)
  : ExternalFormatDiskRowReader(_mapping), parquetActivityCtx(new CParquetActivityContext(true, 1, 0))
 {
 }
@@ -1760,7 +1759,7 @@ void ParquetDiskRowReader::clearInput()
 {
 }
 
-bool ParquetDiskRowReader::matches(const char * _format, bool _streamRemote, IDiskReadMapping * _mapping)
+bool ParquetDiskRowReader::matches(const char * _format, bool _streamRemote, IRowReadFormatMapping * _mapping)
 {
     if (!strieq(_format, PARQUET_FILE_TYPE_NAME))
         return false;
@@ -1809,7 +1808,7 @@ bool ParquetDiskRowReader::setInputFile(const CLogicalFileSlice & slice, const F
 class RemoteDiskRowReader : public DiskRowReader
 {
 public:
-    RemoteDiskRowReader(const char * _format, IDiskReadMapping * _mapping);
+    RemoteDiskRowReader(const char * _format, IRowReadFormatMapping * _mapping);
 
     virtual const void *nextRow() override;
     virtual const void *prefetchRow(size32_t & resultSize) override;
@@ -1819,7 +1818,7 @@ public:
     virtual void stop() override;
 
     virtual void clearInput() override;
-    virtual bool matches(const char * _format, bool _streamRemote, IDiskReadMapping * _mapping) override;
+    virtual bool matches(const char * _format, bool _streamRemote, IRowReadFormatMapping * _mapping) override;
 
 // IDiskRowReader
     virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
@@ -1838,7 +1837,7 @@ protected:
 };
 
 
-RemoteDiskRowReader::RemoteDiskRowReader(const char * _format, IDiskReadMapping * _mapping)
+RemoteDiskRowReader::RemoteDiskRowReader(const char * _format, IRowReadFormatMapping * _mapping)
 : DiskRowReader(_mapping), format(_format)
 {
     translationMode = mapping->queryTranslationMode();
@@ -1851,7 +1850,7 @@ void RemoteDiskRowReader::clearInput()
     eogPending = false;
 }
 
-bool RemoteDiskRowReader::matches(const char * _format, bool _streamRemote, IDiskReadMapping * _mapping)
+bool RemoteDiskRowReader::matches(const char * _format, bool _streamRemote, IRowReadFormatMapping * _mapping)
 {
     if (!_streamRemote)
         return false;
@@ -2032,11 +2031,11 @@ void RemoteDiskRowReader::stop()
 
 // Lookup to map the names of file types/formats to their object constructors;
 // map will be initialized within MODULE_INIT
-static std::map<std::string, std::function<DiskRowReader*(IDiskReadMapping*)>> genericFileTypeMap;
+static std::map<std::string, std::function<DiskRowReader*(IRowReadFormatMapping*)>> genericFileTypeMap;
 
 
 // format is assumed to be lowercase
-IDiskRowReader * doCreateLocalDiskReader(const char * format, IDiskReadMapping * _mapping)
+IDiskRowReader * doCreateLocalDiskReader(const char * format, IRowReadFormatMapping * _mapping)
 {
     auto foundReader = genericFileTypeMap.find(format);
 
@@ -2052,26 +2051,26 @@ IDiskRowReader * doCreateLocalDiskReader(const char * format, IDiskReadMapping *
 //   filter can be performed on the projected output
 //   filter can only be performed on expected -> need to project to expected as a temporary row
 
-IDiskRowReader * createLocalDiskReader(const char * format, IDiskReadMapping * mapping)
+IDiskRowReader * createLocalDiskReader(const char * format, IRowReadFormatMapping * mapping)
 {
     Owned<IDiskRowReader> directReader = doCreateLocalDiskReader(format, mapping);
     if (mapping->expectedMatchesProjected() || strieq(format, "flat"))
         return directReader.getClear();
 
-    Owned<IDiskReadMapping> expectedMapping = createUnprojectedMapping(mapping);
+    Owned<IRowReadFormatMapping> expectedMapping = createUnprojectedMapping(mapping);
     Owned<IDiskRowReader> expectedReader = doCreateLocalDiskReader(format, expectedMapping);
     return new AlternativeDiskRowReader(directReader, expectedReader, mapping);
 }
 
 
-IDiskRowReader * createRemoteDiskReader(const char * format, IDiskReadMapping * _mapping)
+IDiskRowReader * createRemoteDiskReader(const char * format, IRowReadFormatMapping * _mapping)
 {
     return new RemoteDiskRowReader(format, _mapping);
 }
 
 
 
-IDiskRowReader * createDiskReader(const char * format, bool streamRemote, IDiskReadMapping * _mapping)
+IDiskRowReader * createDiskReader(const char * format, bool streamRemote, IRowReadFormatMapping * _mapping)
 {
     if (streamRemote)
         return createRemoteDiskReader(format, _mapping);
@@ -2085,13 +2084,13 @@ MODULE_INIT(INIT_PRIORITY_STANDARD)
     // should be defined here; the key is the lowecase name of the format,
     // as will be used in ECL, and the value should be a lambda
     // that creates the appropriate disk row reader object
-    genericFileTypeMap.emplace("flat", [](IDiskReadMapping * _mapping) { return new BinaryDiskRowReader(_mapping); });
-    genericFileTypeMap.emplace("csv", [](IDiskReadMapping * _mapping) { return new CsvDiskRowReader(_mapping); });
-    genericFileTypeMap.emplace("xml", [](IDiskReadMapping * _mapping) { return new XmlDiskRowReader(_mapping); });
+    genericFileTypeMap.emplace("flat", [](IRowReadFormatMapping * _mapping) { return new BinaryDiskRowReader(_mapping); });
+    genericFileTypeMap.emplace("csv", [](IRowReadFormatMapping * _mapping) { return new CsvDiskRowReader(_mapping); });
+    genericFileTypeMap.emplace("xml", [](IRowReadFormatMapping * _mapping) { return new XmlDiskRowReader(_mapping); });
 #ifdef _USE_PARQUET
-    genericFileTypeMap.emplace(PARQUET_FILE_TYPE_NAME, [](IDiskReadMapping * _mapping) { return new ParquetDiskRowReader(_mapping); });
+    genericFileTypeMap.emplace(PARQUET_FILE_TYPE_NAME, [](IRowReadFormatMapping * _mapping) { return new ParquetDiskRowReader(_mapping); });
 #else
-    genericFileTypeMap.emplace(PARQUET_FILE_TYPE_NAME, [](IDiskReadMapping * _mapping) { return nullptr; });
+    genericFileTypeMap.emplace(PARQUET_FILE_TYPE_NAME, [](IRowReadFormatMapping * _mapping) { return nullptr; });
 #endif
 
     // Stuff the file type names that were just instantiated into a list;

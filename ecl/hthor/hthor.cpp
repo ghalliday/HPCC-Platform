@@ -55,7 +55,6 @@
 #include "rtldynfield.hpp"
 #include "rtlnewkey.hpp"
 
-#include "thormeta.hpp"
 #include "thorread.hpp"
 
 #include "ws_dfsclient.hpp"
@@ -11118,7 +11117,7 @@ void CHThorNewDiskReadBaseActivity::setEmptyStream()
 
 IDiskRowReader * CHThorNewDiskReadBaseActivity::ensureRowReader(const char * format, bool streamRemote, unsigned expectedCrc, IOutputMetaData & expected, unsigned projectedCrc, IOutputMetaData & projected, unsigned actualCrc, IOutputMetaData & actual, const IPropertyTree * options)
 {
-    Owned<IDiskReadMapping> mapping = createDiskReadMapping(getLayoutTranslationMode(), format, actualCrc, actual, expectedCrc, expected, projectedCrc, projected, options);
+    Owned<IRowReadFormatMapping> mapping = createRowReadFormatMapping(getLayoutTranslationMode(), format, actualCrc, actual, expectedCrc, expected, projectedCrc, projected, options);
 
     ForEachItemIn(i, readers)
     {
@@ -11687,11 +11686,11 @@ IDiskRowReader * CHThorGenericDiskReadBaseActivity::ensureRowReader(const char *
         translateFromActual = false;
 
     //If the actual and expected file formats do not translate from the actual file format - use the expected format instead
-    Owned<IDiskReadMapping> mapping;
+    Owned<IRowReadFormatMapping> mapping;
     if (translateFromActual)
-        mapping.setown(createDiskReadMapping(getLayoutTranslationMode(), format, actualCrc, actual, expectedCrc, expected, projectedCrc, projected, slice->queryFileMeta()));
+        mapping.setown(createRowReadFormatMapping(getLayoutTranslationMode(), format, actualCrc, actual, expectedCrc, expected, projectedCrc, projected, slice->queryFileMeta()));
     else
-        mapping.setown(createDiskReadMapping(getLayoutTranslationMode(), format, expectedCrc, expected, expectedCrc, expected, projectedCrc, projected, slice->queryFileMeta()));
+        mapping.setown(createRowReadFormatMapping(getLayoutTranslationMode(), format, expectedCrc, expected, expectedCrc, expected, projectedCrc, projected, slice->queryFileMeta()));
 
     ForEachItemIn(i, readers)
     {
