@@ -48,8 +48,8 @@
 class DiskReadMapping : public CInterfaceOf<IRowReadFormatMapping>
 {
 public:
-    DiskReadMapping(RecordTranslationMode _mode, const char * _format, unsigned _actualCrc, IOutputMetaData & _actual, unsigned _expectedCrc, IOutputMetaData & _expected, unsigned _projectedCrc, IOutputMetaData & _output, const IPropertyTree * _fileOptions)
-    : mode(_mode), format(_format), actualCrc(_actualCrc), expectedCrc(_expectedCrc), projectedCrc(_projectedCrc), actualMeta(&_actual), expectedMeta(&_expected), projectedMeta(&_output), fileOptions(_fileOptions)
+    DiskReadMapping(RecordTranslationMode _mode, const char * _format, unsigned _actualCrc, IOutputMetaData & _actual, unsigned _expectedCrc, IOutputMetaData & _expected, unsigned _projectedCrc, IOutputMetaData & _output, const IPropertyTree * _formatOptions)
+    : mode(_mode), format(_format), actualCrc(_actualCrc), expectedCrc(_expectedCrc), projectedCrc(_projectedCrc), actualMeta(&_actual), expectedMeta(&_expected), projectedMeta(&_output), formatOptions(_formatOptions)
     {}
 
     virtual const char * queryFormat() const override { return format; }
@@ -59,7 +59,7 @@ public:
     virtual IOutputMetaData * queryActualMeta() const override { return actualMeta; }
     virtual IOutputMetaData * queryExpectedMeta() const override{ return expectedMeta; }
     virtual IOutputMetaData * queryProjectedMeta() const override{ return projectedMeta; }
-    virtual const IPropertyTree * queryFileOptions() const override { return fileOptions; }
+    virtual const IPropertyTree * queryFormatOptions() const override { return formatOptions; }
     virtual RecordTranslationMode queryTranslationMode() const override { return mode; }
 
     virtual const IDynamicTransform * queryTranslator() const override
@@ -82,7 +82,7 @@ public:
             ((expectedCrc && expectedCrc == other->getExpectedCrc()) || (expectedMeta == other->queryExpectedMeta())) &&
             ((projectedCrc && projectedCrc == other->getProjectedCrc()) || (projectedMeta == other->queryProjectedMeta())))
         {
-            if (!areMatchingPTrees(fileOptions->queryPropTree("formatOptions"), other->queryFileOptions()->queryPropTree("formatOptions")))
+            if (!areMatchingPTrees(formatOptions, other->queryFormatOptions()))
                 return false;
             return true;
         }
@@ -107,7 +107,7 @@ protected:
     Linked<IOutputMetaData> actualMeta;
     Linked<IOutputMetaData> expectedMeta;
     Linked<IOutputMetaData> projectedMeta;
-    Linked<const IPropertyTree> fileOptions;
+    Linked<const IPropertyTree> formatOptions;
     mutable Owned<const IDynamicTransform> translator;
     mutable Owned<const IKeyTranslator> keyedTranslator;
     mutable SpinLock translatorLock; // use a spin lock since almost certainly not going to contend
@@ -146,7 +146,6 @@ void DiskReadMapping::ensureTranslators() const
     const RtlRecord & sourceRecord = sourceMeta->queryRecordAccessor(true);
     if (strsame(format, "csv"))
     {
-        const IPropertyTree * formatOptions = fileOptions->queryPropTree("formatOptions");
         type_vals format = formatOptions->hasProp("ascii") ? type_string : type_utf8;
         translator.setown(createRecordTranslatorViaCallback(projectedRecord, sourceRecord, format));
     }
@@ -160,7 +159,7 @@ void DiskReadMapping::ensureTranslators() const
         {
             //Special case the situation where the output record matches the input record with some virtual fields
             //appended.  This allows alien datatypes or ifblocks in records to also hav virtual file positions/
-            if (fileOptions->getPropBool("@cloneAppendVirtuals"))
+            if (formatOptions->getPropBool("@cloneAppendVirtuals"))
                 translator.setown(createCloneVirtualRecordTranslator(projectedRecord, *sourceMeta));
             else
                 translator.setown(createRecordTranslator(projectedRecord, sourceRecord));
@@ -204,7 +203,7 @@ THORHELPER_API IRowReadFormatMapping * createRowReadFormatMapping(RecordTranslat
 
 static IRowReadFormatMapping * createUnprojectedMapping(IRowReadFormatMapping * mapping)
 {
-    return createRowReadFormatMapping(mapping->queryTranslationMode(), mapping->queryFormat(), mapping->getActualCrc(), *mapping->queryActualMeta(), mapping->getExpectedCrc(), *mapping->queryExpectedMeta(), mapping->getExpectedCrc(), *mapping->queryExpectedMeta(), mapping->queryFileOptions());
+    return createRowReadFormatMapping(mapping->queryTranslationMode(), mapping->queryFormat(), mapping->getActualCrc(), *mapping->queryActualMeta(), mapping->getExpectedCrc(), *mapping->queryExpectedMeta(), mapping->getExpectedCrc(), *mapping->queryExpectedMeta(), mapping->queryFormatOptions());
 }
 
 
@@ -251,8 +250,6 @@ protected:
     const IKeyTranslator * keyedTranslator = nullptr;
     Linked<IRowReadFormatMapping> mapping;
     IOutputMetaData * actualDiskMeta = nullptr;
-    MemoryBuffer encryptionKey;
-    size32_t readBufferSize = defaultReadBufferSize;
     bool grouped = false;
     bool stranded = false;
     bool compressed = false;
@@ -272,13 +269,6 @@ DiskRowReader::DiskRowReader(IRowReadFormatMapping * _mapping)
     //Options contain information that is the same for each file that is being read, and potentially expensive to reconfigure.
     translator = mapping->queryTranslator();
     keyedTranslator = mapping->queryKeyedTranslator();
-    const IPropertyTree * options = mapping->queryFileOptions();
-    if (options->hasProp("encryptionKey"))
-    {
-        encryptionKey.resetBuffer();
-        options->getPropBin("encryptionKey", encryptionKey);
-    }
-    readBufferSize = options->getPropInt("readBufferSize", defaultReadBufferSize);
 }
 
 IDiskRowStream * DiskRowReader::queryAllocatedRowStream(IEngineRowAllocator * _outputAllocator)
@@ -304,17 +294,6 @@ bool DiskRowReader::matches(const char * format, bool streamRemote, IRowReadForm
     //MORE: Is the previous check sufficient?  If not, once getDaliLayoutInfo is cached the following line could be enabled.
     //if ((expectedDiskMeta != &_expected) || (projectedDiskMeta != &_projected) || (actualDiskMeta != &_actual))
     //    return false;
-
-    const IPropertyTree * options = otherMapping->queryFileOptions();
-    if (options->hasProp("encryptionKey"))
-    {
-        MemoryBuffer tempEncryptionKey;
-        options->getPropBin("encryptionKey", tempEncryptionKey);
-        if (!encryptionKey.matches(tempEncryptionKey))
-            return false;
-    }
-    if (readBufferSize != options->getPropInt("readBufferSize", defaultReadBufferSize))
-        return false;
     return true;
 }
 
@@ -365,9 +344,9 @@ public:
     LocalDiskRowReader(IRowReadFormatMapping * _mapping);
 
     virtual bool matches(const char * format, bool streamRemote, IRowReadFormatMapping * otherMapping) override;
-    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
-    virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
-    virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
+    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override;
+    virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override;
+    virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override;
 
 protected:
     virtual bool isBinary() const = 0;
@@ -392,17 +371,25 @@ bool LocalDiskRowReader::matches(const char * format, bool streamRemote, IRowRea
 }
 
 
-bool LocalDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputMeta, const FieldFilterArray & _expectedFilter)
+bool LocalDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & _expectedFilter)
 {
-    assertex(inputMeta);
-    grouped = inputMeta->getPropBool("@grouped");
-    compressed = inputMeta->getPropBool("@compressed", false);
-    blockcompressed = inputMeta->getPropBool("@blockCompressed", false);
-    bool forceCompressed = inputMeta->getPropBool("@forceCompressed", false);
+    assertex(providerOptions);
+    const IPropertyTree * formatOptions = mapping->queryFormatOptions();
+
+    grouped = formatOptions->getPropBool("@grouped");
+    compressed = providerOptions->getPropBool("@compressed", false);
+    blockcompressed = providerOptions->getPropBool("@blockCompressed", false);
+    bool forceCompressed = providerOptions->getPropBool("@forceCompressed", false);
 
     logicalFilename.set(_logicalFilename);
     filePart = _partNumber;
     fileBaseOffset = _baseOffset;
+
+    size32_t readBufferSize = providerOptions->getPropInt("readBufferSize", defaultReadBufferSize);
+    MemoryBuffer encryptionKey;
+    if (providerOptions->hasProp("encryptionKey"))
+        providerOptions->getPropBin("encryptionKey", encryptionKey);
+
 
     try
     {
@@ -418,7 +405,7 @@ bool LocalDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFi
 
     if (isBinary())
     {
-        size32_t dfsRecordSize = inputMeta->getPropInt("@recordSize");
+        size32_t dfsRecordSize = providerOptions->getPropInt("@recordSize");
         size32_t fixedDiskRecordSize = actualDiskMeta->getFixedSize();
         if (dfsRecordSize)
         {
@@ -485,16 +472,16 @@ bool LocalDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFi
     return true;
 }
 
-bool LocalDiskRowReader::setInputFile(const char * localFilename, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter)
+bool LocalDiskRowReader::setInputFile(const char * localFilename, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter)
 {
     Owned<IFile> inputFile = createIFile(localFilename);
-    return setInputFile(inputFile, _logicalFilename, _partNumber, _baseOffset, 0, unknownFileSize, inputOptions, expectedFilter);
+    return setInputFile(inputFile, _logicalFilename, _partNumber, _baseOffset, 0, unknownFileSize, providerOptions, expectedFilter);
 }
 
-bool LocalDiskRowReader::setInputFile(const RemoteFilename & filename, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter)
+bool LocalDiskRowReader::setInputFile(const RemoteFilename & filename, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter)
 {
     Owned<IFile> inputFile = createIFile(filename);
-    return setInputFile(inputFile, _logicalFilename, _partNumber, _baseOffset, 0, unknownFileSize, inputOptions, expectedFilter);
+    return setInputFile(inputFile, _logicalFilename, _partNumber, _baseOffset, 0, unknownFileSize, providerOptions, expectedFilter);
 }
 
 //---------------------------------------------------------------------------------------------------------------------
@@ -518,7 +505,7 @@ public:
     virtual bool matches(const char * format, bool streamRemote, IRowReadFormatMapping * otherMapping) override;
 
 protected:
-    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
+    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override;
     virtual bool isBinary() const { return true; }
 
     inline bool fieldFilterMatch(const void * buffer)
@@ -572,9 +559,9 @@ bool BinaryDiskRowReader::matches(const char * format, bool streamRemote, IRowRe
     return LocalDiskRowReader::matches(format, streamRemote, otherMapping);
 }
 
-bool BinaryDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter)
+bool BinaryDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter)
 {
-    if (!LocalDiskRowReader::setInputFile(inputFile, _logicalFilename, _partNumber, _baseOffset, startOffset, length, inputOptions, expectedFilter))
+    if (!LocalDiskRowReader::setInputFile(inputFile, _logicalFilename, _partNumber, _baseOffset, startOffset, length, providerOptions, expectedFilter))
         return false;
 
     actualFilter.clear().appendFilters(expectedFilter);
@@ -763,9 +750,9 @@ public:
         projectedRecord = &mapping->queryProjectedMeta()->queryRecordAccessor(true);
     }
 
-    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & _expectedFilter) override
+    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & _expectedFilter) override
     {
-        if (!LocalDiskRowReader::setInputFile(inputFile, _logicalFilename, _partNumber, _baseOffset, startOffset, length, inputOptions, _expectedFilter))
+        if (!LocalDiskRowReader::setInputFile(inputFile, _logicalFilename, _partNumber, _baseOffset, startOffset, length, providerOptions, _expectedFilter))
             return false;
 
         projectedFilter.clear().appendFilters(_expectedFilter);
@@ -875,7 +862,7 @@ public:
     virtual bool matches(const char * format, bool streamRemote, IRowReadFormatMapping * otherMapping) override;
 
 protected:
-    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
+    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override;
 
     void processOption(CSVSplitter::MatchItem element, const IPropertyTree & csvOptions, const char * option, const char * dft, const char * dft2 = nullptr);
 
@@ -892,8 +879,7 @@ protected:
 CsvDiskRowReader::CsvDiskRowReader(IRowReadFormatMapping * _mapping)
 : ExternalFormatDiskRowReader(_mapping)
 {
-    const IPropertyTree & fileOptions = *mapping->queryFileOptions();
-    const IPropertyTree & csvOptions = *fileOptions.queryPropTree("formatOptions");
+    const IPropertyTree & csvOptions = *mapping->queryFormatOptions();
 
     maxRowSize = csvOptions.getPropInt64("maxRowSize", defaultMaxCsvRowSizeMB) * 1024 * 1024;
     preserveWhitespace = csvOptions.getPropBool("preserveWhitespace", false);
@@ -950,9 +936,9 @@ void CsvDiskRowReader::processOption(CSVSplitter::MatchItem element, const IProp
     }
 }
 
-bool CsvDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & _expectedFilter)
+bool CsvDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & _expectedFilter)
 {
-    if (!ExternalFormatDiskRowReader::setInputFile(inputFile, _logicalFilename, _partNumber, _baseOffset, startOffset, length, inputOptions, _expectedFilter))
+    if (!ExternalFormatDiskRowReader::setInputFile(inputFile, _logicalFilename, _partNumber, _baseOffset, startOffset, length, providerOptions, _expectedFilter))
         return false;
 
     //Skip any header lines..
@@ -1226,7 +1212,7 @@ public:
     IColumnProvider *queryMatch() const { return lastMatch; }
 
 protected:
-    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
+    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override;
 
 protected:
     StringBuffer xpath;
@@ -1247,8 +1233,7 @@ protected:
 MarkupDiskRowReader::MarkupDiskRowReader(IRowReadFormatMapping * _mapping, ThorActivityKind _kind)
 : ExternalFormatDiskRowReader(_mapping), kind(_kind)
 {
-    const IPropertyTree & fileOptions = *mapping->queryFileOptions();
-    const IPropertyTree & markupOptions = *fileOptions.queryPropTree("formatOptions");
+    const IPropertyTree & markupOptions = *mapping->queryFormatOptions();
 
     markupOptions.getProp("ActivityOptions/rowTag", rowTag);
     noRoot = markupOptions.getPropBool("noRoot");
@@ -1256,9 +1241,9 @@ MarkupDiskRowReader::MarkupDiskRowReader(IRowReadFormatMapping * _mapping, ThorA
     record = &actualDiskMeta->queryRecordAccessor(true);
 }
 
-bool MarkupDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & _expectedFilter)
+bool MarkupDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & _expectedFilter)
 {
-    return ExternalFormatDiskRowReader::setInputFile(inputFile, _logicalFilename, _partNumber, _baseOffset, startOffset, length, inputOptions, _expectedFilter);
+    return ExternalFormatDiskRowReader::setInputFile(inputFile, _logicalFilename, _partNumber, _baseOffset, startOffset, length, providerOptions, _expectedFilter);
 }
 
 //Implementation of IAllocRowStream
@@ -1376,8 +1361,7 @@ public:
     XmlDiskRowReader(IRowReadFormatMapping * _mapping)
     : MarkupDiskRowReader(_mapping, TAKxmlread)
     {
-        const IPropertyTree & fileOptions = *mapping->queryFileOptions();
-        const IPropertyTree & xmlOptions = *fileOptions.queryPropTree("formatOptions");
+        const IPropertyTree & xmlOptions = *mapping->queryFormatOptions();
 
         if (rowTag.isEmpty()) // no override
             xmlOptions.getProp("xpath", xpath);
@@ -1441,9 +1425,9 @@ public:
         rawInputStream = nullptr;
     }
 
-    virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override
+    virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override
     {
-        if (inputReader->setInputFile(localFilename, logicalFilename, partNumber, baseOffset, inputOptions, expectedFilter))
+        if (inputReader->setInputFile(localFilename, logicalFilename, partNumber, baseOffset, providerOptions, expectedFilter))
         {
             rawInputStream = inputReader->queryAllocatedRowStream(nullptr);
             return true;
@@ -1451,9 +1435,9 @@ public:
         return false;
     }
 
-    virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override
+    virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override
     {
-        if (inputReader->setInputFile(filename, logicalFilename, partNumber, baseOffset, inputOptions, expectedFilter))
+        if (inputReader->setInputFile(filename, logicalFilename, partNumber, baseOffset, providerOptions, expectedFilter))
         {
             rawInputStream = inputReader->queryAllocatedRowStream(nullptr);
             return true;
@@ -1461,9 +1445,9 @@ public:
         return false;
     }
 
-    virtual bool setInputFile(IFile * inputFile, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override
+    virtual bool setInputFile(IFile * inputFile, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override
     {
-        if (inputReader->setInputFile(inputFile, logicalFilename, partNumber, baseOffset, startOffset, length, inputOptions, expectedFilter))
+        if (inputReader->setInputFile(inputFile, logicalFilename, partNumber, baseOffset, startOffset, length, providerOptions, expectedFilter))
         {
             rawInputStream = inputReader->queryAllocatedRowStream(nullptr);
             return true;
@@ -1553,34 +1537,34 @@ public:
         activeReader = nullptr;
     }
 
-    virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override
+    virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override
     {
         bool useProjected = canFilterDirectly(expectedFilter);
         if (useProjected)
             activeReader = directReader;
         else
             activeReader = compoundReader;
-        return activeReader->setInputFile(localFilename, logicalFilename, partNumber, baseOffset, inputOptions, expectedFilter);
+        return activeReader->setInputFile(localFilename, logicalFilename, partNumber, baseOffset, providerOptions, expectedFilter);
     }
 
-    virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override
+    virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override
     {
         bool useProjected = canFilterDirectly(expectedFilter);
         if (useProjected)
             activeReader = directReader;
         else
             activeReader = compoundReader;
-        return activeReader->setInputFile(filename, logicalFilename, partNumber, baseOffset, inputOptions, expectedFilter);
+        return activeReader->setInputFile(filename, logicalFilename, partNumber, baseOffset, providerOptions, expectedFilter);
     }
 
-    virtual bool setInputFile(IFile * inputFile, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override
+    virtual bool setInputFile(IFile * inputFile, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override
     {
         bool useProjected = canFilterDirectly(expectedFilter);
         if (useProjected)
             activeReader = directReader;
         else
             activeReader = compoundReader;
-        return activeReader->setInputFile(inputFile, logicalFilename, partNumber, baseOffset, startOffset, length, inputOptions, expectedFilter);
+        return activeReader->setInputFile(inputFile, logicalFilename, partNumber, baseOffset, startOffset, length, providerOptions, expectedFilter);
     }
 
 protected:
@@ -1643,9 +1627,9 @@ public:
     virtual bool matches(const char * _format, bool _streamRemote, IRowReadFormatMapping * _mapping) override;
 
 // IDiskRowReader
-    virtual bool setInputFile(IFile * inputFile, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
-    virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
-    virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
+    virtual bool setInputFile(IFile * inputFile, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override;
+    virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override;
+    virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override;
 
 protected:
     parquetembed::ParquetReader * parquetFileReader = nullptr;
@@ -1749,7 +1733,7 @@ bool ParquetDiskRowReader::matches(const char * _format, bool _streamRemote, IRo
     return true; // TO DO add additional check
 }
 
-bool ParquetDiskRowReader::setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter)
+bool ParquetDiskRowReader::setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter)
 {
     DBGLOG(0, "Opening File: %s", localFilename);
     parquetFileReader = new parquetembed::ParquetReader("read", localFilename, 50000, nullptr, parquetActivityCtx, mapping->queryExpectedMeta()->queryTypeInfo());
@@ -1759,15 +1743,15 @@ bool ParquetDiskRowReader::setInputFile(const char * localFilename, const char *
     return true;
 }
 
-bool ParquetDiskRowReader::setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter)
+bool ParquetDiskRowReader::setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter)
 {
     throwUnexpected();
 }
-bool ParquetDiskRowReader::setInputFile(IFile * inputFile, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter)
+bool ParquetDiskRowReader::setInputFile(IFile * inputFile, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter)
 {
     assertex(startOffset == 0);
     assertex(length == unknownFileSize);
-    return setInputFile(inputFile->queryFilename(), logicalFilename, partNumber, baseOffset, inputOptions, expectedFilter);
+    return setInputFile(inputFile->queryFilename(), logicalFilename, partNumber, baseOffset, providerOptions, expectedFilter);
 }
 #endif
 //---------------------------------------------------------------------------------------------------------------------
@@ -1793,9 +1777,9 @@ public:
     virtual bool matches(const char * _format, bool _streamRemote, IRowReadFormatMapping * _mapping) override;
 
 // IDiskRowReader
-    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
-    virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
-    virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) override;
+    virtual bool setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override;
+    virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override;
+    virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) override;
 
 private:
     template <class PROCESS>
@@ -1831,7 +1815,7 @@ bool RemoteDiskRowReader::matches(const char * _format, bool _streamRemote, IRow
     return DiskRowReader::matches(_format, _streamRemote, _mapping);
 }
 
-bool RemoteDiskRowReader::setInputFile(const RemoteFilename & rfilename, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilters)
+bool RemoteDiskRowReader::setInputFile(const RemoteFilename & rfilename, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilters)
 {
     // NB: only binary handles can be remotely processed by dafilesrv at the moment
 
@@ -1881,6 +1865,7 @@ bool RemoteDiskRowReader::setInputFile(const RemoteFilename & rfilename, const c
     }
 
     //MORE: Allow a previously created input stream to be reused to avoid reallocating the buffer
+    size32_t readBufferSize = providerOptions->getPropInt("readBufferSize", defaultReadBufferSize);
     inputStream.setown(createFileSerialStream(inputfileio, 0, (offset_t)-1, readBufferSize));
 
     inputBuffer.setStream(inputStream);
@@ -1888,12 +1873,12 @@ bool RemoteDiskRowReader::setInputFile(const RemoteFilename & rfilename, const c
     return true;
 }
 
-bool RemoteDiskRowReader::setInputFile(const char * localFilename, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter)
+bool RemoteDiskRowReader::setInputFile(const char * localFilename, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter)
 {
     throwUnexpected();
 }
 
-bool RemoteDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter)
+bool RemoteDiskRowReader::setInputFile(IFile * inputFile, const char * _logicalFilename, unsigned _partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter)
 {
     UNIMPLEMENTED;
 }
