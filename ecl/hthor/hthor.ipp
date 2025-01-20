@@ -2961,7 +2961,8 @@ protected:
     {
         IDistributedFile * file;
         Owned<IOutputMetaData> actualMeta;
-        Owned<const IPropertyTree> meta;
+        Owned<const IPropertyTree> providerOptions;
+        Owned<const IPropertyTree> formatOptions;
         unsigned actualCrc;
     };
 
@@ -2977,19 +2978,23 @@ protected:
     Owned<ISuperFileDescriptor> superfile;
     Owned<IDistributedFilePartIterator> dfsParts;
     Owned<ILocalOrDistributedFile> ldFile;
+    Owned<IPropertyTree> spillPlane;
     IOutputMetaData *expectedDiskMeta = nullptr;
     IOutputMetaData *projectedDiskMeta = nullptr;
     IConstArrayOf<IFieldFilter> fieldFilters;  // These refer to the expected layout
     Owned<IPropertyTree> formatOptions;
+    Owned<IPropertyTree> providerOptions;
     unsigned partNum = 0;
+    unsigned helperFlags;
     RecordTranslationMode recordTranslationModeHint = RecordTranslationMode::Unspecified;
     bool useRawStream = false; // Constant for the lifetime of the activity
     bool grouped = false;
+    bool outputGrouped = false;
     bool opened = false;
     bool finishedParts = false;
+    bool isCodeSigned = false;
     unsigned __int64 stopAfter = 0;
     unsigned __int64 offsetOfPart = 0;
-    bool isCodeSigned = false;
     void close();
     void resolveFile();
     virtual void verifyRecordFormatCrc();
@@ -3007,6 +3012,8 @@ protected:
             return recordTranslationModeHint;
         return agent.getLayoutTranslationMode();
     }
+
+    bool isGeneric() const { return (helperFlags & TDXgeneric) != 0; }
 
 public:
     CHThorNewDiskReadBaseActivity(IAgentContext &agent, unsigned _activityId, unsigned _subgraphId, IHThorNewDiskReadBaseArg &_arg, IHThorCompoundBaseArg & _segHelper, ThorActivityKind _kind, IPropertyTree *node, EclGraph & _graph);
@@ -3035,7 +3042,7 @@ public:
 protected:
     bool openFirstPart();
     void initStream(IDiskRowReader * reader, const char * filename);
-    InputFileInfo * extractFileInformation(IDistributedFile * fileDesc, const IPropertyTree * curFormatOptions);
+    InputFileInfo * extractFileInformation(IDistributedFile * fileDesc, const IPropertyTree * curFormatOptions, const IPropertyTree * curProviderOptions);
     bool openFilePart(const char * filename);
     bool openFilePart(ILocalOrDistributedFile * localFile, IDistributedFilePart * filePart, unsigned whichPart);
     void setEmptyStream();
@@ -3045,7 +3052,7 @@ protected:
     virtual void closepart();
 
     bool openNextPart(bool prevWasMissing);
-    IDiskRowReader * ensureRowReader(const char * format, bool streamRemote, unsigned expectedCrc, IOutputMetaData & expected, unsigned projectedCrc, IOutputMetaData & projected, unsigned actualCrc, IOutputMetaData & actual, const IPropertyTree * options);
+    IDiskRowReader * ensureRowReader(const char * format, bool streamRemote, unsigned expectedCrc, IOutputMetaData & expected, unsigned projectedCrc, IOutputMetaData & projected, unsigned actualCrc, IOutputMetaData & actual, const IPropertyTree * formatOptions);
 };
 
 

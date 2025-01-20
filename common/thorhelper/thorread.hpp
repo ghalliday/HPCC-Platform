@@ -50,7 +50,7 @@ public:
     virtual IOutputMetaData * queryActualMeta() const = 0;
     virtual IOutputMetaData * queryExpectedMeta() const = 0;
     virtual IOutputMetaData * queryProjectedMeta() const = 0;
-    virtual const IPropertyTree * queryFileOptions() const = 0;
+    virtual const IPropertyTree * queryFormatOptions() const = 0;
     virtual RecordTranslationMode queryTranslationMode() const = 0;
 
     virtual bool matches(const IRowReadFormatMapping * other) const = 0;
@@ -104,9 +104,9 @@ public:
     //Does this make sense, or should it be passed a filename?  an actual format?
     //Needs to specify a filename rather than a ISerialStream so that the interface is consistent for local and remote
     virtual void clearInput() = 0;
-    virtual bool setInputFile(IFile * inputFile, const char * logicalFilename, unsigned partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) = 0;
-    virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) = 0;
-    virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * inputOptions, const FieldFilterArray & expectedFilter) = 0;
+    virtual bool setInputFile(IFile * inputFile, const char * logicalFilename, unsigned partNumber, offset_t _baseOffset, offset_t startOffset, offset_t length, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) = 0;
+    virtual bool setInputFile(const char * localFilename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) = 0;
+    virtual bool setInputFile(const RemoteFilename & filename, const char * logicalFilename, unsigned partNumber, offset_t baseOffset, const IPropertyTree * providerOptions, const FieldFilterArray & expectedFilter) = 0;
 };
 
 //Create a row reader for a thor binary file.  The expected, projected, actual and options never change.  The file providing the data can change.
