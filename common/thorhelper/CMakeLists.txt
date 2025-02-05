@@ -54,6 +54,7 @@ set (    SRCS
          roxiehelper.cpp
          roxiedebug.cpp
          
+         cosmos.hpp
          commonext.hpp
          csvsplitter.hpp 
          thorcommon.hpp 
