@@ -2224,6 +2224,10 @@ bool CInplaceLeafWriteNode::add(offset_t pos, const void * _data, size32_t size,
                 size32_t oldCompressedSize = compressor.buflen();
                 if (!compressor.adjustLimit(maxPayloadSize) || !compressor.write(extraData, extraSize))
                 {
+                    //The LZW compressor fills the buffer up to the limit.
+                    //Unfortunately that means that if the keyed portion shrinks (it can happen!) then the old keyed
+                    //size plus the modified payload may now be too large to fit in the buffer.
+
                     //Attempting to write data may have flushed some bytes into the lzw output buffer.
                     oldSize += (compressor.buflen() - oldCompressedSize);
                     hasSpace = false;
@@ -2308,7 +2312,17 @@ bool CInplaceLeafWriteNode::add(offset_t pos, const void * _data, size32_t size,
         positions.pop();
         positionInfo = savedPositionInfo;
         unsigned nowSize = getDataSize(true);
-        assertex(oldSize == nowSize);
+        if (unlikely(oldSize != nowSize))
+        {
+            VStringBuffer msg("Inconsistent node size: oldSize=%u, nowSize=%u, maxBytes=%u", oldSize, nowSize, maxBytes);
+            throwUnexpectedX(msg);
+        }
+        if (unlikely(oldSize > maxBytes))
+        {
+            VStringBuffer msg("Partial compression caused the block to become too large: oldSize=%u, nowSize=%u, maxBytes=%u", oldSize, nowSize, maxBytes);
+            throwUnexpectedX(msg);
+        }
+
 #ifdef TRACE_BUILDING
         DBGLOG("---- leaf ----");
         builder.trace();
