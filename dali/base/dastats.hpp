@@ -36,16 +36,16 @@ using QualifierList = std::vector<std::pair<std::string, std::string>>;
 
 
 
-using StatsDimensionList = std::vector<std::pair<const char *, const char *>>; // The list of dimeensions are likely to be fixed for each call so use a initializer_list
-extern da_decl void recordGlobalMetrics(const char * category, const StatsDimensionList &  dimensions, const CRuntimeStatisticCollection & stats, const StatisticsMapping * optMapping);
-extern da_decl void recordGlobalMetrics(const char * category, const StatsDimensionList &  dimensions, const std::initializer_list<StatisticKind> & stats, const std::initializer_list<stat_type> & values);
+using MetricsDimensionList = std::vector<std::pair<const char *, const char *>>; // The list of dimeensions are likely to be fixed for each call so use a initializer_list
+extern da_decl void recordGlobalMetrics(const char * category, const MetricsDimensionList &  dimensions, const CRuntimeStatisticCollection & stats, const StatisticsMapping * optMapping);
+extern da_decl void recordGlobalMetrics(const char * category, const MetricsDimensionList &  dimensions, const std::initializer_list<StatisticKind> & stats, const std::initializer_list<stat_type> & values);
 
-using GlobalStatasticsList = std::vector<std::pair<StatisticKind, stat_type>>;
-interface IGlobalStatisicWalker
+using GlobalStatisticsList = std::vector<std::pair<StatisticKind, stat_type>>;
+interface IGlobalMetricRecorder
 {
-    virtual void processGlobalStatistics(const char * category, const StatsDimensionList & dimensions, const GlobalStatasticsList & stats) = 0;
+    virtual void processGlobalStatistics(const char * category, const MetricsDimensionList & dimensions, const GlobalStatisticsList & stats) = 0;
 };
-extern da_decl void gatherGlobalStatistics(const char * optCategory, const StatsDimensionList & optDimensions);
-extern da_decl void resetGlobalMetrics(const char * optCategory, const StatsDimensionList & optDimensions);
+extern da_decl void gatherGlobalMetrics(const char * optCategory, const MetricsDimensionList & optDimensions, const CDateTime & from, const CDateTime & to, IGlobalMetricRecorder & visitor);
+extern da_decl void resetGlobalMetrics(const char * optCategory, const MetricsDimensionList & optDimensions);
 
 #endif

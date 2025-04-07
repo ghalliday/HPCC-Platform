@@ -28,45 +28,36 @@ static bool hourGranularity = true;
 static constexpr unsigned STATS_CONNECTION_TIMEOUT = 5000;
 static constexpr const char * GlobalMetricsDaliRoot = "/GlobalMetrics";
 
-    //MORE: Ideally this would be implememted by the connect() operation in dali
-IPropertyTree * ensureFilteredPTree(IPropertyTree * root, const char * element, const QualifierList & qualifiers)
+//MORE: Ideally this would be implememted by the connect() operation in dali
+//NOTE: We need to ensure that each unique combination of dimensions are rolled up independently
+//So we also need a key attribute to indicate which dimensions are present
+IPropertyTree * ensureFilteredPTree(IPropertyTree * root, const char * element, const QualifierList & qualifiers, bool ensureDistinctQualifiers)
 {
-    if (qualifiers.size())
-    {
-        StringBuffer childPath;
-        childPath.append(element);
-        if (qualifiers.size())
-        {
-            childPath.append('[');
-            bool first = true;
-            for (auto & [name, value] : qualifiers)
-            {
-                if (!first)
-                    childPath.append(',');
+    StringBuffer childPath;
+    childPath.append(element);
 
-                childPath.append(name).append('=');
-                childPath.append('"').append(value).append('"');
-                first = false;
-            }
-            childPath.append(']');
-        }
-
-        IPropertyTree * match = root->queryPropTree(childPath);
-        if (!match)
-        {
-            match = root->addPropTree(element, createPTree());
-            for (auto & [name, value] : qualifiers)
-                match->setProp(name.c_str(), value.c_str());
-        }
-        return match;
-    }
-    else
+    StringBuffer qualificationsKey;
+    for (auto & [name, value] : qualifiers)
     {
-        IPropertyTree * match = root->queryPropTree(element);
-        if (!match)
-            match = root->addPropTree(element, createPTree());
-        return match;
+        childPath.append('[');
+        childPath.append(name).append('=');
+        childPath.append('"').append(value).append('"').append(']');
+        qualificationsKey.append(name.c_str()+1).append("_");
     }
+
+    if (ensureDistinctQualifiers)
+        childPath.append("[@qualifiers='").append(qualificationsKey).append("']");
+
+    IPropertyTree * match = root->queryPropTree(childPath);
+    if (!match)
+    {
+        match = root->addPropTree(element, createPTree());
+        for (auto & [name, value] : qualifiers)
+            match->setProp(name.c_str(), value.c_str());
+        if (ensureDistinctQualifiers)
+            match->setProp("@qualifiers", qualificationsKey);
+    }
+    return match;
 }
 
 
@@ -97,38 +88,35 @@ void daliAtomicUpdate(IPropertyTree * entry, const std::vector<std::string> & at
 */
 
 
-static void convertDimensionsToQualifiers(QualifierList & qualifiers, const StatsDimensionList & dimensions)
+static void convertDimensionsToQualifiers(QualifierList & qualifiers, const MetricsDimensionList & dimensions)
 {
     for (auto & [name, value] : dimensions)
     {
-        std::string attributeName;
-        attributeName = '@' + name;
+        std::string attributeName = std::string("@") + name;
         qualifiers.emplace_back(std::move(attributeName), value);
     }
 }
 
-static void getTimeslotValue(StringBuffer & value, const CDateTime & when)
+static void getTimeslotValue(StringBuffer & value, const CDateTime & when, bool isEnd)
 {
     //MORE: Introduce CDateTime::getUtcYear() etc.??
     unsigned year, month, day;
     when.getDate(year, month, day, false);
 
+    unsigned hour = isEnd ? 23 : 0;
+
     if (hourGranularity)
-    {
-        unsigned hour, minute, second, nano;
-        when.getTime(hour, minute, second, nano, false);
-        value.appendf("%04d%02d%02d%02d", year, month, day, hour);
-    }
-    else
-        value.appendf("%04d%02d%02d", year, month, day);
+        hour = when.getUtcHour();
+
+    value.appendf("%04d%02d%02d%02d", year, month, day, hour);
 }
 
 inline std::string getStatisticAttribute(StatisticKind kind)
 {
-    return '@' + queryStatisticName(kind);
+    return std::string("@") + queryStatisticName(kind);
 }
 
-static void recordGlobalMetrics(const char * category, const StatsDimensionList & dimensions, const std::vector<std::string> &attributes, const std::vector<stat_type> & deltas)
+static void recordGlobalMetrics(const char * category, const MetricsDimensionList & dimensions, const std::vector<std::string> &attributes, const std::vector<stat_type> & deltas)
 {
     //Ideally this would connect to:
     //
@@ -141,24 +129,25 @@ static void recordGlobalMetrics(const char * category, const StatsDimensionList 
     QualifierList qualifiers;
     convertDimensionsToQualifiers(qualifiers, dimensions);
 
-    StringBuffer timeslotValue;
+    StringBuffer startTimeslot;
+    StringBuffer endTimeslot;
     CDateTime now;
     now.setNow();
-    getTimeslotValue(timeslotValue, now);
-
+    getTimeslotValue(startTimeslot, now, false);
+    getTimeslotValue(endTimeslot, now, true);
 
     StringBuffer rootPath;
     rootPath.append(GlobalMetricsDaliRoot).append('/').append(category);
     Owned<IRemoteConnection> conn = querySDS().connect(rootPath, myProcessSession(), RTM_LOCK_WRITE|RTM_CREATE_QUERY, STATS_CONNECTION_TIMEOUT);
 
-    IPropertyTree * instance = ensureFilteredPTree(conn->queryRoot(), "Instance", qualifiers);
-    IPropertyTree * timeslot = ensureFilteredPTree(instance, "Timeslot", QualifierList{{"@startTime", timeslotValue.str()},{"endtime",timeslotValue.str()}});
+    IPropertyTree * instance = ensureFilteredPTree(conn->queryRoot(), "Instance", qualifiers, true);
+    IPropertyTree * timeslot = ensureFilteredPTree(instance, "Timeslot", QualifierList{{"@startTime", startTimeslot.str()},{"@endtime",endTimeslot.str()}}, false);
     IPropertyTree * metrics = ensurePTree(timeslot, "Metrics");
 
     daliAtomicUpdate(metrics, attributes, deltas);
 }
 
-void recordGlobalMetrics(const char * category, const StatsDimensionList & dimensions, const CRuntimeStatisticCollection & stats, const StatisticsMapping * optMapping)
+void recordGlobalMetrics(const char * category, const MetricsDimensionList & dimensions, const CRuntimeStatisticCollection & stats, const StatisticsMapping * optMapping)
 {
     const StatisticsMapping * mapping = optMapping ? optMapping : &stats.queryMapping();
     std::vector<std::string> attributes;
@@ -173,7 +162,7 @@ void recordGlobalMetrics(const char * category, const StatsDimensionList & dimen
     recordGlobalMetrics(category, dimensions, attributes, deltas);
 }
 
-void recordGlobalMetrics(const char * category, const StatsDimensionList & dimensions, const std::initializer_list<StatisticKind> & stats, const std::initializer_list<stat_type> & values)
+void recordGlobalMetrics(const char * category, const MetricsDimensionList & dimensions, const std::initializer_list<StatisticKind> & stats, const std::initializer_list<stat_type> & values)
 {
     dbgassertex(stats.size() == values.size());
     std::vector<std::string> attributes;
@@ -190,30 +179,16 @@ void recordGlobalMetrics(const char * category, const StatsDimensionList & dimen
 
 //---------------------------------------------------------------------------------------------------------------------
 
-static void getInstanceFilter(StringBuffer & xpath, const StatsDimensionList & optDimensions)
+static void getInstanceFilter(StringBuffer & xpath, const MetricsDimensionList & optDimensions)
 {
-    if (optDimensions.size())
+    for (const auto & x : optDimensions)
     {
         xpath.append('[');
-        bool first = true;
-        for (const auto & x : optDimensions)
-        {
-            if (!first)
-                xpath.append(',');
-            xpath.append('@').append(x.first).append('=').append('"').append(x.second).append('"');
-            first = false;
-        }
-        xpath.append(']');
+        xpath.append('@').append(x.first).append('=').append('"').append(x.second).append('"').append(']');
     }
 }
 
-interface xxIGlobalStatisicWalker
-{
-    virtual void processGlobalStatistics(const char * category, const StatsDimensionList & dimensions, const GlobalStatasticsList & stats) = 0;
-};
-
-
-static void gatherInstanceStatistics(IPropertyTree & categoryTree, const StatsDimensionList & optDimensions, const CDateTime & from, const CDateTime & to, IGlobalStatisicWalker & walker)
+static void gatherInstanceStatistics(IPropertyTree & categoryTree, const MetricsDimensionList & optDimensions, const CDateTime & from, const CDateTime & to, IGlobalMetricRecorder & walker)
 {
     StringBuffer instancePath;
     instancePath.append("Instance");
@@ -222,27 +197,59 @@ static void gatherInstanceStatistics(IPropertyTree & categoryTree, const StatsDi
     //Timeslot star and end times are inclusive, search end time is exclusive
     //The timeslot is a match if endTime >= searchStartTime and startTime < searchEndTime
     StringBuffer timeslotXPath;
-    timeslotXPath.append("Timeslot[@startTime>=");
-    getTimeslotValue(timeslotXPath, to);
-    timeslotXPath.append(",@endTime<");
-    getTimeslotValue(timeslotXPath, from);
+    timeslotXPath.append("Timeslot");
+    #if 0
+    timeslotXPath.append("[@startTime>=");
+    getTimeslotValue(timeslotXPath, to, false);
+    timeslotXPath.append("][@endTime<");
+    getTimeslotValue(timeslotXPath, from, false);
     timeslotXPath.append("]/Metrics");
+    #endif
 
+    MetricsDimensionList dimensions;
+    GlobalStatisticsList stats;
     Owned<IPropertyTreeIterator> iter = categoryTree.getElements(instancePath, iptiter_remote);
+
     ForEach(*iter)
     {
         IPropertyTree & instance = iter->query();
+
         //Gather the dimensions...
+        dimensions.clear();
+        Owned<IAttributeIterator> attrs = instance.getAttributes();
+        ForEach(*attrs)
+        {
+            const char * name = attrs->queryName();
+            if (!streq(name, "@qualifiers"))
+                dimensions.emplace_back(name+1, attrs->queryValue());
+        }
 
         Owned<IPropertyTreeIterator> timeslots = instance.getElements(timeslotXPath, iptiter_remote);
         ForEach(*timeslots)
         {
+            IPropertyTree & timeSlot = timeslots->query();
+            IPropertyTree * metrics = timeSlot.queryPropTree("Metrics");
+
+            stats.clear();
+
+            Owned<IAttributeIterator> statsAttrs = metrics->getAttributes();
+            ForEach(*statsAttrs)
+            {
+                const char * name = statsAttrs->queryName();
+                const char * value = statsAttrs->queryValue();
+                StatisticKind kind = queryStatisticKind(name+1, StKindNone);
+                stat_type num = strtoll(value, nullptr, 10);
+
+                stats.emplace_back(kind, num);
+            }
+
+            walker.processGlobalStatistics(categoryTree.queryName(), dimensions, stats);
             //Gather the statistics
         }
     }
 }
 
-extern da_decl void gatherGlobalStatistics(const char * optCategory, const StatsDimensionList & optDimensions, const CDateTime & from, const CDateTime & to, IGlobalStatisicWalker & walker)
+extern da_decl void gatherGlobalMetrics(const char * optCategory, const MetricsDimensionList & optDimensions, const CDateTime & from, const CDateTime & to, IGlobalMetricRecorder & walker)
 {
     if (optCategory)
     {
@@ -267,7 +274,7 @@ extern da_decl void gatherGlobalStatistics(const char * optCategory, const Stats
     }
 }
 
-void resetGlobalMetrics(const char * category, const StatsDimensionList & optDimensions)
+void resetGlobalMetrics(const char * category, const MetricsDimensionList & optDimensions)
 {
     assertex(category);
 

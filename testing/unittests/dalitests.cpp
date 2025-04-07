@@ -31,6 +31,8 @@
 #include "dasds.hpp"
 #include "danqs.hpp"
 #include "dautils.hpp"
+#include "dastats.hpp"
+
 #include "wujobq.hpp"
 
 #include <vector>
@@ -43,6 +45,7 @@
 #include "sysinfologger.hpp"
 
 //#define COMPAT
+#define CPPUNIT_ASSERT_EQUAL_STR(x, y) CPPUNIT_ASSERT_EQUAL(std::string(x ? x : ""),std::string(y ? y : ""))
 
 // ======================================================================= Support Functions / Classes
 
@@ -3879,5 +3882,115 @@ class DaliJobQueueTester : public CppUnit::TestFixture
 
 CPPUNIT_TEST_SUITE_REGISTRATION( DaliJobQueueTester );
 CPPUNIT_TEST_SUITE_NAMED_REGISTRATION( DaliJobQueueTester, "DaliJobQueueTester" );
+
+//---------------------------------------------------------------------------------------------------------------------
+
+class GlobalMetricDumper : implements IGlobalMetricRecorder
+{
+public:
+    //MORE: Need to pass the start and end time.
+    virtual void processGlobalStatistics(const char * category, const MetricsDimensionList & dimensions, const char * startTime, const char * endTime, const GlobalStatisticsList & stats) override
+    {
+        out.append(category).append("[");
+        if (dimensions.size())
+        {
+            for (const auto & dimension : dimensions)
+            {
+                out.append(dimension.first).append("=");
+                out.append(dimension.second).append(",");
+            }
+            out.setLength(out.length()-1);
+        }
+
+        out.append("] => {");
+
+        if (stats.size())
+        {
+            for (const auto & stat : stats)
+            {
+                out.append(queryStatisticName(stat.first)).append("=");
+                out.append(stat.second).append(",");
+            }
+            out.setLength(out.length()-1);
+        }
+
+        out.append("}").newline();
+    }
+
+public:
+    StringBuffer out;
+};
+
+
+
+class DaliGlobalMetricsTester : public CppUnit::TestFixture
+{
+    /* Note: global messages will be written for dates between 2000-02-04 and 2000-02-05 */
+    /* Note: All global messages with time stamp before 2000-03-31 will be deleted */
+    CPPUNIT_TEST_SUITE(DaliGlobalMetricsTester);
+        CPPUNIT_TEST(doStart);
+        CPPUNIT_TEST(testGlobalMetrics);
+        CPPUNIT_TEST(doStop);
+    CPPUNIT_TEST_SUITE_END();
+
+public:
+    void doStart()
+    {
+        daliClientInit();
+    }
+    void doStop()
+    {
+        daliClientEnd();
+    }
+    void verifyGlobalMetrics(const char * optCategory, const MetricsDimensionList & optDimensions, const CDateTime & startTime, const char * expected)
+    {
+        CDateTime now;
+        now.setNow();
+
+        GlobalMetricDumper visitor;
+        gatherGlobalMetrics(optCategory, optDimensions, startTime, now, visitor);
+        CPPUNIT_ASSERT_EQUAL_STR(expected, visitor.out.str());
+    }
+
+    void testGlobalMetrics()
+    {
+        CDateTime startTime;
+        startTime.setNow();
+        try
+        {
+            resetGlobalMetrics("testCategory", MetricsDimensionList());
+            resetGlobalMetrics("testCategory2", MetricsDimensionList());
+
+            recordGlobalMetrics("testCategory", MetricsDimensionList{}, { StTimeBlocked }, { 10000 });
+            verifyGlobalMetrics(nullptr, MetricsDimensionList{}, startTime, "testCategory[] => {TimeBlocked=10000}\n");
+            recordGlobalMetrics("testCategory", MetricsDimensionList{}, { StTimeBlocked, StTimeLocalExecute }, { 10000, 12345 });
+            recordGlobalMetrics("testCategory", MetricsDimensionList{{"user","gavin"},{"instance","thor400"}}, { StTimeLocalExecute, StCostExecute }, { 54321, 1290 });
+            recordGlobalMetrics("testCategory", MetricsDimensionList{{"user","gavin"}}, { StTimeLocalExecute, StCostExecute }, { 11111, 999 });
+            verifyGlobalMetrics(nullptr, MetricsDimensionList{}, startTime, "\n");
+
+            recordGlobalMetrics("testCategory2", MetricsDimensionList{{"plane", "data1"},{"user","gavin"}}, { StCostFileAccess }, { 11111 });
+            recordGlobalMetrics("testCategory2", MetricsDimensionList{{"plane", "data2"},{"user","gavin"}}, { StCostFileAccess }, { 22222 });
+            recordGlobalMetrics("testCategory2", MetricsDimensionList{{"plane", "data2"},{"user","jim"}}, { StCostFileAccess }, { 33333 });
+            recordGlobalMetrics("testCategory2", MetricsDimensionList{{"plane", "data3"},{"user","bob"}}, { StCostFileAccess }, { 9999 });
+            recordGlobalMetrics("testCategory2", MetricsDimensionList{{"plane", "data1"},{"user","gavin"}}, { StCostFileAccess }, { 11111 });
+            recordGlobalMetrics("testCategory2", MetricsDimensionList{{"plane", "data2"},{"user","gavin"}}, { StCostFileAccess }, { 22222 });
+            recordGlobalMetrics("testCategory2", MetricsDimensionList{{"plane", "data2"},{"user","jim"}}, { StCostFileAccess }, { 33333 });
+            recordGlobalMetrics("testCategory2", MetricsDimensionList{{"plane", "data2"},{"user","gavin"}}, { StCostFileAccess }, { 22222 });
+            recordGlobalMetrics("testCategory2", MetricsDimensionList{{"plane", "data2"},{"user","jim"}}, { StCostFileAccess }, { 33333 });
+        }
+        catch (IException * e)
+        {
+            StringBuffer msg;
+            e->errorMessage(msg);
+            e->Release();
+            CPPUNIT_FAIL(msg.str());
+        }
+    }
+};
+
+CPPUNIT_TEST_SUITE_REGISTRATION( DaliGlobalMetricsTester );
+CPPUNIT_TEST_SUITE_NAMED_REGISTRATION( DaliGlobalMetricsTester, "DaliGlobalMetricsTester" );
+
+
 
 #endif // _USE_CPPUNIT
