@@ -854,7 +854,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
 
     IpMapOf<UdpSenderEntry> sendersTable;
 
-    class UdpRdTracker : public TimeDivisionTracker<6, false>
+    class UdpRdTracker : public TimeDivisionTracker
     {
     public:
         enum
@@ -867,7 +867,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
             checkingPending
         };
 
-        UdpRdTracker(const char *name, unsigned reportIntervalSeconds) : TimeDivisionTracker<6, false>(name, reportIntervalSeconds)
+        UdpRdTracker(const char *name, unsigned reportIntervalSeconds) : TimeDivisionTracker(name, 6, false, reportIntervalSeconds)
         {
             stateNames[other] = "other";
             stateNames[waiting] = "waiting";

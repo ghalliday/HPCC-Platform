@@ -2370,7 +2370,7 @@ protected:
     DelayedPacketQueueManager delayed;
 #endif
 
-    class WorkerUdpTracker : public TimeDivisionTracker<6, false>
+    class WorkerUdpTracker : public TimeDivisionTracker
     {
     public:
         enum
@@ -2383,7 +2383,7 @@ protected:
             checkingRunning
         };
 
-        WorkerUdpTracker(const char *name, unsigned reportIntervalSeconds) : TimeDivisionTracker<6, false>(name, reportIntervalSeconds)
+        WorkerUdpTracker(const char *name, unsigned reportIntervalSeconds) : TimeDivisionTracker(name, 6, false, reportIntervalSeconds)
         {
             stateNames[other] = "other";
             stateNames[waiting] = "waiting";

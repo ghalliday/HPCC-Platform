@@ -378,15 +378,17 @@ extern jlib_decl char *getHPCCEnvVal(const char *name, const char *defaultValue)
 // class TimeDivisionTracker is useful for working out what a thread spends its time doing. See udptrrr.cpp for an example
 // of its usage
 
-template<unsigned NUMSTATES, bool reportOther> class TimeDivisionTracker
+class jlib_decl TimeDivisionTracker
 {
 protected:
-    unsigned __int64 totals[NUMSTATES] = {0};
-    unsigned counts[NUMSTATES] = {0};
-    const char *stateNames[NUMSTATES] = {};
+    StringAttr name;
+    unsigned __int64 * totals = nullptr;
+    unsigned * counts = nullptr;
+    const char * * stateNames = nullptr;
     unsigned __int64 lastTick = get_cycles_now();
     unsigned currentState = 0;
-    StringAttr name;
+    unsigned numStates = 0;
+    bool reportOther = false;
     unsigned __int64 reportIntervalCycles = 0;
     unsigned __int64 lastReport = 0;
 
@@ -423,10 +425,26 @@ protected:
     }
 
 public:
-    TimeDivisionTracker(const char *_name, unsigned reportIntervalSeconds) : name(_name)
+    TimeDivisionTracker(const char *_name, unsigned _numStates, bool _reportOther, unsigned reportIntervalSeconds)
+     : name(_name), numStates(_numStates), reportOther(_reportOther)
     {
+        totals = new __uint64[numStates];
+        counts = new unsigned[numStates];
+        stateNames = new const char *[numStates];
+        for (unsigned i=0; i < numStates; i++)
+        {
+            totals[i] = 0;
+            counts[i] = 0;
+        }
         if (reportIntervalSeconds)
             reportIntervalCycles = millisec_to_cycle(reportIntervalSeconds * 1000);
+    }
+
+    ~TimeDivisionTracker()
+    {
+        delete [] totals;
+        delete [] counts;
+        delete [] stateNames;
     }
 
     void report(bool reset)
@@ -437,7 +455,7 @@ public:
         lastTick = now;
         lastReport = now;
         bool doneOne = false;
-        for (unsigned i = reportOther ? 0 : 1; i < NUMSTATES; i++)
+        for (unsigned i = reportOther ? 0 : 1; i < numStates; i++)
         {
             if (counts[i])
             {
@@ -477,5 +495,17 @@ public:
     };
 };
 
+
+class jlib_decl MetricTimeDivisionTracker : public TimeDivisionTracker
+{
+    static constexpr unsigned metricReportIntervalSeconds = 60;
+    MetricTimeDivisionTracker(const char *_name, const StatisticsMapping & mapping)
+     : TimeDivisionTracker(_name, mapping.numStatistics()+1, false, metricReportIntervalSeconds)
+    {
+        stateNames[0] = "Unknown";
+        for (unsigned i=0; i < mapping.numStatistics(); i++)
+            stateNames[i+1] = queryStatisticName(mapping.getKind(i+1));
+    }
+};
 
 #endif
