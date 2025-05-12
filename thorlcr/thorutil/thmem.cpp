@@ -1457,7 +1457,7 @@ rowidx_t CThorSpillableRowArray::save(CFileOwner &iFileOwner, unsigned _spillCom
             }
             ++i;
         }
-        writer->flush(NULL);
+        writer->flush();
     }
     catch (IException *e)
     {

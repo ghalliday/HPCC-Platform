@@ -452,7 +452,7 @@ void CHThorDiskWriteActivity::execute()
 
 void CHThorDiskWriteActivity::stop()
 {
-    outSeq->flush(NULL);
+    outSeq->flush();
     if(blockcompressed)
         uncompressedBytesWritten = outSeq->getPosition();
     close();
