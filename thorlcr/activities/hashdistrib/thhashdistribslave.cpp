@@ -2823,6 +2823,10 @@ public:
     {
         writer->flush();
     }
+    virtual void noteStopped() override
+    {
+        writer->noteStopped();
+    }
 };
 
 class CBucket : public CSimpleInterface

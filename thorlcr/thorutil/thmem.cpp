@@ -2129,17 +2129,20 @@ public:
                 flush();
             }
         // IRowWriter
-            virtual void putRow(const void *row)
+            virtual void putRow(const void *row) override
             {
                 parent->putRow(row);
             }
-            virtual void writeRow(const void *row)
+            virtual void writeRow(const void *row) override
             {
                 parent->writeRow(row);
             }
-            virtual void flush()
+            virtual void flush() override
             {
                 parent->flush();
+            }
+            virtual void noteStopped() override
+            {
             }
         };
         return new CWriter(this);

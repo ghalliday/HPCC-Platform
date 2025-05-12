@@ -1411,7 +1411,7 @@ void useMemoryMappedRead(bool on)
 }
 
 #define ROW_WRITER_BUFFERSIZE (0x100000)
-class CRowStreamWriter : private IRowSerializerTarget, implements IExtRowWriter, public CSimpleInterface
+class CRowStreamWriter final : private IRowSerializerTarget, implements IExtRowWriter, public CSimpleInterface
 {
     Linked<IFileIOStream> stream;
     Linked<IOutputRowSerializer> serializer;
@@ -1506,7 +1506,7 @@ public:
         }
     }
 
-    void putRow(const void *row)
+    void putRow(const void *row) override
     {
         if (row)
         {
@@ -1549,7 +1549,7 @@ public:
         }
     }
 
-    void writeRow(const void *row)
+    void writeRow(const void *row) override
     {
 #ifdef _DEBUG
         PrintStackReport();
@@ -1557,18 +1557,22 @@ public:
         UNIMPLEMENTED_X("Caller should use putRow() instead");
     }
 
-    void flush()
+    void flush() override
     {
         flushBuffer(true);
         streamFlush();
     }
 
-    void flush(CRC32 *crcout)
+    void flush(CRC32 *crcout) override
     {
         flushBuffer(true);
         streamFlush();
         if (crcout)
             *crcout = crc;
+    }
+
+    virtual void noteStopped() override
+    {
     }
 
     offset_t getPosition()
