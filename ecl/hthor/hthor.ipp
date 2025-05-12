@@ -294,7 +294,7 @@ protected:
     bool outputPlaneCompressed = false;
     CachedOutputMetaData serializedOutputMeta;
     offset_t uncompressedBytesWritten;
-    Owned<IExtRowWriter> outSeq;
+    Owned<ILogicalRowWriter> outSeq;
     unsigned __int64 numRecords = 0;
     stat_type numDiskWrites = 0;
     cost_type diskAccessCost = 0;

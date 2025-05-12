@@ -1419,7 +1419,7 @@ rowidx_t CThorSpillableRowArray::save(CFileOwner &iFileOwner, unsigned _spillCom
         nextCBI = nextCB->queryRecordNumber();
     }
     OwnedIFileIO iFileIO = iFileOwner.queryIFile().open(IFOcreate);
-    Owned<IExtRowWriter> writer = createRowWriter(iFileIO, rowIf, rwFlags, nullptr, compBlkSz);
+    Owned<ILogicalRowWriter> writer = createRowWriter(iFileIO, rowIf, rwFlags, nullptr, compBlkSz);
     rowidx_t i=0;
     rowidx_t rowsWritten=0;
     try

@@ -2362,7 +2362,7 @@ public:
                     activity->getOpt(THOROPT_COMPRESS_SPILL_TYPE, compType);
                     setCompFlag(compType, rwFlags);
                 }
-                Owned<IExtRowWriter> out = createRowWriter(tempfile, activity, rwFlags);
+                Owned<ILogicalRowWriter> out = createRowWriter(tempfile, activity, rwFlags);
                 if (!out)
                     throw MakeStringException(-1,"Could not created file %s",tempname.str());
                 for (;;)

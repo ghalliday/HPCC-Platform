@@ -12074,7 +12074,7 @@ public:
 class CRoxieServerDiskWriteActivity : public CRoxieServerInternalSinkActivity, implements IRoxiePublishCallback
 {
 protected:
-    Owned<IExtRowWriter> outSeq;
+    Owned<ILogicalRowWriter> outSeq;
     Owned<IOutputRowSerializer> rowSerializer;
     Linked<IFileIOStream> diskout;
     bool blockcompressed;
