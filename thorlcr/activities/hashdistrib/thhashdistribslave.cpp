@@ -1706,7 +1706,7 @@ class CRowPullDistributor: public CDistributorBase
         }
     } *txthread;
 
-    class cSortedDistributeMerger : implements IRowProvider, public CSimpleInterface
+    class cSortedDistributeMerger : implements IMergeRowProvider, public CSimpleInterface
     {
         CDistributorBase &parent;
         Owned<IRowStream> out;

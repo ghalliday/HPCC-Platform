@@ -139,7 +139,7 @@ interface IRowLinkCounter: extends IInterface
     virtual void releaseRow(const void *row)=0;
 };
 
-interface IRowProvider: extends IRowLinkCounter
+interface IMergeRowProvider: extends IRowLinkCounter
 {
     virtual const void *nextRow(unsigned idx)=0;
     virtual void stop(unsigned idx)=0;
