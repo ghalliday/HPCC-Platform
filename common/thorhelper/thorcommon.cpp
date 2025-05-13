@@ -1169,19 +1169,6 @@ public:
 
     IMPLEMENT_IINTERFACE_USING(CSimpleInterfaceOf<IExtRowStream>)
 
-    virtual void reinit(offset_t _ofs,offset_t _len,unsigned __int64 _maxrows) override
-    {
-        assertex(_maxrows == 0);
-        eoi = false;
-        eos = (_len==0);
-        eog = false;
-        hadMatchInGroup = false;
-        bufofs = 0;
-        progress = 0;
-        strm->reset(_ofs,_len);
-        currentRowOffset = _ofs;
-    }
-
     virtual const void *nextRow() override
     {
         if (eog)
@@ -1328,15 +1315,6 @@ public:
         maxrows = _maxrows;
         rownum = 0;
         eos = maxrows==0;
-    }
-
-    virtual void reinit(offset_t _ofs,offset_t _len,unsigned __int64 _maxrows) override
-    {
-        CRowStreamReader::reinit(_ofs, _len, 0);
-        if (_maxrows==0)
-            eos = true;
-        maxrows = _maxrows;
-        rownum = 0;
     }
 
     virtual const void *nextRow() override

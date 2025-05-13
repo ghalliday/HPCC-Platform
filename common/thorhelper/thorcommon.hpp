@@ -159,7 +159,6 @@ interface IExtRowStream: extends IRowStream
     virtual offset_t getLastRowOffset() const = 0;          // Used by disk read to deal with virtual file positions.
     virtual const void *prefetchRow(size32_t & size) = 0;   // Used when row does not need to be cloned - e.g. when it will be transformed
     virtual void prefetchDone() = 0;
-    virtual void reinit(offset_t offset,offset_t len,unsigned __int64 maxrows) = 0;     // Not used anywhere - should be deleted
     virtual unsigned __int64 getStatistic(StatisticKind kind) = 0;
     virtual void setFilters(IConstArrayOf<IFieldFilter> &filters) = 0;      // Possibly cleaner as a parameter to createRowStream()
     virtual CRC32 queryCRC() const = 0;
