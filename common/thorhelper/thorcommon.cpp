@@ -1284,13 +1284,14 @@ public:
 
     virtual unsigned __int64 getStatistic(StatisticKind kind) override
     {
+        switch (kind)
+        {
+        case StNumRowsRead:
+            return progress;
+        }
         if (fileio)
             return fileio->getStatistic(kind);
         return 0;
-    }
-    virtual unsigned __int64 queryProgress() const override
-    {
-        return progress;
     }
     virtual void setFilters(IConstArrayOf<IFieldFilter> &filters)
     {
