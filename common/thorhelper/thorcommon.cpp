@@ -1506,7 +1506,7 @@ public:
         }
     }
 
-    void putRow(const void *row) override
+    virtual void putRow(const void *row) override
     {
         if (row)
         {
@@ -1549,7 +1549,7 @@ public:
         }
     }
 
-    void writeRow(const void *row) override
+    virtual void writeRow(const void *row) override
     {
 #ifdef _DEBUG
         PrintStackReport();
@@ -1557,13 +1557,13 @@ public:
         UNIMPLEMENTED_X("Caller should use putRow() instead");
     }
 
-    void flush() override
+    virtual void flush() override
     {
         flushBuffer(true);
         streamFlush();
     }
 
-    void flush(CRC32 *crcout) override
+    virtual void flush(CRC32 *crcout) override
     {
         flushBuffer(true);
         streamFlush();
