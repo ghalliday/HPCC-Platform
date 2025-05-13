@@ -88,7 +88,6 @@ extern THORHELPER_API IRowInterfaces *createRowInterfaces(IOutputMetaData *meta,
 enum RowReaderWriterFlags
 {
     rw_grouped        = 0x1,
-    rw_crc            = 0x2,
     rw_extend         = 0x4,
     rw_compress       = 0x8,
     rw_compressblkcrc = 0x10, // block compression, this sets/checks crc's at block level

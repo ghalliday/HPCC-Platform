@@ -104,8 +104,6 @@ public:
         unsigned rwFlags = (DEFAULT_RWFLAGS & ~rw_autoflush); // flushed by close()
         if (compress)
             rwFlags |= rw_compress;
-        else
-            rwFlags |= rw_crc; // only if !compress
         if (grouped)
             rwFlags |= rw_grouped;
         out.setown(createRowWriter(file, this, rwFlags));
