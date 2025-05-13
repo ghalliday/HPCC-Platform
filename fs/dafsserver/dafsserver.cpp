@@ -1355,7 +1355,7 @@ protected:
     bool compressed = false;
     bool cursorDirty = false;
     bool fetching = false;
-    unsigned __int64 bytesRead = 0;
+    unsigned __int64 lastBytesRead = 0;
     // virtual field values
     unsigned partNum = 0;
     offset_t baseFpos = 0;
@@ -1411,6 +1411,7 @@ protected:
         }
         inputStream.setown(createFileSerialStream(iFileIO, startPos, (offset_t)-1, (size32_t)-1, this));
 
+        lastBytesRead = 0;
         opened = true;
         eofSeen = false;
         return true;
@@ -1422,10 +1423,6 @@ protected:
         eofSeen = true;
     }
 // IFileSerialStreamCallback impl.
-    virtual void process(offset_t ofs, size32_t sz, const void *buf) override
-    {
-        bytesRead += sz;
-    }
 public:
     CRemoteStreamReadBaseActivity(IPropertyTree &config, IFileDescriptor *fileDesc) : PARENT(config, fileDesc)
     {
@@ -1438,8 +1435,9 @@ public:
     virtual void flushStatistics(CClientStats &stats) override
     {
         // NB: will be called by same thread that is reading.
-        stats.addRead(bytesRead);
-        bytesRead = 0;
+        offset_t bytesRead = inputStream->getStatistic(StSizeDiskRead);
+        stats.addRead(bytesRead - lasBytesRead);
+        lstBytesRead = bytesRead;
     }
 // IRemoteReadActivity impl.
     virtual void seek(offset_t pos) override
