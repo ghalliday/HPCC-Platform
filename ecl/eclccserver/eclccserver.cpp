@@ -133,7 +133,6 @@ private:
 //------------------------------------------------------------------------------------------------------------------
 
 static bool useChildProcesses = false;      // Use k8s jobs for compile tasks
-static unsigned childProcessTimeLimit = 0;  // If using k8s jobs to compile, try a child process first but abort if it takes longer than this time (seconds)
 
 class AbortWaiter : public Thread
 {
@@ -733,7 +732,7 @@ class EclccCompiler : implements IErrorReporter
         try
         {
             Owned<ErrorReader> errorReader = new ErrorReader(pipe, this);
-            AbortWaiter abortWaiter(workunit, childProcessTimeLimit);
+            AbortWaiter abortWaiter(workunit, 0);
             AbortPipeWaiter aborter(abortWaiter, pipe);
 
             eclccCmd.insert(0, eclccProgName);
@@ -954,16 +953,11 @@ public:
         {
             if (!useChildProcesses && !config->hasProp("@workunit"))
             {
-                //If the timelimit for child processes is 0, or a workunit is explicitly defined as slow to compile
-                //then start the compile immediately using a K8s job.
-                if ((childProcessTimeLimit == 0) || workunit->getDebugValueBool("isComplexCompile", false))
-                {
-                    //NOTE: This call does not modify the workunit itself, so no need to commit afterwards
-                    workunit->setContainerizedProcessInfo("EclCCServer", getComponentConfigSP()->queryProp("@name"), k8s::queryMyPodName(), k8s::queryMyContainerName(), nullptr, nullptr);
-                    workunit.clear();
-                    compileViaK8sJob(true);
-                    return;
-                }
+                //NOTE: This call does not modify the workunit itself, so no need to commit afterwards
+                workunit->setContainerizedProcessInfo("EclCCServer", getComponentConfigSP()->queryProp("@name"), k8s::queryMyPodName(), k8s::queryMyContainerName(), nullptr, nullptr);
+                workunit.clear();
+                compileViaK8sJob(true);
+                return;
             }
         }
 
@@ -1137,6 +1131,7 @@ public:
         return true;
     }
 };
+
 
 #ifndef _CONTAINERIZED
 #ifndef _WIN32
@@ -1522,7 +1517,6 @@ int main(int argc, const char *argv[])
 
             useChildProcesses = globals->getPropBool("@useChildProcesses", false);
             unsigned maxThreads = globals->getPropInt("@maxActive", 4);
-            childProcessTimeLimit = useChildProcesses ? 0 : globals->getPropInt("@childProcessTimeLimit", 10);
 #else
             // The option has been renamed to avoid confusion with the similarly-named eclcc option, but
             // still accept the old name if the new one is not present.
