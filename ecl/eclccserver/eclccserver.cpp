@@ -580,9 +580,9 @@ class EclccCompiler : implements IErrorReporter
         return numFailed;
     }
 
-#ifdef _CONTAINERIZED
     void removeGeneratedFiles(const char *wuid)
     {
+#ifdef _CONTAINERIZED
         // Remove the files we generated into /tmp - any we want to retain will have been moved to dllserver dir when registered with workunit
         VStringBuffer temp("*%s.*", wuid);
         Owned<IDirectoryIterator> tempfiles = createDirectoryIterator(".", temp.str());
@@ -590,9 +590,8 @@ class EclccCompiler : implements IErrorReporter
         {
             removeFileTraceIfFail(tempfiles->getName(temp.clear()).str());
         }
-
-    }
 #endif
+    }
 
     bool compile(const char *wuid, const char *target, const char *targetCluster, bool &timedOut)
     {
@@ -645,14 +644,17 @@ class EclccCompiler : implements IErrorReporter
         eclccCmd.append(" --nostdinc");
         eclccCmd.append(" --metacache=");
 
-#ifdef _CONTAINERIZED
-        /* stderr is reserved for actual errors, and is consumed by this (parent) process
-         * stdout is unused and will be captured by container logging mechanism */
-        eclccCmd.append(" --logtostdout");
-#else
         VStringBuffer logfile("%s.eclcc.log", workunit->queryWuid());
-        eclccCmd.appendf(" --logfile=%s", logfile.str());
-#endif
+        if (isContainerized())
+        {
+            /* stderr is reserved for actual errors, and is consumed by this (parent) process
+            * stdout is unused and will be captured by container logging mechanism */
+            eclccCmd.append(" --logtostdout");
+        }
+        else
+        {
+            eclccCmd.appendf(" --logfile=%s", logfile.str());
+        }
 
         if (syntaxCheck)
             eclccCmd.appendf(" -syntax");
@@ -805,23 +807,22 @@ class EclccCompiler : implements IErrorReporter
                     createUNCFilename(realdllfilename.str(), dllurl);
                     unsigned crc = crc_file(realdllfilename.str());
                     Owned<IWUQuery> query = workunit->updateQuery();
-#ifndef _CONTAINERIZED
-                    associateLocalFile(query, FileTypeLog, logfile, "Compiler log", 0);
-#endif
+                    if (!isContainerized())
+                        associateLocalFile(query, FileTypeLog, logfile, "Compiler log", 0);
                     associateLocalFile(query, FileTypeDll, realdllfilename, "Workunit DLL", crc);
-#ifdef _CONTAINERIZED
                     removeGeneratedFiles(wuid);
-#endif
                     queryDllServer().registerDll(realdllname.str(), "Workunit DLL", dllurl.str());
                 }
                 else
                 {
                     if (processKilled && !workunit->aborting())
                         addExceptionToWorkunit(workunit, SeverityError, "eclccserver", 9999, "eclcc killed - likely to be out of memory - see compile log for details", nullptr, 0, 0, 0);
-#ifndef _CONTAINERIZED
-                    Owned<IWUQuery> query = workunit->updateQuery();
-                    associateLocalFile(query, FileTypeLog, logfile, "Compiler log", 0);
-#endif
+
+                    if (!isContainerized())
+                    {
+                        Owned<IWUQuery> query = workunit->updateQuery();
+                        associateLocalFile(query, FileTypeLog, logfile, "Compiler log", 0);
+                    }
                 }
 
                 if (compileCppSeparately)
@@ -1504,11 +1505,12 @@ int main(int argc, const char *argv[])
         }
         else
         {
-#ifndef _CONTAINERIZED
-            unsigned optMonitorInterval = globals->getPropInt("@monitorInterval", 60);
-            if (optMonitorInterval)
-                startPerformanceMonitor(optMonitorInterval*1000, PerfMonStandard, nullptr);
-#endif
+            if (!isContainerized())
+            {
+                unsigned optMonitorInterval = globals->getPropInt("@monitorInterval", 60);
+                if (optMonitorInterval)
+                    startPerformanceMonitor(optMonitorInterval*1000, PerfMonStandard, nullptr);
+            }
 
             StringBuffer queueNames;
             getQueues(queueNames);
@@ -1542,9 +1544,10 @@ int main(int argc, const char *argv[])
     {
         IERRLOG("Terminating unexpectedly");
     }
-#ifndef _CONTAINERIZED
-    stopPerformanceMonitor();
-#endif
+
+    if (!isContainerized())
+        stopPerformanceMonitor();
+
     UseSysLogForOperatorMessages(false);
     ::closedownClientProcess(); // dali client closedown
     releaseAtoms();
