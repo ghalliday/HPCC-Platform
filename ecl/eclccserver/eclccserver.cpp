@@ -32,6 +32,7 @@
 #include "dllserver.hpp"
 #include "thorplugin.hpp"
 #include "daqueue.hpp"
+#include "dastats.hpp"
 #ifndef _CONTAINERIZED
 #include "dalienv.hpp"
 #endif
@@ -592,9 +593,8 @@ class EclccCompiler : implements IErrorReporter
 #endif
     }
 
-    bool compile(const char *wuid, const char *target, const char *targetCluster, bool &timedOut)
+    bool compile(const char *wuid, const char *target, const char *targetCluster)
     {
-        timedOut = false;
         Owned<IConstWUQuery> query = workunit->getQuery();
         if (!query)
         {
@@ -768,7 +768,7 @@ class EclccCompiler : implements IErrorReporter
             }
             bool processKilled = (retcode >= 128);
             //If the process is killed it is probably because it ran out of memory - so try to compile as a K8s job
-            timedOut = abortWaiter.stop() || (isContainerized() && processKilled);
+            bool timedOut = abortWaiter.stop() || (isContainerized() && processKilled);
             if (!timedOut)
             {
                 if (retcode == 0)
@@ -933,7 +933,7 @@ public:
 #endif
     }
 
-    void compileWorkunit(const char * _wuid)
+    WUState compileWorkunit(const char * _wuid, bool compileLocal)
     {
         wuid.set(_wuid);
         setDefaultJobName(wuid);
@@ -946,18 +946,18 @@ public:
         if (!workunit)
         {
             DBGLOG("Workunit %s no longer exists", wuid.get());
-            return;
+            return WUStateUnknown;
         }
 
         if (isContainerized())
         {
-            if (!useChildProcesses && !config->hasProp("@workunit"))
+            if (!useChildProcesses && !compileLocal)
             {
                 //NOTE: This call does not modify the workunit itself, so no need to commit afterwards
                 workunit->setContainerizedProcessInfo("EclCCServer", getComponentConfigSP()->queryProp("@name"), k8s::queryMyPodName(), k8s::queryMyContainerName(), nullptr, nullptr);
                 workunit.clear();
                 compileViaK8sJob(true);
-                return;
+                return WUStateUnknown;
             }
         }
 
@@ -969,7 +969,7 @@ public:
             workunit->setState(WUStateAborted);
             DBGLOG("Workunit %s aborted", wuid.get());
             workunit->commit();
-            return;
+            return WUStateAborted;
         }
 
         if (isContainerized())
@@ -1000,7 +1000,7 @@ public:
         {
             VStringBuffer errStr("Cluster %s not recognized", clusterName.str());
             failCompilation(errStr);
-            return;
+            return WUStateFailed;
         }
         ClusterType platform = clusterInfo->getPlatform();
         const char *platformName = clusterTypeString(platform, true);
@@ -1009,19 +1009,10 @@ public:
         workunit->setState(WUStateCompiling);
         workunit->commit();
         bool ok = false;
+        WUState result = WUStateFailed;
         try
         {
-            bool timedOut = false;
-            ok = compile(wuid, platformName, clusterName.str(), timedOut);
-#ifdef _CONTAINERIZED
-            if (timedOut)
-            {
-                workunit.clear();
-                DBGLOG("Workunit %s local compilation timed out, launching k8s job", wuid.get());
-                compileViaK8sJob(false);
-                return;
-            }
-#endif
+            ok = compile(wuid, platformName, clusterName.str());
         }
         catch (IException * e)
         {
@@ -1047,13 +1038,13 @@ public:
                 {
                     VStringBuffer errStr("Cluster %s by #workunit not recognized", newClusterName.str());
                     failCompilation(errStr);
-                    return;
+                    return WUStateFailed;
                 }
                 if (platform != clusterInfo->getPlatform())
                 {
                     VStringBuffer errStr("Cluster %s specified by #workunit is wrong type for this queue", newClusterName.str());
                     failCompilation(errStr);
-                    return;
+                    return WUStateFailed;
                 }
                 clusterInfo.clear();
 #endif
@@ -1095,8 +1086,10 @@ public:
             workunit->setState(WUStateFailed);
         if (workunit)
             workunit->commit();
+        result = workunit->getState();
         workunit.clear();
         wuid.clear();
+        return result;
     }
 };
 
@@ -1119,7 +1112,7 @@ public:
 
     virtual void threadmain() override
     {
-        compiler.compileWorkunit(wuid);
+        compiler.compileWorkunit(wuid, false);
     }
 
     virtual bool stop() override
@@ -1129,6 +1122,64 @@ public:
     virtual bool canReuse() const override
     {
         return true;
+    }
+};
+
+
+//---------------------------------------------------------------------------------------------------------------------
+
+class EclccLingeringCompiler
+{
+    EclccCompiler compiler;
+    Owned<IJobQueue> queue;
+    const char * name;
+    unsigned lingerTimeMs;
+    double costPerHour;
+
+public:
+    EclccLingeringCompiler(IPropertyTree * globals, unsigned _idx) : compiler(_idx)
+    {
+        lingerTimeMs = globals->getPropInt("@lingerPeriod") * 1000;
+        name = globals->queryProp("@name");
+        costPerHour = getMachineCostRate();
+        //MORE: Set up queue
+    }
+
+    void run()
+    {
+        __uint64 startupElapsedTimeNs = 0; // MORE
+        cost_type costStart = money2cost_type(calcCostNs(costPerHour, startupElapsedTimeNs));
+
+        recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", name } }, { StNumStarts, StTimeStart, StCostStart }, { 1ULL, startupElapsedTimeNs, costStart });
+        for (;;)
+        {
+            __uint64 priority = getTimeStampNowValue();
+            CCycleTimer waitTimer;
+            Owned<IJobQueueItem> item = queue->dequeuePriority(priority, lingerTimeMs);
+            __uint64 waitTimeNs = waitTimer.elapsedNs();
+            cost_type costWait = money2cost_type(calcCostNs(costPerHour, waitTimeNs));
+
+            if (!item)
+            {
+                recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", name } }, { StNumWaits, StTimeWaitFailure, StCostWait }, { 1, waitTimeNs, costWait });
+                break;
+            }
+
+            recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", name } }, { StNumAccepts, StNumWaits, StTimeWaitSuccess, StCostWait }, { 1, 1, waitTimeNs, costWait });
+
+            WUState state = compiler.compileWorkunit(item->queryWUID(), true);
+
+            __uint64 executeTimeNs = waitTimer.elapsedNs() - waitTimeNs;
+            cost_type costExecute = money2cost_type(calcCostNs(costPerHour, executeTimeNs));
+            const char * username = "MORE";
+
+            if (state == WUStateAborted)
+                recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", name }, { "user", username } }, { StNumAborts, StTimeLocalExecute, StCostAbort }, { 1, executeTimeNs, costExecute });
+            else if (state == WUStateFailed)
+                recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", name }, { "user", username } }, { StNumFailures, StTimeLocalExecute, StCostExecute }, { 1, executeTimeNs, costExecute });
+            else if (state != WUStateUnknown)
+                recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", name }, { "user", username } }, { StTimeLocalExecute, StCostExecute }, { executeTimeNs, costExecute });
+            }
     }
 };
 
