@@ -263,7 +263,9 @@ static void configGitLock()
     }
 }
 
-class EclccCompileThread : implements IPooledThread, implements IErrorReporter, public CInterface
+//---------------------------------------------------------------------------------------------------------------------
+
+class EclccCompiler : implements IErrorReporter
 {
     StringAttr wuid;
     Owned<IWorkUnit> workunit;
@@ -273,6 +275,7 @@ class EclccCompileThread : implements IPooledThread, implements IErrorReporter, 
     unsigned defaultMaxCompileThreads = 1;
     bool saveTemps = false;
 
+//interface IErrorReporter:
     virtual void reportError(IException *e)
     {
         StringBuffer s;
@@ -854,8 +857,7 @@ class EclccCompileThread : implements IPooledThread, implements IErrorReporter, 
     }
 
 public:
-    IMPLEMENT_IINTERFACE;
-    EclccCompileThread(unsigned _idx)
+    EclccCompiler(unsigned _idx)
     {
         idxStr.append(_idx);
 
@@ -883,11 +885,6 @@ public:
         }
         else
             OWARNLOG("Could not deduce the directory to store cached git repositories");
-    }
-
-    virtual void init(void *param) override
-    {
-        wuid.set((const char *) param);
     }
 
     void compileViaK8sJob(bool noteDequeued)
@@ -936,8 +933,9 @@ public:
 #endif
     }
 
-    virtual void threadmain() override
+    void compileWorkunit(const char * _wuid)
     {
+        wuid.set(_wuid);
         setDefaultJobName(wuid);
 
         DBGLOG("Compile request processing for workunit %s", wuid.get());
@@ -1103,6 +1101,30 @@ public:
         if (workunit)
             workunit->commit();
         workunit.clear();
+        wuid.clear();
+    }
+};
+
+//---------------------------------------------------------------------------------------------------------------------
+class EclccCompileThread : implements IPooledThread, public CInterface
+{
+    StringAttr wuid;
+    EclccCompiler compiler;
+
+public:
+    IMPLEMENT_IINTERFACE;
+    EclccCompileThread(unsigned _idx) : compiler(_idx)
+    {
+    }
+
+    virtual void init(void *param) override
+    {
+        wuid.set((const char *) param);
+    }
+
+    virtual void threadmain() override
+    {
+        compiler.compileWorkunit(wuid);
     }
 
     virtual bool stop() override
