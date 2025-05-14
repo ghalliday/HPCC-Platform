@@ -265,13 +265,59 @@ static void configGitLock()
 
 //---------------------------------------------------------------------------------------------------------------------
 
+static StringBuffer &getQueues(StringBuffer &queueNames, bool isLingeringServer)
+{
+    Owned<IPropertyTree> config = getComponentConfig();
+    const char * processName = config->queryProp("@name");
+#ifdef _CONTAINERIZED
+    bool filtered = false;
+    std::unordered_map<std::string, bool> listenQueues;
+    Owned<IPTreeIterator> listening = config->getElements("listen");
+    ForEach (*listening)
+    {
+        const char *lq = listening->query().queryProp(".");
+        if (lq)
+        {
+            listenQueues[lq] = true;
+            filtered = true;
+        }
+    }
+    Owned<IPTreeIterator> queues = config->getElements("queues");
+    ForEach(*queues)
+    {
+        IPTree &queue = queues->query();
+        const char *qname = queue.queryProp("@name");
+        if (!filtered || listenQueues.count(qname))
+        {
+            if (queueNames.length())
+                queueNames.append(",");
+            getClusterEclCCServerQueueName(queueNames, qname);
+        }
+    }
+    if (isLingeringServer)
+    {
+        queueNames.append(",");
+        getClusterEclCCServerCompileQueueName(queueNames, processName);
+    }
+#else
+    SCMStringBuffer scmQueueNames;
+    getEclCCServerQueueNames(scmQueueNames, processName);
+    queueNames.append(scmQueueNames.str());
+#endif
+    return queueNames;
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+
 class EclccCompiler : implements IErrorReporter
 {
+    StringAttr instanceName;
     StringAttr wuid;
     Owned<IWorkUnit> workunit;
     StringBuffer idxStr;
     StringArray filesSeen;
     StringBuffer repoRootPath;
+    unsigned instanceNumber;
     unsigned defaultMaxCompileThreads = 1;
     bool saveTemps = false;
 
@@ -857,8 +903,9 @@ class EclccCompiler : implements IErrorReporter
     }
 
 public:
-    EclccCompiler(unsigned _idx)
+    EclccCompiler(const char * _instanceName, unsigned _idx) : instanceName(_instanceName)
     {
+        instanceNumber = _idx+1;
         idxStr.append(_idx);
 
         const char * repoPathOption = getenv("ECLCC_ECLREPO_PATH");
@@ -887,25 +934,40 @@ public:
             OWARNLOG("Could not deduce the directory to store cached git repositories");
     }
 
-    void compileViaK8sJob(bool noteDequeued)
+    void compileViaK8sJob(const char * wuid)
     {
 #ifdef _CONTAINERIZED
         Owned<IException> error;
         try
         {
+            // Add the item onto a queue that only lingering eclccservers listen to.
+            // This prevents other threads picking up the item if it was placed back
+            // onto one of the other queues.
+            // Push it before starting the eclserver job - so that completing servers can
+            // pick it up early
+            StringBuffer internalQueueName;
+            getClusterEclCCServerCompileQueueName(internalQueueName, instanceName);
+
+            Owned<IJobQueue> queue = createJobQueue(internalQueueName);
+            Owned<IJobQueueItem> item = createJobQueueItem(wuid);
+            queue->enqueue(item.getClear());
+
             SCMStringBuffer optPlatformVersion;
             {
                 Owned<IWorkUnitFactory> factory = getWorkUnitFactory();
-                Owned<IWorkUnit> wu = factory->updateWorkUnit(wuid.get());
+                Owned<IWorkUnit> wu = factory->updateWorkUnit(wuid);
                 wu->getDebugValue("platformVersion", optPlatformVersion);
-                if (noteDequeued)
-                    addTimeStamp(wu, SSToperation, ">compile", StWhenDequeued, 0);
+                addTimeStamp(wu, SSToperation, ">compile", StWhenDequeued, 0);
                 addTimeStamp(wu, SSToperation, ">compile", StWhenK8sLaunched, 0);
             }
             std::list<std::pair<std::string, std::string>> params = { };
             if (optPlatformVersion.length())
                 params.push_back({ "_HPCC_JOB_VERSION_", optPlatformVersion.str() });
-            k8s::runJob("compile", wuid, wuid, params);
+
+            StringBuffer jobName;
+            jobName.append("eclcc-").append(instanceName).append("-").append(instanceNumber);
+
+            k8s::runJob("compile", nullptr, jobName, params);
         }
         catch (IException *E)
         {
@@ -914,7 +976,7 @@ public:
         if (error)
         {
             Owned<IWorkUnitFactory> factory = getWorkUnitFactory();
-            workunit.setown(factory->updateWorkUnit(wuid.get()));
+            workunit.setown(factory->updateWorkUnit(wuid));
             if (workunit)
             {
                 if (workunit->aborting())
@@ -956,7 +1018,7 @@ public:
                 //NOTE: This call does not modify the workunit itself, so no need to commit afterwards
                 workunit->setContainerizedProcessInfo("EclCCServer", getComponentConfigSP()->queryProp("@name"), k8s::queryMyPodName(), k8s::queryMyContainerName(), nullptr, nullptr);
                 workunit.clear();
-                compileViaK8sJob(true);
+                compileViaK8sJob(wuid);
                 return WUStateUnknown;
             }
         }
@@ -1101,7 +1163,7 @@ class EclccCompileThread : implements IPooledThread, public CInterface
 
 public:
     IMPLEMENT_IINTERFACE;
-    EclccCompileThread(unsigned _idx) : compiler(_idx)
+    EclccCompileThread(const char * _instanceName, unsigned _idx) : compiler(_instanceName, _idx)
     {
     }
 
@@ -1130,19 +1192,24 @@ public:
 
 class EclccLingeringCompiler
 {
+    const char * instanceName;
     EclccCompiler compiler;
     Owned<IJobQueue> queue;
-    const char * name;
     unsigned lingerTimeMs;
     double costPerHour;
 
 public:
-    EclccLingeringCompiler(IPropertyTree * globals, unsigned _idx) : compiler(_idx)
+    EclccLingeringCompiler(IPropertyTree * globals, unsigned _idx)
+    : instanceName(globals->queryProp("@name")), compiler(instanceName, _idx)
     {
         lingerTimeMs = globals->getPropInt("@lingerPeriod") * 1000;
-        name = globals->queryProp("@name");
         costPerHour = getMachineCostRate();
-        //MORE: Set up queue
+
+        //This could spot updates to the queues, but if they change, the lingering compile servers
+        //should exit and then eclccseverver will start new instances with the updated queues.
+        StringBuffer queueNames;
+        getQueues(queueNames, true);
+        queue.setown(createJobQueue(queueNames));
     }
 
     void run()
@@ -1150,7 +1217,7 @@ public:
         __uint64 startupElapsedTimeNs = 0; // MORE
         cost_type costStart = money2cost_type(calcCostNs(costPerHour, startupElapsedTimeNs));
 
-        recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", name } }, { StNumStarts, StTimeStart, StCostStart }, { 1ULL, startupElapsedTimeNs, costStart });
+        recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", instanceName } }, { StNumStarts, StTimeStart, StCostStart }, { 1ULL, startupElapsedTimeNs, costStart });
         for (;;)
         {
             __uint64 priority = getTimeStampNowValue();
@@ -1161,11 +1228,11 @@ public:
 
             if (!item)
             {
-                recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", name } }, { StNumWaits, StTimeWaitFailure, StCostWait }, { 1, waitTimeNs, costWait });
+                recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", instanceName } }, { StNumWaits, StTimeWaitFailure, StCostWait }, { 1, waitTimeNs, costWait });
                 break;
             }
 
-            recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", name } }, { StNumAccepts, StNumWaits, StTimeWaitSuccess, StCostWait }, { 1, 1, waitTimeNs, costWait });
+            recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", instanceName } }, { StNumAccepts, StNumWaits, StTimeWaitSuccess, StCostWait }, { 1, 1, waitTimeNs, costWait });
 
             WUState state = compiler.compileWorkunit(item->queryWUID(), true);
 
@@ -1174,11 +1241,11 @@ public:
             const char * username = "MORE";
 
             if (state == WUStateAborted)
-                recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", name }, { "user", username } }, { StNumAborts, StTimeLocalExecute, StCostAbort }, { 1, executeTimeNs, costExecute });
+                recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", instanceName }, { "user", username } }, { StNumAborts, StTimeLocalExecute, StCostAbort }, { 1, executeTimeNs, costExecute });
             else if (state == WUStateFailed)
-                recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", name }, { "user", username } }, { StNumFailures, StTimeLocalExecute, StCostExecute }, { 1, executeTimeNs, costExecute });
+                recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", instanceName }, { "user", username } }, { StNumFailures, StTimeLocalExecute, StCostExecute }, { 1, executeTimeNs, costExecute });
             else if (state != WUStateUnknown)
-                recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", name }, { "user", username } }, { StTimeLocalExecute, StCostExecute }, { executeTimeNs, costExecute });
+                recordGlobalMetrics("Queue", { {"component", "eclccserver" }, { "name", instanceName }, { "user", username } }, { StTimeLocalExecute, StCostExecute }, { executeTimeNs, costExecute });
             }
     }
 };
@@ -1223,45 +1290,9 @@ static void removePrecompiledHeader()
 // Class EclccServer manages a pool of compile threads
 //------------------------------------------------------------------------------------------------------------------
 
-static StringBuffer &getQueues(StringBuffer &queueNames)
-{
-    Owned<IPropertyTree> config = getComponentConfig();
-#ifdef _CONTAINERIZED
-    bool filtered = false;
-    std::unordered_map<std::string, bool> listenQueues;
-    Owned<IPTreeIterator> listening = config->getElements("listen");
-    ForEach (*listening)
-    {
-        const char *lq = listening->query().queryProp(".");
-        if (lq)
-        {
-            listenQueues[lq] = true;
-            filtered = true;
-        }
-    }
-    Owned<IPTreeIterator> queues = config->getElements("queues");
-    ForEach(*queues)
-    {
-        IPTree &queue = queues->query();
-        const char *qname = queue.queryProp("@name");
-        if (!filtered || listenQueues.count(qname))
-        {
-            if (queueNames.length())
-                queueNames.append(",");
-            getClusterEclCCServerQueueName(queueNames, qname);
-        }
-    }
-#else
-    const char * processName = config->queryProp("@name");
-    SCMStringBuffer scmQueueNames;
-    getEclCCServerQueueNames(scmQueueNames, processName);
-    queueNames.append(scmQueueNames.str());
-#endif
-    return queueNames;
-}
-
 class EclccServer : public CInterface, implements IThreadFactory, implements IAbortHandler
 {
+    StringAttr instanceName;
     StringAttr queueNames;
     unsigned poolSize;
     Owned<IThreadPool> pool;
@@ -1279,7 +1310,7 @@ class EclccServer : public CInterface, implements IThreadFactory, implements IAb
     void configUpdate()
     {
         StringBuffer newQueueNames;
-        getQueues(newQueueNames);
+        getQueues(newQueueNames, false);
         if (!newQueueNames.length())
             ERRLOG("No queues found to listen on");
         Linked<IJobQueue> currentQueue;
@@ -1296,8 +1327,8 @@ class EclccServer : public CInterface, implements IThreadFactory, implements IAb
     }
 public:
     IMPLEMENT_IINTERFACE;
-    EclccServer(const char *_queueName, unsigned _poolSize)
-        : poolSize(_poolSize), serverstatus("ECLCCserver"), updatedQueueNames(_queueName)
+    EclccServer(const char * _instanceName, const char *_queueName, unsigned _poolSize)
+        : instanceName(_instanceName), poolSize(_poolSize), serverstatus("ECLCCserver"), updatedQueueNames(_queueName)
     {
         threadsActive = 0;
         running = false;
@@ -1389,7 +1420,7 @@ public:
     virtual IPooledThread *createNew()
     {
         CriticalBlock b(threadActiveCrit);
-        return new EclccCompileThread(threadsActive++);
+        return new EclccCompileThread(instanceName, threadsActive++);
     }
 
     virtual bool onAbort() 
@@ -1541,13 +1572,11 @@ int main(int argc, const char *argv[])
         initClientProcess(serverGroup, DCR_EclCCServer);
         openLogFile();
         configGitLock();
-        const char *wuid = globals->queryProp("@workunit");
-        if (wuid)
+        if (globals->getPropBool("@k8sJob", false))
         {
             // One shot mode
-            EclccCompileThread compiler(0);
-            compiler.init(const_cast<char *>(wuid));
-            compiler.threadmain();
+            EclccLingeringCompiler compiler(globals, 0);
+            compiler.run();
         }
         else
         {
@@ -1559,7 +1588,7 @@ int main(int argc, const char *argv[])
             }
 
             StringBuffer queueNames;
-            getQueues(queueNames);
+            getQueues(queueNames, false);
             if (!queueNames.length())
                 throw MakeStringException(0, "No queues found to listen on");
 
@@ -1573,7 +1602,7 @@ int main(int argc, const char *argv[])
             // still accept the old name if the new one is not present.
             unsigned maxThreads = globals->getPropInt("@maxEclccProcesses", globals->getPropInt("@maxCompileThreads", 4));
 #endif
-            EclccServer server(queueNames.str(), maxThreads);
+            EclccServer server(globals->queryProp("@name"), queueNames.str(), maxThreads);
             // if we got here, eclserver is successfully started and all options are good, so create the "sentinel file" for re-runs from the script
             // put in its own "scope" to force the flush
             writeSentinelFile(sentinelFile);
