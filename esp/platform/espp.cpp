@@ -267,6 +267,7 @@ int work_main(CEspConfig& config, CEspServer& server)
 {
     server.start();
     DBGLOG("ESP server started.");
+
     server.waitForExit(config);
     server.stop(true);
     config.stopping();
