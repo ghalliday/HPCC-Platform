@@ -214,6 +214,15 @@ public:
             }
         }
 
+        const char * compression = plane.queryProp("@compression");
+        const char * compressionOptions = plane.queryProp("@compressionOptions");
+        compressMode = COMPRESS_METHOD_DEFAULT;
+        if (compression)
+        {
+            compressMode = translateToCompMethod(compression, COMPRESS_METHOD_DEFAULT);
+            compressOptions.set(compressionOptions);
+        }
+
         Owned<IPropertyTreeIterator> srcAliases = plane.getElements("aliases");
         ForEach(*srcAliases)
             aliases.push_back(new CStoragePlaneAlias(&srcAliases->query()));
@@ -299,7 +308,7 @@ public:
         }
         return LINK(bestMatch);
     }
-    virtual IStorageApiInfo *getStorageApiInfo() const
+    virtual IStorageApiInfo *getStorageApiInfo() const override
     {
         IPropertyTree *apiInfo = config->getPropTree("storageapi");
         if (apiInfo)
@@ -324,6 +333,16 @@ public:
 
     const char * queryCategory() const { return category.c_str(); }
 
+    virtual CompressionMethod getCompressionMethod() const override
+    {
+        return compressMode;
+    }
+
+    virtual const char * queryCompressionOptions() const override
+    {
+        return compressOptions.get();
+    }
+
 private:
     std::string name;
     std::string prefix;
@@ -335,6 +354,8 @@ private:
     std::vector<std::string> hosts;
     mutable bool cachedLocalPlane{false};
     mutable bool isLocal{false};
+    CompressionMethod compressMode;
+    StringAttr compressOptions;
 };
 
 // {prefix, {key1: value1, key2: value2, ...}}
@@ -496,6 +517,26 @@ const IStoragePlane * getStoragePlaneFromPath(const char *filePath, bool require
 {
     CriticalBlock b(storagePlaneMapCrit);
     const CStoragePlane *e = doFindStoragePlaneFromPath(filePath, required);
+    if (!e)
+        return nullptr;
+
+    LINK(e);
+    return e;
+}
+
+const IStoragePlane * getStoragePlaneFromIO(IFileIO * fileio, bool required)
+{
+    IFile * file = fileio->queryFile();
+    const char * filename = file ? file->queryFilename() : nullptr;
+    if (!filename)
+    {
+        if (required)
+            throw makeStringExceptionV(99, "Could not map filename to storage plane");
+        return nullptr;
+    }
+
+    CriticalBlock b(storagePlaneMapCrit);
+    const CStoragePlane *e = doFindStoragePlaneFromPath(filename, required);
     if (!e)
         return nullptr;
 

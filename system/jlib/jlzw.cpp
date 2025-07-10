@@ -2881,6 +2881,15 @@ ICompressedFileIO *createCompressedFileWriter(IFileIO *fileio, bool append, size
     }
     else
     {
+        if (_compMethod == COMPRESS_METHOD_DEFAULT)
+        {
+            Owned<const IStoragePlane> storagePlane = getStoragePlaneFromIO(fileio, false);
+            if (storagePlane)
+                _compMethod = storagePlane->getCompressionMethod();
+        }
+        if (_compMethod == COMPRESS_METHOD_DEFAULT)
+            _compMethod = COMPRESS_METHOD_LZ4;
+
         memset(&trailer,0,sizeof(trailer));
         trailer.crc = ~0U;
         if (_compMethod == COMPRESS_METHOD_FASTLZ)

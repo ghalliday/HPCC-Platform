@@ -22,6 +22,8 @@
 #include "jlib.hpp"
 #include "jstring.hpp"
 
+enum CompressionMethod : byte;
+
 //---- Storage plane related functions ----------------------------------------------------
 
 interface IPropertyTree;
@@ -108,10 +110,13 @@ interface IStoragePlane: extends IInterface
     virtual bool isAccessible() const = 0;
     virtual unsigned __int64 getAttribute(PlaneAttributeType attr) const = 0;
     virtual bool isAnyDeviceLocal() const = 0;
+    virtual CompressionMethod getCompressionMethod() const = 0;
+    virtual const char * queryCompressionOptions() const = 0;
 };
 
 extern jlib_decl const IStoragePlane * getStoragePlaneByName(const char * name, bool required);
 extern jlib_decl const IStoragePlane * getStoragePlaneFromPath(const char *filePath, bool required);
+extern jlib_decl const IStoragePlane * getStoragePlaneFromIO(IFileIO * fileio, bool required);
 extern jlib_decl const IStoragePlane * getDataStoragePlane(const char * name, bool required);
 extern jlib_decl const IStoragePlane * getRemoteStoragePlane(const char * name, bool required);
 extern jlib_decl IStoragePlane * createStoragePlane(IPropertyTree *meta);
