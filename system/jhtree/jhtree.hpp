@@ -329,4 +329,18 @@ constexpr bool isIndexReadActivity(ThorActivityKind actKind)
 extern jhtree_decl void setDynamicPayloadExpansion(bool value);
 extern jhtree_decl const char * queryIndexNodeTypeText(NodeType type);
 
+//No jhtree_decl because it is not used outside of jhtree
+class CKeyIdAndPos
+{
+public:
+    unsigned keyId;
+    unsigned padding{0};
+    offset_t pos;
+
+    CKeyIdAndPos(unsigned _keyId, offset_t _pos) { keyId = _keyId; pos = _pos; }
+
+    bool operator==(const CKeyIdAndPos &other) { return keyId == other.keyId && pos == other.pos; }
+};
+
+
 #endif

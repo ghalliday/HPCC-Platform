@@ -604,17 +604,6 @@ constexpr StatisticKind fetchTimeId[CacheMax] = { StCycleNodeFetchCycles, StCycl
 ///////////////////////////////////////////////////////////////////////////////
 
 // For some reason #pragma pack does not seem to work here. Force all elements to 8 bytes
-class CKeyIdAndPos
-{
-public:
-    unsigned __int64 keyId;
-    offset_t pos;
-
-    CKeyIdAndPos(unsigned __int64 _keyId, offset_t _pos) { keyId = _keyId; pos = _pos; }
-
-    bool operator==(const CKeyIdAndPos &other) { return keyId == other.keyId && pos == other.pos; }
-};
-
 class CNodeCacheEntry : public CInterface
 {
 public:
@@ -1402,8 +1391,9 @@ CMemKeyIndex::CMemKeyIndex(unsigned _iD, IMemoryMappedFile *_io, const char *_na
     init(hdr, isTLK);
 }
 
-const CJHTreeNode *CMemKeyIndex::loadNode(cycle_t * fetchCycles, offset_t pos, IFileIO *) const
+const CJHTreeNode *CMemKeyIndex::loadNode(cycle_t * fetchCycles, offset_t pos, CIndexReadCache * readCache) const
 {
+    //Memory mapped files do not take advantage of the read cache
     nodesLoaded++;
     if (pos + keyHdr->getNodeSize() > io->fileSize())
     {
@@ -1444,10 +1434,10 @@ CDiskKeyIndex::CDiskKeyIndex(unsigned _iD, IFileIO *_io, const char *_name, bool
     init(hdr, isTLK);
 }
 
-const CJHTreeNode *CDiskKeyIndex::loadNode(cycle_t * fetchCycles, offset_t pos, IFileIO *useIO) const
+const CJHTreeNode *CDiskKeyIndex::loadNode(cycle_t * fetchCycles, offset_t pos, CIndexReadCache * readCache) const
 {
     nodesLoaded++;
-    if (!useIO) useIO = io;
+    IFileIO * useIO = readCache && readCache->bufferedIO ? readCache->bufferedIO : io;
     unsigned nodeSize = keyHdr->getNodeSize();
 
     //Use alloca() to allocate a buffer on the stack if the node size is small enough.
@@ -1901,7 +1891,7 @@ CKeyCursor::CKeyCursor(CKeyIndex &_key, const IIndexFilterList *_filter, bool _l
     {
         IFileIO *baseIO = const_cast<IFileIO *>(key.queryFileIO());  // I suspect createBlockedIO should take const...
         if (baseIO)
-            myIO.setown(createBlockedIO(LINK(baseIO), _blockedIOSize));
+            readCache.bufferedIO.setown(createBlockedIO(LINK(baseIO), _blockedIOSize));
     }
     nodeKey = 0;
     recordBuffer = (char *) malloc(key.keySize());  // MORE - would be nice to know real max - is it stored in metadata?
