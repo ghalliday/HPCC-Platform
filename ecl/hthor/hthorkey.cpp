@@ -3168,7 +3168,7 @@ public:
             //Owned<IRecordLayoutTranslator> 
             trans.setown(owner.getLayoutTranslator(&f));
             owner.verifyIndex(&f, index, trans);
-            Owned<IKeyManager> manager = createLocalKeyManager(owner.queryIndexRecord(), index, &contextLogger, owner.hasNewSegmentMonitors(), false);
+            Owned<IKeyManager> manager = createLocalKeyManager(trans->querySourceMeta(), index, &contextLogger, owner.hasNewSegmentMonitors(), false);
             managers.append(*manager.getLink());
         }
         opened = true;
@@ -3207,8 +3207,8 @@ void KeyedLookupPartHandler::openPart()
     if(manager)
         return;
     Owned<IKeyIndex> index = openKeyFile(*part);
-    manager.setown(createLocalKeyManager(owner.queryIndexRecord(), index, &contextLogger, owner.hasNewSegmentMonitors(), false));
     const IDynamicTransform * trans = tlk->queryRecordLayoutTranslator();
+    manager.setown(createLocalKeyManager(trans->querySourceMeta(), index, &contextLogger, owner.hasNewSegmentMonitors(), false));
     if(trans && !index->isTopLevelKey())
         manager->setLayoutTranslator(trans);
 }
@@ -3288,7 +3288,7 @@ public:
             {
                 Owned<IKeyIndex> index = openKeyFile(f.queryPart(0));
                 owner.verifyIndex(&f, index, trans);
-                manager.setown(createLocalKeyManager(owner.queryIndexRecord(), index, &contextLogger, owner.hasNewSegmentMonitors(), false));
+                manager.setown(createLocalKeyManager(trans->querySourceMeta(), index, &contextLogger, owner.hasNewSegmentMonitors(), false));
             }
             else
             {
@@ -3301,7 +3301,7 @@ public:
                     parts->addIndex(index.getLink());
                 }
                 owner.verifyIndex(&f, index, trans);
-                manager.setown(createKeyMerger(owner.queryIndexRecord(), parts, 0, &contextLogger, owner.hasNewSegmentMonitors(), false));
+                manager.setown(createKeyMerger(trans->querySourceMeta(), parts, 0, &contextLogger, owner.hasNewSegmentMonitors(), false));
             }
             if(trans)
                 manager->setLayoutTranslator(trans);
@@ -3402,6 +3402,7 @@ class CHThorKeyedJoinActivity  : public CHThorThreadedActivityBase, implements I
     IDistributedFile * dFile;
     IDistributedSuperFile * super;
     CachedOutputMetaData eclKeySize;
+    Owned<IOutputMetaData> actualKeyMeta;            // the actual format of the key (from dali)
     Owned<ISourceRowPrefetcher> prefetcher;
     IPointerArrayOf<IOutputMetaData> actualLayouts;  // all the index layouts are saved in here to ensure their lifetime is adequate
     Owned<IOutputMetaData> actualDiskMeta;           // only one disk layout is permitted
