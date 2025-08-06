@@ -129,9 +129,15 @@ class AzureFileBlockBlobWriteIO final : implements AzureFileWriteIO
 {
 public:
     AzureFileBlockBlobWriteIO(AzureFile * _file);
-
     virtual void close() override;
     virtual size32_t write(offset_t pos, size32_t len, const void * data) override;
+
+private:
+    std::shared_ptr<BlockBlobClient> blockBlobClient;
+    std::vector<std::string> blockIds;
+    std::atomic<bool> committed = false;
+    std::mutex commitMutex;
+    unsigned blockIndex = 0;
 };
 
 
@@ -397,23 +403,122 @@ size32_t AzureFileAppendBlobWriteIO::write(offset_t pos, size32_t len, const voi
 
 AzureFileBlockBlobWriteIO::AzureFileBlockBlobWriteIO(AzureFile * _file) : AzureFileWriteIO(_file)
 {
-    file->createBlockBlob();
-}
-
-void AzureFileBlockBlobWriteIO::close()
-{
-
+    // Create the block blob on construction
+    blockBlobClient = file->getClient<BlockBlobClient>();
+    try
+    {
+        Azure::Core::IO::MemoryBodyStream empty(nullptr, 0);
+        blockBlobClient->Upload(empty); // creates an empty blob if not exists
+    }
+    catch (const Azure::Core::RequestFailedException& e)
+    {
+        IException * error = makeStringExceptionV(1234, "Azure create block blob failed: %s (%d)", e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode));
+        throw error;
+    }
 }
 
 size32_t AzureFileBlockBlobWriteIO::write(offset_t pos, size32_t len, const void * data)
 {
-    if (len)
+    if (len == 0)
+        return 0;
+    assertex(offset == pos);
+
+    // Generate a unique block ID (base64-encoded, fixed length)
+    char idbuf[32];
+    sprintf(idbuf, "%08u", blockIndex++);
+    std::string blockId = Azure::Core::Convert::Base64Encode(reinterpret_cast<const uint8_t*>(idbuf), 8);
+    blockIds.push_back(blockId);
+
+    constexpr unsigned maxRetries = 4;
+    unsigned attempt = 0;
+    for (;;)
     {
-        assertex(offset == pos);
-        file->appendToBlockBlob(len, data);
-        offset += len;
+        try
+        {
+            Azure::Core::IO::MemoryBodyStream content(reinterpret_cast<const uint8_t*>(data), len);
+            blockBlobClient->StageBlock(blockId, content);
+            offset += len;
+            break;
+        }
+        catch (const Azure::Core::RequestFailedException& e)
+        {
+            attempt++;
+            WARNLOG("AzureFileBlockBlobWriteIO::write StageBlock failed (attempt %u/%u) for file %s at offset %" I64F "u, len %u: %s (%d)",
+                attempt, maxRetries, file->queryFilename(), pos, len, e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode));
+            if (attempt >= maxRetries)
+            {
+                IException * error = makeStringExceptionV(1234, "Azure stage block failed after %u attempts: %s (%d) [file: %s, offset: %" I64F "u, len: %u]", 
+                    attempt, e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode), file->queryFilename(), pos, len);
+                throw error;
+            }
+            unsigned backoffMs = (1U << attempt) * 100 + (rand() % 100);
+            Sleep(backoffMs);
+        }
+        catch (const std::exception& e)
+        {
+            attempt++;
+            WARNLOG("AzureFileBlockBlobWriteIO::write std::exception (attempt %u/%u) for file %s at offset %" I64F "u, len %u: %s", 
+                attempt, maxRetries, file->queryFilename(), pos, len, e.what());
+            if (attempt >= maxRetries)
+            {
+                IException * error = makeStringExceptionV(1234, "Azure stage block std::exception after %u attempts: %s [file: %s, offset: %" I64F "u, len: %u]", 
+                    attempt, e.what(), file->queryFilename(), pos, len);
+                throw error;
+            }
+            unsigned backoffMs = (1U << attempt) * 100 + (rand() % 100);
+            Sleep(backoffMs);
+        }
     }
     return len;
+}
+
+void AzureFileBlockBlobWriteIO::close()
+{
+    std::lock_guard<std::mutex> lock(commitMutex);
+    if (committed)
+        return;
+    constexpr unsigned maxRetries = 4;
+    unsigned attempt = 0;
+    for (;;)
+    {
+        try
+        {
+            std::vector<Azure::Storage::Blobs::Models::BlobBlock> blocks;
+            for (const auto& id : blockIds)
+                blocks.emplace_back(Azure::Storage::Blobs::Models::BlobBlock{Azure::Storage::Blobs::Models::BlockType::Uncommitted, id});
+            blockBlobClient->CommitBlockList(blockIds);
+            committed = true;
+            break;
+        }
+        catch (const Azure::Core::RequestFailedException& e)
+        {
+            attempt++;
+            WARNLOG("AzureFileBlockBlobWriteIO::close CommitBlockList failed (attempt %u/%u) for file %s: %s (%d)",
+                attempt, maxRetries, file->queryFilename(), e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode));
+            if (attempt >= maxRetries)
+            {
+                IException * error = makeStringExceptionV(1234, "Azure commit block list failed after %u attempts: %s (%d) [file: %s]", 
+                    attempt, e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode), file->queryFilename());
+                throw error;
+            }
+            unsigned backoffMs = (1U << attempt) * 100 + (rand() % 100);
+            Sleep(backoffMs);
+        }
+        catch (const std::exception& e)
+        {
+            attempt++;
+            WARNLOG("AzureFileBlockBlobWriteIO::close std::exception (attempt %u/%u) for file %s: %s", 
+                attempt, maxRetries, file->queryFilename(), e.what());
+            if (attempt >= maxRetries)
+            {
+                IException * error = makeStringExceptionV(1234, "Azure commit block list std::exception after %u attempts: %s [file: %s]", 
+                    attempt, e.what(), file->queryFilename());
+                throw error;
+            }
+            unsigned backoffMs = (1U << attempt) * 100 + (rand() % 100);
+            Sleep(backoffMs);
+        }
+    }
 }
 
 //---------------------------------------------------------------------------------------------------------------------
@@ -698,36 +803,7 @@ void AzureFile::appendToAppendBlob(size32_t len, const void * data)
     }
 }
 
-void AzureFile::createBlockBlob()
-{
-    auto blockBlobClient = getClient<BlockBlobClient>();
-    try
-    {
-        Azure::Core::IO::MemoryBodyStream empty(nullptr, 0);
-        Azure::Response<Models::UploadBlockBlobResult> result = blockBlobClient->Upload(empty); // need to do this to create an empty blob
-        setProperties(0, result.Value.LastModified, result.Value.LastModified);
-    }
-    catch (const Azure::Core::RequestFailedException& e)
-    {
-        IException * error = makeStringExceptionV(1234, "Azure create block blob failed: %s (%d)", e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode));
-        throw error;
-    }
-}
-
-void AzureFile::appendToBlockBlob(size32_t len, const void * data)
-{
-    auto appendBlobClient = getClient<AppendBlobClient>();
-    try
-    {
-        Azure::Core::IO::MemoryBodyStream content(reinterpret_cast <const uint8_t *>(data), len);
-        appendBlobClient->AppendBlock(content);
-    }
-    catch (const Azure::Core::RequestFailedException& e)
-    {
-        IException * error = makeStringExceptionV(1234, "Azure append block blob failed: %s (%d)", e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode));
-        throw error;
-    }
-}
+// Block blob creation and appending is now handled by AzureFileBlockBlobWriteIO
 
 bool AzureFile::getTime(CDateTime * createTime, CDateTime * modifiedTime, CDateTime * accessedTime)
 {
