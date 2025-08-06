@@ -758,17 +758,50 @@ offset_t AzureFile::read(offset_t pos, size32_t len, void * data, FileIOStats & 
     options.Range.Value().Length = len;
     uint8_t * buffer = reinterpret_cast<uint8_t*>(data);
     long int sizeRead = 0;
-    try
+
+    constexpr unsigned maxRetries = 4;
+    unsigned attempt = 0;
+    for (;;)
     {
-        Azure::Response<Models::DownloadBlobToResult> result = blockBlobClient->DownloadTo(buffer, len, options);
-        Azure::Core::Http::HttpRange range = result.Value.ContentRange;
-        if (range.Length.HasValue())
-            sizeRead = range.Length.Value();
-    }
-    catch (const Azure::Core::RequestFailedException& e)
-    {
-        IException * error = makeStringExceptionV(1234, "Azure read block blob failed: %s (%d)", e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode));
-        throw error;
+        try
+        {
+            Azure::Response<Models::DownloadBlobToResult> result = blockBlobClient->DownloadTo(buffer, len, options);
+            Azure::Core::Http::HttpRange range = result.Value.ContentRange;
+            if (range.Length.HasValue())
+                sizeRead = range.Length.Value();
+            else
+                sizeRead = 0;
+            break;
+        }
+        catch (const Azure::Core::RequestFailedException& e)
+        {
+            attempt++;
+            WARNLOG("AzureFile::read failed (attempt %u/%u) for file %s at offset %" I64F "u, len %u: %s (%d)",
+                attempt, maxRetries, fullName.str(), pos, len, e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode));
+            if (attempt >= maxRetries)
+            {
+                IException * error = makeStringExceptionV(1234, "Azure read block blob failed after %u attempts: %s (%d) [file: %s, offset: %" I64F "u, len: %u]",
+                    attempt, e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode), fullName.str(), pos, len);
+                throw error;
+            }
+            // Exponential backoff with jitter
+            unsigned backoffMs = (1U << attempt) * 100 + (rand() % 100);
+            Sleep(backoffMs);
+        }
+        catch (const std::exception& e)
+        {
+            attempt++;
+            WARNLOG("AzureFile::read std::exception (attempt %u/%u) for file %s at offset %" I64F "u, len %u: %s",
+                attempt, maxRetries, fullName.str(), pos, len, e.what());
+            if (attempt >= maxRetries)
+            {
+                IException * error = makeStringExceptionV(1234, "Azure read block blob std::exception after %u attempts: %s [file: %s, offset: %" I64F "u, len: %u]",
+                    attempt, e.what(), fullName.str(), pos, len);
+                throw error;
+            }
+            unsigned backoffMs = (1U << attempt) * 100 + (rand() % 100);
+            Sleep(backoffMs);
+        }
     }
 
     stats.ioReads++;
