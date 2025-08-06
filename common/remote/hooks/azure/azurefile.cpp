@@ -115,16 +115,6 @@ protected:
     offset_t offset = 0;
 };
 
-class AzureFileAppendBlobWriteIO final : implements AzureFileWriteIO
-{
-public:
-    AzureFileAppendBlobWriteIO(AzureFile * _file);
-
-    virtual void close() override;
-    virtual offset_t size() override;
-    virtual size32_t write(offset_t pos, size32_t len, const void * data) override;
-};
-
 class AzureFileBlockBlobWriteIO final : implements AzureFileWriteIO
 {
 public:
@@ -247,8 +237,6 @@ public:
 //Helper functions for the azureFileIO classes
     offset_t read(offset_t pos, size32_t len, void * data, FileIOStats & stats);
 
-    void createAppendBlob();
-    void appendToAppendBlob(size32_t len, const void * data);
     void createBlockBlob();
     void appendToBlockBlob(size32_t len, const void * data);
 
@@ -358,45 +346,6 @@ void AzureFileWriteIO::setSize(offset_t size)
 
 void AzureFileWriteIO::flush()
 {
-}
-
-//---------------------------------------------------------------------------------------------------------------------
-
-AzureFileAppendBlobWriteIO::AzureFileAppendBlobWriteIO(AzureFile * _file) : AzureFileWriteIO(_file)
-{
-    file->createAppendBlob();
-}
-
-void AzureFileAppendBlobWriteIO::close()
-{
-}
-
-offset_t AzureFileAppendBlobWriteIO::size()
-{
-#ifdef TRACE_AZURE
-    //The following is fairly unusual, and suggests an unnecessary operation.
-    DBGLOG("Warning: Size (%" I64F "u) requested on output IO", offset);
-#endif
-    return offset;
-}
-
-size32_t AzureFileAppendBlobWriteIO::write(offset_t pos, size32_t len, const void * data)
-{
-    if (len)
-    {
-        if (offset != pos)
-            throw makeStringExceptionV(100, "Azure file output only supports append.  File %s %" I64F "u v %" I64F "u", file->queryFilename(), pos, offset);
-
-        stats.ioWrites++;
-        stats.ioWriteBytes += len;
-        CCycleTimer timer;
-        {
-            file->appendToAppendBlob(len, data);
-            offset += len;
-        }
-        stats.ioWriteCycles += timer.elapsedCycles();
-    }
-    return len;
 }
 
 //---------------------------------------------------------------------------------------------------------------------
@@ -766,44 +715,6 @@ bool AzureFile::createDirectory()
     }
 }
 
-void AzureFile::createAppendBlob()
-{
-    auto appendBlobClient = getClient<AppendBlobClient>();
-    try
-    {
-        Azure::Response<Models::CreateAppendBlobResult> result = appendBlobClient->CreateIfNotExists();
-        if (result.Value.Created==false)
-            OERRLOG("Azure append blob (container %s blob %s): blob not created", containerName.str(), blobName.str());
-        else
-        {
-            setProperties(0, result.Value.LastModified, result.Value.LastModified);
-        }
-    }
-    catch (const Azure::Core::RequestFailedException& e)
-    {
-        IException * error = makeStringExceptionV(1234, "Azure create append blob failed: %s (%d)", e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode));
-        throw error;
-    }
-}
-
-
-void AzureFile::appendToAppendBlob(size32_t len, const void * data)
-{
-    auto appendBlobClient = getClient<AppendBlobClient>();
-    try
-    {
-        // MemoryBodyStream clones the data.  Future: use class derived from Azure::Core::IO::BodyStream to avoid creating a copy of data
-        Azure::Core::IO::MemoryBodyStream content(reinterpret_cast <const uint8_t *>(data), len);
-        appendBlobClient->AppendBlock(content);
-    }
-    catch (const Azure::Core::RequestFailedException& e)
-    {
-        IException * error = makeStringExceptionV(1234, "Azure append blob failed: %s (%d)", e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode));
-        throw error;
-    }
-}
-
-// Block blob creation and appending is now handled by AzureFileBlockBlobWriteIO
 
 bool AzureFile::getTime(CDateTime * createTime, CDateTime * modifiedTime, CDateTime * accessedTime)
 {
@@ -901,7 +812,7 @@ IFileIO * AzureFile::createFileReadIO()
 
 IFileIO * AzureFile::createFileWriteIO()
 {
-    return new AzureFileAppendBlobWriteIO(this);
+    return new AzureFileBlockBlobWriteIO(this);
 }
 
 void AzureFile::ensureMetaData()
