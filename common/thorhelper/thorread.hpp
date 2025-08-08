@@ -69,7 +69,7 @@ THORHELPER_API IRowReadFormatMapping * createRowReadFormatMapping(RecordTranslat
 //
 // Internal format options (e.g. whether the rows are grouped) are passed as attributes.
 //
-// User defined provider options (when implemented will be passed as key value pairs - not attributes
+// User defined provider options (when implemented) will be passed as key value pairs - not attributes
 //
 // Internal provider options (e.g. readBufferSize) are passed as attributes, except for binary valuues (e.g. encryptionKeys)
 
@@ -83,7 +83,7 @@ public:
     void setCompression(bool enable, const char * method);
 
     void updateFromFile(IDistributedFile * file);
-    void updateFromGraphNode(IPropertyTree * node);
+    void updateFromGraphNode(const IPropertyTree * node);
     void updateFromReadHelper(IHThorGenericDiskReadBaseArg & helper);
     void updateFromStoragePlane(const IStoragePlane * storagePlane, IFOmode mode);
     void updateFromStoragePlane(const char * storagePlaneName, IFOmode mode);

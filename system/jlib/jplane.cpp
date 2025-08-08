@@ -228,6 +228,9 @@ public:
             hosts.emplace_back(planeHosts.item(h));
 
         compression.set(config->queryProp("@compression", defaults->queryProp("@compression")));
+
+        bool defaultCompressed = defaults->getPropBool("@compressLogicalFiles");
+        compressed = compression || config->getPropBool("@compressLogicalFiles", defaultCompressed);
     }
 
     virtual const char * queryPrefix() const override { return prefix.c_str(); }
@@ -338,13 +341,9 @@ public:
 
     const char * queryCategory() const { return category.c_str(); }
 
-    virtual bool isCompressed(bool defaultValue) const override
+    virtual bool compressOnWrite() const override
     {
-        if (compression)
-            return true;
-
-        bool compressed = defaults->getPropBool("@compressLogicalFiles", defaultValue);
-        return config->getPropBool("@compressLogicalFiles", compressed);
+        return compressed;
     }
 
     virtual const char * queryCompression() const
@@ -365,6 +364,7 @@ private:
     std::vector<std::string> hosts;
     mutable bool cachedLocalPlane{false};
     mutable bool isLocal{false};
+    bool compressed{false};
 };
 
 // {prefix, {key1: value1, key2: value2, ...}}

@@ -284,13 +284,13 @@ static IRowReadFormatMapping * createUnprojectedMapping(IRowReadFormatMapping * 
 
 //---------------------------------------------------------------------------------------------------------------------
 
-static void queryInheritProp(IPropertyTree & target, const char * targetName, const IPropertyTree & source, const char * sourceName)
+static void inheritPropIfMissing(IPropertyTree & target, const char * targetName, const IPropertyTree & source, const char * sourceName)
 {
     if (source.hasProp(sourceName) && !target.hasProp(targetName))
         target.setProp(targetName, source.queryProp(sourceName));
 }
 
-static void queryInheritSeparatorProp(IPropertyTree & target, const char * targetName, const IPropertyTree & source, const char * sourceName)
+static void inheritSeparatorPropIfMissing(IPropertyTree & target, const char * targetName, const IPropertyTree & source, const char * sourceName)
 {
     //Legacy - commas are quoted if they occur in a separator list, so need to remove the leading backslashes
     if (source.hasProp(sourceName) && !target.hasProp(targetName))
@@ -309,7 +309,7 @@ static void queryInheritSeparatorProp(IPropertyTree & target, const char * targe
 
 
 FileAccessOptions::FileAccessOptions()
-: formatOptions(createPTree()), providerOptions(createPTree())
+    : formatOptions(createPTree()), providerOptions(createPTree())
 {
 }
 
@@ -351,11 +351,8 @@ void FileAccessOptions::updateFromFile(IDistributedFile * distributedFile)
 
     bool fileIsGrouped = attributes.getPropBool("@grouped");
     bool expectedGrouped = formatOptions->getPropBool("@grouped", false);
-    if (fileIsGrouped != expectedGrouped )
-    {
-        formatOptions->setPropBool("@grouped", fileIsGrouped);
+    if (fileIsGrouped != expectedGrouped)
         throw makeStringExceptionV(9999, "DFS and code generated group info. differs: DFS(%s) ECL(%s)", boolToStr(fileIsGrouped), boolToStr(expectedGrouped));
-    }
 
     bool blockcompressed = false;
     bool compressed = distributedFile->isCompressed(&blockcompressed); //try new decompression, fall back to old unless marked as block
@@ -363,14 +360,13 @@ void FileAccessOptions::updateFromFile(IDistributedFile * distributedFile)
         setCompression(true, nullptr);
 
     //MORE: There should probably be a generic way of storing and extracting format options for a file
-    queryInheritProp(*formatOptions, "quote", attributes, "@csvQuote");
-    queryInheritSeparatorProp(*formatOptions, "separator", attributes, "@csvSeparate");
-    queryInheritProp(*formatOptions, "terminator", attributes, "@csvTerminate");
-    queryInheritProp(*formatOptions, "escape", attributes, "@csvEscape");
-
+    inheritPropIfMissing(*formatOptions, "quote", attributes, "@csvQuote");
+    inheritSeparatorPropIfMissing(*formatOptions, "separator", attributes, "@csvSeparate");
+    inheritPropIfMissing(*formatOptions, "terminator", attributes, "@csvTerminate");
+    inheritPropIfMissing(*formatOptions, "escape", attributes, "@csvEscape");
 }
 
-void FileAccessOptions::updateFromGraphNode(IPropertyTree * node)
+void FileAccessOptions::updateFromGraphNode(const IPropertyTree * node)
 {
     if (node)
     {
@@ -397,8 +393,8 @@ void FileAccessOptions::updateFromStoragePlane(const IStoragePlane * storagePlan
             else
                 setCompression(false, nullptr);
         }
-        else if (storagePlane->isCompressed(false))
-            setCompression(false, nullptr);
+        else if (storagePlane->compressOnWrite())
+            setCompression(true, nullptr);
 
         providerOptions->setPropBool("@renameAfterWrite", storagePlane->getAttribute(RenameSupported));
     }
@@ -427,7 +423,7 @@ void FileAccessOptions::updateFromReadHelper(IHThorGenericDiskReadBaseArg & help
     if (helperFlags & TDRoptional)
         providerOptions->setPropBool("@optional", true);
 
-    formatOptions->setPropBool("@grouped", ((helperFlags & TDXgrouped) != 0));
+    formatOptions->setPropBool("@grouped", (helperFlags & TDXgrouped) != 0);
     if ((helperFlags & TDRcloneappendvirtual) != 0)
         formatOptions->setPropBool("@cloneAppendVirtuals", true);
 
