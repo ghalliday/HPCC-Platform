@@ -85,7 +85,7 @@ void CBlockCompressor::close()
     // If writes all fit within the buffer, should we compress the data?
     // This should possibly be conditional on whether to compress if there is space in a fixed size buffer
     if (!full)
-        (void)flushCompress(0);    // either returns 0 if it cannot compress, or inlen if it did.
+        (void)flushCompress(inbuf, 0);    // either returns 0 if it cannot compress, or inlen if it did.
 
     //Any remaining data is copied uncompressed.
     size32_t totlen = outlen+sizeof(size32_t)+inlen;
@@ -114,6 +114,51 @@ size32_t CBlockCompressor::write(const void *buf,size32_t len)
     size32_t savedOutlen = outlen;
     size32_t savedInlen = inlen;
     size32_t savedTotalWritten = totalWritten;
+
+    //Optimize the case where there is no data already built up in the input buffer and we are passed a large block of data
+    if (unlikely((inlen == 0) && allowPartialWrites))
+    {
+        for (;;)
+        {
+            size32_t uncompressedMax = maxOutputSize-outlen-sizeof(size32_t);
+            size32_t maxToCompress = maxInputSize;
+            //If the compressor allows us to compress as much as possible, then there is no penalty for compressing the
+            //maximum input size each time.
+            //Otherwise only compress as much as we expect to be able to compress
+            if (!supportsPartialCompression)
+            {
+                //Should this be adaptive based on the compression ratio so far?  Initial investigation suggests not.
+                size32_t bestEstimate = uncompressedMax;
+                if (bestEstimate < maxToCompress)
+                    maxToCompress = bestEstimate;
+            }
+
+            //MORE: If we have already compressed a complete block, and the remaining data is not large enough to try compressing again
+            //then it may be better to return, and allow the source to send a bigger block next time.
+            if ((len < maxInputSize) && (len < uncompressedMax))
+                break;
+
+            size32_t toCompress = maxToCompress > len ? len : maxToCompress;
+
+            //How much data can be stored uncompressed in the buffer?
+            size32_t extraWritten = flushCompress(buffer, toCompress); // Pass originalLen to ensure that is always committed.
+            written += extraWritten;
+
+            //Could only squeeze a small amount into the buffer, copy the data that will fit
+            if (inlen != 0)
+                memcpy(inbuf, buffer, extraWritten);
+
+            assertex(extraWritten <= toCompress);
+
+            //If failed to write a complete block then return data actually written.
+            //write() will be called again with the remainder of the data.
+            if ((extraWritten != toCompress) || full || (len == toCompress))
+                return written;
+
+            buffer += toCompress;
+            len -= toCompress;
+        }
+    }
 
     //Keep looping until all data is written and we can guarantee that the remaining data will fit into the
     //buffer uncompressed - so that we can guarantee the data will be written fully.
@@ -147,7 +192,7 @@ size32_t CBlockCompressor::write(const void *buf,size32_t len)
         size32_t nextlen = inlen+toCopy;
         if ((nextlen == maxInputSize) || (nextlen >= uncompressedMax))
         {
-            size32_t extraWritten = flushCompress(toCopy); // Pass originalLen to ensure that is always committed.
+            size32_t extraWritten = flushCompress(inbuf, toCopy); // Pass originalLen to ensure that is always committed.
             written += extraWritten;
 
             assertex(extraWritten <= toCopy);
@@ -201,9 +246,11 @@ bool CBlockCompressor::adjustLimit(size32_t newLimit)
     return true;
 }
 
-//Try and compress inlen + extra bytes of data - inlen is guaranteed to fit uncompressed.
-//if the data is successfully compressed then inlen is updated
-size32_t CBlockCompressor::flushCompress(size32_t extra)
+// Try and compress inlen + extra bytes of data - inlen is guaranteed to fit uncompressed.
+// if the data is successfully compressed then inlen is updated
+// If inlen == 0 then srcData may be any block of data, but if so it is the callers responsibility
+// to clone it if inlen != 0 on extit
+size32_t CBlockCompressor::flushCompress(const byte * srcData, size32_t extra)
 {
     size32_t toCompress = inlen+extra;
     if (toCompress == 0)
@@ -222,7 +269,7 @@ size32_t CBlockCompressor::flushCompress(size32_t extra)
             size32_t spaceLeft = maxOutputSize - reservedSpace;
             byte * out = outbuf + outlen + sizeof(size32_t);
 
-            outSize = compressDirect(spaceLeft, out, toCompress, inbuf, &numWritten);
+            outSize = compressDirect(spaceLeft, out, toCompress, srcData, &numWritten);
             assertex(outSize != (size32_t)-1); // Should have been rejected by adjustLimit
             assertex(numWritten != (size32_t)-1); // Should have been rejected by adjustLimit
 

@@ -86,7 +86,7 @@ protected:
 
     //Try and compress inlen + extra bytes of data - inlen is guaranteed to fit uncompressed.
     //if the data is successfully compressed then inlen is updated
-    size32_t flushCompress(size32_t extra);
+    size32_t flushCompress(const byte * srcData, size32_t extra);
 
 protected:
 //options
