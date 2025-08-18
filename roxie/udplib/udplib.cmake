@@ -25,13 +25,14 @@
 
 project( udplib ) 
 
-set (    SRCS 
-         udpmsgpk.cpp 
-         udpsha.cpp 
-         udptrr.cpp 
-         udptrs.cpp
-	 udptopo.cpp
-	 udpipmap.cpp
+set (   SRCS
+        udpmsgpk.cpp
+        udpsha.cpp
+        udptrr.cpp
+        udptrs.cpp
+	    udptopo.cpp
+	    udpipmap.cpp
+        udpwrk.cpp
     )
 
 include_directories ( 

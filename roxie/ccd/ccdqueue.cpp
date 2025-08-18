@@ -244,11 +244,37 @@ unsigned getReplicationLevel(unsigned channel)
 
 //============================================================================================
 
-static Owned<ISocket> multicastSocket;
-
-void openMulticastSocket()
+// A callback interface for processing Roxie worker requests
+interface IRoxieWorkerRequestReceiver
 {
-    if (!multicastSocket)
+    virtual void processMessage(MemoryBuffer & message) = 0;
+};
+
+interface IRoxieWorkerCommunicator : public IInterface
+{
+    virtual void startListening(IRoxieWorkerRequestReceiver & _receiver) = 0;
+    virtual void stopListening() = 0;
+    // This may need rethinking
+    virtual void setNextTimeout(unsigned value) = 0;
+    virtual size32_t queryMaxPacketSize() const = 0;
+
+    virtual size32_t sendToWorker(size32_t len, const void * data, const SocketEndpoint &ep) = 0;
+};
+
+
+static Owned<IRoxieWorkerCommunicator> workerCommunicator;
+// This static thread id is used to ensure that processing functions are only ever called from a single thread
+static ThreadId roxiePacketReaderThread = 0;
+
+
+//------------------------------------------------------------------------------------------------------------
+
+class RoxieUdpWorkerCommunicator : public Thread, implements IRoxieWorkerCommunicator
+{
+public:
+    IMPLEMENT_IINTERFACE_USING(Thread)
+
+    RoxieUdpWorkerCommunicator() : Thread("RoxieUdpWorkerListener")
     {
         const char *desc = "UDP";
         multicastSocket.setown(ISocket::udp_create(ccdMulticastPort));
@@ -262,12 +288,138 @@ void openMulticastSocket()
         }
         if (doTrace(TraceFlags::Always))
             DBGLOG("Roxie: %s socket created port=%d sockbuffsize=%d actual %d", desc, ccdMulticastPort, udpMulticastBufferSize, actualSize);
+
+        maxPacketSize = multicastSocket->get_max_send_size();
+        if ((maxPacketSize==0) || (maxPacketSize>65535))
+            maxPacketSize = 65535;
     }
+
+    ~RoxieUdpWorkerCommunicator()
+    {
+        join();
+    }
+
+    int run()
+    {
+// Raise the priority so ibyti's get through in a timely fashion
+#if defined( __linux__) || defined(__APPLE__) || defined(EMSCRIPTEN)
+        setLinuxThreadPriority(3);
+#else
+        adjustPriority(1);
+#endif
+        roxiePacketReaderThread = GetCurrentThreadId();
+
+        if (traceLevel)
+            DBGLOG("RoxieSocketQueueManager::run() starting: doIbytiDelay=%s minIbytiDelay=%u initIbytiDelay=%u",
+                    doIbytiDelay?"YES":"NO", minIbytiDelay, initIbytiDelay);
+
+        MemoryBuffer mb;
+        for (;;)
+        {
+            mb.clear();
+            try
+            {
+                // NOTE - this thread needs to do as little as possible - just read packets and queue them up - otherwise we can get packet loss due to buffer overflow
+                // DO NOT put tracing on this thread except at very high tracelevels!
+                void * buffer = mb.reserve(maxPacketSize);
+
+                unsigned l;
+                multicastSocket->readtms(buffer, sizeof(RoxiePacketHeader), maxPacketSize, l, nextTimeout);
+
+                mb.setLength(l);
+                nextTimeout = defaultTimeout;
+                receiver->processMessage(mb);
+            }
+            catch (IException *E)
+            {
+                if (running)
+                {
+                    // MORE: Maybe we should utilize IException::errorCode - not just text ??
+                    if (E->errorCode()==JSOCKERR_timeout_expired)
+                        E->Release();
+                    else
+                    {
+                        EXCLOG(E, "Exception reading or processing roxie packet");
+                        E->Release();
+                        // MORE: Protect with try logic, in case udp_create throws exception ?
+                        //       What to do if create fails (ie exception is caught) ?
+                        if (multicastSocket)
+                        {
+                            //This is not thread safe - what happens if a thread is sending at the same time that
+                            //the socket is recreated?
+                            multicastSocket->close();
+
+                            Owned<ISocket> newMulticastSocket = ISocket::udp_create(ccdMulticastPort);
+                            newMulticastSocket->set_receive_buffer_size(udpMulticastBufferSize);
+                            multicastSocket.swap(newMulticastSocket);
+                        }
+                    }
+                }
+                else
+                {
+                    E->Release();
+                    break; // exit the processing loop
+                }
+            }
+        }
+        return 0;
+    }
+
+    virtual size32_t queryMaxPacketSize() const override
+    {
+        return maxPacketSize;
+    }
+
+    virtual void setNextTimeout(unsigned value) override
+    {
+        nextTimeout = value;
+    }
+
+    virtual void startListening(IRoxieWorkerRequestReceiver & _receiver) override
+    {
+        assertex(!running);
+        receiver = &_receiver;
+        running = true;
+        start(false);
+    }
+
+    virtual void stopListening() override
+    {
+        if (running)
+        {
+            shutdownAndCloseNoThrow(multicastSocket);
+            join();
+            receiver = nullptr;
+            running = false;
+        }
+    }
+
+    virtual size32_t sendToWorker(size32_t len, const void * data, const SocketEndpoint &ep)
+    {
+        return multicastSocket->udp_write_to(ep, data, len);
+    }
+
+protected:
+    Owned<ISocket> multicastSocket;
+    IRoxieWorkerRequestReceiver * receiver{nullptr};
+    size32_t maxPacketSize = 0;
+    std::atomic<bool> running = { false };
+    unsigned nextTimeout = 5000;
+    unsigned defaultTimeout = 5000;
+};
+
+
+//---------------------------------------------------------------------------------------------------------------------
+
+void openMulticastSocket()
+{
+    if (!workerCommunicator)
+        workerCommunicator.setown(new RoxieUdpWorkerCommunicator());
 }
 
 void closeMulticastSockets()
 {
-    multicastSocket.clear();
+    workerCommunicator.clear();
 }
 
 static bool channelWrite(RoxiePacketHeader &buf, bool includeSelf)
@@ -332,7 +484,7 @@ static bool channelWrite(RoxiePacketHeader &buf, bool includeSelf)
                 DBGLOG("Writing %d bytes to subchannel %d (%s) %s", buf.packetlength, subChannel, buf.subChannels[subChannel].getTraceText(s).str(), buf.toString(header).str());
             }
             SocketEndpoint ep(ccdMulticastPort, buf.subChannels[subChannel].getIpAddress());
-            size32_t wrote = multicastSocket->udp_write_to(ep, &buf, buf.packetlength);
+            size32_t wrote = workerCommunicator->sendToWorker(buf.packetlength, &buf, ep);
             if (!subChannel || wrote < minwrote)
                 minwrote = wrote;
             if (delaySubchannelPackets)
@@ -975,7 +1127,6 @@ struct PingRecord
 
 //=================================================================================
 
-static ThreadId roxiePacketReaderThread = 0;
 
 class IBYTIbuffer
 {
@@ -2113,9 +2264,9 @@ private:
     CIArrayOf<DelayedPacketQueueChannel> channels;
 };
 
-//------------------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------------------------
 
-class RoxieSocketQueueManager : public RoxieReceiverBase
+class RoxieSocketQueueManager : public RoxieReceiverBase, public IRoxieWorkerRequestReceiver
 {
 protected:
     Linked<ISendManager> sendManager;
@@ -2123,11 +2274,9 @@ protected:
     Owned<RoxieThrottledPacketSender> throttledPacketSendManager;
     Owned<TokenBucket> bucket;
     unsigned maxPacketSize = 0;
-    std::atomic<bool> running = { false };
     StringContextLogger logctx;
     DelayedPacketQueueManager delayed;
-
-    class WorkerUdpTracker : public TimeDivisionTracker<6, false>
+    class WorkerReceiverTracker : public TimeDivisionTracker<6, false>
     {
     public:
         enum
@@ -2140,7 +2289,7 @@ protected:
             checkingRunning
         };
 
-        WorkerUdpTracker(const char *name, unsigned reportIntervalSeconds) : TimeDivisionTracker<6, false>(name, reportIntervalSeconds)
+        WorkerReceiverTracker(const char *name, unsigned reportIntervalSeconds) : TimeDivisionTracker<6, false>(name, reportIntervalSeconds)
         {
             stateNames[other] = "other";
             stateNames[waiting] = "waiting";
@@ -2149,33 +2298,12 @@ protected:
             stateNames[pushing] = "pushing";
             stateNames[checkingRunning] = "checking running";
         }
-
     } timeTracker;
 
-    class ReceiverThread : public Thread
-    {
-        RoxieSocketQueueManager &parent;
-    public:
-        ReceiverThread(RoxieSocketQueueManager &_parent) : Thread("RoxieSocketQueueManager"), parent(_parent) {}
-        int run()
-        {
-            // Raise the priority so ibyti's get through in a timely fashion
-#if defined( __linux__) || defined(__APPLE__) || defined(EMSCRIPTEN)
-            setLinuxThreadPriority(3);
-#else
-            adjustPriority(1);
-#endif
-            roxiePacketReaderThread = GetCurrentThreadId();
-            return parent.run();
-        }
-    } readThread;
-
 public:
-    RoxieSocketQueueManager(unsigned _numWorkers) : RoxieReceiverBase(_numWorkers), logctx("RoxieSocketQueueManager"), timeTracker("WorkerUdpReader", 60), readThread(*this)
+    RoxieSocketQueueManager(unsigned _numWorkers) : RoxieReceiverBase(_numWorkers), logctx("RoxieSocketQueueManager"), timeTracker("WorkerUdpReader", 60)
     {
-        maxPacketSize = multicastSocket->get_max_send_size();
-        if ((maxPacketSize==0)||(maxPacketSize>65535))
-            maxPacketSize = 65535;
+        maxPacketSize = workerCommunicator->queryMaxPacketSize();
     }
 
     virtual void sendPacket(IRoxieQueryPacket *x, const IRoxieContextLogger &logctx)
@@ -2464,7 +2592,7 @@ public:
 
                     bool alreadyRunning = false;
                     {
-                        WorkerUdpTracker::TimeDivision division(timeTracker, WorkerUdpTracker::checkingRunning);
+                        WorkerReceiverTracker::TimeDivision division(timeTracker, WorkerReceiverTracker::checkingRunning);
 
                         Owned<IPooledThreadIterator> wi = queue.running();
                         ForEach(*wi)
@@ -2498,7 +2626,8 @@ public:
                         {
                             StringBuffer xx; logctx.CTXLOG("Retry %d received on subchannel %u for %s", retries+1, mySubchannel, header.toString(xx).str());
                         }
-                        WorkerUdpTracker::TimeDivision division(timeTracker, WorkerUdpTracker::pushing);
+                        WorkerReceiverTracker::TimeDivision division(timeTracker, WorkerReceiverTracker::pushing);
+
                         // It's debatable whether we should delay for the primary here - they had one chance already...
                         // But then again, so did we, assuming the timeout is longer than the IBYTIdelay
                         unsigned delay = 0;
@@ -2515,7 +2644,7 @@ public:
                 }
                 else // first time (not a retry).
                 {
-                    WorkerUdpTracker::TimeDivision division(timeTracker, WorkerUdpTracker::pushing);
+                    WorkerReceiverTracker::TimeDivision division(timeTracker, WorkerReceiverTracker::pushing);
                     unsigned delay = 0;
                     if (mySubchannel != 0 && (header.activityId & ~ROXIE_PRIORITY_MASK) < ROXIE_ACTIVITY_SPECIAL_FIRST)  // i.e. I am not the primary here, and never delay special
                     {
@@ -2531,111 +2660,59 @@ public:
         }
     }
 
-    int run()
+    virtual void processMessage(MemoryBuffer & mb)
     {
-        if (traceLevel) 
-            DBGLOG("RoxieSocketQueueManager::run() starting: doIbytiDelay=%s minIbytiDelay=%u initIbytiDelay=%u",
-                    doIbytiDelay?"YES":"NO", minIbytiDelay, initIbytiDelay);
-
-        MemoryBuffer mb;
-        WorkerUdpTracker::TimeDivision division(timeTracker, WorkerUdpTracker::other);
-        for (;;)
+        try
         {
-            mb.clear();
-            try
+            RoxiePacketHeader &header = *(RoxiePacketHeader *) mb.toByteArray();
+            if (mb.length() != header.packetlength)
+                DBGLOG("sock->read returned %u but packetlength was %u", mb.length(), header.packetlength);
+            if (doTrace(traceRoxiePackets))
             {
-                // NOTE - this thread needs to do as little as possible - just read packets and queue them up - otherwise we can get packet loss due to buffer overflow
-                // DO NOT put tracing on this thread except at very high tracelevels!
-                unsigned timeout = delayed.timeout(msTick());
-                if (timeout>5000)
-                    timeout = 5000;
-                division.switchState(WorkerUdpTracker::allocating);
-                void * buffer = mb.reserve(maxPacketSize);
-
-                division.switchState(WorkerUdpTracker::waiting);
-                unsigned l;
-                multicastSocket->readtms(buffer, sizeof(RoxiePacketHeader), maxPacketSize, l, timeout);
-                division.switchState(WorkerUdpTracker::processing);
-
-                mb.setLength(l);
-                RoxiePacketHeader &header = *(RoxiePacketHeader *) mb.toByteArray();
-                if (l != header.packetlength)
-                    DBGLOG("sock->read returned %d but packetlength was %d", l, header.packetlength);
-                if (doTrace(traceRoxiePackets))
-                {
-                    StringBuffer s;
-                    DBGLOG("Read roxie packet: %s", header.toString(s).str());
-                }
-                switch (header.activityId & ROXIE_PRIORITY_MASK)
-                {
-                    case ROXIE_SLA_PRIORITY: processMessage(mb, header, slaQueue); break;
-                    case ROXIE_HIGH_PRIORITY: processMessage(mb, header, hiQueue); break;
-                    case ROXIE_LOW_PRIORITY: processMessage(mb, header, loQueue); break;
-                    default: processMessage(mb, header, bgQueue); break;
-                }
+                StringBuffer s;
+                DBGLOG("Read roxie packet: %s", header.toString(s).str());
             }
-            catch (IException *E)
+
+            WorkerReceiverTracker::TimeDivision division(timeTracker, WorkerReceiverTracker::processing);
+            switch (header.activityId & ROXIE_PRIORITY_MASK)
             {
-                if (running)
-                {
-                    // MORE: Maybe we should utilize IException::errorCode - not just text ??
-                    if (E->errorCode()==JSOCKERR_timeout_expired)
-                        E->Release();
-                    else if (roxiemem::memPoolExhausted()) 
-                    {
-                        //MORE: I think this should probably be based on the error code instead.
-
-                        EXCLOG(E, "Exception reading or processing roxie packet");
-                        E->Release();
-                        MilliSleep(1000); // Give a chance for mem free
-                    }
-                    else 
-                    {
-                        EXCLOG(E, "Exception reading or processing roxie packet");
-                        E->Release();
-                        // MORE: Protect with try logic, in case udp_create throws exception ?
-                        //       What to do if create fails (ie exception is caught) ?
-                        if (multicastSocket)
-                        {
-                            multicastSocket->close();
-                            multicastSocket.clear();
-                            openMulticastSocket();
-                        }
-                    }
-                
-                }
-                else
-                {
-                    E->Release();
-                    break;
-                }
+                case ROXIE_SLA_PRIORITY: processMessage(mb, header, slaQueue); break;
+                case ROXIE_HIGH_PRIORITY: processMessage(mb, header, hiQueue); break;
+                case ROXIE_LOW_PRIORITY: processMessage(mb, header, loQueue); break;
+                default: processMessage(mb, header, bgQueue); break;
             }
-            delayed.checkExpired(msTick(), slaQueue, hiQueue, loQueue, bgQueue);
         }
-        return 0;
+        catch (IException *E)
+        {
+            if (roxiemem::memPoolExhausted())
+            {
+                //MORE: I think this should probably be based on the error code instead.
+                EXCLOG(E, "Exception reading or processing roxie packet");
+                E->Release();
+                MilliSleep(1000); // Give a chance for mem free
+            }
+            else
+                throw;
+        }
+
+        delayed.checkExpired(msTick(), slaQueue, hiQueue, loQueue, bgQueue);
+        unsigned timeout = delayed.timeout(msTick());
+        if (timeout > 5000)
+            timeout = 5000;
+        workerCommunicator->setNextTimeout(timeout);
     }
 
     void start() 
     {
         RoxieReceiverBase::start();
-        running = true;
-        readThread.start(false);
+        timeTracker.reset(WorkerReceiverTracker::waiting);
+        workerCommunicator->startListening(*this);
     }
 
     void stop() 
     {
-        if (running)
-        {
-            running = false;
-            shutdownAndCloseNoThrow(multicastSocket);
-        }
+        workerCommunicator->stopListening();
         RoxieReceiverBase::stop();
-    }
-
-    void join()  
-    { 
-        readThread.join();
-        RoxieReceiverBase::join();
     }
 
     virtual IReceiveManager *queryReceiveManager()

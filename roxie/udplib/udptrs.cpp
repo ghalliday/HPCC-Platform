@@ -805,7 +805,7 @@ public:
 
 };
 
-class CSendManager : implements ISendManager, public CInterface
+class CUdpSendManager : implements ISendManager, public CInterface
 {
     class StartedThread : public Thread
     {
@@ -846,7 +846,7 @@ class CSendManager : implements ISendManager, public CInterface
     class send_resend_flow : public StartedThread
     {
         // Check if any senders have timed out
-        CSendManager &parent;
+        CUdpSendManager &parent;
         Semaphore terminated;
 
         virtual int doRun() override
@@ -930,7 +930,7 @@ class CSendManager : implements ISendManager, public CInterface
         }
 
     public:
-        send_resend_flow(CSendManager &_parent)
+        send_resend_flow(CUdpSendManager &_parent)
             : StartedThread("UdpLib::send_resend_flow"), parent(_parent)
         {
             start(false);
@@ -947,11 +947,11 @@ class CSendManager : implements ISendManager, public CInterface
 
     class send_receive_flow : public StartedThread 
     {
-        CSendManager &parent;
+        CUdpSendManager &parent;
         int      receive_port;
         Owned<ISocket> flow_socket;
     public:
-        send_receive_flow(CSendManager &_parent, int r_port) : StartedThread("UdpLib::send_receive_flow"), parent(_parent)
+        send_receive_flow(CUdpSendManager &_parent, int r_port) : StartedThread("UdpLib::send_receive_flow"), parent(_parent)
         {
             receive_port = r_port;
             if (check_max_socket_read_buffer(udpFlowSocketsSize) < 0) 
@@ -1047,12 +1047,12 @@ class CSendManager : implements ISendManager, public CInterface
 
     class send_data : public StartedThread 
     {
-        CSendManager &parent;
+        CUdpSendManager &parent;
         simple_queue<UdpPermitToSendMsg> send_queue;
         Linked<TokenBucket> bucket;
 
     public:
-        send_data(CSendManager &_parent, TokenBucket *_bucket)
+        send_data(CUdpSendManager &_parent, TokenBucket *_bucket)
             : StartedThread("UdpLib::send_data"), parent(_parent), send_queue(100), bucket(_bucket) // MORE - send q size should be configurable and/or related to size of cluster?
         {
             if (check_max_socket_write_buffer(udpLocalWriteSocketSize) < 0) 
@@ -1170,7 +1170,7 @@ class CSendManager : implements ISendManager, public CInterface
 public:
     IMPLEMENT_IINTERFACE;
 
-    CSendManager(int server_flow_port, int data_port, int client_flow_port, int q_size, int _numQueues, const IpAddress &_myIP, TokenBucket *_bucket, bool _encrypted)
+    CUdpSendManager(int server_flow_port, int data_port, int client_flow_port, int q_size, int _numQueues, const IpAddress &_myIP, TokenBucket *_bucket, bool _encrypted)
         : myIP(_myIP),
           receiversTable([_numQueues, q_size, server_flow_port, data_port, _encrypted, this](const ServerIdentifier ip) { return new UdpReceiverEntry(ip.getIpAddress(), myIP, _numQueues, q_size, server_flow_port, data_port, _encrypted);}),
           bucket(_bucket),
@@ -1188,7 +1188,7 @@ public:
     }
 
 
-    ~CSendManager() 
+    ~CUdpSendManager() 
     {
         delete resend_flow;
         delete receive_flow;
@@ -1254,10 +1254,15 @@ public:
 
 };
 
-ISendManager *createSendManager(int server_flow_port, int data_port, int client_flow_port, int queue_size_pr_server, int queues_pr_server, const IpAddress &_myIP, TokenBucket *rateLimiter, bool encryptionInTransit)
+ISendManager *createUdpSendManager(int server_flow_port, int data_port, int client_flow_port, int queue_size_pr_server, int queues_pr_server, const IpAddress &_myIP, TokenBucket *rateLimiter, bool encryptionInTransit)
 {
     assertex(!_myIP.isNull());
-    return new CSendManager(server_flow_port, data_port, client_flow_port, queue_size_pr_server, queues_pr_server, _myIP, rateLimiter, encryptionInTransit);
+    return new CUdpSendManager(server_flow_port, data_port, client_flow_port, queue_size_pr_server, queues_pr_server, _myIP, rateLimiter, encryptionInTransit);
+}
+
+ISendManager *createSendManager(int server_flow_port, int data_port, int client_flow_port, int queue_size_pr_server, int queues_pr_server, const IpAddress &_myIP, TokenBucket *rateLimiter, bool encryptionInTransit)
+{
+    return createUdpSendManager(server_flow_port, data_port, client_flow_port, queue_size_pr_server, queues_pr_server, _myIP, rateLimiter, encryptionInTransit);
 }
 
 class CMessagePacker : implements IMessagePacker, public CInterface

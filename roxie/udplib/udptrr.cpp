@@ -464,7 +464,7 @@ public:
 };
 
 
-class CReceiveManager : implements IReceiveManager, public CInterface
+class CUdpReceiveManager : implements IReceiveManager, public CInterface
 {
     /*
      * The ReceiveManager has several threads:
@@ -883,7 +883,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
 
     class receive_receive_flow : public Thread 
     {
-        CReceiveManager &parent;
+        CUdpReceiveManager &parent;
         Owned<ISocket> flow_socket;
         const unsigned flow_port;
         const unsigned maxSlotsPerSender;
@@ -993,7 +993,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
         }
 
     public:
-        receive_receive_flow(CReceiveManager &_parent, unsigned flow_p, unsigned _maxSlotsPerSender)
+        receive_receive_flow(CUdpReceiveManager &_parent, unsigned flow_p, unsigned _maxSlotsPerSender)
         : Thread("UdpLib::receive_receive_flow"), parent(_parent), flow_port(flow_p), maxSlotsPerSender(_maxSlotsPerSender), maxPermits(_parent.input_queue_size),
           timeTracker("receive_receive_flow", 60)
         {
@@ -1305,7 +1305,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
 
     class receive_data : public Thread 
     {
-        CReceiveManager &parent;
+        CUdpReceiveManager &parent;
         ISocket *receive_socket = nullptr;
         ISocket *selfFlowSocket = nullptr;
         std::atomic<bool> running = { false };
@@ -1313,7 +1313,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
         UdpRdTracker timeTracker;
         
     public:
-        receive_data(CReceiveManager &_parent) : Thread("UdpLib::receive_data"), parent(_parent), timeTracker("receive_data", 60)
+        receive_data(CUdpReceiveManager &_parent) : Thread("UdpLib::receive_data"), parent(_parent), timeTracker("receive_data", 60)
         {
             unsigned ip_buffer = parent.input_queue_size*DATA_PAYLOAD*2;
             if (ip_buffer < udpFlowSocketsSize) ip_buffer = udpFlowSocketsSize;
@@ -1503,9 +1503,9 @@ class CReceiveManager : implements IReceiveManager, public CInterface
 
     class CPacketCollator : public Thread
     {
-        CReceiveManager &parent;
+        CUdpReceiveManager &parent;
     public:
-        CPacketCollator(CReceiveManager &_parent) : Thread("CPacketCollator"), parent(_parent) {}
+        CPacketCollator(CUdpReceiveManager &_parent) : Thread("CPacketCollator"), parent(_parent) {}
 
         virtual int run() 
         {
@@ -1538,7 +1538,7 @@ class CReceiveManager : implements IReceiveManager, public CInterface
 
 public:
     IMPLEMENT_IINTERFACE;
-    CReceiveManager(int server_flow_port, int d_port, int client_flow_port, int queue_size, bool _encrypted)
+    CUdpReceiveManager(int server_flow_port, int d_port, int client_flow_port, int queue_size, bool _encrypted)
         : sendersTable([client_flow_port](const ServerIdentifier ip) { return new UdpSenderEntry(ip.getIpAddress(), client_flow_port);}),
           collatorThread(*this),
           input_queue_size(queue_size), receive_flow_port(server_flow_port), data_port(d_port), encrypted(_encrypted)
@@ -1568,7 +1568,7 @@ public:
         MilliSleep(15);
     }
 
-    ~CReceiveManager() 
+    ~CUdpReceiveManager() 
     {
         running = false;
         input_queue->interrupt();
@@ -1665,10 +1665,19 @@ public:
     }
 };
 
+IReceiveManager *createUdpReceiveManager(int server_flow_port, int data_port, int client_flow_port,
+                                      int udpQueueSize, bool encrypted)
+{
+    return new CUdpReceiveManager(server_flow_port, data_port, client_flow_port, udpQueueSize, encrypted);
+}
+
 IReceiveManager *createReceiveManager(int server_flow_port, int data_port, int client_flow_port,
                                       int udpQueueSize, bool encrypted)
 {
-    return new CReceiveManager(server_flow_port, data_port, client_flow_port, udpQueueSize, encrypted);
+    if (useTcpTransport)
+        return createUdpReceiveManager(server_flow_port, data_port, client_flow_port, udpQueueSize, encrypted);
+    else
+        return createUdpReceiveManager(server_flow_port, data_port, client_flow_port, udpQueueSize, encrypted);
 }
 
 /*

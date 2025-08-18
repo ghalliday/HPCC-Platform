@@ -1162,6 +1162,10 @@ int CCD_API roxie_main(int argc, const char *argv[], const char * defaultYaml)
         unsigned udpSendQueueSize = topology->getPropInt("@udpSendQueueSize", UDP_SEND_QUEUE_SIZE);
         sanityCheckUdpSettings(udpQueueSize, udpSendQueueSize, numChannels, networkSpeed);
 
+        const char * protocol = topology->queryProp("@transportProtocol", "udp");
+        if (strieq(protocol, "tcp"))
+            useTcpTransport = true;
+
         int ttlTmp = topology->getPropInt("@multicastTTL", 1);
         if (ttlTmp < 0)
         {
