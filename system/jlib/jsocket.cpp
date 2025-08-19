@@ -7569,3 +7569,325 @@ extern jlib_decl void shutdownAndCloseNoThrow(ISocket * optSocket)
         e->Release();
     }
 }
+
+//---------------------------------------------------------------------------------------------------------------------
+
+// This class is used to process reads that are notified from a select/epoll handler
+// There is a minimum and maximum message size, and the option to only process a single
+// message, or continue processing multiple messages.
+class CSocketHandlerBase : public CInterfaceOf<ISocketSelectNotify>
+{
+    Owned<ISocket> sock;
+    StringBuffer peerHostText;
+    StringBuffer peerEndpointText;
+    MemoryBuffer buffer;
+    cycle_t createTime = 0;
+    size32_t readSoFar = 0;
+    size32_t minSize = 0;               // The minimum size to read before the request is valid
+    size32_t requiredSize = 0;          // How much data should be read - set for fixed or variable size
+    size32_t maxReadSize = 0;           // The maximum that should be read when incoming size is not known
+    CriticalSection crit;
+    bool closedOrHandled = false;
+public:
+    CSocketHandlerBase(ISocket *_sock, size32_t _minSize, size32_t _maxSize) : sock(_sock), minSize(_minSize), maxReadSize(_maxSize)
+    {
+        createTime = get_cycles_now();
+        SocketEndpoint peerEP;
+        sock->getPeerEndpoint(peerEP);
+        peerEP.getHostText(peerHostText); // always used by handleAcceptedSocket
+        peerEndpointText.append(peerHostText); // only used if tracing an error
+        if (peerEP.port)
+            peerEndpointText.append(':').append(peerEP.port);
+    }
+    ISocket *querySocket()
+    {
+        return sock;
+    }
+    MemoryBuffer & queryBuffer()
+    {
+        return buffer;
+    }
+    cycle_t queryCreateTime() const
+    {
+        return createTime;
+    }
+    size32_t queryReadSoFar() const
+    {
+        return readSoFar;
+    }
+    const char *queryPeerHostText() const
+    {
+        return peerHostText;
+    }
+    const char *queryPeerEndpointText() const
+    {
+        return peerEndpointText;
+    }
+    bool close()
+    {
+        // will block any pending notifySelected on this socket
+        CriticalBlock b(crit);
+        if (!closedOrHandled)
+        {
+            closedOrHandled = true;
+            return true;
+        }
+        return false;
+    }
+
+    bool closeIfTimedout(cycle_t now, cycle_t timeoutCycles)
+    {
+        if ((now - createTime) >= timeoutCycles)
+            return close();
+
+        return false;
+    }
+    // ISocketSelectNotify impl.
+    virtual bool notifySelected(ISocket *sock, unsigned selected) override
+    {
+        CLeavableCriticalBlock b(crit);
+        if (closedOrHandled)
+            return false;
+
+        Owned<IJSOCK_Exception> exception;
+        try
+        {
+            size32_t toRead = requiredSize ? requiredSize : maxReadSize;
+            buffer.ensureCapacity(toRead);
+
+            void * target = (byte *)buffer.bufferBase() + readSoFar;
+            size32_t rd = 0;
+            sock->readtms(target, 0, toRead-readSoFar, rd, 60000); // long enough!
+            readSoFar += rd;
+            buffer.setLength(readSoFar);
+
+            if (!requiredSize && (readSoFar >= minSize))
+                requiredSize = getRequiredSize();
+
+            if (requiredSize && (readSoFar >= requiredSize))
+            {
+                assertex(readSoFar == requiredSize);
+                if (isOneShot())
+                {
+                    // process() will remove itself from handler, and need to avoid it doing so while in 'crit'
+                    // since the maintenance thread could also be tyring to manipulate handlers and calling closeIfTimedout()
+                    closedOrHandled = true;
+                    b.leave();
+                }
+                processMessage();
+
+                if (!isOneShot())
+                    prepareForNextRead();
+            }
+        }
+        catch (IJSOCK_Exception *e)
+        {
+            exception.setown(e);
+        }
+        if (exception)
+            closeConnection(exception);
+
+        return false;
+    }
+
+    void prepareForNextRead()
+    {
+        readSoFar = 0;
+        requiredSize = (minSize == maxReadSize) ? minSize : 0;
+        buffer.clear();
+    }
+
+    // Look at the current 
+    virtual size32_t getRequiredSize() = 0;
+    virtual void processMessage() = 0;
+    virtual void closeConnection(IJSOCK_Exception * exception) = 0;
+    virtual bool isOneShot() const = 0;
+};
+
+interface IMessageProcessor
+{
+    virtual bool processMessage(CSocketHandlerBase * ownedSocket) = 0;
+};
+
+class CConnectSelectHandler
+{
+    IMessageProcessor & processor;
+    Owned<ISocketSelectHandler> selectHandler;
+    unsigned mode = SELECTMODE_READ;
+
+    // NB: Linked vs Owned, because methods will implicitly construct an object of this type
+    // which can be problematic/confusing, for example if Owned and std::list->remove is called
+    // with a pointer, it will auto instantiate a OWned<CSocketHandlerBase> and cause -ve leak.
+    std::list<Linked<CSocketHandlerBase>> handlers;
+
+    CriticalSection handlersCS;
+
+    std::thread maintenanceThread;
+    Semaphore maintenanceSem;
+
+    void clearupSocketHandlers(cycle_t timeoutCycles)
+    {
+        std::vector<Owned<CSocketHandlerBase>> toClose;
+        {
+            cycle_t nowCycles = get_cycles_now();
+            CriticalBlock b(handlersCS);
+            auto it = handlers.begin();
+            while (true)
+            {
+                if (it == handlers.end())
+                    break;
+                CSocketHandlerBase *socketHandler = *it;
+                if (socketHandler->closeIfTimedout(nowCycles, timeoutCycles))
+                {
+                    toClose.push_back(LINK(socketHandler));
+                    it = handlers.erase(it);
+                }
+                else
+                    ++it;
+            }
+        }
+        for (auto &socketHandler: toClose)
+        {
+            try
+            {
+                Owned<IJSOCK_Exception> e = createJSocketException(JSOCKERR_timeout_expired, "Connect timeout expired", __FILE__, __LINE__);
+                close(*socketHandler, e);
+            }
+            catch (IException *e)
+            {
+                EXCLOG(e, "CConnectSelectHandler::maintenanceFunc");
+                e->Release();
+            }
+        }
+    }
+public:
+    CConnectSelectHandler(IMessageProcessor &_processor) : processor(_processor)
+    {
+        selectHandler.setown(createSocketSelectHandler());
+        selectHandler->start();
+
+        auto maintenanceFunc = [&]
+        {
+            while (owner.running)
+            {
+                if (maintenanceSem.wait(10000)) // check every 10s
+                    break;
+                clearupSocketHandlers();
+            }
+        };
+        maintenanceThread = std::thread(maintenanceFunc);
+    }
+    ~CConnectSelectHandler()
+    {
+        maintenanceSem.signal();
+        maintenanceThread.join();
+    }
+    void add(ISocket *sock)
+    {
+        while (true)
+        {
+            unsigned numHandlers;
+            {
+                CriticalBlock b(handlersCS);
+                numHandlers = handlers.size();
+            }
+            if (numHandlers < owner.maxListenHandlerSockets)
+                break;
+            DBGLOG("Too many handlers (%u), waiting for some to be processed (max limit: %u)", numHandlers, owner.maxListenHandlerSockets);
+            MilliSleep(1000);
+        }
+
+        Owned<CSocketHandlerBase> socketHandler = new CSocketHandler(*this, LINK(sock));
+
+        size_t numHandlers;
+        {
+            CriticalBlock b(handlersCS);
+            selectHandler->add(sock, mode, socketHandler); // NB: sock and handler linked by select handler
+            handlers.emplace_back(socketHandler);
+            numHandlers = handlers.size();
+        }
+        if (0 == (numHandlers % 100)) // for info. log at each 100 boundary
+            DBGLOG("handlers = %u", (unsigned)numHandlers);
+    }
+    void close(CSocketHandlerBase &socketHandler, IJSOCK_Exception *exception)
+    {
+        if (socketHandler.queryReadSoFar()) // read something
+        {
+            VStringBuffer errMsg("MP Connect Thread: invalid number of connection bytes serialized from: %s", socketHandler.queryPeerEndpointText());
+            FLLOG(MCoperatorWarning, "%s", errMsg.str());
+        }
+
+        Linked<CSocketHandlerBase> handler = &socketHandler;
+        {
+            CriticalBlock b(handlersCS);
+            selectHandler->remove(socketHandler.querySocket());
+            handlers.remove(&socketHandler);
+        }
+        handler->querySocket()->close();
+    }
+    void process(CSocketHandlerBase &socketHandler)
+    {
+        Linked<CSocketHandlerBase> handler = &socketHandler;
+        if (socketHandler.isOneShot())
+        {
+            CriticalBlock b(handlersCS);
+            selectHandler->remove(socketHandler.querySocket());
+            handlers.remove(&socketHandler);
+        }
+
+        processor.processMessage(handler.getClear());
+    }
+};
+
+// This class starts a thread that listens on a socket.  When a connection is made it adds the socket to a select handler.
+// When data is written to the socket it will call the notify handler.
+class CSocketConnectionListener : public Thread
+{
+public:
+    CSocketConnectionListener(const SocketEndpoint & _ep, ISocketSelectNotify & _notifyHandler)
+         : Thread("CSocketConnectionListener"), ep(_ep), notifyHandler(_notifyHandler)
+    {
+        constexpr unsigned socketsPerThread = 50;
+        selectHandler.setown(createSocketEpollHandler("CSocketConnectionListener", socketsPerThread));
+        listenSocket.setown(ISocket::create(ep.port)); // MORE: Should this be passed in?  What about secure sockets?
+    }
+
+    void start()
+    {
+        Thread::start(false);
+    }
+
+    void stop()
+    {
+        abort = true;
+        shutdownAndCloseNoThrow(listenSocket);
+        join();
+        abort = false;
+    }
+
+    virtual int run() override
+    {
+        for (;;)
+        {
+            Owned<ISocket> sock = listenSocket->accept();
+            if (abort)
+                return 0;
+
+            if (sock)
+            {
+                selectHandler->add(sock, SELECTMODE_READ | SELECTMODE_EXCEPT, &notifyHandler);
+            }
+
+
+
+        }
+
+    }
+private:
+    const SocketEndpoint ep;
+    Owned<ISocket> listenSocket; 
+    ISocketSelectNotify & notifyHandler;
+    Owned<ISocketSelectHandler> selectHandler;
+    std::atomic<bool> abort{false};
+};
+
