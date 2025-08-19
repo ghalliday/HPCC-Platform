@@ -35,6 +35,8 @@
 #include "ccdqueue.ipp"
 #include "ccdsnmp.hpp"
 
+#include "socketutils.hpp"
+
 #ifdef _USE_CPPUNIT
 #include <cppunit/extensions/HelperMacros.h>
 #endif
@@ -255,8 +257,7 @@ interface IRoxieWorkerCommunicator : public IInterface
     virtual void startListening(IRoxieWorkerRequestReceiver & _receiver) = 0;
     virtual void stopListening() = 0;
     virtual size32_t queryMaxPacketSize() const = 0;
-
-    virtual size32_t sendToWorker(size32_t len, const void * data, const SocketEndpoint &ep) = 0;
+    virtual size32_t sendToWorker(const void * data, size32_t len, const SocketEndpoint &ep) = 0;
 };
 
 
@@ -382,7 +383,7 @@ public:
         }
     }
 
-    virtual size32_t sendToWorker(size32_t len, const void * data, const SocketEndpoint &ep)
+    virtual size32_t sendToWorker(const void * data, size32_t len, const SocketEndpoint &ep)
     {
         return multicastSocket->udp_write_to(ep, data, len);
     }
@@ -396,12 +397,154 @@ protected:
 };
 
 
+//------------------------------------------------------------------------------------------------------------
+
+class RoxieTcpListener : public CSocketConnectionListener
+{
+public:
+    RoxieTcpListener(IRoxieWorkerRequestReceiver & _receiver)
+     : CSocketConnectionListener(0, 0, false, 0, 0), receiver(_receiver)
+    {
+    }
+
+    virtual bool onlyProcessFirstRead() const override
+    {
+        return false;
+    }
+
+    virtual unsigned getMessageSize(const void * header) const override
+    {
+        return *(const unsigned *)header; // packet length is in the 1st 4 bytes
+    }
+
+    virtual CReadSocketHandler *createSocketHandler(ISocket *sock) override
+    {
+        //Header size is 64B, max variable to read is 64K
+        size32_t maxInitialReadSize = 0x10000; // 64K
+        sock->set_nagle(false);
+        return new CReadSocketHandler(*this, sock, sizeof(RoxiePacketHeader), maxInitialReadSize);
+    }
+
+    virtual void processMessageContents(CReadSocketHandler * ownedSocketHandler)
+    {
+        receiver.processMessage(ownedSocketHandler->queryBuffer());
+        ownedSocketHandler->Release();
+    }
+
+protected:
+    IRoxieWorkerRequestReceiver & receiver;
+};
+
+struct HashSocketEndpoint
+{
+    unsigned operator()(const SocketEndpoint & ep) const { return ep.hash(0x12345678); }
+};
+
+class RoxieTcpSender
+{
+public:
+    virtual size32_t sendToTarget(const void * data, size32_t len, const SocketEndpoint &ep)
+    {
+        for (;;)
+        {
+            try
+            {
+                Owned<ISocket> sock = getWorkerSocket(ep);
+                sock->set_quick_ack(true);
+                return sock->write(data, len);
+            }
+            catch (IException * e)
+            {
+                //If the socket has closed then try and reconnect
+                throw;
+            }
+        }
+    }
+
+protected:
+    ISocket * getWorkerSocket(const SocketEndpoint &ep)
+    {
+        {
+            CriticalBlock b(crit);
+            auto match = workerSockets.find(ep);
+            if (match != workerSockets.end())
+                return match->second.getLink();
+        }
+
+        Owned<ISocket> workerSocket = connectTo(ep);
+
+        {
+            CriticalBlock b(crit);
+            auto match = workerSockets.find(ep);
+            if (match != workerSockets.end())
+                return match->second.getLink();
+            workerSockets.emplace(ep, workerSocket);
+        }
+
+        return workerSocket.getClear();
+    }
+
+    ISocket * connectTo(const SocketEndpoint &ep)
+    {
+        Owned<ISocket> targetSocket = ISocket::connect_timeout(ep, 5000);
+        //MORE: What about retries.  Async writing etc.??
+        return targetSocket.getClear();
+    }
+
+protected:
+    CriticalSection crit;
+    std::unordered_map<SocketEndpoint, Owned<ISocket>, HashSocketEndpoint > workerSockets;
+};
+class RoxieTcpWorkerCommunicator : public CInterfaceOf<IRoxieWorkerCommunicator>
+{
+public:
+    virtual size32_t queryMaxPacketSize() const override
+    {
+        return maxPacketSize;
+    }
+
+    virtual void startListening(IRoxieWorkerRequestReceiver & _receiver) override
+    {
+        assertex(!running);
+        running = true;
+        listener.reset(new RoxieTcpListener(_receiver));
+        listener->startPort(ccdMulticastPort);
+    }
+
+    virtual void stopListening() override
+    {
+        if (running)
+        {
+            listener->stop();
+            listener.reset(nullptr);
+            running = false;
+        }
+    }
+
+    virtual size32_t sendToWorker(const void * data, size32_t len, const SocketEndpoint &ep)
+    {
+        return sender.sendToTarget(data, len, ep);
+    }
+
+protected:
+    std::unique_ptr<RoxieTcpListener> listener;
+    RoxieTcpSender sender;
+    size32_t maxPacketSize = 0x40000; // Allow up to 256K.
+    std::atomic<bool> running = { false };
+};
+
+
 //---------------------------------------------------------------------------------------------------------------------
 
 void openMulticastSocket()
 {
     if (!workerCommunicator)
-        workerCommunicator.setown(new RoxieUdpWorkerCommunicator());
+    {
+        if (useTcpTransport)
+            workerCommunicator.setown(new RoxieTcpWorkerCommunicator());
+        else
+            workerCommunicator.setown(new RoxieUdpWorkerCommunicator());
+    }
 }
 
 void closeMulticastSockets()
@@ -471,7 +614,7 @@ static bool channelWrite(RoxiePacketHeader &buf, bool includeSelf)
                 DBGLOG("Writing %d bytes to subchannel %d (%s) %s", buf.packetlength, subChannel, buf.subChannels[subChannel].getTraceText(s).str(), buf.toString(header).str());
             }
             SocketEndpoint ep(ccdMulticastPort, buf.subChannels[subChannel].getIpAddress());
-            size32_t wrote = workerCommunicator->sendToWorker(buf.packetlength, &buf, ep);
+            size32_t wrote = workerCommunicator->sendToWorker(&buf, buf.packetlength, ep);
             if (!subChannel || wrote < minwrote)
                 minwrote = wrote;
             if (delaySubchannelPackets)
