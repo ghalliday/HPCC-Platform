@@ -7574,18 +7574,14 @@ extern jlib_decl void shutdownAndCloseNoThrow(ISocket * optSocket)
 //---------------------------------------------------------------------------------------------------------------------
 
 class CReadSocketHandler;
-interface IMessageProcessor
-{
-    virtual bool processMessage(CReadSocketHandler * ownedSocket) = 0;
-};
 
 //This is the interface called by the read socket handler when messages are read or the socket is closed
 interface ISockerMessageProcessor
 {
     virtual bool onlyProcessFirstRead() const = 0;                      // Does this only handle one read request, or are multiple messages processed
     virtual unsigned getMessageSize(const void * header) const = 0;     // For variable length messages, given the header, how big is the rest?
-    virtual void processMessage(CReadSocketHandler * socket) = 0;
-    virtual void closeConnection(CReadSocketHandler * socket, IJSOCK_Exception * exception) = 0;
+    virtual void processMessage(CReadSocketHandler & socket) = 0;
+    virtual void closeConnection(CReadSocketHandler & socket, IJSOCK_Exception * exception) = 0;
 };
 
 // This class is used to process reads that are notified from a select/epoll handler
@@ -7695,7 +7691,7 @@ public:
                         closedOrHandled = true;
                         b.leave();
                     }
-                    processor.processMessage(this);
+                    processor.processMessage(*this);
 
                     if (!oneShort)
                         prepareForNextRead();
@@ -7709,7 +7705,7 @@ public:
 
         //Change from mpcomm - must be outside the critical block, otherwise, crit could be freed while still in use
         if (exception)
-            processor.closeConnection(this, exception);
+            processor.closeConnection(*this, exception);
 
         return false;
     }
@@ -7729,7 +7725,7 @@ class CReadSelectHandler : public ISockerMessageProcessor
 {
 public:
     CReadSelectHandler(unsigned timeoutMs, unsigned _maxListenHandlerSockets)
-    : maxListenHandlerSockets(_maxListenHandlerSockets)
+    : maxListenHandlerSockets(_maxListenHandlerSockets ? _maxListenHandlerSockets : ~0U)
     {
         constexpr unsigned socketsPerThread = 50;
         selectHandler.setown(createSocketEpollHandler("CSocketConnectionListener", socketsPerThread));
@@ -7790,7 +7786,7 @@ public:
             DBGLOG("handlers = %u", (unsigned)numHandlers);
     }
 
-    void close(CReadSocketHandler &socketHandler, IJSOCK_Exception *exception)
+    virtual void closeConnection(CReadSocketHandler &socketHandler, IJSOCK_Exception *exception) override
     {
         unsigned sofar = socketHandler.queryReadSoFar();
         if (sofar) // read something
@@ -7808,24 +7804,21 @@ public:
         handler->querySocket()->close();
     }
 
-    virtual void processMessage(CReadSocketHandler *socketHandler) override
+    virtual void processMessage(CReadSocketHandler & socketHandler) override
     {
-        Linked<CReadSocketHandler> handler = socketHandler;
+        Linked<CReadSocketHandler> handler = &socketHandler;
         if (onlyProcessFirstRead())
         {
             CriticalBlock b(handlersCS);
-            selectHandler->remove(socketHandler->querySocket());
-            handlers.remove(socketHandler);
+            selectHandler->remove(socketHandler.querySocket());
+            handlers.remove(&socketHandler);
         }
 
         processMessageContents(handler.getClear());
     }
 
-    virtual CReadSocketHandler *createSocketHandler(ISocket *sock)
-    {
-        return new CReadSocketHandler(*this, sock, 0, 0);
-    }
-
+// Must be implemented by a derived class
+    virtual CReadSocketHandler *createSocketHandler(ISocket *sock) = 0;
     virtual void processMessageContents(CReadSocketHandler * ownedSocketHandler) = 0;
 
 protected:
@@ -7857,7 +7850,7 @@ protected:
             try
             {
                 Owned<IJSOCK_Exception> e = createJSocketException(JSOCKERR_timeout_expired, "Connect timeout expired", __FILE__, __LINE__);
-                close(*socketHandler, e);
+                closeConnection(*socketHandler, e);
             }
             catch (IException *e)
             {
@@ -7885,10 +7878,10 @@ protected:
 
 // This class starts a thread that listens on a socket.  When a connection is made it adds the socket to a select handler.
 // When data is written to the socket it will call the notify handler.
-class CSocketConnectionListener : public Thread, implements IMessageProcessor
+class CSocketConnectionListener : protected CReadSelectHandler, public Thread
 {
 public:
-    CSocketConnectionListener(IMessageProcessor & _processor, unsigned port, unsigned _processPoolSize, bool _useTLS);
+    CSocketConnectionListener(unsigned port, unsigned _processPoolSize, bool _useTLS, unsigned timeoutMs, unsigned _maxListenHandlerSockets);
 
     void startPort(unsigned short port);
     void stop();
@@ -7898,8 +7891,6 @@ public:
     bool checkSelfDestruct(const void *p,size32_t sz);
 
 private:
-    IMessageProcessor & processor;
-    CReadSelectHandler selectHandler;
     Owned<ISocket> listenSocket;
     Owned<IThreadPool> threadPool;
     unsigned processPoolSize;
@@ -7910,8 +7901,8 @@ private:
 
 // --------------------------------------------------------
 
-CSocketConnectionListener::CSocketConnectionListener(IMessageProcessor & _processor, unsigned port, unsigned _processPoolSize, bool _useTLS)
-    : Thread("CSocketConnectionListener"), processor(_processor), processPoolSize(_processPoolSize), useTLS(_useTLS)
+CSocketConnectionListener::CSocketConnectionListener(unsigned port, unsigned _processPoolSize, bool _useTLS, unsigned _timeoutMs, unsigned _maxListenHandlerSockets)
+    : CReadSelectHandler(_timeoutMs, _maxListenHandlerSockets), Thread("CSocketConnectionListener"), processPoolSize(_processPoolSize), useTLS(_useTLS)
 {
     if (port)
         startPort(port);
@@ -7978,7 +7969,7 @@ void CSocketConnectionListener::startPort(unsigned short port)
                     }
                     virtual void threadmain() override
                     {
-                        owner.processMessage(handler.getClear());
+                        owner.processMessageContents(handler.getClear());
                     }
                     virtual bool stop() override
                     {
@@ -8005,7 +7996,6 @@ int CSocketConnectionListener::run()
 #endif
     Owned<IException> exception;
 
-    CReadSelectHandler connectSelectHandler(*this);
     while (!aborting)
     {
         Owned<ISocket> sock;
@@ -8052,7 +8042,7 @@ int CSocketConnectionListener::run()
             // After that, the socket will be removed from the connectSelectHamndler,
             // a CMPChannel will be estalbished, and the socket will be added to the MP CMPPacketReader select handler.
             // See handleAcceptedSocket.
-            connectSelectHandler.add(sock);
+            CReadSelectHandler::add(sock);
         }
         else
         {
@@ -8095,3 +8085,33 @@ void CSocketConnectionListener::stop()
     }
 }
 
+
+class ConcreteConnectionLister : public CSocketConnectionListener
+{
+public:
+    ConcreteConnectionLister(unsigned port) : CSocketConnectionListener(port, 0, false, 0, 0)
+    {
+
+    }
+
+    virtual bool onlyProcessFirstRead() const override
+    {
+        return false;
+    }
+
+    virtual unsigned getMessageSize(const void * header) const override
+    {
+        return *(const unsigned *)header;
+    }
+
+    virtual CReadSocketHandler *createSocketHandler(ISocket *sock) override
+    {
+        //Header size is 64B, max variable to read is 64K
+        return new CReadSocketHandler(*this, sock, 64, 0x10000);
+    }
+
+    virtual void processMessageContents(CReadSocketHandler * ownedSocketHandler)
+    {
+        ownedSocketHandler->Release();
+    }
+};
