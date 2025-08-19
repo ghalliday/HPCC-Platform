@@ -53,6 +53,7 @@
 #include <stdio.h>
 #endif
 #include <algorithm>
+#include <thread>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -7572,16 +7573,32 @@ extern jlib_decl void shutdownAndCloseNoThrow(ISocket * optSocket)
 
 //---------------------------------------------------------------------------------------------------------------------
 
+class CReadSocketHandler;
+interface IMessageProcessor
+{
+    virtual bool processMessage(CReadSocketHandler * ownedSocket) = 0;
+};
+
+//This is the interface called by the read socket handler when messages are read or the socket is closed
+interface ISockerMessageProcessor
+{
+    virtual bool onlyProcessFirstRead() const = 0;                      // Does this only handle one read request, or are multiple messages processed
+    virtual unsigned getMessageSize(const void * header) const = 0;     // For variable length messages, given the header, how big is the rest?
+    virtual void processMessage(CReadSocketHandler * socket) = 0;
+    virtual void closeConnection(CReadSocketHandler * socket, IJSOCK_Exception * exception) = 0;
+};
+
 // This class is used to process reads that are notified from a select/epoll handler
 // There is a minimum and maximum message size, and the option to only process a single
 // message, or continue processing multiple messages.
-class CSocketHandlerBase : public CInterfaceOf<ISocketSelectNotify>
+class CReadSocketHandler : public CInterfaceOf<ISocketSelectNotify>
 {
-    Owned<ISocket> sock;
+    ISockerMessageProcessor & processor;
+    Linked<ISocket> sock;
     StringBuffer peerHostText;
     StringBuffer peerEndpointText;
     MemoryBuffer buffer;
-    cycle_t createTime = 0;
+    cycle_t lastActivityCycles = 0;
     size32_t readSoFar = 0;
     size32_t minSize = 0;               // The minimum size to read before the request is valid
     size32_t requiredSize = 0;          // How much data should be read - set for fixed or variable size
@@ -7589,9 +7606,10 @@ class CSocketHandlerBase : public CInterfaceOf<ISocketSelectNotify>
     CriticalSection crit;
     bool closedOrHandled = false;
 public:
-    CSocketHandlerBase(ISocket *_sock, size32_t _minSize, size32_t _maxSize) : sock(_sock), minSize(_minSize), maxReadSize(_maxSize)
+    CReadSocketHandler(ISockerMessageProcessor & _processor, ISocket *_sock, size32_t _minSize, size32_t _maxSize)
+     : processor(_processor), sock(_sock), minSize(_minSize), maxReadSize(_maxSize)
     {
-        createTime = get_cycles_now();
+        lastActivityCycles = get_cycles_now();
         SocketEndpoint peerEP;
         sock->getPeerEndpoint(peerEP);
         peerEP.getHostText(peerHostText); // always used by handleAcceptedSocket
@@ -7607,9 +7625,9 @@ public:
     {
         return buffer;
     }
-    cycle_t queryCreateTime() const
+    cycle_t queryLastActivityTime() const
     {
-        return createTime;
+        return lastActivityCycles;
     }
     size32_t queryReadSoFar() const
     {
@@ -7637,7 +7655,7 @@ public:
 
     bool closeIfTimedout(cycle_t now, cycle_t timeoutCycles)
     {
-        if ((now - createTime) >= timeoutCycles)
+        if ((now - lastActivityCycles) >= timeoutCycles)
             return close();
 
         return false;
@@ -7645,47 +7663,53 @@ public:
     // ISocketSelectNotify impl.
     virtual bool notifySelected(ISocket *sock, unsigned selected) override
     {
-        CLeavableCriticalBlock b(crit);
-        if (closedOrHandled)
-            return false;
-
         Owned<IJSOCK_Exception> exception;
-        try
         {
-            size32_t toRead = requiredSize ? requiredSize : maxReadSize;
-            buffer.ensureCapacity(toRead);
+            CLeavableCriticalBlock b(crit);
+            if (closedOrHandled)
+                return false;
 
-            void * target = (byte *)buffer.bufferBase() + readSoFar;
-            size32_t rd = 0;
-            sock->readtms(target, 0, toRead-readSoFar, rd, 60000); // long enough!
-            readSoFar += rd;
-            buffer.setLength(readSoFar);
-
-            if (!requiredSize && (readSoFar >= minSize))
-                requiredSize = getRequiredSize();
-
-            if (requiredSize && (readSoFar >= requiredSize))
+            lastActivityCycles = get_cycles_now();
+            try
             {
-                assertex(readSoFar == requiredSize);
-                if (isOneShot())
-                {
-                    // process() will remove itself from handler, and need to avoid it doing so while in 'crit'
-                    // since the maintenance thread could also be tyring to manipulate handlers and calling closeIfTimedout()
-                    closedOrHandled = true;
-                    b.leave();
-                }
-                processMessage();
+                size32_t toRead = requiredSize ? requiredSize : maxReadSize;
+                buffer.ensureCapacity(toRead);
 
-                if (!isOneShot())
-                    prepareForNextRead();
+                void * target = (byte *)buffer.bufferBase() + readSoFar;
+                size32_t rd = 0;
+                sock->readtms(target, 0, toRead-readSoFar, rd, 60000); // long enough!
+                readSoFar += rd;
+                buffer.setLength(readSoFar);
+
+                if (!requiredSize && (readSoFar >= minSize))
+                    requiredSize = processor.getMessageSize(target);
+
+                if (requiredSize && (readSoFar >= requiredSize))
+                {
+                    assertex(readSoFar == requiredSize);
+                    bool oneShort = processor.onlyProcessFirstRead();
+                    if (oneShort)
+                    {
+                        // process() will remove itself from handler, and need to avoid it doing so while in 'crit'
+                        // since the maintenance thread could also be tyring to manipulate handlers and calling closeIfTimedout()
+                        closedOrHandled = true;
+                        b.leave();
+                    }
+                    processor.processMessage(this);
+
+                    if (!oneShort)
+                        prepareForNextRead();
+                }
+            }
+            catch (IJSOCK_Exception *e)
+            {
+                exception.setown(e);
             }
         }
-        catch (IJSOCK_Exception *e)
-        {
-            exception.setown(e);
-        }
+
+        //Change from mpcomm - must be outside the critical block, otherwise, crit could be freed while still in use
         if (exception)
-            closeConnection(exception);
+            processor.closeConnection(this, exception);
 
         return false;
     }
@@ -7696,38 +7720,120 @@ public:
         requiredSize = (minSize == maxReadSize) ? minSize : 0;
         buffer.clear();
     }
-
-    // Look at the current 
-    virtual size32_t getRequiredSize() = 0;
-    virtual void processMessage() = 0;
-    virtual void closeConnection(IJSOCK_Exception * exception) = 0;
-    virtual bool isOneShot() const = 0;
 };
 
-interface IMessageProcessor
+
+//This class uses a select handler to maintain a list of sockets that are being listened to
+//It has the option for closing sockets that have been idle for too long
+class CReadSelectHandler : public ISockerMessageProcessor
 {
-    virtual bool processMessage(CSocketHandlerBase * ownedSocket) = 0;
-};
-
-class CConnectSelectHandler
-{
-    IMessageProcessor & processor;
-    Owned<ISocketSelectHandler> selectHandler;
-    unsigned mode = SELECTMODE_READ;
-
-    // NB: Linked vs Owned, because methods will implicitly construct an object of this type
-    // which can be problematic/confusing, for example if Owned and std::list->remove is called
-    // with a pointer, it will auto instantiate a OWned<CSocketHandlerBase> and cause -ve leak.
-    std::list<Linked<CSocketHandlerBase>> handlers;
-
-    CriticalSection handlersCS;
-
-    std::thread maintenanceThread;
-    Semaphore maintenanceSem;
-
-    void clearupSocketHandlers(cycle_t timeoutCycles)
+public:
+    CReadSelectHandler(unsigned timeoutMs, unsigned _maxListenHandlerSockets)
+    : maxListenHandlerSockets(_maxListenHandlerSockets)
     {
-        std::vector<Owned<CSocketHandlerBase>> toClose;
+        constexpr unsigned socketsPerThread = 50;
+        selectHandler.setown(createSocketEpollHandler("CSocketConnectionListener", socketsPerThread));
+        //selectHandler.setown(createSocketSelectHandler());
+        selectHandler->start();
+
+        timeoutCycles = millisec_to_cycle(timeoutMs);
+        if (timeoutCycles)
+        {
+            auto maintenanceFunc = [&]
+            {
+                while (!aborting)
+                {
+                    if (maintenanceSem.wait(10000)) // check every 10s
+                        break;
+                    clearupSocketHandlers();
+                }
+            };
+            maintenanceThread = std::thread(maintenanceFunc);
+        }
+    }
+    ~CReadSelectHandler()
+    {
+        if (timeoutCycles)
+        {
+            aborting = true;
+            maintenanceSem.signal();
+            maintenanceThread.join();
+        }
+    }
+
+    void add(ISocket *sock)
+    {
+        while (true)
+        {
+            unsigned numHandlers;
+            {
+                CriticalBlock b(handlersCS);
+                numHandlers = handlers.size();
+            }
+            if (numHandlers < maxListenHandlerSockets)
+                break;
+            DBGLOG("Too many handlers (%u), waiting for some to be processed (max limit: %u)", numHandlers, maxListenHandlerSockets);
+            MilliSleep(1000);
+        }
+
+        Owned<CReadSocketHandler> socketHandler = createSocketHandler(sock);
+
+        size_t numHandlers;
+        {
+            CriticalBlock b(handlersCS);
+            constexpr unsigned mode = SELECTMODE_READ;
+            selectHandler->add(sock, mode, socketHandler); // NB: sock and handler linked by select handler
+            handlers.emplace_back(socketHandler);
+            numHandlers = handlers.size();
+        }
+        if (0 == (numHandlers % 100)) // for info. log at each 100 boundary
+            DBGLOG("handlers = %u", (unsigned)numHandlers);
+    }
+
+    void close(CReadSocketHandler &socketHandler, IJSOCK_Exception *exception)
+    {
+        unsigned sofar = socketHandler.queryReadSoFar();
+        if (sofar) // read something
+        {
+            VStringBuffer errMsg("Invalid number of connection bytes (%u) serialized from: %s", sofar, socketHandler.queryPeerEndpointText());
+            FLLOG(MCoperatorWarning, "%s", errMsg.str());
+        }
+
+        Linked<CReadSocketHandler> handler = &socketHandler;
+        {
+            CriticalBlock b(handlersCS);
+            selectHandler->remove(socketHandler.querySocket());
+            handlers.remove(&socketHandler);
+        }
+        handler->querySocket()->close();
+    }
+
+    virtual void processMessage(CReadSocketHandler *socketHandler) override
+    {
+        Linked<CReadSocketHandler> handler = socketHandler;
+        if (onlyProcessFirstRead())
+        {
+            CriticalBlock b(handlersCS);
+            selectHandler->remove(socketHandler->querySocket());
+            handlers.remove(socketHandler);
+        }
+
+        processMessageContents(handler.getClear());
+    }
+
+    virtual CReadSocketHandler *createSocketHandler(ISocket *sock)
+    {
+        return new CReadSocketHandler(*this, sock, 0, 0);
+    }
+
+    virtual void processMessageContents(CReadSocketHandler * ownedSocketHandler) = 0;
+
+protected:
+    void clearupSocketHandlers()
+    {
+        assertex(timeoutCycles);
+
+        std::vector<Owned<CReadSocketHandler>> toClose;
         {
             cycle_t nowCycles = get_cycles_now();
             CriticalBlock b(handlersCS);
@@ -7736,7 +7842,7 @@ class CConnectSelectHandler
             {
                 if (it == handlers.end())
                     break;
-                CSocketHandlerBase *socketHandler = *it;
+                CReadSocketHandler *socketHandler = *it;
                 if (socketHandler->closeIfTimedout(nowCycles, timeoutCycles))
                 {
                     toClose.push_back(LINK(socketHandler));
@@ -7755,139 +7861,237 @@ class CConnectSelectHandler
             }
             catch (IException *e)
             {
-                EXCLOG(e, "CConnectSelectHandler::maintenanceFunc");
+                EXCLOG(e, "CReadSelectHandler::maintenanceFunc");
                 e->Release();
             }
         }
     }
-public:
-    CConnectSelectHandler(IMessageProcessor &_processor) : processor(_processor)
-    {
-        selectHandler.setown(createSocketSelectHandler());
-        selectHandler->start();
 
-        auto maintenanceFunc = [&]
-        {
-            while (owner.running)
-            {
-                if (maintenanceSem.wait(10000)) // check every 10s
-                    break;
-                clearupSocketHandlers();
-            }
-        };
-        maintenanceThread = std::thread(maintenanceFunc);
-    }
-    ~CConnectSelectHandler()
-    {
-        maintenanceSem.signal();
-        maintenanceThread.join();
-    }
-    void add(ISocket *sock)
-    {
-        while (true)
-        {
-            unsigned numHandlers;
-            {
-                CriticalBlock b(handlersCS);
-                numHandlers = handlers.size();
-            }
-            if (numHandlers < owner.maxListenHandlerSockets)
-                break;
-            DBGLOG("Too many handlers (%u), waiting for some to be processed (max limit: %u)", numHandlers, owner.maxListenHandlerSockets);
-            MilliSleep(1000);
-        }
+protected:
+    Owned<ISocketSelectHandler> selectHandler;
 
-        Owned<CSocketHandlerBase> socketHandler = new CSocketHandler(*this, LINK(sock));
+    // NB: Linked vs Owned, because methods will implicitly construct an object of this type
+    // which can be problematic/confusing, for example if Owned and std::list->remove is called
+    // with a pointer, it will auto instantiate a OWned<CReadSocketHandler> and cause -ve leak.
+    std::list<Linked<CReadSocketHandler>> handlers;
+    CriticalSection handlersCS;
 
-        size_t numHandlers;
-        {
-            CriticalBlock b(handlersCS);
-            selectHandler->add(sock, mode, socketHandler); // NB: sock and handler linked by select handler
-            handlers.emplace_back(socketHandler);
-            numHandlers = handlers.size();
-        }
-        if (0 == (numHandlers % 100)) // for info. log at each 100 boundary
-            DBGLOG("handlers = %u", (unsigned)numHandlers);
-    }
-    void close(CSocketHandlerBase &socketHandler, IJSOCK_Exception *exception)
-    {
-        if (socketHandler.queryReadSoFar()) // read something
-        {
-            VStringBuffer errMsg("MP Connect Thread: invalid number of connection bytes serialized from: %s", socketHandler.queryPeerEndpointText());
-            FLLOG(MCoperatorWarning, "%s", errMsg.str());
-        }
-
-        Linked<CSocketHandlerBase> handler = &socketHandler;
-        {
-            CriticalBlock b(handlersCS);
-            selectHandler->remove(socketHandler.querySocket());
-            handlers.remove(&socketHandler);
-        }
-        handler->querySocket()->close();
-    }
-    void process(CSocketHandlerBase &socketHandler)
-    {
-        Linked<CSocketHandlerBase> handler = &socketHandler;
-        if (socketHandler.isOneShot())
-        {
-            CriticalBlock b(handlersCS);
-            selectHandler->remove(socketHandler.querySocket());
-            handlers.remove(&socketHandler);
-        }
-
-        processor.processMessage(handler.getClear());
-    }
+    std::thread maintenanceThread;
+    Semaphore maintenanceSem;
+    cycle_t timeoutCycles;
+    unsigned maxListenHandlerSockets;
+    std::atomic<bool> aborting{false};
 };
 
 // This class starts a thread that listens on a socket.  When a connection is made it adds the socket to a select handler.
 // When data is written to the socket it will call the notify handler.
-class CSocketConnectionListener : public Thread
+class CSocketConnectionListener : public Thread, implements IMessageProcessor
 {
 public:
-    CSocketConnectionListener(const SocketEndpoint & _ep, ISocketSelectNotify & _notifyHandler)
-         : Thread("CSocketConnectionListener"), ep(_ep), notifyHandler(_notifyHandler)
-    {
-        constexpr unsigned socketsPerThread = 50;
-        selectHandler.setown(createSocketEpollHandler("CSocketConnectionListener", socketsPerThread));
-        listenSocket.setown(ISocket::create(ep.port)); // MORE: Should this be passed in?  What about secure sockets?
-    }
+    CSocketConnectionListener(IMessageProcessor & _processor, unsigned port, unsigned _processPoolSize, bool _useTLS);
 
-    void start()
-    {
-        Thread::start(false);
-    }
+    void startPort(unsigned short port);
+    void stop();
 
-    void stop()
-    {
-        abort = true;
-        shutdownAndCloseNoThrow(listenSocket);
-        join();
-        abort = false;
-    }
+    virtual int run() override;
 
-    virtual int run() override
-    {
-        for (;;)
-        {
-            Owned<ISocket> sock = listenSocket->accept();
-            if (abort)
-                return 0;
+    bool checkSelfDestruct(const void *p,size32_t sz);
 
-            if (sock)
-            {
-                selectHandler->add(sock, SELECTMODE_READ | SELECTMODE_EXCEPT, &notifyHandler);
-            }
-
-
-
-        }
-
-    }
 private:
-    const SocketEndpoint ep;
-    Owned<ISocket> listenSocket; 
-    ISocketSelectNotify & notifyHandler;
-    Owned<ISocketSelectHandler> selectHandler;
-    std::atomic<bool> abort{false};
+    IMessageProcessor & processor;
+    CReadSelectHandler selectHandler;
+    Owned<ISocket> listenSocket;
+    Owned<IThreadPool> threadPool;
+    unsigned processPoolSize;
+    bool useTLS;
+    std::atomic<bool> aborting{false};
 };
+
+
+// --------------------------------------------------------
+
+CSocketConnectionListener::CSocketConnectionListener(IMessageProcessor & _processor, unsigned port, unsigned _processPoolSize, bool _useTLS)
+    : Thread("CSocketConnectionListener"), processor(_processor), processPoolSize(_processPoolSize), useTLS(_useTLS)
+{
+    if (port)
+        startPort(port);
+
+    assertex(!useTLS);
+    //if (useTLS)
+    //    secureContextServer.setown(createSecureSocketContextSecretSrv("local", nullptr, true));
+
+    PROGLOG("CSocketConnectionListener TLS: %s acceptThreadPoolSize: %u", useTLS ? "on" : "off", processPoolSize);
+}
+
+bool CSocketConnectionListener::checkSelfDestruct(const void *p,size32_t sz)
+{
+    const byte *b = (const byte *)p;
+    while (sz--)
+        if (*(b++)!=0xff)
+            return false;
+
+    try {
+        if (listenSocket) {
+            shutdownAndCloseNoThrow(listenSocket);
+            listenSocket.clear();
+        }
+    }
+    catch (...)
+    {
+        PROGLOG("CSocketConnectionListener::selfDestruct socket close failure");
+    }
+    return true;
+}
+
+void CSocketConnectionListener::startPort(unsigned short port)
+{
+    if (!listenSocket)
+    {
+        unsigned listenQueueSize = 600; // default
+        listenSocket.setown(ISocket::create(port, listenQueueSize));
+    }
+
+    if (processPoolSize)
+    {
+        class CSocketConnectionListenerFactory : public CInterfaceOf<IThreadFactory>
+        {
+            CSocketConnectionListener &owner;
+        public:
+            CSocketConnectionListenerFactory(CSocketConnectionListener &_owner) : owner(_owner)
+            {
+            }
+        // IThreadFactory
+            IPooledThread *createNew() override
+            {
+                class CMPConnectionThread : public CInterfaceOf<IPooledThread>
+                {
+                    CSocketConnectionListener &owner;
+                    Owned<CReadSocketHandler> handler;
+                public:
+                    CMPConnectionThread(CSocketConnectionListener &_owner) : owner(_owner)
+                    {
+                    }
+                // IPooledThread
+                    virtual void init(void *param) override
+                    {
+                        handler.setown((CReadSocketHandler *)param);
+                    }
+                    virtual void threadmain() override
+                    {
+                        owner.processMessage(handler.getClear());
+                    }
+                    virtual bool stop() override
+                    {
+                        return true;
+                    }
+                    virtual bool canReuse() const override
+                    {
+                        return true;
+                    }
+                };
+                return new CMPConnectionThread(owner);
+            }
+        };
+        Owned<IThreadFactory> factory = new CSocketConnectionListenerFactory(*this);
+        threadPool.setown(createThreadPool("MPConnectPool", factory, false, nullptr, processPoolSize, INFINITE));
+    }
+    Thread::start(false);
+}
+
+int CSocketConnectionListener::run()
+{
+#ifdef _TRACE
+    LOG(MCdebugInfo, "MP: Connect Thread Starting - accept loop");
+#endif
+    Owned<IException> exception;
+
+    CReadSelectHandler connectSelectHandler(*this);
+    while (!aborting)
+    {
+        Owned<ISocket> sock;
+        try
+        {
+            sock.setown(listenSocket->accept(true));
+        }
+        catch (IException *e)
+        {
+            exception.setown(e);
+        }
+        if (sock)
+        {
+#if 0
+#if defined(_USE_OPENSSL)
+            if (parent->useTLS)
+            {
+                Owned<ISecureSocket> ssock = secureContextServer->createSecureSocket(sock.getClear());
+                int tlsTraceLevel = SSLogMin;
+                if (parent->mpTraceLevel >= MPVerboseMsgThreshold)
+                    tlsTraceLevel = SSLogMax;
+                int status = ssock->secure_accept(tlsTraceLevel);
+                if (status < 0)
+                {
+                    ssock->close();
+                    PROGLOG("MP Connect Thread: failed to accept secure connection");
+                    continue;
+                }
+                sock.setown(ssock.getClear());
+            }
+#endif // OPENSSL
+#endif
+
+#ifdef _FULLTRACE
+            StringBuffer s;
+            SocketEndpoint ep1;
+            sock->getPeerEndpoint(ep1);
+            PROGLOG("MP: Connect Thread: socket accepted from %s",ep1.getEndpointHostText(s).str());
+#endif
+            sock->set_keep_alive(true);
+
+            // NB: creates a CSocketHandler that is added to the select handler.
+            // it will manage the handling of the incoming ConnectHdr header only.
+            // After that, the socket will be removed from the connectSelectHamndler,
+            // a CMPChannel will be estalbished, and the socket will be added to the MP CMPPacketReader select handler.
+            // See handleAcceptedSocket.
+            connectSelectHandler.add(sock);
+        }
+        else
+        {
+            if (!aborting)
+            {
+                if (exception)
+                {
+                    constexpr unsigned sleepSecs = 5;
+                    // Log and pause for a few seconds, because accept loop may have failed due to handle exhaustion.
+                    VStringBuffer msg("MP accept failed. Accept loop will be paused for %u seconds", sleepSecs);
+                    EXCLOG(exception, msg.str());
+                    exception.clear();
+                    MilliSleep(sleepSecs * 1000);
+                }
+                else // not sure this can ever happen (no exception, still running, and sock==nullptr)
+                    LOG(MCdebugInfo, "MP Connect Thread accept returned NULL");
+            }
+        }
+    }
+    return 0;
+}
+
+
+void CSocketConnectionListener::stop()
+{
+    if (!aborting)
+    {
+        aborting = true;
+        listenSocket->cancel_accept();
+
+        // ensure CSocketConnectionListener::run() has exited, and is not accepting more sockets
+        if (!join(1000*60*5))   // should be pretty instant
+            printf("CSocketConnectionListener::stop timed out\n");
+
+        if (processPoolSize)
+        {
+            if (!threadPool->joinAll(true, 1000*60*5))
+                printf("CSocketConnectionListener::stop threadPool->joinAll timed out\n");
+        }
+    }
+}
 
