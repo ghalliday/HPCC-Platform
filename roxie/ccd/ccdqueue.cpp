@@ -254,8 +254,6 @@ interface IRoxieWorkerCommunicator : public IInterface
 {
     virtual void startListening(IRoxieWorkerRequestReceiver & _receiver) = 0;
     virtual void stopListening() = 0;
-    // This may need rethinking
-    virtual void setNextTimeout(unsigned value) = 0;
     virtual size32_t queryMaxPacketSize() const = 0;
 
     virtual size32_t sendToWorker(size32_t len, const void * data, const SocketEndpoint &ep) = 0;
@@ -263,8 +261,6 @@ interface IRoxieWorkerCommunicator : public IInterface
 
 
 static Owned<IRoxieWorkerCommunicator> workerCommunicator;
-// This static thread id is used to ensure that processing functions are only ever called from a single thread
-static ThreadId roxiePacketReaderThread = 0;
 
 
 //------------------------------------------------------------------------------------------------------------
@@ -307,8 +303,6 @@ public:
 #else
         adjustPriority(1);
 #endif
-        roxiePacketReaderThread = GetCurrentThreadId();
-
         if (traceLevel)
             DBGLOG("RoxieSocketQueueManager::run() starting: doIbytiDelay=%s minIbytiDelay=%u initIbytiDelay=%u",
                     doIbytiDelay?"YES":"NO", minIbytiDelay, initIbytiDelay);
@@ -324,10 +318,9 @@ public:
                 void * buffer = mb.reserve(maxPacketSize);
 
                 unsigned l;
-                multicastSocket->readtms(buffer, sizeof(RoxiePacketHeader), maxPacketSize, l, nextTimeout);
+                multicastSocket->readtms(buffer, sizeof(RoxiePacketHeader), maxPacketSize, l, defaultTimeout);
 
                 mb.setLength(l);
-                nextTimeout = defaultTimeout;
                 receiver->processMessage(mb);
             }
             catch (IException *E)
@@ -370,11 +363,6 @@ public:
         return maxPacketSize;
     }
 
-    virtual void setNextTimeout(unsigned value) override
-    {
-        nextTimeout = value;
-    }
-
     virtual void startListening(IRoxieWorkerRequestReceiver & _receiver) override
     {
         assertex(!running);
@@ -404,7 +392,6 @@ protected:
     IRoxieWorkerRequestReceiver * receiver{nullptr};
     size32_t maxPacketSize = 0;
     std::atomic<bool> running = { false };
-    unsigned nextTimeout = 5000;
     unsigned defaultTimeout = 5000;
 };
 
@@ -1147,7 +1134,8 @@ public:
     }
     void noteOrphan(const RoxiePacketHeader &hdr)
     {
-        assert(GetCurrentThreadId()==roxiePacketReaderThread);
+        // RoxieSocketQueueManager::ibytiCrit must be locked while this is executing
+
         unsigned now = msTick();
         // We could trace that the buffer may be too small, if (orphans[tail].activityId >= now)
         orphans[tail].copy(hdr);
@@ -1158,7 +1146,8 @@ public:
     }
     bool lookup(const RoxiePacketHeader &hdr) const
     {
-        assert(GetCurrentThreadId()==roxiePacketReaderThread);
+        // RoxieSocketQueueManager::ibytiCrit must be locked while this is executing
+
         unsigned now = msTick();
         unsigned lookat = tail;
         do
@@ -2060,7 +2049,8 @@ public:
     }
     bool doIBYTI(const RoxiePacketHeader &ibyti)
     {
-        assert(GetCurrentThreadId()==roxiePacketReaderThread);
+        // RoxieSocketQueueManager::ibytiCrit must be locked while this is executing
+
         DelayedPacketEntry *finger = head;
         while (finger)
         {
@@ -2081,8 +2071,9 @@ public:
 
     void append(ISerializedRoxieQueryPacket *packet, unsigned expires)
     {
+        // RoxieSocketQueueManager::ibytiCrit must be locked while this is executing
         // Goes on the end. But percolate the expiry time backwards
-        assert(GetCurrentThreadId()==roxiePacketReaderThread);
+
         packet->noteQueued(0);
         DelayedPacketEntry *newEntry = new DelayedPacketEntry(packet, expires);
         if (doTrace(traceRoxiePackets))
@@ -2110,7 +2101,8 @@ public:
     // Move any that we are done waiting for our buddy onto the active queue
     void checkExpired(unsigned now, RoxieQueue &slaQueue, RoxieQueue &hiQueue, RoxieQueue &loQueue, RoxieQueue &bgQueue)
     {
-        assert(GetCurrentThreadId()==roxiePacketReaderThread);
+        // RoxieSocketQueueManager::ibytiCrit must be locked while this is executing
+
         DelayedPacketEntry *finger = head;
         while (finger)
         {
@@ -2148,19 +2140,17 @@ public:
     }
 
     // How long until the next time we want to call checkExpires() ?
-    unsigned timeout(unsigned now) const
+    unsigned getNextExpiryTime(unsigned earliestExpiryTime) const
     {
-        assert(GetCurrentThreadId()==roxiePacketReaderThread);
+        // RoxieSocketQueueManager::ibytiCrit must be locked while this is executing
         if (head)
         {
-            int delay = (int) (head->waitExpires - now);
+            int delay = (int) (head->waitExpires - earliestExpiryTime);
             if (delay <= 0)
-                return 0;
-            else
-                return (unsigned) delay;
+                return head->waitExpires;
         }
-        else
-            return (unsigned) -1;
+
+        return earliestExpiryTime;
     }
 
 private:
@@ -2198,16 +2188,11 @@ public:
             maxSeen = subchannel;
         return queues[subchannel];
     }
-    unsigned timeout(unsigned now) const
+    unsigned getNextExpiryTime(unsigned earliestExpiryTime) const
     {
-        unsigned min = (unsigned) -1;
         for (unsigned queue = 0; queue <= maxSeen; queue++)
-        {
-            unsigned t = queues[queue].timeout(now);
-            if (t < min)
-                min = t;
-        }
-        return min;
+            earliestExpiryTime = queues[queue].getNextExpiryTime(earliestExpiryTime);
+        return earliestExpiryTime;
     }
     void checkExpired(unsigned now, RoxieQueue &slaQueue, RoxieQueue &hiQueue, RoxieQueue &loQueue, RoxieQueue &bgQueue)
     {
@@ -2232,7 +2217,9 @@ public:
     {
         // Note - there are normally no more than a couple of channels on a single agent.
         // If that were to change we could make this a fixed size array
-        assert(GetCurrentThreadId()==roxiePacketReaderThread);
+
+        // RoxieSocketQueueManager::ibytiCrit must be locked while this is executing - could possibly be a different crit just for the channel list.
+        // or even better if the channels were fixed and preallocated.
         ForEachItemIn(idx, channels)
         {
             DelayedPacketQueueChannel &i = channels.item(idx);
@@ -2242,16 +2229,12 @@ public:
         channels.append(*new DelayedPacketQueueChannel(channel));
         return channels.tos().queryQueue(subchannel);
     }
-    unsigned timeout(unsigned now) const
+    unsigned getNextExpiryTime(unsigned earliestExpiryTime) const
     {
-        unsigned ret = (unsigned) -1;
         ForEachItemIn(idx, channels)
-        {
-            unsigned t = channels.item(idx).timeout(now);
-            if (t < ret)
-                ret = t;
-        }
-        return ret;
+            earliestExpiryTime = channels.item(idx).getNextExpiryTime(earliestExpiryTime);
+
+        return earliestExpiryTime;
     }
     void checkExpired(unsigned now, RoxieQueue &slaQueue, RoxieQueue &hiQueue, RoxieQueue &loQueue, RoxieQueue &bgQueue)
     {
@@ -2266,6 +2249,8 @@ private:
 
 //---------------------------------------------------------------------------------------------------------------------
 
+static constexpr unsigned maxDelayTimeout = 0x3fffffff;
+
 class RoxieSocketQueueManager : public RoxieReceiverBase, public IRoxieWorkerRequestReceiver
 {
 protected:
@@ -2276,6 +2261,7 @@ protected:
     unsigned maxPacketSize = 0;
     StringContextLogger logctx;
     DelayedPacketQueueManager delayed;
+    CriticalSection ibytiCrit; // Protect the ibyti structures against concurrent access - could reduce granularity later
     class WorkerReceiverTracker : public TimeDivisionTracker<6, false>
     {
     public:
@@ -2300,8 +2286,91 @@ protected:
         }
     } timeTracker;
 
+    class DelayedPacketProcessor : public Thread
+    {
+    public:
+        DelayedPacketProcessor(RoxieSocketQueueManager & _parent) : Thread("DelayedPacketProcessor"), parent(_parent)
+        {
+        }
+
+        virtual int run() override
+        {
+            firstWakeTime = msTick() + maxDelayTimeout;
+            for (;;)
+            {
+                unsigned wake = firstWakeTime.load();
+                unsigned now = msTick();
+                //If there are no packets ready to process immediately then wait until the first is ready,
+                //or we are signalled that an earlier packet has now been queued, or we are terminating.
+                if ((int)(wake - now) > 0)
+                {
+                    unsigned timeout = wake - now;
+                    //Arbitrary limit
+                    if (timeout > 5000)
+                        timeout = 5000;
+                    wakeEarly.wait(timeout);
+
+                    wake = firstWakeTime.load();
+                    now = msTick();
+                }
+                if (abort)
+                    break;
+
+                //Could there be any delayed packets which are now ready to be processed?
+                if ((int)(wake - now) <= 0)
+                {
+                    //Exchange the wake time for a large time in the future, so that any packets that
+                    //are added in the meantime will cleanly adjust the wake time
+                    while (!firstWakeTime.compare_exchange_weak(wake, now + maxDelayTimeout))
+                    {
+                    }
+
+                    // Update the wake time if lower than current
+                    unsigned newWakeTime = parent.processDelayedPackets(now);
+                    unsigned curWakeTime = firstWakeTime.load();
+                    while ((int)(newWakeTime - curWakeTime) < 0)
+                    {
+                        if (firstWakeTime.compare_exchange_weak(curWakeTime, newWakeTime))
+                            break;
+                    }
+                }
+            }
+            abort = false;
+            return 0;
+        }
+
+        void stop()
+        {
+            abort = true;
+            wakeEarly.signal();
+        }
+
+        void noteNewDelayedPacked(unsigned newWakeTime)
+        {
+            //If the new packet has an earlier wake time than the lowest we have, then update the lowerst wake time
+            //and signal the semaphore to wake the processor thread - so it can adjust the sleep time.
+            unsigned curWakeTime = firstWakeTime.load();
+            while ((int)(newWakeTime - curWakeTime) < 0)
+            {
+                if (firstWakeTime.compare_exchange_weak(curWakeTime, newWakeTime))
+                {
+                    wakeEarly.signal();
+                    break;
+                }
+            }
+        }
+
+    protected:
+        RoxieSocketQueueManager & parent;
+        Semaphore wakeEarly;
+        std::atomic<unsigned> firstWakeTime{0};
+        std::atomic<bool> abort{false};
+
+    } delayedPacketProcessor;
+
 public:
-    RoxieSocketQueueManager(unsigned _numWorkers) : RoxieReceiverBase(_numWorkers), logctx("RoxieSocketQueueManager"), timeTracker("WorkerUdpReader", 60)
+    RoxieSocketQueueManager(unsigned _numWorkers) : RoxieReceiverBase(_numWorkers),
+        logctx("RoxieSocketQueueManager"), timeTracker("WorkerUdpReader", 60),delayedPacketProcessor(*this)
     {
         maxPacketSize = workerCommunicator->queryMaxPacketSize();
     }
@@ -2511,6 +2580,8 @@ public:
 
     void processMessage(MemoryBuffer &mb, RoxiePacketHeader &header, RoxieQueue &queue)
     {
+        CriticalBlock block(ibytiCrit);
+
         // NOTE - this thread needs to do as little as possible - just read packets and queue them up - otherwise we can get packet loss due to buffer overflow
         // DO NOT put tracing on this thread except at very high tracelevels!
         if ((header.activityId & ~ROXIE_PRIORITY_MASK) == 0)
@@ -2637,7 +2708,11 @@ public:
                                 delay += getIbytiDelay(header.subChannels[subChannel]);
                         }
                         if (delay)
-                            delayed.queryQueue(header.channel, mySubchannel).append(packet.getClear(), msTick()+delay);
+                        {
+                            unsigned expiryTime = msTick() + delay;
+                            delayed.queryQueue(header.channel, mySubchannel).append(packet.getClear(), expiryTime);
+                            delayedPacketProcessor.noteNewDelayedPacked(expiryTime);
+                        }
                         else
                             queue.enqueueUnique(packet.getClear(), mySubchannel, 0);
                     }
@@ -2652,7 +2727,11 @@ public:
                             delay += getIbytiDelay(header.subChannels[subChannel]);
                     }
                     if (delay)
-                        delayed.queryQueue(header.channel, mySubchannel).append(packet.getClear(), msTick()+delay);
+                    {
+                        unsigned expiryTime = msTick() + delay;
+                        delayed.queryQueue(header.channel, mySubchannel).append(packet.getClear(), expiryTime);
+                        delayedPacketProcessor.noteNewDelayedPacked(expiryTime);
+                    }
                     else
                         queue.enqueue(packet.getClear(), 0);
                 }
@@ -2694,24 +2773,28 @@ public:
             else
                 throw;
         }
+    }
 
-        delayed.checkExpired(msTick(), slaQueue, hiQueue, loQueue, bgQueue);
-        unsigned timeout = delayed.timeout(msTick());
-        if (timeout > 5000)
-            timeout = 5000;
-        workerCommunicator->setNextTimeout(timeout);
+    unsigned processDelayedPackets(unsigned now)
+    {
+        CriticalBlock block(ibytiCrit);
+        delayed.checkExpired(now, slaQueue, hiQueue, loQueue, bgQueue);
+        return delayed.getNextExpiryTime(now + maxDelayTimeout);
     }
 
     void start() 
     {
         RoxieReceiverBase::start();
         timeTracker.reset(WorkerReceiverTracker::waiting);
+        delayedPacketProcessor.start(false);
         workerCommunicator->startListening(*this);
     }
 
     void stop() 
     {
         workerCommunicator->stopListening();
+        delayedPacketProcessor.stop();
+        delayedPacketProcessor.join();
         RoxieReceiverBase::stop();
     }
 
