@@ -30,6 +30,7 @@
 #include "udptrs.hpp"
 #include "udpipmap.hpp"
 #include "udpmsgpk.hpp"
+
 #include "roxiemem.hpp"
 #include "roxie.hpp"
 
@@ -41,6 +42,8 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #endif
+
+#include "tcptrr.hpp"
 
 #include <thread>
 
@@ -1675,7 +1678,7 @@ IReceiveManager *createReceiveManager(int server_flow_port, int data_port, int c
                                       int udpQueueSize, bool encrypted)
 {
     if (useTcpTransport)
-        return createUdpReceiveManager(server_flow_port, data_port, client_flow_port, udpQueueSize, encrypted);
+        return createTcpReceiveManager(server_flow_port, data_port, client_flow_port, udpQueueSize, encrypted);
     else
         return createUdpReceiveManager(server_flow_port, data_port, client_flow_port, udpQueueSize, encrypted);
 }

@@ -159,4 +159,29 @@ public:
     virtual void processMessageContents(CReadSocketHandler * ownedSocketHandler) override;
 };
 
+
+struct HashSocketEndpoint
+{
+    unsigned operator()(const SocketEndpoint & ep) const { return ep.hash(0x12345678); }
+};
+
+// MORE: This needs extending so that the items in the hash table know their ip address,
+// and can automatically reconnect if they are disconnected.
+class SECURESOCKET_API CTcpSender
+{
+public:
+    CTcpSender(bool _lowLatency) : lowLatency(_lowLatency) {}
+
+    size32_t sendToTarget(const void * data, size32_t len, const SocketEndpoint &ep);
+
+protected:
+    ISocket * getWorkerSocket(const SocketEndpoint &ep);
+    ISocket * connectTo(const SocketEndpoint &ep);
+
+protected:
+    CriticalSection crit;
+    const bool lowLatency;
+    std::unordered_map<SocketEndpoint, Owned<ISocket>, HashSocketEndpoint > workerSockets;
+};
+
 #endif

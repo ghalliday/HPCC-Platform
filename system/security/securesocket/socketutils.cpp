@@ -488,3 +488,59 @@ void ConcreteConnectionLister::processMessageContents(CReadSocketHandler * owned
 {
     ownedSocketHandler->Release();
 }
+
+//---------------------------------------------------------------------------------------------------------------------
+
+size32_t CTcpSender::sendToTarget(const void * data, size32_t len, const SocketEndpoint &ep)
+{
+    for (;;)
+    {
+        try
+        {
+            Owned<ISocket> sock = getWorkerSocket(ep);
+            if (lowLatency)
+                sock->set_quick_ack(true);
+            return sock->write(data, len);
+        }
+        catch (IException * e)
+        {
+            //Force a reconnect next time - could add retry loop and logic...
+            CriticalBlock b(crit);
+            workerSockets.erase(ep);
+
+            //If the socket has closed then try and reconnect
+            throw;
+        }
+    }
+}
+
+ISocket * CTcpSender::getWorkerSocket(const SocketEndpoint &ep)
+{
+    {
+        CriticalBlock b(crit);
+        auto match = workerSockets.find(ep);
+        if (match != workerSockets.end())
+            return match->second.getLink();
+    }
+
+    Owned<ISocket> workerSocket = connectTo(ep);
+
+    {
+        CriticalBlock b(crit);
+        auto match = workerSockets.find(ep);
+        if (match != workerSockets.end())
+            return match->second.getLink();
+        workerSockets.emplace(ep, workerSocket);
+    }
+
+    return workerSocket.getClear();
+}
+
+ISocket * CTcpSender::connectTo(const SocketEndpoint &ep)
+{
+    Owned<ISocket> targetSocket = ISocket::connect_timeout(ep, 5000);
+    if (lowLatency)
+        targetSocket->set_nagle(false);
+    //MORE: What about retries.  Async writing etc.??
+    return targetSocket.getClear();
+}

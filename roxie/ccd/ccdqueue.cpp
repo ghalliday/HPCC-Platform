@@ -414,14 +414,14 @@ public:
 
     virtual unsigned getMessageSize(const void * header) const override
     {
-        return *(const unsigned *)header; // packet length is in the 1st 4 bytes
+        const RoxiePacketHeader * packetHeader = (const RoxiePacketHeader *)header;
+        return packetHeader->packetlength;
     }
 
     virtual CReadSocketHandler *createSocketHandler(ISocket *sock) override
     {
         //Header size is 64B, max variable to read is 64K
         size32_t maxInitialReadSize = 0x10000; // 64K
-        sock->set_nagle(false);
         return new CReadSocketHandler(*this, sock, sizeof(RoxiePacketHeader), maxInitialReadSize);
     }
 
@@ -435,69 +435,12 @@ protected:
     IRoxieWorkerRequestReceiver & receiver;
 };
 
-struct HashSocketEndpoint
-{
-    unsigned operator()(const SocketEndpoint & ep) const { return ep.hash(0x12345678); }
-};
 
-class RoxieTcpSender
-{
-public:
-    virtual size32_t sendToTarget(const void * data, size32_t len, const SocketEndpoint &ep)
-    {
-        for (;;)
-        {
-            try
-            {
-                Owned<ISocket> sock = getWorkerSocket(ep);
-                sock->set_quick_ack(true);
-                return sock->write(data, len);
-            }
-            catch (IException * e)
-            {
-                //If the socket has closed then try and reconnect
-                throw;
-            }
-        }
-    }
-
-protected:
-    ISocket * getWorkerSocket(const SocketEndpoint &ep)
-    {
-        {
-            CriticalBlock b(crit);
-            auto match = workerSockets.find(ep);
-            if (match != workerSockets.end())
-                return match->second.getLink();
-        }
-
-        Owned<ISocket> workerSocket = connectTo(ep);
-
-        {
-            CriticalBlock b(crit);
-            auto match = workerSockets.find(ep);
-            if (match != workerSockets.end())
-                return match->second.getLink();
-            workerSockets.emplace(ep, workerSocket);
-        }
-
-        return workerSocket.getClear();
-    }
-
-    ISocket * connectTo(const SocketEndpoint &ep)
-    {
-        Owned<ISocket> targetSocket = ISocket::connect_timeout(ep, 5000);
-        //MORE: What about retries.  Async writing etc.??
-        return targetSocket.getClear();
-    }
-
-protected:
-    CriticalSection crit;
-    std::unordered_map<SocketEndpoint, Owned<ISocket>, HashSocketEndpoint > workerSockets;
-};
 class RoxieTcpWorkerCommunicator : public CInterfaceOf<IRoxieWorkerCommunicator>
 {
 public:
+    RoxieTcpWorkerCommunicator() : sender(true) {}
+
     virtual size32_t queryMaxPacketSize() const override
     {
         return maxPacketSize;
@@ -528,7 +471,7 @@ public:
 
 protected:
     std::unique_ptr<RoxieTcpListener> listener;
-    RoxieTcpSender sender;
+    CTcpSender sender;
     size32_t maxPacketSize = 0x40000; // Allow up to 256K.
     std::atomic<bool> running = { false };
 };

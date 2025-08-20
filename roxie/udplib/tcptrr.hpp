@@ -18,7 +18,7 @@
 #ifndef TCPTRR_HPP__
 #define TCPTRR_HPP__
 
-#include "udpsha.hpp"
+//#include "udpsha.hpp"
 
 /* to do
      put in check to make sure that multicast is enabled on network.
@@ -26,6 +26,6 @@
 */
 
 IReceiveManager *createTcpReceiveManager(int server_flow_port, int data_port, int client_flow_port,
-                                      int udpQueueSize, bool encrypted)
+                                      int udpQueueSize, bool encrypted);
 
 #endif
