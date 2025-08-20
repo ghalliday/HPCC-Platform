@@ -26,7 +26,10 @@
 project( udplib ) 
 
 set (   SRCS
+        tcptrr.cpp
+        tcptrs.cpp
         udpmsgpk.cpp
+        udppack.cpp
         udpsha.cpp
         udptrr.cpp
         udptrs.cpp

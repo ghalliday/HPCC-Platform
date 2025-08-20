@@ -1,6 +1,6 @@
 /*##############################################################################
 
-    HPCC SYSTEMS software Copyright (C) 2025 HPCC Systems®.
+    HPCC SYSTEMS software Copyright (C) 2012 HPCC Systems®.
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -35,8 +35,6 @@
 #include <math.h>
 #include <atomic>
 #include <algorithm>
-
-#include "tcptrs.hpp"
 
 using roxiemem::DataBuffer;
 
@@ -76,11 +74,7 @@ using roxiemem::DataBuffer;
  */
 
 // UdpResentList keeps a copy of up to TRACKER_BITS previously sent packets so we can send them again
-RelaxedAtomic<unsigned> okToSendTimeouts;
-RelaxedAtomic<unsigned> packetsResent;
-RelaxedAtomic<unsigned> flowRequestsSent;
-RelaxedAtomic<unsigned> flowPermitsReceived;
-RelaxedAtomic<unsigned> dataPacketsSent;
+static RelaxedAtomic<unsigned> okToSendTimeouts;
 
 static unsigned lastResentReport = msTick();
 static unsigned lastOkToSendTimeouts = 0;
@@ -639,7 +633,7 @@ public:
         return false;
     }
 
-    bool removeData(void *key, PKT_CMP_FUN pkCmpFn) 
+    bool removeData(void *key, PKT_CMP_FUN pkCmpFn)
     {
         // Used after receiving an abort, to avoid sending data that is no longer required
         // Note that we don't attempt to remove packets that have already been sent from the resend list
@@ -679,7 +673,7 @@ public:
             requestToSendNew();
     }
 
-    DataBuffer *popQueuedData() 
+    DataBuffer *popQueuedData()
     {
         DataBuffer *buffer;
         for (unsigned i = 0; i < numQueues; i++)
@@ -728,7 +722,7 @@ public:
         assert(numQueues > 0);
         if (!ip.isNull())
         {
-            try 
+            try
             {
                 SocketEndpoint sendFlowEp(_sendFlowPort, ip);
                 SocketEndpoint dataEp(_dataPort, ip);
@@ -759,13 +753,13 @@ public:
                         DBGLOG("UdpSender: sendbuffer set for local socket (size=%d)", udpLocalWriteSocketSize);
                 }
             }
-            catch(IException *e) 
+            catch(IException *e)
             {
                 StringBuffer error, ipstr;
                 DBGLOG("UdpSender: udp_connect failed %s %s", ip.getHostText(ipstr).str(), e->errorMessage(error).str());
                 throw;
             }
-            catch(...) 
+            catch(...)
             {
                 StringBuffer ipstr;
                 DBGLOG("UdpSender: udp_connect failed %s %s", ip.getHostText(ipstr).str(), "Unknown error");
@@ -775,7 +769,7 @@ public:
             maxPktsPerQ = new int[numQueues];
             maxPktsPerQ[0] = INT_MAX;   // Always send out-of-band first
             output_queue[0].set_queue_size(_queueSize);
-            for (unsigned j = 1; j < numQueues; j++) 
+            for (unsigned j = 1; j < numQueues; j++)
             {
                 output_queue[j].set_queue_size(_queueSize);
                 maxPktsPerQ[j] = (int) pow((double)udpOutQsPriority, (double)numQueues - j - 1);
@@ -807,7 +801,7 @@ public:
 
 };
 
-class CUdpSendManager : implements ISendManager, public CInterface
+class CTcpSendManager : implements ISendManager, public CInterface
 {
     class StartedThread : public Thread
     {
@@ -848,7 +842,7 @@ class CUdpSendManager : implements ISendManager, public CInterface
     class send_resend_flow : public StartedThread
     {
         // Check if any senders have timed out
-        CUdpSendManager &parent;
+        CTcpSendManager &parent;
         Semaphore terminated;
 
         virtual int doRun() override
@@ -932,7 +926,7 @@ class CUdpSendManager : implements ISendManager, public CInterface
         }
 
     public:
-        send_resend_flow(CUdpSendManager &_parent)
+        send_resend_flow(CTcpSendManager &_parent)
             : StartedThread("UdpLib::send_resend_flow"), parent(_parent)
         {
             start(false);
@@ -947,16 +941,16 @@ class CUdpSendManager : implements ISendManager, public CInterface
 
     };
 
-    class send_receive_flow : public StartedThread 
+    class send_receive_flow : public StartedThread
     {
-        CUdpSendManager &parent;
+        CTcpSendManager &parent;
         int      receive_port;
         Owned<ISocket> flow_socket;
     public:
-        send_receive_flow(CUdpSendManager &_parent, int r_port) : StartedThread("UdpLib::send_receive_flow"), parent(_parent)
+        send_receive_flow(CTcpSendManager &_parent, int r_port) : StartedThread("UdpLib::send_receive_flow"), parent(_parent)
         {
             receive_port = r_port;
-            if (check_max_socket_read_buffer(udpFlowSocketsSize) < 0) 
+            if (check_max_socket_read_buffer(udpFlowSocketsSize) < 0)
                 throw MakeStringException(ROXIE_UDP_ERROR, "System Socket max read buffer is less than %i", udpFlowSocketsSize);
 #ifdef SOCKET_SIMULATION
             if (isUdpTestMode)
@@ -974,28 +968,28 @@ class CUdpSendManager : implements ISendManager, public CInterface
             DBGLOG("UdpSender[%s]: rcv_flow_socket created port=%d sockbuffsize=%d actualsize=%d", parent.myId, receive_port, udpFlowSocketsSize, actualSize);
             start(false);
         }
-        
-        ~send_receive_flow() 
+
+        ~send_receive_flow()
         {
             running = false;
             shutdownAndCloseNoThrow(flow_socket);
             join();
         }
-        
-        virtual int doRun() 
+
+        virtual int doRun()
         {
             if (udpTraceLevel > 0)
                 DBGLOG("UdpSender[%s]: send_receive_flow started", parent.myId);
 #ifdef __linux__
             setLinuxThreadPriority(2);
 #endif
-            while(running) 
+            while(running)
             {
                 UdpPermitToSendMsg f = { flowType::ok_to_send, 0, 0, { }, { } };
                 unsigned readsize = udpResendLostPackets ? sizeof(UdpPermitToSendMsg) : offsetof(UdpPermitToSendMsg, seen);
-                while (running) 
+                while (running)
                 {
-                    try 
+                    try
                     {
                         unsigned int res;
                         flow_socket->readtms(&f, readsize, readsize, res, 5000);
@@ -1022,11 +1016,11 @@ class CUdpSendManager : implements ISendManager, public CInterface
                             parent.receiversTable[f.destNode].requestAcknowledged();
                             break;
 
-                        default: 
+                        default:
                             DBGLOG("UdpSender[%s]: received unknown flow message type=%d", parent.myId, f.cmd);
                         }
                     }
-                    catch (IException *e) 
+                    catch (IException *e)
                     {
                         if (running && e->errorCode() != JSOCKERR_timeout_expired)
                         {
@@ -1035,9 +1029,9 @@ class CUdpSendManager : implements ISendManager, public CInterface
                         }
                         e->Release();
                     }
-                    catch (...) 
+                    catch (...)
                     {
-                        if (running)   
+                        if (running)
                             DBGLOG("UdpSender[%s]: send_receive_flow::unknown exception", parent.myId);
                         MilliSleep(0);
                     }
@@ -1047,28 +1041,28 @@ class CUdpSendManager : implements ISendManager, public CInterface
         }
     };
 
-    class send_data : public StartedThread 
+    class send_data : public StartedThread
     {
-        CUdpSendManager &parent;
+        CTcpSendManager &parent;
         simple_queue<UdpPermitToSendMsg> send_queue;
         Linked<TokenBucket> bucket;
 
     public:
-        send_data(CUdpSendManager &_parent, TokenBucket *_bucket)
+        send_data(CTcpSendManager &_parent, TokenBucket *_bucket)
             : StartedThread("UdpLib::send_data"), parent(_parent), send_queue(100), bucket(_bucket) // MORE - send q size should be configurable and/or related to size of cluster?
         {
-            if (check_max_socket_write_buffer(udpLocalWriteSocketSize) < 0) 
+            if (check_max_socket_write_buffer(udpLocalWriteSocketSize) < 0)
                 throw MakeStringException(ROXIE_UDP_ERROR, "System Socket max write buffer is less than %i", udpLocalWriteSocketSize);
             start(false);
         }
-        
+
         ~send_data()
         {
             running = false;
             UdpPermitToSendMsg dummy = {};
             send_queue.push(dummy);
             join();
-        }   
+        }
 
         bool pushPermit(const UdpPermitToSendMsg &msg)
         {
@@ -1118,7 +1112,7 @@ class CUdpSendManager : implements ISendManager, public CInterface
             return false;
         }
 
-        virtual int doRun() 
+        virtual int doRun()
         {
             if (udpTraceLevel > 0)
                 DBGLOG("UdpSender[%s]: send_data started", parent.myId);
@@ -1126,7 +1120,7 @@ class CUdpSendManager : implements ISendManager, public CInterface
             setLinuxThreadPriority(1); // MORE - windows? Is this even a good idea? Must not send faster than receiver can pull off the socket
         #endif
             UdpPermitToSendMsg permit;
-            while (running) 
+            while (running)
             {
                 send_queue.pop(permit);
                 if (!running)
@@ -1156,7 +1150,7 @@ class CUdpSendManager : implements ISendManager, public CInterface
     send_data         *data;
     Linked<TokenBucket> bucket;
     bool encrypted;
-    
+
     std::atomic<unsigned> msgSeq{0};
 
     inline unsigned getNextMessageSequence()
@@ -1168,11 +1162,11 @@ class CUdpSendManager : implements ISendManager, public CInterface
         } while (unlikely(!res));
         return res;
     }
-        
+
 public:
     IMPLEMENT_IINTERFACE;
 
-    CUdpSendManager(int server_flow_port, int data_port, int client_flow_port, int q_size, int _numQueues, const IpAddress &_myIP, TokenBucket *_bucket, bool _encrypted)
+    CTcpSendManager(int server_flow_port, int data_port, int client_flow_port, int q_size, int _numQueues, const IpAddress &_myIP, TokenBucket *_bucket, bool _encrypted)
         : myIP(_myIP),
           receiversTable([_numQueues, q_size, server_flow_port, data_port, _encrypted, this](const ServerIdentifier ip) { return new UdpReceiverEntry(ip.getIpAddress(), myIP, _numQueues, q_size, server_flow_port, data_port, _encrypted);}),
           bucket(_bucket),
@@ -1190,7 +1184,7 @@ public:
     }
 
 
-    ~CUdpSendManager() 
+    ~CTcpSendManager()
     {
         delete resend_flow;
         delete receive_flow;
@@ -1243,7 +1237,7 @@ public:
         receiversTable[destNode].abort();
     }
 
-    virtual bool allDone() 
+    virtual bool allDone()
     {
         // Used for some timing tests only
         for (auto&& dest: receiversTable)
@@ -1256,18 +1250,8 @@ public:
 
 };
 
-ISendManager *createUdpSendManager(int server_flow_port, int data_port, int client_flow_port, int queue_size_pr_server, int queues_pr_server, const IpAddress &_myIP, TokenBucket *rateLimiter, bool encryptionInTransit)
+ISendManager *createTcpSendManager(int server_flow_port, int data_port, int client_flow_port, int queue_size_pr_server, int queues_pr_server, const IpAddress &_myIP, TokenBucket *rateLimiter, bool encryptionInTransit)
 {
     assertex(!_myIP.isNull());
-    return new CUdpSendManager(server_flow_port, data_port, client_flow_port, queue_size_pr_server, queues_pr_server, _myIP, rateLimiter, encryptionInTransit);
+    return new CTcpSendManager(server_flow_port, data_port, client_flow_port, queue_size_pr_server, queues_pr_server, _myIP, rateLimiter, encryptionInTransit);
 }
-
-ISendManager *createSendManager(int server_flow_port, int data_port, int client_flow_port, int queue_size_pr_server, int queues_pr_server, const IpAddress &_myIP, TokenBucket *rateLimiter, bool encryptionInTransit)
-{
-    if (useTcpTransport)
-        return createTcpSendManager(server_flow_port, data_port, client_flow_port, queue_size_pr_server, queues_pr_server, _myIP, rateLimiter, encryptionInTransit);
-    else
-        return createUdpSendManager(server_flow_port, data_port, client_flow_port, queue_size_pr_server, queues_pr_server, _myIP, rateLimiter, encryptionInTransit);
-}
-
-IRoxieOutputQueueManager *ROQ = nullptr;

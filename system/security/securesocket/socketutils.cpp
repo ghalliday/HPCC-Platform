@@ -49,6 +49,7 @@ CReadSocketHandler::CReadSocketHandler(ISockerMessageProcessor & _processor, ISo
     peerEndpointText.append(peerHostText); // only used if tracing an error
     if (peerEP.port)
         peerEndpointText.append(':').append(peerEP.port);
+    buffer.ensureCapacity(maxReadSize);
 }
 
 

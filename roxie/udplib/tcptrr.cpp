@@ -1,6 +1,6 @@
 /*##############################################################################
 
-    HPCC SYSTEMS software Copyright (C) 2012 HPCC Systems®.
+    HPCC SYSTEMS software Copyright (C) 2025 HPCC Systems®.
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -373,14 +373,11 @@ Race conditions:
 using roxiemem::DataBuffer;
 using roxiemem::IRowManager;
 
-RelaxedAtomic<unsigned> flowPermitsSent = {0};
-RelaxedAtomic<unsigned> flowRequestsReceived = {0};
-RelaxedAtomic<unsigned> dataPacketsReceived = {0};
 static unsigned lastFlowPermitsSent = 0;
 static unsigned lastFlowRequestsReceived = 0;
 static unsigned lastDataPacketsReceived = 0;
 
-RelaxedAtomic<unsigned> duplicateCompletedMsgCount = {0};
+static RelaxedAtomic<unsigned> duplicateCompletedMsgCount = {0};
 
 // The code that redirects flow messages from data socket to flow socket relies on the assumption tested here
 static_assert(sizeof(UdpRequestToSendMsg) < sizeof(UdpPacketHeader), "Expected UDP rts size to be less than packet header");
@@ -464,7 +461,7 @@ public:
 };
 
 
-class CUdpReceiveManager : implements IReceiveManager, public CInterface
+class CTcpReceiveManager : implements IReceiveManager, public CInterface
 {
     /*
      * The ReceiveManager has several threads:
@@ -881,9 +878,9 @@ class CUdpReceiveManager : implements IReceiveManager, public CInterface
 
     };
 
-    class receive_receive_flow : public Thread 
+    class receive_receive_flow : public Thread
     {
-        CUdpReceiveManager &parent;
+        CTcpReceiveManager &parent;
         Owned<ISocket> flow_socket;
         const unsigned flow_port;
         const unsigned maxSlotsPerSender;
@@ -993,13 +990,13 @@ class CUdpReceiveManager : implements IReceiveManager, public CInterface
         }
 
     public:
-        receive_receive_flow(CUdpReceiveManager &_parent, unsigned flow_p, unsigned _maxSlotsPerSender)
+        receive_receive_flow(CTcpReceiveManager &_parent, unsigned flow_p, unsigned _maxSlotsPerSender)
         : Thread("UdpLib::receive_receive_flow"), parent(_parent), flow_port(flow_p), maxSlotsPerSender(_maxSlotsPerSender), maxPermits(_parent.input_queue_size),
           timeTracker("receive_receive_flow", 60)
         {
         }
-        
-        ~receive_receive_flow() 
+
+        ~receive_receive_flow()
         {
             if (running)
             {
@@ -1303,21 +1300,21 @@ class CUdpReceiveManager : implements IReceiveManager, public CInterface
 
     };
 
-    class receive_data : public Thread 
+    class receive_data : public Thread
     {
-        CUdpReceiveManager &parent;
+        CTcpReceiveManager &parent;
         ISocket *receive_socket = nullptr;
         ISocket *selfFlowSocket = nullptr;
         std::atomic<bool> running = { false };
         Semaphore started;
         UdpRdTracker timeTracker;
-        
+
     public:
-        receive_data(CUdpReceiveManager &_parent) : Thread("UdpLib::receive_data"), parent(_parent), timeTracker("receive_data", 60)
+        receive_data(CTcpReceiveManager &_parent) : Thread("UdpLib::receive_data"), parent(_parent), timeTracker("receive_data", 60)
         {
             unsigned ip_buffer = parent.input_queue_size*DATA_PAYLOAD*2;
             if (ip_buffer < udpFlowSocketsSize) ip_buffer = udpFlowSocketsSize;
-            if (check_max_socket_read_buffer(ip_buffer) < 0) 
+            if (check_max_socket_read_buffer(ip_buffer) < 0)
                 throw MakeStringException(ROXIE_UDP_ERROR, "System socket max read buffer is less than %u", ip_buffer);
 #ifdef SOCKET_SIMULATION
             if (isUdpTestMode)
@@ -1364,7 +1361,7 @@ class CUdpReceiveManager : implements IReceiveManager, public CInterface
             ::Release(selfFlowSocket);
         }
 
-        virtual int run() 
+        virtual int run()
         {
             DBGLOG("UdpReceiver: receive_data started");
         #ifdef __linux__
@@ -1379,9 +1376,9 @@ class CUdpReceiveManager : implements IReceiveManager, public CInterface
             unsigned timeout = 5000;
             roxiemem::IDataBufferManager * udpBufferManager = bufferManager;
             DataBuffer *b = udpBufferManager->allocate();
-            while (running) 
+            while (running)
             {
-                try 
+                try
                 {
                     unsigned int res;
                     UdpPacketHeader &hdr = *(UdpPacketHeader *) b->data;
@@ -1480,7 +1477,7 @@ class CUdpReceiveManager : implements IReceiveManager, public CInterface
                         }
                     }
                 }
-                catch (IException *e) 
+                catch (IException *e)
                 {
                     if (running && e->errorCode() != JSOCKERR_timeout_expired)
                     {
@@ -1490,7 +1487,7 @@ class CUdpReceiveManager : implements IReceiveManager, public CInterface
                     }
                     e->Release();
                 }
-                catch (...) 
+                catch (...)
                 {
                     DBGLOG("UdpReceiver: receive_data::run unknown exception port %u", parent.data_port);
                     MilliSleep(1000);
@@ -1503,11 +1500,11 @@ class CUdpReceiveManager : implements IReceiveManager, public CInterface
 
     class CPacketCollator : public Thread
     {
-        CUdpReceiveManager &parent;
+        CTcpReceiveManager &parent;
     public:
-        CPacketCollator(CUdpReceiveManager &_parent) : Thread("CPacketCollator"), parent(_parent) {}
+        CPacketCollator(CTcpReceiveManager &_parent) : Thread("CPacketCollator"), parent(_parent) {}
 
-        virtual int run() 
+        virtual int run()
         {
             DBGLOG("UdpReceiver: CPacketCollator::run");
             parent.collatePackets();
@@ -1520,11 +1517,11 @@ class CUdpReceiveManager : implements IReceiveManager, public CInterface
     friend class receive_send_flow;
     friend class receive_data;
     friend class ReceiveFlowManager;
-    
+
     queue_t              *input_queue;
     receive_receive_flow *receive_flow;
     receive_data         *data;
-    
+
     const int             input_queue_size;
     const int             receive_flow_port;
     const int             data_port;
@@ -1538,7 +1535,7 @@ class CUdpReceiveManager : implements IReceiveManager, public CInterface
 
 public:
     IMPLEMENT_IINTERFACE;
-    CUdpReceiveManager(int server_flow_port, int d_port, int client_flow_port, int queue_size, bool _encrypted)
+    CTcpReceiveManager(int server_flow_port, int d_port, int client_flow_port, int queue_size, bool _encrypted)
         : sendersTable([client_flow_port](const ServerIdentifier ip) { return new UdpSenderEntry(ip.getIpAddress(), client_flow_port);}),
           collatorThread(*this),
           input_queue_size(queue_size), receive_flow_port(server_flow_port), data_port(d_port), encrypted(_encrypted)
@@ -1568,7 +1565,7 @@ public:
         MilliSleep(15);
     }
 
-    ~CUdpReceiveManager() 
+    ~CTcpReceiveManager()
     {
         running = false;
         input_queue->interrupt();
@@ -1578,7 +1575,7 @@ public:
         delete input_queue;
     }
 
-    virtual void detachCollator(const IMessageCollator *msgColl) 
+    virtual void detachCollator(const IMessageCollator *msgColl)
     {
         ruid_t ruid = msgColl->queryRUID();
         {
@@ -1591,13 +1588,13 @@ public:
     void collatePackets()
     {
         UdpRdTracker timeTracker("collatePackets", 60);
-        while(running) 
+        while(running)
         {
             try
             {
                 UdpRdTracker::TimeDivision d(timeTracker, UdpRdTracker::waiting);
                 DataBuffer *dataBuff = input_queue->pop(true);
-                d.switchState(UdpRdTracker::processing);    
+                d.switchState(UdpRdTracker::processing);
                 dataBuff->changeState(roxiemem::DBState::queued, roxiemem::DBState::unowned, __func__);
                 collatePacket(dataBuff);
             }
@@ -1665,107 +1662,8 @@ public:
     }
 };
 
-IReceiveManager *createUdpReceiveManager(int server_flow_port, int data_port, int client_flow_port,
+IReceiveManager *createTcpReceiveManager(int server_flow_port, int data_port, int client_flow_port,
                                       int udpQueueSize, bool encrypted)
 {
-    return new CUdpReceiveManager(server_flow_port, data_port, client_flow_port, udpQueueSize, encrypted);
+    return new CTcpReceiveManager(server_flow_port, data_port, client_flow_port, udpQueueSize, encrypted);
 }
-
-IReceiveManager *createReceiveManager(int server_flow_port, int data_port, int client_flow_port,
-                                      int udpQueueSize, bool encrypted)
-{
-    if (useTcpTransport)
-        return createUdpReceiveManager(server_flow_port, data_port, client_flow_port, udpQueueSize, encrypted);
-    else
-        return createUdpReceiveManager(server_flow_port, data_port, client_flow_port, udpQueueSize, encrypted);
-}
-
-/*
-Thoughts on flow control / streaming:
-1. The "continuation packet" mechanism does have some advantages
-    - easy recovery from agent failures
-    - agent recovers easily from Roxie server failures
-    - flow control is simple (but is it effective?)
-
-2. Abandoning continuation packet in favour of streaming would give us the following issues:
-    - would need some flow control to stop getting ahead of a Roxie server that consumed slowly
-        - flow control is non trivial if you want to avoid tying up a agent thread and want agent to be able to recover from Roxie server failure
-    - Need to work out how to do GSS - the nextGE info needs to be passed back in the flow control?
-    - can't easily recover from agent failures if you already started processing
-        - unless you assume that the results from agent are always deterministic and can retry and skip N
-    - potentially ties up a agent thread for a while 
-        - do we need to have a larger thread pool but limit how many actually active?
-
-3. Order of work
-    - Just adding streaming while ignoring flow control and continuation stuff (i.e. we still stop for permission to continue periodically)
-        - Shouldn't make anything any _worse_ ...
-            - except that won't be able to recover from a agent dying mid-stream (at least not without some considerable effort)
-                - what will happen then?
-            - May also break server-side caching (that no-one has used AFAIK). Maybe restrict to nohits as we change....
-    - Add some flow control
-        - would prevent agent getting too far ahead in cases that are inadequately flow-controlled today
-        - shouldn't make anything any worse...
-    - Think about removing continuation mechanism from some cases
-
-Per Gavin, streaming would definitely help for the lowest frequency term.  It may help for the others as well if it avoided any significant start up costs - e.g., opening the indexes,
-creating the segment monitors, creating the various cursors, and serialising the context (especially because there are likely to be multiple cursors).
-
-To add streaming:
-    - Need to check for meta availability other than when first received
-        - when ? 
-    - Need to cope with a getNext() blocking without it causing issues
-     - perhaps should recode getNext() of variable-size rows first?
-
-More questions:
-    - Can we afford the memory for the resend info?
-        - Save maxPacketsPerSender per sender ?
-    - are we really handling restart and sequence wraparound correctly?
-    - what about server-side caching? Makes it hard
-        - but maybe we should only cache tiny replies anyway....
-
-Problems found while testing implemetnation:
-    - the unpacker cursor read code is crap
-    - there is a potential to deadlock when need to make a callback agent->server during a streamed result (indexread5 illustrates)
-        - resolution callback code doesn't really need to be query specific - could go to the default handler
-        - but other callbacks - ALIVE, EXCEPTION, and debugger are not so clear
-    - It's not at all clear where to move the code for processing metadata
-    - callback paradigm would solve both - but it has to be on a client thread (e.g. from within call to next()).
-
-    The following are used in "pseudo callback" mode:
-    #define ROXIE_DEBUGREQUEST 0x3ffffff7u
-    #define ROXIE_DEBUGCALLBACK 0x3ffffff8u
-    #define ROXIE_PING 0x3ffffff9u
-        - goes to own handler anyway
-    #define ROXIE_TRACEINFO 0x3ffffffau
-        - could go in meta? Not time critical. Could all go to single handler? (a bit hard since we want to intercept for caller...)
-    #define ROXIE_FILECALLBACK 0x3ffffffbu
-        - could go to single handler
-    #define ROXIE_ALIVE 0x3ffffffcu
-        - currently getting delayed a bit too much potentially if downstream processing is slow? Do I even need it if streaming?
-    #define ROXIE_KEYEDLIMIT_EXCEEDED 0x3ffffffdu
-        - could go in metadata of standard response
-    #define ROXIE_LIMIT_EXCEEDED 0x3ffffffeu
-        - ditto
-    #define ROXIE_EXCEPTION   0x3fffffffu
-        - ditto
-    And the continuation metadata.
-
-    What if EVERYTHING was a callback? - here's an exception... here's some more rows... here's some tracing... here's some continuation metadata
-    Somewhere sometime I need to marshall from one thread to another though (maybe more than once unless I can guarantee callback is always very fast)
-
-    OR (is it the same) everything is metadata ? Metadata can contain any of the above information (apart from rows - or maybe they are just another type)
-    If I can't deal quickly with a packet of information, I queue it up? Spanning complicates things though. I need to be able to spot complete portions of metadata
-    (and in kind-of the same way I need to be able to spot complete rows of data even when they span multiple packets.) I think data is really a bit different from the rest -
-    you expect it to be continuous and you want the others to interrupt the flow.
-
-    If continuation info was restricted to a "yes/no" (i.e. had to be continued on same node as started on) could have simple "Is there any continuation" bit. Others are sent in their 
-    own packets so are a little different. Does that make it harder to recover? Not sure that it does really (just means that the window at which a failure causes a problem starts earlier).
-    However it may be an issue tying up agent thread for a while (and do we know when to untie it if the Roxie server abandons/restarts?)
-
-    Perhaps it makes sense to pause at this point (with streaming disabled and with retry mechanism optional)
-
-
-
-
-
-*/
