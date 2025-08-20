@@ -165,6 +165,20 @@ struct HashSocketEndpoint
     unsigned operator()(const SocketEndpoint & ep) const { return ep.hash(0x12345678); }
 };
 
+
+class SECURESOCKET_API CSocketTarget : public CInterface
+{
+public:
+    CSocketTarget(const SocketEndpoint & _ep, bool _lowLatency) : ep(_ep), lowLatency(_lowLatency) {}
+
+    size32_t write(const void * data, size32_t len);
+
+protected:
+    const SocketEndpoint ep;
+    const bool lowLatency;
+    Owned<ISocket> socket;
+};
+
 // MORE: This needs extending so that the items in the hash table know their ip address,
 // and can automatically reconnect if they are disconnected.
 class SECURESOCKET_API CTcpSender
@@ -172,16 +186,13 @@ class SECURESOCKET_API CTcpSender
 public:
     CTcpSender(bool _lowLatency) : lowLatency(_lowLatency) {}
 
+    CSocketTarget * queryWorkerSocket(const SocketEndpoint &ep);
     size32_t sendToTarget(const void * data, size32_t len, const SocketEndpoint &ep);
-
-protected:
-    ISocket * getWorkerSocket(const SocketEndpoint &ep);
-    ISocket * connectTo(const SocketEndpoint &ep);
 
 protected:
     CriticalSection crit;
     const bool lowLatency;
-    std::unordered_map<SocketEndpoint, Owned<ISocket>, HashSocketEndpoint > workerSockets;
+    std::unordered_map<SocketEndpoint, Owned<CSocketTarget>, HashSocketEndpoint > workerSockets;
 };
 
 #endif

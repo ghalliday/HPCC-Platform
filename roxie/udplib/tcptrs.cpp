@@ -46,7 +46,7 @@ public:
     IMPLEMENT_IINTERFACE;
 
     CTcpSendManager(int server_flow_port, int data_port, int client_flow_port, int q_size, int _numQueues, const IpAddress &_myIP, TokenBucket *_bucket, bool _encrypted)
-        : sender(true), myIP(_myIP), bucket(_bucket), dataPort(data_port), encrypted(_encrypted)
+        : sender(true), numQueues(_numQueues), myIP(_myIP), bucket(_bucket), dataPort(data_port), encrypted(_encrypted)
     {
         myId = myIP.getHostText(myIdStr).str();
     }
@@ -78,17 +78,16 @@ public:
             bucket->wait((length / 1024)+1);
 
         // A complete hack see note below
-        unsigned value = (unsigned)(memsize_t)&receiver;
-        ServerIdentifier & destNode = *(ServerIdentifier *)&value;
-        SocketEndpoint ep(dataPort, destNode.getIpAddress());
-        sender.sendToTarget(buffer->data, length, ep);
+        CSocketTarget * socket = (CSocketTarget *)&receiver;
+        socket->write(buffer->data, length);
         buffer->Release();
     }
 
     virtual IMessagePacker *createMessagePacker(ruid_t ruid, unsigned sequence, const void *messageHeader, unsigned headerSize, const ServerIdentifier &destNode, int queue) override
     {
         // A complete hack.  version 2 will resolve the ip address in the sender, and return a pointer to the object, which will support resend
-        IUdpReceiverEntry * receiver = (IUdpReceiverEntry *)(memsize_t)*(unsigned *)&destNode;
+        SocketEndpoint ep(dataPort, destNode.getIpAddress());
+        IUdpReceiverEntry * receiver = (IUdpReceiverEntry *)sender.queryWorkerSocket(ep);
         return ::createMessagePacker(ruid, sequence, messageHeader, headerSize, *this, *receiver, myIP, getNextMessageSequence(), queue, encrypted);
     }
 

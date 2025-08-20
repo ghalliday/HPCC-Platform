@@ -81,6 +81,7 @@ class CTcpReceiveManager : implements IReceiveManager, public CInterface
 
     std::atomic<bool> running = { false };
     bool encrypted = false;
+    const bool collateDirectly = false;
 
     typedef std::map<ruid_t, CMessageCollator*> uid_map;
     uid_map         collators;
@@ -254,7 +255,10 @@ public:
 
         DataBuffer * buffer = udpBufferManager->allocate();
         memcpy(buffer->data, header, packetLength);
-        input_queue->pushOwn(buffer);
+        if (collateDirectly)
+            collatePacket(buffer);
+        else
+            input_queue->pushOwn(buffer);
     }
 
 };

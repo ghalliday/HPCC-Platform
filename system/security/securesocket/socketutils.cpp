@@ -491,56 +491,47 @@ void ConcreteConnectionLister::processMessageContents(CReadSocketHandler * owned
 
 //---------------------------------------------------------------------------------------------------------------------
 
+size32_t CSocketTarget::write(const void * data, size32_t len)
+{
+    //MORE: Add retry logic.
+    //MORE: How do we prevent this blocking other threads though e.g. when sending a request to all nodes in a
+    //      channel and one channel is down -.do we use non-blocking and note when something is not sent?
+    if (!socket)
+    {
+        socket.setown(ISocket::connect_timeout(ep, 5000));
+        if (lowLatency)
+            socket->set_nagle(false);
+    }
+
+    try
+    {
+        //GH->MK as discussed this need to move to the read.
+        if (lowLatency)
+            socket->set_quick_ack(true);
+        return socket->write(data, len);
+    }
+    catch (IException * e)
+    {
+        //Force a reconnect next time - could add retry loop and logic...
+        socket.clear();
+        throw;
+    }
+}
+
 size32_t CTcpSender::sendToTarget(const void * data, size32_t len, const SocketEndpoint &ep)
 {
-    for (;;)
-    {
-        try
-        {
-            Owned<ISocket> sock = getWorkerSocket(ep);
-            if (lowLatency)
-                sock->set_quick_ack(true);
-            return sock->write(data, len);
-        }
-        catch (IException * e)
-        {
-            //Force a reconnect next time - could add retry loop and logic...
-            CriticalBlock b(crit);
-            workerSockets.erase(ep);
-
-            //If the socket has closed then try and reconnect
-            throw;
-        }
-    }
+    CSocketTarget * sock = queryWorkerSocket(ep);
+    return sock->write(data, len);
 }
 
-ISocket * CTcpSender::getWorkerSocket(const SocketEndpoint &ep)
+CSocketTarget * CTcpSender::queryWorkerSocket(const SocketEndpoint &ep)
 {
-    {
-        CriticalBlock b(crit);
-        auto match = workerSockets.find(ep);
-        if (match != workerSockets.end())
-            return match->second.getLink();
-    }
+    CriticalBlock b(crit);
+    auto match = workerSockets.find(ep);
+    if (match != workerSockets.end())
+        return match->second.get();
 
-    Owned<ISocket> workerSocket = connectTo(ep);
-
-    {
-        CriticalBlock b(crit);
-        auto match = workerSockets.find(ep);
-        if (match != workerSockets.end())
-            return match->second.getLink();
-        workerSockets.emplace(ep, workerSocket);
-    }
-
-    return workerSocket.getClear();
-}
-
-ISocket * CTcpSender::connectTo(const SocketEndpoint &ep)
-{
-    Owned<ISocket> targetSocket = ISocket::connect_timeout(ep, 5000);
-    if (lowLatency)
-        targetSocket->set_nagle(false);
-    //MORE: What about retries.  Async writing etc.??
-    return targetSocket.getClear();
+    Owned<CSocketTarget> workerSocket = new CSocketTarget(ep, lowLatency);
+    workerSockets.emplace(ep, workerSocket);
+    return workerSocket;
 }
