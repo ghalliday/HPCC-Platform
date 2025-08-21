@@ -81,7 +81,7 @@ class CTcpReceiveManager : implements IReceiveManager, public CInterface
 
     std::atomic<bool> running = { false };
     bool encrypted = false;
-    const bool collateDirectly = false;
+    const bool collateDirectly = true;
 
     typedef std::map<ruid_t, CMessageCollator*> uid_map;
     uid_map         collators;
@@ -148,7 +148,8 @@ public:
         running = true;
         input_queue = new queue_t(queue_size);
         udpBufferManager = bufferManager; // ugly global variable...
-        collatorThread.start(false);
+        if (!collateDirectly)
+            collatorThread.start(false);
         listener.startPort(data_port);
     }
 
@@ -157,7 +158,8 @@ public:
         running = false;
         listener.stop();
         input_queue->interrupt();
-        collatorThread.join();
+        if (!collateDirectly)
+            collatorThread.join();
         delete input_queue;
     }
 
