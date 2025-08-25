@@ -2829,9 +2829,16 @@ public:
     {
         try
         {
-            RoxiePacketHeader &header = *(RoxiePacketHeader *) mb.toByteArray();
+            RoxiePacketHeader &header = *(RoxiePacketHeader *) mb.readDirect(0);
             if (mb.length() != header.packetlength)
-                DBGLOG("sock->read returned %u but packetlength was %u", mb.length(), header.packetlength);
+            {
+                //Multiple requests may be present in the same request - clone the memory buffer for each one.
+                MemoryBuffer clone;
+                clone.append(header.packetlength, &header);
+                processMessage(clone);
+//                DBGLOG("sock->read returned %u but packetlength was %u", mb.length(), header.packetlength);
+                return;
+            }
             if (doTrace(traceRoxiePackets))
             {
                 StringBuffer s;

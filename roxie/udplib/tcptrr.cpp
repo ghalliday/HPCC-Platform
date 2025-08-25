@@ -251,7 +251,7 @@ public:
 
     void processMessage(MemoryBuffer & message)
     {
-        const UdpPacketHeader * header = (const UdpPacketHeader *)message.bytes();
+        const UdpPacketHeader * header = (const UdpPacketHeader *)message.readDirect(0); // Start at the current read position
         unsigned packetLength = header->length;
         dbgassertex(packetLength <= roxiemem::DATA_ALIGNMENT_SIZE);
 

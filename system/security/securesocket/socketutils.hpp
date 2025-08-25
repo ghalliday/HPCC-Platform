@@ -71,7 +71,6 @@ public:
     bool closeIfTimedout(cycle_t now, cycle_t timeoutCycles);
     // ISocketSelectNotify impl.
     virtual bool notifySelected(ISocket *sock, unsigned selected) override;
-    void prepareForNextRead();
 
 protected:
     ISockerMessageProcessor & processor;

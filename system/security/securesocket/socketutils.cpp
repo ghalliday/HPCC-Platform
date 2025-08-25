@@ -83,12 +83,17 @@ bool CReadSocketHandler::notifySelected(ISocket *sock, unsigned selected)
             return false;
 
         lastActivityCycles = get_cycles_now();
+        bool allowMultipleRequests = true;
         try
         {
             // Only read as much data as we know we need - because sends may have been combined into a single packet.
             // If the handler is not one-shot, and it can support multiple messages, then it should be possible
             // to read maxSize, and then process a sequence of messages instead.  That would be more efficient.
-            size32_t toRead = requiredSize ? requiredSize : minSize;
+            size32_t toRead;
+            if (allowMultipleRequests)
+                toRead = (requiredSize > maxReadSize) ? requiredSize : maxReadSize;
+            else
+                toRead = requiredSize ? requiredSize : minSize;
             buffer.ensureCapacity(toRead);
 
             size32_t rd = 0;
@@ -103,19 +108,42 @@ bool CReadSocketHandler::notifySelected(ISocket *sock, unsigned selected)
 
             if (requiredSize && (readSoFar >= requiredSize))
             {
-                assertex(readSoFar == requiredSize);
-                bool oneShort = processor.onlyProcessFirstRead();
-                if (oneShort)
+                if (processor.onlyProcessFirstRead())
                 {
                     // process() will remove itself from handler, and need to avoid it doing so while in 'crit'
-                    // since the maintenance thread could also be tyring to manipulate handlers and calling closeIfTimedout()
+                    // since the maintenance thread could also be trying to manipulate handlers and calling closeIfTimedout()
                     closedOrHandled = true;
                     b.leave();
                 }
                 processor.processMessage(*this);
 
-                if (!oneShort)
-                    prepareForNextRead();
+                //The full contents of this code is only needed if multiple messages can be processed, but it also
+                //correct if only one message can be processed (or if it is one -shot)
+                unsigned processedSoFar = requiredSize;
+                for (;;)
+                {
+                    size32_t remaining = readSoFar - processedSoFar;
+                    if (remaining < minSize)
+                    {
+                        requiredSize = (minSize == maxReadSize) ? minSize : 0;
+                        break;
+                    }
+
+                    requiredSize = processor.getMessageSize(target + processedSoFar);
+                    if (remaining < requiredSize)
+                        break;
+
+                    buffer.reset(processedSoFar);
+                    processor.processMessage(*this);
+                    processedSoFar += requiredSize;
+                }
+
+                readSoFar -= processedSoFar;
+                if (readSoFar != 0)
+                    memcpy(target, target + processedSoFar, readSoFar);
+
+                buffer.setWritePos(readSoFar);
+                buffer.reset(0);
             }
         }
         catch (IJSOCK_Exception *e)
@@ -129,13 +157,6 @@ bool CReadSocketHandler::notifySelected(ISocket *sock, unsigned selected)
         processor.closeConnection(*this, exception);
 
     return false;
-}
-
-void CReadSocketHandler::prepareForNextRead()
-{
-    readSoFar = 0;
-    requiredSize = (minSize == maxReadSize) ? minSize : 0;
-    buffer.clear();
 }
 
 
