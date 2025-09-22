@@ -7209,6 +7209,7 @@ class RoxieMemTests : public CppUnit::TestFixture
         CPPUNIT_TEST(testRecursiveCallbacks);
         CPPUNIT_TEST(testResize);
         CPPUNIT_TEST(testResizeLock);
+        CPPUNIT_TEST(testFixedRowHeapStats);
         //MORE: The following currently leak pages, so should go last
         CPPUNIT_TEST(testDatamanager);
         CPPUNIT_TEST(testCleanup);
@@ -7243,6 +7244,55 @@ protected:
         const bool lockMemory = false; // remove the time faulting in pages from the timing overhead
         initializeHeap(false, true, retainMemory, lockMemory, (unsigned)(memory / HEAP_ALIGNMENT_SIZE), 0, NULL);
         initAllocSizeMappings(defaultAllocSizes);
+    }
+
+    void testFixedRowHeapStats()
+    {
+        CountingRowAllocatorCache rowCache;
+        Owned<IRowManager> rowManager = createRowManager(0, NULL, logctx, &rowCache, false);
+        
+        // Test CRoxieFixedRowHeap allocation counting (the feature we added)
+        {
+            Owned<IFixedRowHeap> fixedHeap = rowManager->createFixedRowHeap(64, 0, RHFoldfixed);
+            
+            // Initial state - no allocations should be recorded
+            CRuntimeStatisticCollection stats(StatisticsMapping());
+            fixedHeap->gatherStats(stats);
+            
+            // The numAllocations should start at 0
+            ASSERT(stats.getStatisticValue(StNumAllocations) == 0);
+            
+            // Allocate some rows
+            void* row1 = fixedHeap->allocate();
+            void* row2 = fixedHeap->allocate();
+            void* row3 = fixedHeap->allocate();
+            
+            // Check that allocations are now counted
+            CRuntimeStatisticCollection stats2(StatisticsMapping());
+            fixedHeap->gatherStats(stats2);
+            ASSERT(stats2.getStatisticValue(StNumAllocations) == 3); // Should have 3 allocations
+            
+            // Clean up
+            ReleaseRoxieRow(row1);
+            ReleaseRoxieRow(row2);
+            ReleaseRoxieRow(row3);
+        }
+        
+        // Also verify that variable row heap still works (for comparison)
+        {
+            Owned<IVariableRowHeap> variableHeap = rowManager->createVariableRowHeap(0, 0);
+            
+            memsize_t capacity;
+            void* vrow1 = variableHeap->allocate(32, capacity);
+            void* vrow2 = variableHeap->allocate(64, capacity);
+            
+            CRuntimeStatisticCollection vstats(StatisticsMapping());
+            variableHeap->gatherStats(vstats);
+            ASSERT(vstats.getStatisticValue(StNumAllocations) == 2); // Should have 2 allocations
+            
+            ReleaseRoxieRow(vrow1);
+            ReleaseRoxieRow(vrow2);
+        }
     }
 
     void testCleanup()
