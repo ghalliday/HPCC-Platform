@@ -824,6 +824,23 @@ IFileIO *createMultipleWrite(CActivityBase *activity, IPartDescriptor &partDesc,
         IFEflags fileIOExtaFlags = IFEnone;
         if (!ecomp)
         {
+            // Check for specific file types that should use zstd compression
+            IHThorArg *helper = activity->queryHelper();
+            if (helper)
+            {
+                // Try to cast to disk write helper to access disk-specific flags
+                IHThorDiskWriteArg *diskWriteHelper = dynamic_cast<IHThorDiskWriteArg*>(helper);
+                if (diskWriteHelper)
+                {
+                    unsigned helperFlags = diskWriteHelper->getFlags();
+                    if ((helperFlags & TDXjobtemp) || (helperFlags & TDWpersist))
+                    {
+                        // Use zstd compression for TDXjobtemp and TDWpersist files
+                        compMethod = COMPRESS_METHOD_ZSTD;
+                    }
+                }
+            }
+
             if (twFlags & TW_Temporary)
             {
                 // if temp file then can use newer compressor
@@ -874,6 +891,8 @@ IFileIO *createMultipleWrite(CActivityBase *activity, IPartDescriptor &partDesc,
                 compStr.append("lzw");
             else if (COMPRESS_METHOD_ROWDIF == compMeth2)
                 compStr.append("rdiff");
+            else if (COMPRESS_METHOD_ZSTD == compMeth2)
+                compStr.append("zstd");
             else
                 compStr.append("unknown");
         }
