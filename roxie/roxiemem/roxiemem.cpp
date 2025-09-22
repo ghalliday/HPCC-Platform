@@ -2843,7 +2843,10 @@ public:
     {
     }
 
-    virtual void gatherStats(CRuntimeStatisticCollection & stats) override {}
+    virtual void gatherStats(CRuntimeStatisticCollection & stats) override
+    {
+        stats.addStatistic(StNumAllocations, numAllocations);
+    }
 
     virtual void *allocate();
 
@@ -2854,6 +2857,7 @@ public:
 
 protected:
     size32_t chunkCapacity;
+    unsigned __int64 numAllocations = 0;    // Not necessary accurate if concurrent calls to allocate
 };
 
 
@@ -5909,7 +5913,9 @@ void * CRoxieFixedRowHeapBase::finalizeRow(void *final)
 
 void * CRoxieFixedRowHeap::allocate()
 {
-    return rowManager->allocate(chunkCapacity, allocatorId);
+    void * ret = rowManager->allocate(chunkCapacity, allocatorId);
+    numAllocations++; // not thread safe, but missing entries do not matter
+    return ret;
 }
 
 void * CRoxieVariableRowHeap::allocate(memsize_t size, memsize_t & capacity)
