@@ -7253,29 +7253,43 @@ protected:
         
         // Test CRoxieFixedRowHeap allocation counting (the feature we added)
         {
-            Owned<IFixedRowHeap> fixedHeap = rowManager->createFixedRowHeap(64, 0, RHFoldfixed);
+            Owned<IFixedRowHeap> fixedHeap1 = rowManager->createFixedRowHeap(64, 0, RHFoldfixed);
+            Owned<IFixedRowHeap> fixedHeap2 = rowManager->createFixedRowHeap(64, 0, RHFoldfixed);
             
-            // Initial state - no allocations should be recorded
-            CRuntimeStatisticCollection stats(StatisticsMapping());
-            fixedHeap->gatherStats(stats);
-            
-            // The numAllocations should start at 0
-            ASSERT(stats.getStatisticValue(StNumAllocations) == 0);
-            
-            // Allocate some rows
-            void* row1 = fixedHeap->allocate();
-            void* row2 = fixedHeap->allocate();
-            void* row3 = fixedHeap->allocate();
-            
-            // Check that allocations are now counted
+            // Initial state - no allocations should be recorded for either heap
+            CRuntimeStatisticCollection stats1(StatisticsMapping());
             CRuntimeStatisticCollection stats2(StatisticsMapping());
-            fixedHeap->gatherStats(stats2);
-            ASSERT(stats2.getStatisticValue(StNumAllocations) == 3); // Should have 3 allocations
+            fixedHeap1->gatherStats(stats1);
+            fixedHeap2->gatherStats(stats2);
+            
+            // The numAllocations should start at 0 for both heaps
+            ASSERT(stats1.getStatisticValue(StNumAllocations) == 0);
+            ASSERT(stats2.getStatisticValue(StNumAllocations) == 0);
+            
+            // Allocate rows from first heap
+            void* heap1_row1 = fixedHeap1->allocate();
+            void* heap1_row2 = fixedHeap1->allocate();
+            void* heap1_row3 = fixedHeap1->allocate();
+            
+            // Allocate different number of rows from second heap
+            void* heap2_row1 = fixedHeap2->allocate();
+            void* heap2_row2 = fixedHeap2->allocate();
+            
+            // Check that each heap tracks its own allocations correctly
+            CRuntimeStatisticCollection statsAfter1(StatisticsMapping());
+            CRuntimeStatisticCollection statsAfter2(StatisticsMapping());
+            fixedHeap1->gatherStats(statsAfter1);
+            fixedHeap2->gatherStats(statsAfter2);
+            
+            ASSERT(statsAfter1.getStatisticValue(StNumAllocations) == 3); // First heap: 3 allocations
+            ASSERT(statsAfter2.getStatisticValue(StNumAllocations) == 2); // Second heap: 2 allocations
             
             // Clean up
-            ReleaseRoxieRow(row1);
-            ReleaseRoxieRow(row2);
-            ReleaseRoxieRow(row3);
+            ReleaseRoxieRow(heap1_row1);
+            ReleaseRoxieRow(heap1_row2);
+            ReleaseRoxieRow(heap1_row3);
+            ReleaseRoxieRow(heap2_row1);
+            ReleaseRoxieRow(heap2_row2);
         }
         
         // Also verify that variable row heap still works (for comparison)
