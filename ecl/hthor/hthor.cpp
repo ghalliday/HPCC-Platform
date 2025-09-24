@@ -1441,6 +1441,11 @@ void CHThorIndexWriteActivity::execute()
     properties.setPropInt64("@keyedSize", keyedSize);
     properties.setPropInt("@nodeSize", nodeSize);
 
+    // Set the compression type that was actually used
+    const char *compressionType = getIndexCompressionType(&helper, defaultIndexCompression);
+    if (!isEmptyString(compressionType))
+        properties.setProp("@compressionType", compressionType);
+
     char const * rececl = helper.queryRecordECL();
     if(rececl && *rececl)
         properties.setProp("ECL", rececl);
