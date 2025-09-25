@@ -2840,56 +2840,208 @@ restart:
 
 void PTree::visitElements(IPropertyTreeVisitor &visitor, const char *xpath, IPTIteratorCodes flags) const
 {
-    // If no xpath specified, visit all direct children
-    if (!xpath || '\0' == *xpath || streq(xpath, "*"))
+    // Clone the logic from getElements but use visitor pattern instead of returning iterators
+    
+    // Handle NULL or empty xpath - visit this node
+    if (NULL == xpath || '\0' == *xpath)
     {
-        ChildMap *childMap = checkChildren();
-        if (childMap)
+        PropertyTreeVisitorAction action = visitor.visit(const_cast<IPropertyTree&>(static_cast<const IPropertyTree&>(*this)));
+        if (action == ptva_stop)
+            return;
+        
+        // If continuing, visit children directly
+        if (action == ptva_continue && hasChildren())
         {
-            Owned<IPropertyTreeIterator> iter = childMap->getIterator(flags & iptiter_sort);
-            ForEach(*iter)
+            ChildMap *childMap = checkChildren();
+            if (childMap)
             {
-                IPropertyTree &currentTree = iter->query();
-                PropertyTreeVisitorAction action = visitor.visit(currentTree);
-                
-                if (action == ptva_stop)
-                    return; // Stop the entire traversal
-                
-                // Recursively visit children if allowed
-                if (action == ptva_continue && currentTree.hasChildren())
+                Owned<IPropertyTreeIterator> iter = childMap->getIterator(flags & iptiter_sort);
+                ForEach(*iter)
                 {
-                    // Cast to PTree to access visitElements
-                    const PTree *pTree = QUERYINTERFACE(&currentTree, PTree);
-                    if (pTree)
-                        pTree->visitElements(visitor, nullptr, flags);
+                    IPropertyTree &currentTree = iter->query();
+                    PropertyTreeVisitorAction childAction = visitor.visit(currentTree);
+                    
+                    if (childAction == ptva_stop)
+                        return;
+                    
+                    if (childAction == ptva_continue && currentTree.hasChildren())
+                    {
+                        const PTree *pTree = QUERYINTERFACE(&currentTree, PTree);
+                        if (pTree)
+                            pTree->visitElements(visitor, nullptr, flags);
+                    }
                 }
             }
         }
         return;
     }
     
-    // For complex xpath expressions, we still need getElements functionality
-    // but we'll minimize its usage by handling simple cases above
-    Owned<IPropertyTreeIterator> iter = getElements(xpath, flags);
+    // Handle xpath parsing - simplified version focusing on common cases
+    const char *_xpath = xpath;
+    bool root = true;
     
-    // Visit each matching element
-    ForEach(*iter)
+restart:
+    switch (*xpath)
     {
-        IPropertyTree &currentTree = iter->query();
-        PropertyTreeVisitorAction action = visitor.visit(currentTree);
-        
-        if (action == ptva_stop)
-            return; // Stop the entire traversal
-        
-        // If we should continue with children and the current tree has children
-        if (action == ptva_continue && currentTree.hasChildren())
+        case '.':
+            root = false;
+            ++xpath;
+            if ('\0' == *xpath)
+            {
+                // Visit this node
+                PropertyTreeVisitorAction action = visitor.visit(const_cast<IPropertyTree&>(static_cast<const IPropertyTree&>(*this)));
+                return;
+            }
+            else if ('/' != *xpath)
+                throw MakeXPathException(xpath-1, PTreeExcpt_XPath_Unsupported, 0, "\"/\" expected");
+            goto restart;
+            
+        case '/':
+            ++xpath;
+            if ('/' == *xpath)
+            {
+                // Descendant axis - visit recursively
+                visitElements(visitor, xpath+1, flags);
+                if (checkChildren())
+                {
+                    ChildMap *childMap = checkChildren();
+                    if (childMap)
+                    {
+                        Owned<IPropertyTreeIterator> iter = childMap->getIterator(flags & iptiter_sort);
+                        ForEach(*iter)
+                        {
+                            IPropertyTree &currentTree = iter->query();
+                            const PTree *pTree = QUERYINTERFACE(&currentTree, PTree);
+                            if (pTree)
+                                pTree->visitElements(visitor, xpath-1, flags);
+                        }
+                    }
+                }
+                return;
+            }
+            else if (root)
+                throw MakeXPathException(xpath, PTreeExcpt_XPath_Unsupported, 0, "Root specifier \"/\" specifier is not supported");
+            else if ('\0' == *xpath)
+            {
+                PropertyTreeVisitorAction action = visitor.visit(const_cast<IPropertyTree&>(static_cast<const IPropertyTree&>(*this)));
+                return;
+            }
+            goto restart;
+            
+        case '[':
         {
-            // Cast to PTree to access visitElements
-            const PTree *pTree = QUERYINTERFACE(&currentTree, PTree);
-            if (pTree)
-                pTree->visitElements(visitor, nullptr, flags);
+            ++xpath;
+            if (isdigit(*xpath))
+            {
+                StringAttr index;
+                xpath = readIndex(xpath, index);
+                unsigned i = atoi(index.get());
+                if (i)
+                {
+                    if (value && value->isArray())
+                    {
+                        IPropertyTree *element = value->queryElement(--i);
+                        if (element)
+                        {
+                            const PTree *pTree = QUERYINTERFACE(element, PTree);
+                            if (pTree)
+                                pTree->visitElements(visitor, nullptr, flags);
+                        }
+                    }
+                    else if (i == 1)
+                    {
+                        PropertyTreeVisitorAction action = visitor.visit(const_cast<IPropertyTree&>(static_cast<const IPropertyTree&>(*this)));
+                        if (action == ptva_continue && hasChildren())
+                        {
+                            visitElements(visitor, nullptr, flags);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                if (checkPattern(xpath))
+                {
+                    PropertyTreeVisitorAction action = visitor.visit(const_cast<IPropertyTree&>(static_cast<const IPropertyTree&>(*this)));
+                    if (action == ptva_continue && hasChildren())
+                    {
+                        visitElements(visitor, nullptr, flags);
+                    }
+                }
+            }
+            if (']' != *xpath)
+                throw MakeXPathException(_xpath, PTreeExcpt_XPath_ParseError, xpath-_xpath, "Qualifier brace unclosed");
+            ++xpath;
+            break;
         }
-        // If action == ptva_skipChildren, we just continue to next sibling
+        
+        default:
+        {
+            bool wild;
+            const char *start = xpath;
+            readWildId(xpath, wild);
+            size32_t s = xpath - start;
+            if (s)
+            {
+                MAKE_LSTRING(id, start, s);
+                if (checkChildren())
+                {
+                    if (wild)
+                    {
+                        // Handle wildcard matching
+                        ChildMap *childMap = checkChildren();
+                        if (childMap)
+                        {
+                            Owned<IPropertyTreeIterator> iter = childMap->getIterator(flags & iptiter_sort);
+                            ForEach(*iter)
+                            {
+                                IPropertyTree &currentTree = iter->query();
+                                if (WildMatch(currentTree.queryName(), id, isnocase()))
+                                {
+                                    PropertyTreeVisitorAction action = visitor.visit(currentTree);
+                                    if (action == ptva_stop)
+                                        return;
+                                    
+                                    if (action == ptva_continue && currentTree.hasChildren())
+                                    {
+                                        const PTree *pTree = QUERYINTERFACE(&currentTree, PTree);
+                                        if (pTree)
+                                            pTree->visitElements(visitor, nullptr, flags);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Handle specific child name
+                        IPropertyTree *child = children->query(id);
+                        if (child)
+                        {
+                            PropertyTreeVisitorAction action = visitor.visit(*child);
+                            if (action == ptva_stop)
+                                return;
+                            
+                            if (action == ptva_continue && child->hasChildren())
+                            {
+                                const PTree *pTree = QUERYINTERFACE(child, PTree);
+                                if (pTree)
+                                    pTree->visitElements(visitor, nullptr, flags);
+                            }
+                        }
+                    }
+                }
+            }
+            break;
+        }
+    }
+    
+    // Handle remaining xpath
+    if (*xpath != '\0' && !(*xpath == '/' && '\0' == *(xpath+1)))
+    {
+        // For remaining path, recursively process
+        // This is a simplified version - full xpath support would require more complex logic
+        visitElements(visitor, xpath, flags);
     }
 }
 
