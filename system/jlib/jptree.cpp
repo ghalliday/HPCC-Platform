@@ -2838,40 +2838,38 @@ restart:
         return new PTStackIterator(iter.getClear(), xpath);
 }
 
-void PTree::visit(IPropertyTreeVisitor &visitor, const char *xpath, IPTIteratorCodes flags) const
+void PTree::visitElements(IPropertyTreeVisitor &visitor, const char *xpath, IPTIteratorCodes flags) const
 {
-    // If no xpath specified, visit this node and its children directly
-    if (!xpath || '\0' == *xpath)
+    // If no xpath specified, visit all direct children
+    if (!xpath || '\0' == *xpath || streq(xpath, "*"))
     {
-        PropertyTreeVisitorAction action = visitor.visit(const_cast<IPropertyTree&>(static_cast<const IPropertyTree&>(*this)));
-        
-        if (action == ptva_stop)
-            return; // Stop the entire traversal
-            
-        // If we should continue with children and this tree has children
-        if (action == ptva_continue && hasChildren())
+        ChildMap *childMap = checkChildren();
+        if (childMap)
         {
-            // Visit all direct children
-            Owned<IPropertyTreeIterator> iter = getElements("*", flags);
+            Owned<IPropertyTreeIterator> iter = childMap->getIterator(flags & iptiter_sort);
             ForEach(*iter)
             {
                 IPropertyTree &currentTree = iter->query();
-                PropertyTreeVisitorAction childAction = visitor.visit(currentTree);
+                PropertyTreeVisitorAction action = visitor.visit(currentTree);
                 
-                if (childAction == ptva_stop)
+                if (action == ptva_stop)
                     return; // Stop the entire traversal
                 
-                // Recursively visit grandchildren if allowed
-                if (childAction == ptva_continue && currentTree.hasChildren())
+                // Recursively visit children if allowed
+                if (action == ptva_continue && currentTree.hasChildren())
                 {
-                    currentTree.visit(visitor, nullptr, flags);
+                    // Cast to PTree to access visitElements
+                    const PTree *pTree = QUERYINTERFACE(&currentTree, PTree);
+                    if (pTree)
+                        pTree->visitElements(visitor, nullptr, flags);
                 }
             }
         }
         return;
     }
     
-    // Get elements to traverse using same logic as getElements
+    // For complex xpath expressions, we still need getElements functionality
+    // but we'll minimize its usage by handling simple cases above
     Owned<IPropertyTreeIterator> iter = getElements(xpath, flags);
     
     // Visit each matching element
@@ -2886,11 +2884,35 @@ void PTree::visit(IPropertyTreeVisitor &visitor, const char *xpath, IPTIteratorC
         // If we should continue with children and the current tree has children
         if (action == ptva_continue && currentTree.hasChildren())
         {
-            // Recursively visit all children
-            currentTree.visit(visitor, nullptr, flags);
+            // Cast to PTree to access visitElements
+            const PTree *pTree = QUERYINTERFACE(&currentTree, PTree);
+            if (pTree)
+                pTree->visitElements(visitor, nullptr, flags);
         }
         // If action == ptva_skipChildren, we just continue to next sibling
     }
+}
+
+void PTree::visit(IPropertyTreeVisitor &visitor, const char *xpath, IPTIteratorCodes flags) const
+{
+    // If no xpath specified, visit this node and its children directly
+    if (!xpath || '\0' == *xpath)
+    {
+        PropertyTreeVisitorAction action = visitor.visit(const_cast<IPropertyTree&>(static_cast<const IPropertyTree&>(*this)));
+        
+        if (action == ptva_stop)
+            return; // Stop the entire traversal
+            
+        // If we should continue with children, use visitElements to walk directly
+        if (action == ptva_continue && hasChildren())
+        {
+            visitElements(visitor, nullptr, flags);
+        }
+        return;
+    }
+    
+    // Use visitElements for xpath filtering
+    visitElements(visitor, xpath, flags);
 }
 
 void PTree::localizeElements(const char *xpath, bool allTail)
