@@ -2507,6 +2507,7 @@ class JlibIPTTest : public CppUnit::TestFixture
         CPPUNIT_TEST(testMergeConfig);
         CPPUNIT_TEST(testRemoveReuse);
         CPPUNIT_TEST(testSpecialTags);
+        CPPUNIT_TEST(testVisitor);
     CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -3596,6 +3597,175 @@ IPropertyTree *createBinaryDataCompressionTestPTree(const char *testXml)
 
     // Large binary data (over PTREE_COMPRESS_THRESHOLD to trigger compression)
     // PTREE_COMPRESS_THRESHOLD is typically 4KB based on the comment in the existing test
+    const size_t largeSize = 8 * 1024; // 8KB to ensure compression
+    largeBinary.ensureCapacity(largeSize);
+    for (size_t i = 0; i < largeSize; i++)
+        largeBinary.append((byte)(i % 256));
+    tree->setPropBin("largeBinary", largeBinary.length(), largeBinary.toByteArray());
+
+    // Add nested elements with binary data
+    IPropertyTree *subTree = tree->addPropTree("subElement");
+    subTree->setProp("subProp", "subValue");
+
+    MemoryBuffer nestedBinary;
+    const char *nestedData = "Nested binary content with some repetitive data for compression testing";
+    // Repeat the data to make it larger and more compressible
+    for (int i = 0; i < 100; i++)
+        nestedBinary.append(strlen(nestedData), nestedData);
+    subTree->setPropBin("nestedBinary", nestedBinary.length(), nestedBinary.toByteArray());
+
+    return tree.getClear();
+}
+
+void testVisitor()
+{
+    // Test visitor implementation for IPropertyTree interface
+    class TestCollectorVisitor : public CInterfaceOf<IPropertyTreeVisitor>
+    {
+    public:
+        StringArray visitedNodes;
+        
+        virtual PropertyTreeVisitorAction visit(IPropertyTree &tree) override
+        {
+            visitedNodes.append(tree.queryName());
+            return ptva_continue; // Visit all nodes including children
+        }
+    };
+    
+    class TestSkipChildrenVisitor : public CInterfaceOf<IPropertyTreeVisitor>
+    {
+    public:
+        StringArray visitedNodes;
+        
+        virtual PropertyTreeVisitorAction visit(IPropertyTree &tree) override
+        {
+            visitedNodes.append(tree.queryName());
+            if (streq(tree.queryName(), "skip"))
+                return ptva_skipChildren; // Skip children of nodes named "skip"
+            return ptva_continue;
+        }
+    };
+    
+    class TestStopVisitor : public CInterfaceOf<IPropertyTreeVisitor>
+    {
+    public:
+        StringArray visitedNodes;
+        
+        virtual PropertyTreeVisitorAction visit(IPropertyTree &tree) override
+        {
+            visitedNodes.append(tree.queryName());
+            if (streq(tree.queryName(), "stop"))
+                return ptva_stop; // Stop traversal completely at "stop" node
+            return ptva_continue;
+        }
+    };
+
+    // Create test tree
+    Owned<IPropertyTree> testTree = createPTreeFromXMLString(
+        "<root>"
+        " <child1>value1</child1>"
+        " <child2>"
+        "  <grandchild1>gvalue1</grandchild1>"
+        "  <grandchild2>gvalue2</grandchild2>"
+        " </child2>"
+        " <skip>"
+        "  <skipped1>should not visit</skipped1>"
+        "  <skipped2>should not visit</skipped2>"
+        " </skip>"
+        " <child3>value3</child3>"
+        " <stop>"
+        "  <afterstop>should not visit</afterstop>"
+        " </stop>"
+        " <afterstop2>should not visit</afterstop2>"
+        "</root>");
+
+    // Test 1: Visit all nodes (ptva_continue behavior)
+    {
+        TestCollectorVisitor visitor;
+        testTree->visit(visitor);
+        
+        CPPUNIT_ASSERT_MESSAGE("Should visit root node", visitor.visitedNodes.ordinality() >= 1);
+        CPPUNIT_ASSERT_MESSAGE("First visited should be root", streq(visitor.visitedNodes.item(0), "root"));
+        
+        bool foundChild1 = false, foundChild2 = false, foundGrandchild1 = false;
+        for (unsigned i = 0; i < visitor.visitedNodes.ordinality(); i++)
+        {
+            const char *name = visitor.visitedNodes.item(i);
+            if (streq(name, "child1")) foundChild1 = true;
+            if (streq(name, "child2")) foundChild2 = true;
+            if (streq(name, "grandchild1")) foundGrandchild1 = true;
+        }
+        CPPUNIT_ASSERT_MESSAGE("Should visit child1", foundChild1);
+        CPPUNIT_ASSERT_MESSAGE("Should visit child2", foundChild2);
+        CPPUNIT_ASSERT_MESSAGE("Should visit grandchild1 (children)", foundGrandchild1);
+    }
+
+    // Test 2: Skip children behavior (ptva_skipChildren)
+    {
+        TestSkipChildrenVisitor visitor;
+        testTree->visit(visitor);
+        
+        bool foundSkip = false, foundSkipped1 = false;
+        for (unsigned i = 0; i < visitor.visitedNodes.ordinality(); i++)
+        {
+            const char *name = visitor.visitedNodes.item(i);
+            if (streq(name, "skip")) foundSkip = true;
+            if (streq(name, "skipped1")) foundSkipped1 = true;
+        }
+        CPPUNIT_ASSERT_MESSAGE("Should visit 'skip' node itself", foundSkip);
+        CPPUNIT_ASSERT_MESSAGE("Should NOT visit children of 'skip' node", !foundSkipped1);
+    }
+
+    // Test 3: Stop traversal behavior (ptva_stop)  
+    {
+        TestStopVisitor visitor;
+        testTree->visit(visitor);
+        
+        bool foundStop = false, foundAfterStop = false, foundAfterStop2 = false;
+        for (unsigned i = 0; i < visitor.visitedNodes.ordinality(); i++)
+        {
+            const char *name = visitor.visitedNodes.item(i);
+            if (streq(name, "stop")) foundStop = true;
+            if (streq(name, "afterstop")) foundAfterStop = true;
+            if (streq(name, "afterstop2")) foundAfterStop2 = true;
+        }
+        CPPUNIT_ASSERT_MESSAGE("Should visit 'stop' node itself", foundStop);
+        CPPUNIT_ASSERT_MESSAGE("Should NOT visit nodes after 'stop'", !foundAfterStop);
+        CPPUNIT_ASSERT_MESSAGE("Should NOT visit siblings after 'stop'", !foundAfterStop2);
+    }
+
+    // Test 4: Visit with xpath filter 
+    {
+        TestCollectorVisitor visitor;
+        testTree->visit(visitor, "child2");
+        
+        CPPUNIT_ASSERT_MESSAGE("Should visit at least 1 node with xpath", visitor.visitedNodes.ordinality() >= 1);
+        CPPUNIT_ASSERT_MESSAGE("First visited should be child2", streq(visitor.visitedNodes.item(0), "child2"));
+        
+        bool foundGrandchild1 = false, foundChild1 = false;
+        for (unsigned i = 0; i < visitor.visitedNodes.ordinality(); i++)
+        {
+            const char *name = visitor.visitedNodes.item(i);
+            if (streq(name, "grandchild1")) foundGrandchild1 = true;
+            if (streq(name, "child1")) foundChild1 = true;
+        }
+        CPPUNIT_ASSERT_MESSAGE("Should visit grandchildren of filtered node", foundGrandchild1);
+        CPPUNIT_ASSERT_MESSAGE("Should NOT visit siblings of filtered node", !foundChild1);
+    }
+}
+
+private:
+IPropertyTree *createBinaryDataCompressionTestTree()
+{
+    Owned<IPropertyTree> tree = createPTree("testTree");
+
+    // Add various properties
+    tree->setProp("stringProp", "testValue");
+    tree->setPropInt("intProp", 12345);
+    tree->setPropBool("boolProp", true);
+
+    // Add large binary data that should trigger compression
+    MemoryBuffer largeBinary;
     const size_t largeSize = 8 * 1024; // 8KB to ensure compression
     largeBinary.ensureCapacity(largeSize);
     for (size_t i = 0; i < largeSize; i++)

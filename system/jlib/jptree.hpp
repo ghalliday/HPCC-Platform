@@ -77,6 +77,19 @@ typedef unsigned IPTIteratorCodes;
 extern jlib_decl unsigned queryNumLocalTrees();
 extern jlib_decl unsigned queryNumAtomTrees();
 
+// Property tree visitor interface for implementing visitor pattern
+enum PropertyTreeVisitorAction
+{
+    ptva_continue = 0,        // Continue visiting children
+    ptva_skipChildren = 1,    // Skip children, continue with siblings
+    ptva_stop = 2             // Stop tree traversal entirely
+};
+
+interface IPropertyTreeVisitor : extends IInterface
+{
+    virtual PropertyTreeVisitorAction visit(IPropertyTree &tree) = 0;
+};
+
 interface jlib_decl IPropertyTree : extends serializable
 {
     virtual bool hasProp(const char *xpath) const = 0;
@@ -131,6 +144,7 @@ interface jlib_decl IPropertyTree : extends serializable
 
     virtual IPropertyTreeIterator *getElements(const char *xpath, IPTIteratorCodes flags = iptiter_null) const = 0;
     virtual IAttributeIterator *getAttributes(bool sorted=false) const = 0;
+    virtual void visit(IPropertyTreeVisitor &visitor, const char *xpath = nullptr, IPTIteratorCodes flags = iptiter_null) const = 0;
 
     virtual IPropertyTree *getBranch(const char *xpath) const = 0;
     virtual IPropertyTree *queryBranch(const char *xpath) const = 0;

@@ -2838,6 +2838,30 @@ restart:
         return new PTStackIterator(iter.getClear(), xpath);
 }
 
+void PTree::visit(IPropertyTreeVisitor &visitor, const char *xpath, IPTIteratorCodes flags) const
+{
+    // Get elements to traverse using same logic as getElements
+    Owned<IPropertyTreeIterator> iter = getElements(xpath ? xpath : "", flags);
+    
+    // Visit each matching element
+    ForEach(*iter)
+    {
+        IPropertyTree &currentTree = iter->query();
+        PropertyTreeVisitorAction action = visitor.visit(currentTree);
+        
+        if (action == ptva_stop)
+            return; // Stop the entire traversal
+        
+        // If we should continue with children and the current tree has children
+        if (action == ptva_continue && currentTree.hasChildren())
+        {
+            // Recursively visit all children
+            currentTree.visit(visitor, nullptr, flags);
+        }
+        // If action == ptva_skipChildren, we just continue to next sibling
+    }
+}
+
 void PTree::localizeElements(const char *xpath, bool allTail)
 {
     // null action for local ptree
