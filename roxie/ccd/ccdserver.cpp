@@ -12941,8 +12941,7 @@ public:
 
         // Set the compression type that was actually used
         const char *compressionType = getIndexCompressionType(&helper, defaultIndexCompression);
-        if (!isEmptyString(compressionType))
-            properties.setProp("@compressionType", compressionType);
+        properties.setProp("@compressionType", compressionType);
 
         WorkunitUpdate workUnit = ctx->updateWorkUnit();
         if (workUnit)

@@ -403,6 +403,10 @@ const char * getIndexCompressionType(IHThorIndexWriteArg * helper, const char * 
     if (helper && (helper->getFlags() & TIWcompressdefined))
         compression = helper->queryCompression();
     
+    // Default to "legacy" if no compression is specified
+    if (!compression || !*compression)
+        compression = "legacy";
+    
     // Return the effective compression type - this matches the logic in CKeyBuilder
     return compression;
 }
