@@ -2840,8 +2840,39 @@ restart:
 
 void PTree::visit(IPropertyTreeVisitor &visitor, const char *xpath, IPTIteratorCodes flags) const
 {
+    // If no xpath specified, visit this node and its children directly
+    if (!xpath || '\0' == *xpath)
+    {
+        PropertyTreeVisitorAction action = visitor.visit(const_cast<IPropertyTree&>(static_cast<const IPropertyTree&>(*this)));
+        
+        if (action == ptva_stop)
+            return; // Stop the entire traversal
+            
+        // If we should continue with children and this tree has children
+        if (action == ptva_continue && hasChildren())
+        {
+            // Visit all direct children
+            Owned<IPropertyTreeIterator> iter = getElements("*", flags);
+            ForEach(*iter)
+            {
+                IPropertyTree &currentTree = iter->query();
+                PropertyTreeVisitorAction childAction = visitor.visit(currentTree);
+                
+                if (childAction == ptva_stop)
+                    return; // Stop the entire traversal
+                
+                // Recursively visit grandchildren if allowed
+                if (childAction == ptva_continue && currentTree.hasChildren())
+                {
+                    currentTree.visit(visitor, nullptr, flags);
+                }
+            }
+        }
+        return;
+    }
+    
     // Get elements to traverse using same logic as getElements
-    Owned<IPropertyTreeIterator> iter = getElements(xpath ? xpath : "", flags);
+    Owned<IPropertyTreeIterator> iter = getElements(xpath, flags);
     
     // Visit each matching element
     ForEach(*iter)

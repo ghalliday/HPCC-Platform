@@ -3620,7 +3620,7 @@ IPropertyTree *createBinaryDataCompressionTestPTree(const char *testXml)
 void testVisitor()
 {
     // Test visitor implementation for IPropertyTree interface
-    class TestCollectorVisitor : public CInterfaceOf<IPropertyTreeVisitor>
+    class TestCollectorVisitor : public CSimpleInterfaceOf<IPropertyTreeVisitor>
     {
     public:
         StringArray visitedNodes;
@@ -3632,7 +3632,7 @@ void testVisitor()
         }
     };
     
-    class TestSkipChildrenVisitor : public CInterfaceOf<IPropertyTreeVisitor>
+    class TestSkipChildrenVisitor : public CSimpleInterfaceOf<IPropertyTreeVisitor>
     {
     public:
         StringArray visitedNodes;
@@ -3646,7 +3646,7 @@ void testVisitor()
         }
     };
     
-    class TestStopVisitor : public CInterfaceOf<IPropertyTreeVisitor>
+    class TestStopVisitor : public CSimpleInterfaceOf<IPropertyTreeVisitor>
     {
     public:
         StringArray visitedNodes;
@@ -3751,6 +3751,24 @@ void testVisitor()
         }
         CPPUNIT_ASSERT_MESSAGE("Should visit grandchildren of filtered node", foundGrandchild1);
         CPPUNIT_ASSERT_MESSAGE("Should NOT visit siblings of filtered node", !foundChild1);
+    }
+    
+    // Test 5: Visit empty tree (edge case)
+    {
+        Owned<IPropertyTree> emptyTree = createPTree("empty");
+        TestCollectorVisitor visitor;
+        emptyTree->visit(visitor);
+        
+        CPPUNIT_ASSERT_MESSAGE("Should visit root of empty tree", visitor.visitedNodes.ordinality() == 1);
+        CPPUNIT_ASSERT_MESSAGE("Should visit 'empty' root node", streq(visitor.visitedNodes.item(0), "empty"));
+    }
+    
+    // Test 6: Visit with non-matching xpath (edge case)
+    {
+        TestCollectorVisitor visitor;
+        testTree->visit(visitor, "nonexistent");
+        
+        CPPUNIT_ASSERT_MESSAGE("Should not visit any nodes for non-matching xpath", visitor.visitedNodes.ordinality() == 0);
     }
 }
 

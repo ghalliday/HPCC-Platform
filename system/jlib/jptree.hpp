@@ -90,6 +90,34 @@ interface IPropertyTreeVisitor : extends IInterface
     virtual PropertyTreeVisitorAction visit(IPropertyTree &tree) = 0;
 };
 
+/* Example usage of visitor pattern:
+ * 
+ * class MyVisitor : public CSimpleInterfaceOf<IPropertyTreeVisitor>
+ * {
+ * public:
+ *     virtual PropertyTreeVisitorAction visit(IPropertyTree &tree) override
+ *     {
+ *         printf("Visiting node: %s\n", tree.queryName());
+ *         
+ *         // Skip children of nodes named "skip"
+ *         if (streq(tree.queryName(), "skip"))
+ *             return ptva_skipChildren;
+ *             
+ *         // Stop traversal at nodes named "stop"  
+ *         if (streq(tree.queryName(), "stop"))
+ *             return ptva_stop;
+ *             
+ *         return ptva_continue;
+ *     }
+ * };
+ * 
+ * // Usage:
+ * MyVisitor visitor;
+ * tree->visit(visitor);                    // Visit all nodes
+ * tree->visit(visitor, "item");           // Visit only "item" nodes and their children
+ * tree->visit(visitor, nullptr, iptiter_sort); // Visit with sorted iteration
+ */
+
 interface jlib_decl IPropertyTree : extends serializable
 {
     virtual bool hasProp(const char *xpath) const = 0;
