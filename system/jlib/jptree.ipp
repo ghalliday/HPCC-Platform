@@ -663,6 +663,9 @@ public:
     IPTArrayValue *queryValue() const { return value; }
     CQualifierMap *queryMap() { return value ? value->queryMap() : nullptr; }
     IPTArrayValue *detachValue() { IPTArrayValue *v = value; value = NULL; return v; }
+
+    PTreeVisitorAction visitThis(IPropertyTreeVisitor &visitor, const char *xpath) const;
+
     //This does not need to be virtual, because any remote PTree that the function is called on will already
     //have the connection locked
     void setValue(IPTArrayValue *_value, bool binary)
@@ -744,6 +747,7 @@ public:
     virtual StringBuffer &getName(StringBuffer &ret) const override;
     virtual IAttributeIterator *getAttributes(bool sorted=false) const override;
     virtual IPropertyTreeIterator *getElements(const char *xpath, IPTIteratorCodes flags = iptiter_null) const override;
+    virtual PTreeVisitorAction visit(IPropertyTreeVisitor &visitor, const char *xpath = nullptr, IPTIteratorCodes flags = iptiter_null) const override;
     virtual void localizeElements(const char *xpath, bool allTail=false) override;
     virtual bool hasChildren() const override { return children && children->count()?true:false; }
     virtual unsigned numUniq() const override { return checkChildren()?children->count():0; }

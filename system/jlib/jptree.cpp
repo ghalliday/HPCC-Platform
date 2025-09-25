@@ -1399,7 +1399,7 @@ bool PTree::hasProp(const char * xpath) const
 
 const char *PTree::queryProp(const char *xpath, const char * dft) const
 {
-    if (!xpath)
+    if (!xpath|| !*xpath)
     {
         if (!value) return dft;
         return (const char *) value->queryValue();
@@ -1427,7 +1427,7 @@ const char *PTree::queryProp(const char *xpath, const char * dft) const
 
 bool PTree::getProp(const char *xpath, StringBuffer &ret) const
 {
-    if (!xpath)
+    if (!xpath || !*xpath)
     {
         if (!value) return false;
         value->getValue(ret, IptFlagTst(flags, ipt_binary));
@@ -2836,6 +2836,166 @@ restart:
         return iter.getClear();
     else
         return new PTStackIterator(iter.getClear(), xpath);
+}
+
+PTreeVisitorAction PTree::visitThis(IPropertyTreeVisitor &visitor, const char *xpath) const
+{
+    if (likely(!value->isArray()))
+        return visitor.visit(const_cast<PTree&>(*this), xpath);
+
+    unsigned max = value->elements();
+    for (unsigned i = 0; i < max; i++)
+    {
+        IPropertyTree *element = value->queryElement(i);
+        if (element)
+        {
+            PTreeVisitorAction action = visitor.visit(*element, xpath);
+            if (action == PTVAstop)
+                return action;
+        }
+    }
+    return PTVAcontinue;
+}
+
+PTreeVisitorAction PTree::visit(IPropertyTreeVisitor &visitor, const char *xpath, IPTIteratorCodes flags) const
+{
+    // If no xpath specified, or reached the attribute, call the visitor and return
+    if (!xpath)
+        return visitThis(visitor, xpath);
+
+    // Clone the logic from getElements but use visitor pattern instead of returning iterators
+
+    // Handle xpath parsing - simplified version focusing on common cases
+    const char *_xpath = xpath;
+    bool root = true;
+
+restart:
+    switch (*xpath)
+    {
+        case '\0':
+        case '@':
+            // Process end of xpath or attribute here, so that case statements can goto reestart if the filter
+            // matches, rather than recursing.
+            return visitThis(visitor, xpath);
+
+        case '.':
+            root = false;
+            ++xpath;
+            if ('\0' == *xpath)
+                goto restart;
+            if ('/' != *xpath)
+                throw MakeXPathException(xpath-1, PTreeExcpt_XPath_Unsupported, 0, "\"/\" expected");
+            goto restart;
+
+        case '/':
+            ++xpath;
+            if ('/' == *xpath)
+            {
+                // Descendant axis - visit recursively
+                PTreeVisitorAction action = visit(visitor, xpath+1, flags);
+                if (action == PTVAstop)
+                    return action;
+
+                ChildMap *childMap = checkChildren();
+                if (childMap)
+                {
+                    //MORE: Avoid creating an iterator object if not sorted.
+                    Owned<IPropertyTreeIterator> iter = childMap->getIterator(flags & iptiter_sort);
+                    ForEach(*iter)
+                    {
+                        IPropertyTree &currentTree = iter->query();
+                        PTreeVisitorAction action = currentTree.visit(visitor, xpath-1, flags);
+                        if (action == PTVAstop)
+                            return action;
+                    }
+                }
+                return PTVAcontinue;
+            }
+            if (root)
+                throw MakeXPathException(xpath, PTreeExcpt_XPath_Unsupported, 0, "Root specifier \"/\" specifier is not supported");
+
+            // '\0' also supported by restart
+            goto restart;
+
+        case '[':
+        {
+            ++xpath;
+            if (isdigit(*xpath))
+            {
+                StringAttr index;
+                xpath = readIndex(xpath, index);
+                if (']' != *xpath)
+                    throw MakeXPathException(_xpath, PTreeExcpt_XPath_ParseError, xpath-_xpath, "Qualifier brace unclosed");
+                xpath++;
+
+                unsigned i = atoi(index.get());
+                if (i)
+                {
+                    if (value && value->isArray())
+                    {
+                        IPropertyTree *element = value->queryElement(--i);
+                        if (element)
+                            return element->visit(visitor, xpath, flags);
+                    }
+                    else if (i == 1)
+                        goto restart;
+                }
+            }
+            else
+            {
+                if (checkPattern(xpath))
+                {
+                    if (']' != *xpath)
+                        throw MakeXPathException(_xpath, PTreeExcpt_XPath_ParseError, xpath-_xpath, "Qualifier brace unclosed");
+                    xpath++;
+                    goto restart;
+                }
+            }
+            return PTVAcontinue;
+        }
+    }
+
+    // Process a named, or wild child element
+    bool wild;
+    const char *start = xpath;
+    readWildId(xpath, wild);
+    size32_t s = xpath - start;
+    if (unlikely(s == 0))
+        throw MakeXPathException(_xpath, PTreeExcpt_XPath_ParseError, xpath-_xpath, "XPath contains Illegal element character");
+
+    ChildMap *childMap = checkChildren();
+    if (!childMap)
+        return PTVAcontinue;
+
+    //MORE: This does not have the property filter logic that getElements() has
+    MAKE_LSTRING(id, start, s);
+    if (wild)
+    {
+        // Handle wildcard matching
+        Owned<IPropertyTreeIterator> iter = childMap->getIterator(flags & iptiter_sort);
+        ForEach(*iter)
+        {
+            IPropertyTree &currentTree = iter->query();
+            if (WildMatch(currentTree.queryName(), id, isnocase()))
+            {
+                PTreeVisitorAction action = currentTree.visit(visitor, xpath, flags);
+                if (action == PTVAstop)
+                    return action;
+            }
+        }
+    }
+    else
+    {
+        // Handle specific child name
+        IPropertyTree *child = children->query(id);
+        if (child)
+        {
+            PTreeVisitorAction action = child->visit(visitor, xpath, flags);
+            if (action == PTVAstop)
+                return action;
+        }
+    }
+    return PTVAcontinue;
 }
 
 void PTree::localizeElements(const char *xpath, bool allTail)

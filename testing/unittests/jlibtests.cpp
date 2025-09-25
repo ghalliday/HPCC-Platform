@@ -2507,6 +2507,7 @@ class JlibIPTTest : public CppUnit::TestFixture
         CPPUNIT_TEST(testMergeConfig);
         CPPUNIT_TEST(testRemoveReuse);
         CPPUNIT_TEST(testSpecialTags);
+        CPPUNIT_TEST(testVisitor);
     CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -3390,6 +3391,97 @@ Nothing_toEncodeHere:
             EXCLOG(e, nullptr);
             throw;
         }
+    }
+
+    // Test visitor implementation for IPropertyTree interface
+    class MultipleNodeVisitor : public CSimpleInterfaceOf<IPropertyTreeVisitor>
+    {
+    public:
+        StringArray visited;
+
+        virtual PTreeVisitorAction visit(IPropertyTree &tree, const char * xpath) override
+        {
+            const char * value = tree.queryProp(xpath);
+            visited.append(value ? value : "");
+            return PTVAcontinue;
+        }
+    };
+
+    class SingleNodeVisitor : public CSimpleInterfaceOf<IPropertyTreeVisitor>
+    {
+    public:
+        unsigned value = 0;
+
+        virtual PTreeVisitorAction visit(IPropertyTree &tree, const char * xpath) override
+        {
+            value = tree.getPropInt(xpath);
+            return PTVAstop;
+        }
+    };
+
+
+    void testSingleVisitor(const IPropertyTree * tree, const char * xpath, IPTIteratorCodes flags, unsigned expectedValue)
+    {
+        SingleNodeVisitor visitor;
+        tree->visit(visitor, xpath, flags);
+        CPPUNIT_ASSERT_EQUAL(expectedValue, visitor.value);
+    }
+
+    void testMultipleVisitor(const IPropertyTree * tree, const char * xpath, IPTIteratorCodes flags, std::initializer_list<const char * > expectedValues)
+    {
+        {
+            MultipleNodeVisitor visitor;
+            Owned<IPropertyTreeIterator> iter = tree->getElements(xpath, flags);
+            ForEach(*iter)
+                visitor.visit(iter->query(), "");
+            CPPUNIT_ASSERT_EQUAL(expectedValues.size(), (size_t)visitor.visited.ordinality());
+            ForEachItemIn(i, visitor.visited)
+            {
+                const char * expectedValue = expectedValues.begin()[i];
+                const char * actualValue = visitor.visited.item(i);
+                CPPUNIT_ASSERT_EQUAL_STR(expectedValue, actualValue);
+            }
+        }
+        {
+            MultipleNodeVisitor visitor;
+            tree->visit(visitor, xpath, flags);
+            CPPUNIT_ASSERT_EQUAL(expectedValues.size(), (size_t)visitor.visited.ordinality());
+            ForEachItemIn(i, visitor.visited)
+            {
+                const char * expectedValue = expectedValues.begin()[i];
+                const char * actualValue = visitor.visited.item(i);
+                CPPUNIT_ASSERT_EQUAL_STR(expectedValue, actualValue);
+            }
+        }
+    }
+
+    void testVisitor()
+    {
+        // Create test tree
+        Owned<IPropertyTree> testTree = createPTreeFromXMLString(
+            "<root age='123' seq='23'>9999"
+            " <child id='1'>value1</child>"
+            " <child id='2' magic='8'>value2</child>"
+            " <child>"
+            "  <child id='3'>value3</child>"
+            "  <child id='4'>value4</child>"
+            "  <child>"
+            "   <child id='10'>value10</child>"
+            "  </child>"
+            " </child>"
+            " <other id='1'>value20</other>"
+            "</root>");
+
+        testSingleVisitor(testTree, nullptr, iptiter_null, 9999);
+        testSingleVisitor(testTree, "", iptiter_null, 9999);
+        testSingleVisitor(testTree, "@age", iptiter_null, 123);
+        testSingleVisitor(testTree, "./", iptiter_null, 9999);
+        testSingleVisitor(testTree, "./@age", iptiter_null, 123);
+        testSingleVisitor(testTree, "././././@age", iptiter_null, 123);
+        testMultipleVisitor(testTree, "child", iptiter_null, {"value1", "value2", "" });
+        testMultipleVisitor(testTree, ".//child", iptiter_null, {"value1", "value2", "", "value3", "value4", "", "value10"});
+        testMultipleVisitor(testTree, "", iptiter_null, {"9999"});
+        testMultipleVisitor(testTree, "other", iptiter_null, {"value20"});
     }
 };
 
