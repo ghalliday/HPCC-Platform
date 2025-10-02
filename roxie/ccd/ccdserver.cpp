@@ -12083,6 +12083,7 @@ protected:
     Owned<IRecordSize> diskmeta;
     Owned<IRoxieWriteHandler> writer;
     unsigned __int64 uncompressedBytesWritten;
+    unsigned compMethod = 0;
 
     void updateWorkUnitResult(unsigned __int64 reccount)
     {
@@ -12235,6 +12236,13 @@ public:
             size32_t compBlockSize = 0; // i.e. default
             size32_t blockedIoSize = -1; // i.e. default
             io.setown(createCompressedFileWriter(writer->queryFile(), extend, true, ecomp, COMPRESS_METHOD_LZ4, compBlockSize, blockedIoSize, IFEnone));
+            // Get the actual compression method used
+            if (io)
+            {
+                ICompressedFileIO *icompfio = QUERYINTERFACE(io.get(), ICompressedFileIO);
+                if (icompfio)
+                    compMethod = icompfio->method();
+            }
         }
         else
             io.setown(writer->queryFile()->open(extend ? IFOwrite : IFOcreate));
@@ -12325,6 +12333,13 @@ public:
             fileProps.setPropBool("@blockCompressed", true);
             partProps.setPropInt64("@compressedSize", partProps.getPropInt64("@size", 0));
             partProps.setPropInt64("@size", uncompressedBytesWritten);
+            // Store compression type
+            if (compMethod)
+            {
+                const char *compressionType = translateFromCompMethod(compMethod);
+                if (compressionType && *compressionType)
+                    fileProps.setProp("@compressionType", compressionType);
+            }
         }
 
         if (encrypted)
