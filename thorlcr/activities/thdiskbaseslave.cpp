@@ -608,6 +608,16 @@ void CDiskWriteSlaveActivityBase::processDone(MemoryBuffer &mb)
     modifiedTime.getTime(hour, min, sec, nanosec);
     modifiedTime.setTime(hour, min, sec, 0);
     modifiedTime.serialize(mb);
+
+    // Send compression method if compressed
+    unsigned compMethod = 0;
+    if (compress && outputIO)
+    {
+        ICompressedFileIO *icompfio = QUERYINTERFACE(outputIO.get(), ICompressedFileIO);
+        if (icompfio)
+            compMethod = icompfio->method();
+    }
+    mb.append(compMethod);
 }
 
 /////////////

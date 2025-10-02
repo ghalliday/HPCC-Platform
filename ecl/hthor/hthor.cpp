@@ -801,7 +801,21 @@ void CHThorDiskWriteActivity::publish()
     if (encrypted)
         properties.setPropBool("@encrypted", true);
     if (compressed)
+    {
         properties.setPropBool("@blockCompressed", true);
+        // Store compression type
+        if (io)
+        {
+            ICompressedFileIO *icompfio = QUERYINTERFACE(io.get(), ICompressedFileIO);
+            if (icompfio)
+            {
+                unsigned compMethod = icompfio->method();
+                const char *compressionType = translateFromCompMethod(compMethod);
+                if (compressionType && *compressionType)
+                    properties.setProp("@compressionType", compressionType);
+            }
+        }
+    }
     if (helperFlags & TDWpersist)
         properties.setPropBool("@persistent", true);
     if (grouped)
