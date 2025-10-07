@@ -422,7 +422,7 @@ public:
     virtual size32_t write_multiple(unsigned num, const void **buf, size32_t *size)
     {
         size32_t res = 0;
-        for (int i=0; i<num; i++)
+        for (unsigned i=0; i<num; i++)
         {
             if (size[i] > 0)
             {
@@ -642,12 +642,6 @@ StringBuffer& CSecureSocket::get_cn(X509* cert, StringBuffer& cn)
 
 bool CSecureSocket::verify_cert(X509* cert)
 {
-    char *s, oneline[1024];
-
-    s = X509_NAME_oneline (X509_get_subject_name (cert), oneline, 1024);
-
-    s = X509_NAME_oneline (X509_get_issuer_name  (cert), oneline, 1024);
-
     StringBuffer cn;
     get_cn(cert, cn);
 
@@ -811,6 +805,7 @@ void CSecureSocket::handleError(int ssl_err, bool writing, bool wait, unsigned t
                 break;
             }
             // fall through to default error handling below
+            [[fallthrough]];
         }
         default:
         {
