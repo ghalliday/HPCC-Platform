@@ -98,6 +98,12 @@ interface IStoragePlaneAlias: extends IInterface
 
 //I'm not sure if this should be used in place of an IGroup, probably as system gradually changes
 interface IStorageApiInfo;
+enum class ReplicationMode : byte
+{
+    Cyclic,
+    Blocked,
+    Max
+};
 
 // This interface should only have specialized methods for accessing the plane information, rather a general function to return a property tree
 interface IStoragePlane: extends IInterface
@@ -115,6 +121,10 @@ interface IStoragePlane: extends IInterface
     virtual bool isAnyDeviceLocal() const = 0;
     virtual bool compressOnWrite() const = 0;
     virtual const char * queryCompression() const = 0;
+    virtual bool cloneSinglePartFiles() const = 0;
+    virtual unsigned numCopiesPerPart() const = 0;
+    virtual ReplicationMode getReplicationMode() const = 0;
+    virtual bool offsetDeviceWithHash() const = 0;
 };
 
 extern jlib_decl const IStoragePlane * getStoragePlaneByName(const char * name, bool required);

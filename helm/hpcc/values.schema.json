@@ -662,6 +662,27 @@
               "type": "array",
               "items": { "$ref": "#/definitions/storagePlaneAlias" }
             },
+            "cloneSingleParts" : {
+              "description" : "Are single part files cloned onto every device in this storage plane?",
+              "type" : "boolean",
+              "default": false
+            },
+            "numCopies" : {
+              "description" : "How many copies should there be of each file?  2 for bare-metal thor.  Num replicas per channel for roxie.  Must be <= numDevices",
+              "type" : "integer",
+              "default": 1
+            },
+            "replicationMode" : {
+              "description" : "Where are replicas located?  cyclic - next device, blocked - n+numDevices/numCopies",
+              "type" : "string",
+              "enum": ["cyclic", "blocked"],
+              "default": "cyclic"
+            },
+            "unbalanced" : {
+              "description" : "Is a hash-offset applied to file locations?  default false containerized, true bare-metal.",
+              "type" : "boolean",
+              "default": false
+            },
             "storageSize": {
               "type": "string"
             },

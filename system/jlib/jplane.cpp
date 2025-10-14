@@ -165,6 +165,16 @@ public:
         prefix = plane.queryProp("@prefix", "");
         category = plane.queryProp("@category", "");
         devices = plane.getPropInt("@numDevices", 1);
+        cloneSingleParts = plane.getPropBool("@cloneSingleParts", false);
+        numCopies = plane.getPropInt("@numCopies", 1);
+        const char * replication = plane.queryProp("@replicationMode", "cyclic");
+        if (streq(replication, "cyclic"))
+            replicationMode = ReplicationMode::Cyclic;
+        else if (streq(replication, "blocked"))
+            replicationMode = ReplicationMode::Blocked;
+        else
+            throw makeStringExceptionV(-1, "Invalid replication type: %s", replication);
+        useHashAsBias = !plane.getPropBool("@unbalanced", !isContainerized());
 
         for (unsigned propNum=0; propNum<PlaneAttributeType::PlaneAttributeCount; ++propNum)
         {
@@ -346,9 +356,26 @@ public:
         return compressed;
     }
 
-    virtual const char * queryCompression() const
+    virtual const char * queryCompression() const override
     {
         return compression;
+    }
+
+    virtual bool cloneSinglePartFiles() const override
+    {
+        return cloneSingleParts;
+    }
+    virtual unsigned numCopiesPerPart() const override
+    {
+        return numCopies;
+    }
+    virtual ReplicationMode getReplicationMode() const override
+    {
+        return replicationMode;
+    }
+    virtual bool offsetDeviceWithHash() const override
+    {
+        return useHashAsBias;
     }
 
 private:
@@ -357,6 +384,7 @@ private:
     std::string category;
     StringAttr compression;
     unsigned devices{1};
+    unsigned numCopies{1};
     std::array<unsigned __int64, PlaneAttributeCount> attributeValues;
     Linked<const IPropertyTree> config;
     Linked<const IPropertyTree> defaults;
@@ -365,6 +393,9 @@ private:
     mutable bool cachedLocalPlane{false};
     mutable bool isLocal{false};
     bool compressed{false};
+    bool cloneSingleParts{false};
+    bool useHashAsBias{false};
+    ReplicationMode replicationMode{ReplicationMode::Cyclic};
 };
 
 // {prefix, {key1: value1, key2: value2, ...}}
