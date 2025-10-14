@@ -3693,6 +3693,37 @@ void GroupInformation::createStoragePlane(IPropertyTree * storage, unsigned copy
         plane->setProp("@category", category);
     }
 
+    if ((groupType == grp_roxie) && !plane->hasProp("@cloneSingleParts"))
+        plane->setPropBool("@cloneSingleParts", true);
+
+    if (!plane->hasProp("@numCopies"))
+    {
+        unsigned numCopies = 1;
+        if (!isContainerized())
+        {
+            switch (groupType)
+            {
+                case grp_thor:
+                    numCopies = 2;
+                    break;
+                case grp_roxie:
+                    numCopies = 1; // Should be topology->getPropInt("@numDataCopies", 1), but I don't think that information is available.
+                    break;
+            }
+            plane->setPropInt("@numCopies", numCopies);
+        }
+    }
+
+    if (!plane->hasProp("@replicationMode"))
+    {
+        const char * replication = (groupType == grp_roxie) ? "blocked" : "cyclic";
+        plane->setProp("@replicationMode", replication);
+    }
+
+    // bare-metal storage does not routinely add a hash to the part to determine the device
+    if (!plane->hasProp("@unbalanced") && !isContainerized())
+        plane->setPropBool("@unbalanced", true);
+
     //MORE: If container is identical to this except for the name we could generate an information tag @alias
 }
 
