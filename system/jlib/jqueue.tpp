@@ -146,15 +146,16 @@ public:
             enqueue(e,i);
         }
     }
-    inline BASE *dequeue()
+    inline BASE *dequeue() __attribute__((always_inline))
     {
+        unsigned cnt = num;
         if (!num)
             return NULL;
+        num = cnt-1;
         BASE *ret = ptrs[headp];
         headp++;
         if (headp==max)
             headp = 0;
-        num.fastAdd(-1); // Do not use decrement which is atomic
         return ret;
     }
     BASE *dequeueTail()
