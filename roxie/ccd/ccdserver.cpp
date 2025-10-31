@@ -26126,17 +26126,16 @@ public:
         ActivityTimer t(activityStats, timeActivities);
         for (;;)
         {
-            if (unlikely(eof))
-                return NULL;
-            processAgentResults();
-            if (ready.ordinality())
+            if (likely(ready.ordinality()))
             {
                 const void *result = ready.dequeue();
                 if (result)
                     joinProcessed++;
                 return result;
             }
-            else
+            if (unlikely(eof))
+                return NULL;
+            if (!processAgentResults())
                 eof = true;
         }
     }
@@ -26150,7 +26149,7 @@ public:
     }
 
 private:
-    void processAgentResults()
+    bool processAgentResults() __attribute__((noinline))
     {
         while (!ready.ordinality())
         {
@@ -26197,8 +26196,9 @@ private:
                 }
             }
             else
-                break;
+                return false;
         }
+        return true;
     }
 };
 
