@@ -772,7 +772,7 @@ public:
 // GH->JCS. It would be better if this wrapped the base IFileIO, rather than the compressed IFileIO - otherwise each write goes through
 //          an extra layer of virtual calls.
 
-IFileIO *createMultipleWrite(CActivityBase *activity, IPartDescriptor &partDesc, unsigned twFlags, bool &compress, ICompressor *ecomp, ICopyFileProgress *iProgress, bool *aborted, StringBuffer *_outLocationName)
+IFileIO *createMultipleWrite(CActivityBase *activity, IPartDescriptor &partDesc, unsigned twFlags, bool &compress, ICompressor *ecomp, ICopyFileProgress *iProgress, bool *aborted, StringBuffer *_outLocationName, unsigned *compMethod)
 {
     StringBuffer outLocationNameI;
     StringBuffer &outLocationName = _outLocationName?*_outLocationName:outLocationNameI;
@@ -817,9 +817,10 @@ IFileIO *createMultipleWrite(CActivityBase *activity, IPartDescriptor &partDesc,
 
     OwnedIFile file = createIFile(outLocationName.str());
     Owned<IFileIO> fileio;
+    unsigned compMethodUsed = 0;
     if (compress)
     {
-        unsigned compMethod = COMPRESS_METHOD_LZ4;
+        compMethodUsed = COMPRESS_METHOD_LZ4;
         // rowdif used if recordSize > 0, else fallback to compMethod
         IFEflags fileIOExtaFlags = IFEnone;
         if (!ecomp)
@@ -829,31 +830,32 @@ IFileIO *createMultipleWrite(CActivityBase *activity, IPartDescriptor &partDesc,
                 // if temp file then can use newer compressor
                 StringBuffer compType;
                 activity->getOpt(THOROPT_COMPRESS_SPILL_TYPE, compType);
-                compMethod = getCompMethod(compType);
+                compMethodUsed = getCompMethod(compType);
             }
             else if (twFlags & (TW_JobTemp|TW_Persist))
             {
-                compMethod = COMPRESS_METHOD_ZSTD;
+                compMethodUsed = COMPRESS_METHOD_ZSTD;
             }
             // force
             StringBuffer compressionType;
             if (activity->getOpt(THOROPT_COMPRESS_FORMAT, compressionType))
-                compMethod = getCompMethod(compressionType);
+                compMethodUsed = getCompMethod(compressionType);
             else if (activity->getOptBool(THOROPT_COMP_FORCELZW, false))
-                compMethod = COMPRESS_METHOD_LZW;
+                compMethodUsed = COMPRESS_METHOD_LZW;
             else if (activity->getOptBool(THOROPT_COMP_FORCEFLZ, false))
-                compMethod = COMPRESS_METHOD_FASTLZ;
+                compMethodUsed = COMPRESS_METHOD_FASTLZ;
             else if (activity->getOptBool(THOROPT_COMP_FORCELZ4, false))
-                compMethod = COMPRESS_METHOD_LZ4;
+                compMethodUsed = COMPRESS_METHOD_LZ4;
             else if (activity->getOptBool(THOROPT_COMP_FORCELZ4HC, false))
-                compMethod = COMPRESS_METHOD_LZ4HC;
+                compMethodUsed = COMPRESS_METHOD_LZ4HC;
 
         }
         size32_t compressBlockSize = 0; // i.e. default.
-        fileio.setown(createCompressedFileWriter(file, 0 != (twFlags & TW_Extend), true, ecomp, compMethod, compressBlockSize, blockedIoSize, fileIOExtaFlags));
+        fileio.setown(createCompressedFileWriter(file, 0 != (twFlags & TW_Extend), true, ecomp, compMethodUsed, compressBlockSize, blockedIoSize, fileIOExtaFlags));
         if (!fileio)
         {
             compress = false;
+            compMethodUsed = 0;
             Owned<IThorException> e = MakeActivityWarning(activity, TE_LargeBufferWarning, "Could not write file '%s' compressed", outLocationName.str());
             activity->fireException(e);
             fileio.setown(file->open((twFlags & TW_Extend)&&file->exists()?IFOwrite:IFOcreate));
@@ -863,17 +865,14 @@ IFileIO *createMultipleWrite(CActivityBase *activity, IPartDescriptor &partDesc,
         fileio.setown(file->open((twFlags & TW_Extend)&&file->exists()?IFOwrite:IFOcreate));
     if (!fileio)
         throw MakeActivityException(activity, TE_FileCreationFailed, "Failed to create file for write (%s) error = %d", outLocationName.str(), GetLastError());
+    
+    if (compMethod)
+        *compMethod = compMethodUsed;
+    
     StringBuffer compStr;
     if (compress)
     {
-        ICompressedFileIO *icompfio = QUERYINTERFACE(fileio.get(), ICompressedFileIO);
-        if (icompfio)
-        {
-            unsigned compMeth2 = icompfio->method();
-            compStr.append(translateFromCompMethod(compMeth2));
-        }
-        else
-            compStr.append("unknown");
+        compStr.append(translateFromCompMethod(compMethodUsed));
     }
     else
         compStr.append("false");

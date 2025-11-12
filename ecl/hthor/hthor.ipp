@@ -311,6 +311,7 @@ protected:
     StringBuffer mangledHelperFileName;
     OwnedConstRoxieRow nextrow; // needed for grouped spill
     FileAccessOptions fileAccessOptions;
+    CompressionMethod compMethod = COMPRESS_METHOD_LZ4;
 
     virtual bool isOutputTransformed() { return false; }
     virtual void setFormat(IFileDescriptor * desc);

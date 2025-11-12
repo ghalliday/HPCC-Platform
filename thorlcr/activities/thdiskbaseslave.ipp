@@ -126,6 +126,7 @@ protected:
     CDfsLogicalFileName dlfn;
     StringBuffer tempExternalName;
     CFileUsageEntry * tmpUsage = nullptr;
+    unsigned compMethod = 0;
 
     void open();
     void removeFiles();
