@@ -3081,27 +3081,17 @@ void PTree::deserializeSelf(IBufferedSerialInputStream &src)
 
     read(src, flags);
 
-    // Read attributes until we encounter a zero byte (attribute list terminator)
-    for (;;)
+    std::vector<size32_t> matchOffsets;
+    size32_t len;
+    const char * base = peekStringList(matchOffsets, src, len);
+
+    constexpr bool attributeNameNotEncoded = false; // Deserialized attribute name is in its original unencoded form
+    for (unsigned i=0; i < matchOffsets.size(); i += 2)
     {
-        NextByteStatus status = isNextByteZero(src);
-        if (status == NextByteStatus::nextByteIsZero)
-        {
-            src.skip(1); // Skip over null terminator.
-            break;
-        }
-        if (status == NextByteStatus::endOfStream)
-            throwUnexpectedX("PTree deserialization error: end of stream, expected attribute name");
-
-        // NextByteStatus::nextByteIsNonZero - read the attribute key-value pair
-        std::pair<const char *, const char *> attrPair = peekKeyValuePair(src, len);
-        if (attrPair.second == nullptr)
-            throwUnexpectedX("PTree deserialization error: end of stream, expected attribute value");
-
-        constexpr bool attributeNameNotEncoded = false; // Deserialized attribute name is in its original unencoded form
-        setAttribute(attrPair.first, attrPair.second, attributeNameNotEncoded);
-
-        src.skip(len + 1); // +1 to skip over second null terminator.
+        size32_t offset = matchOffsets[i];
+        const char *attrName = base + offset;
+        const char *attrValue = base + matchOffsets[++i];
+        setAttribute(attrName, attrValue, attributeNameNotEncoded);
     }
 
     if (value)
