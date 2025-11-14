@@ -933,6 +933,8 @@ public:
         tree->deserializeFromStream(in, ctx);
         return tree;
     }
+    void deserializeAttributes(IBufferedSerialInputStream &src, const char * base, PTreeDeserializeContext &ctx);
+
 
 };
 
