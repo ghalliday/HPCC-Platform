@@ -3086,8 +3086,6 @@ void PTree::deserializeSelf(IBufferedSerialInputStream &src, PTreeDeserializeCon
     const char * base = peekStringList(ctx.matchOffsets, src, len);
     deserializeAttributes(src, base, ctx);
 
-    if (value)
-        delete value;
     size32_t size{0};
     read(src, size);
     if (size > 0)
