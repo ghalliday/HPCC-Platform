@@ -4068,9 +4068,19 @@ void CAtomPTree::deserializeAttributes(IBufferedSerialInputStream &src, const ch
 
         AttrValue *v = &attrs[i];
         if (!v->key.set(key))
-            allSet = false;
+        {
+            if (ctx.exclusive)
+                v->key.setPtr(attrHT->addkey(key, isnocase()));
+            else
+                allSet = false;
+        }
         if (!v->value.set(attrValue))
-            allSet = false;
+        {
+            if (ctx.exclusive)
+                v->value.setPtr(attrHT->addval(attrValue));
+            else
+                allSet = false;
+        }
     }
 
     //MORE Trace how often allSet is true
