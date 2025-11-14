@@ -4047,6 +4047,32 @@ void CAtomPTree::freeAttrArray(AttrValue *a, unsigned n)
     }
 }
 
+void CAtomPTree::deserializeAttributes(IBufferedSerialInputStream &src, const char * base, PTreeDeserializeContext &ctx)
+{
+    numAttrs = ctx.matchOffsets.size() / 2;
+
+    CriticalBlock block(hashcrit);
+    attrs = newAttrArray(numAttrs);
+    for (unsigned i=0; i < numAttrs; i++)
+    {
+        size32_t offset = ctx.matchOffsets[i*2];
+        const char *attrName = base + offset;
+        const char *attrValue = base + ctx.matchOffsets[i*2 + 1];
+
+        const char *key = attrName;
+        assertex (attrValue);// cannot have NULL value should be "" by now
+
+        AttrValue *v = &attrs[i];
+        if (!v->key.set(key))
+            v->key.setPtr(attrHT->addkey(key, isnocase()));
+        //shared via atom table, may want to add this later... escaped and unescaped versions should be considered unique
+        //if (encoded)
+        //    v->key.setEncoded();
+        if (!v->value.set(attrValue))
+            v->value.setPtr(attrHT->addval(attrValue));
+    }
+}
+
 void CAtomPTree::setAttribute(const char *key, const char *val, bool encoded)
 {
     if (!key)

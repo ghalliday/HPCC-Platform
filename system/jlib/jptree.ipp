@@ -892,6 +892,7 @@ public:
         tree->deserializeFromStream(in, ctx);
         return tree;
     }
+    virtual void deserializeAttributes(IBufferedSerialInputStream &src, const char * base, PTreeDeserializeContext &ctx) override;
 };
 
 
