@@ -4051,8 +4051,12 @@ void CAtomPTree::deserializeAttributes(IBufferedSerialInputStream &src, const ch
 {
     numAttrs = ctx.matchOffsets.size() / 2;
 
-    CLeavableCriticalBlock block(hashcrit, !ctx.exclusive);
-    attrs = newAttrArray(numAttrs);
+    {
+        CLeavableCriticalBlock block(hashcrit, !ctx.exclusive);
+        attrs = newAttrArray(numAttrs);
+    }
+
+    bool allSet = true;
     for (unsigned i=0; i < numAttrs; i++)
     {
         size32_t offset = ctx.matchOffsets[i*2];
@@ -4064,12 +4068,34 @@ void CAtomPTree::deserializeAttributes(IBufferedSerialInputStream &src, const ch
 
         AttrValue *v = &attrs[i];
         if (!v->key.set(key))
-            v->key.setPtr(attrHT->addkey(key, isnocase()));
-        //shared via atom table, may want to add this later... escaped and unescaped versions should be considered unique
-        //if (encoded)
-        //    v->key.setEncoded();
+            allSet = false;
         if (!v->value.set(attrValue))
-            v->value.setPtr(attrHT->addval(attrValue));
+            allSet = false;
+    }
+
+    //MORE Trace how often allSet is true
+
+    if (!allSet)
+    {
+        CLeavableCriticalBlock block(hashcrit, !ctx.exclusive);
+        for (unsigned i=0; i < numAttrs; i++)
+        {
+            size32_t offset = ctx.matchOffsets[i*2];
+            const char *attrName = base + offset;
+            const char *attrValue = base + ctx.matchOffsets[i*2 + 1];
+
+            const char *key = attrName;
+            assertex (attrValue);// cannot have NULL value should be "" by now
+
+            AttrValue *v = &attrs[i];
+            if (!v->key.get())
+                v->key.setPtr(attrHT->addkey(key, isnocase()));
+            //shared via atom table, may want to add this later... escaped and unescaped versions should be considered unique
+            //if (encoded)
+            //    v->key.setEncoded();
+            if (!v->value.get())
+                v->value.setPtr(attrHT->addval(attrValue));
+        }
     }
 }
 
