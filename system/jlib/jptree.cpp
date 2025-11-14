@@ -3047,7 +3047,7 @@ void PTree::serializeToStream(IBufferedSerialOutputStream &tgt) const
 
 void PTree::deserializeFromStream(IBufferedSerialInputStream &src, PTreeDeserializeContext &ctx)
 {
-    deserializeSelf(src);
+    deserializeSelf(src, ctx);
 
     for (;;)
     {
@@ -3070,7 +3070,7 @@ void PTree::deserializeFromStream(IBufferedSerialInputStream &src, PTreeDeserial
     }
 }
 
-void PTree::deserializeSelf(IBufferedSerialInputStream &src)
+void PTree::deserializeSelf(IBufferedSerialInputStream &src, PTreeDeserializeContext &ctx)
 {
     size32_t len{0};
     const char *name = queryZeroTerminatedString(src, len);
@@ -3081,16 +3081,16 @@ void PTree::deserializeSelf(IBufferedSerialInputStream &src)
 
     read(src, flags);
 
-    std::vector<size32_t> matchOffsets;
     size32_t len;
-    const char * base = peekStringList(matchOffsets, src, len);
+    ctx.matchOffsets.clear();
+    const char * base = peekStringList(ctx.matchOffsets, src, len);
 
     constexpr bool attributeNameNotEncoded = false; // Deserialized attribute name is in its original unencoded form
-    for (unsigned i=0; i < matchOffsets.size(); i += 2)
+    for (unsigned i=0; i < ctx.matchOffsets.size(); i += 2)
     {
-        size32_t offset = matchOffsets[i];
+        size32_t offset = ctx.matchOffsets[i];
         const char *attrName = base + offset;
-        const char *attrValue = base + matchOffsets[++i];
+        const char *attrValue = base + ctx.matchOffsets[++i];
         setAttribute(attrName, attrValue, attributeNameNotEncoded);
     }
 

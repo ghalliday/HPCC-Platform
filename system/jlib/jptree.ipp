@@ -38,6 +38,7 @@
 class jlib_decl PTreeDeserializeContext
 {
 public:
+    std::vector<size32_t> matchOffsets{30};
     // This class can be extended in the future to hold state during deserialization
     // For now, it serves as a placeholder for the context parameter
 };
@@ -658,7 +659,7 @@ public:
     void serializeAttributes(MemoryBuffer &tgt);
 
     void serializeCutOff(IBufferedSerialOutputStream &tgt, int cutoff=-1, int depth=0) const;
-    void deserializeSelf(IBufferedSerialInputStream &src);
+    void deserializeSelf(IBufferedSerialInputStream &src, PTreeDeserializeContext &ctx);
     void serializeAttributes(IBufferedSerialOutputStream &tgt) const;
 
     void cloneIntoSelf(const IPropertyTree &srcTree, bool sub);     // clone the name and contents of srcTree into "this" tree
