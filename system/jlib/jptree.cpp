@@ -3826,17 +3826,18 @@ bool LocalPTree::removeAttribute(const char *key)
 
 void LocalPTree::deserializeAttributes(IBufferedSerialInputStream &src, const char * base, PTreeDeserializeContext &ctx)
 {
-    for (unsigned i=0; i < ctx.matchOffsets.size(); i += 2)
+    numAttrs = ctx.matchOffsets.size() / 2;
+    attrs = (AttrValue *)realloc(attrs, numAttrs * sizeof(AttrValue));
+    for (unsigned i=0; i < numAttrs; i++)
     {
-        size32_t offset = ctx.matchOffsets[i];
+        size32_t offset = ctx.matchOffsets[i*2];
         const char *attrName = base + offset;
-        const char *attrValue = base + ctx.matchOffsets[++i];
+        const char *attrValue = base + ctx.matchOffsets[i*2 + 1];
 
         const char *key = attrName;
         assertex (attrValue);// cannot have NULL value should be "" by now
 
-        attrs = (AttrValue *)realloc(attrs, (numAttrs + 1) * sizeof(AttrValue));
-        AttrValue * v = new (&attrs[numAttrs++]) AttrValue;  // Initialize new AttrValue
+        AttrValue * v = new (&attrs[i]) AttrValue;  // Initialize new AttrValue
         if (!v->key.set(attrName)) //AttrStr will not return encoding marker when get() is called
             v->key.setPtr(isnocase() ? AttrStr::createNC(attrName) : AttrStr::create(attrName));
 
