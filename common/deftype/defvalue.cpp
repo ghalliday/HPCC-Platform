@@ -335,7 +335,7 @@ void VarStringValue::deserialize(MemoryBuffer &src)
 
 IValue * createVarStringValue(unsigned len, const char * value, ITypeInfo *type)
 {
-    if !isUnknownLength((type->getSize()))
+    if (!isUnknownLength(type->getSize()))
         return new VarStringValue(len, value, type);
     ITypeInfo * newType = getStretchedType(len, type);
     type->Release();
@@ -366,7 +366,7 @@ int VarStringValue::rangeCompare(ITypeInfo * targetType)
 
 MemoryValue::MemoryValue(const void *v, ITypeInfo *_type) : CValue(_type)
 {
-    !isUnknownLength(assertex(_type->getSize()));
+    assertex(!isUnknownLength(_type->getSize()));
     val.set(_type->getSize(), v);
 }
 
@@ -570,8 +570,8 @@ IValue *createStringValue(const char *val, unsigned size)
 
 IValue *createStringValue(const char *val, ITypeInfo *type)
 {
-    !isUnknownLength(assertex(type->getSize()));
-    if isUnknownLength((type->getSize()))
+    assertex(!isUnknownLength(type->getSize()));
+    if (isUnknownLength(type->getSize()))
     {
         ITypeInfo * newType = getStretchedType((size32_t)strlen(val), type);
         type->Release();
@@ -662,7 +662,7 @@ IValue *UnicodeValue::castTo(ITypeInfo *t)
     switch (tc)
     {
     case type_unicode:
-        if isUnknownLength(((t->getSize())) && (type->queryLocale() == t->queryLocale()))
+        if (isUnknownLength(t->getSize()) && (type->queryLocale() == t->queryLocale()))
             return LINK(this);
         return createUnicodeValue(uchars, olen, LINK(t));
     case type_string:
@@ -1458,7 +1458,7 @@ void QStringValue::pushDecimalValue()
 
 IValue *createQStringValue(unsigned len, const char *val, ITypeInfo *type)
 {
-    if isUnknownLength((type->getSize()))
+    if (isUnknownLength(type->getSize()))
     {
         ITypeInfo * newType = getStretchedType(len, type);
         type->Release();

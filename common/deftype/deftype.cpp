@@ -995,7 +995,7 @@ StringBuffer &CVarStringTypeInfo::getDescriptiveType(StringBuffer &out)
 
 //---------------------------------------------------------------------------
 
-CQStringTypeInfo::CQStringTypeInfo(unsigned _strLength) : CStringTypeInfo(isUnknownLength(_strLength) ? UNKNOWN_LENGTH : rtlQStrSize(_strLength), NULL, NULL)
+CQStringTypeInfo::CQStringTypeInfo(unsigned _strLength) : CStringTypeInfo(isUnknownLength(_strLength) ? _strLength : rtlQStrSize(_strLength), NULL, NULL)
 {
     strLength = _strLength;
 }
