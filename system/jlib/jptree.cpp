@@ -3084,15 +3084,7 @@ void PTree::deserializeSelf(IBufferedSerialInputStream &src, PTreeDeserializeCon
     size32_t len;
     ctx.matchOffsets.clear();
     const char * base = peekStringList(ctx.matchOffsets, src, len);
-
-    constexpr bool attributeNameNotEncoded = false; // Deserialized attribute name is in its original unencoded form
-    for (unsigned i=0; i < ctx.matchOffsets.size(); i += 2)
-    {
-        size32_t offset = ctx.matchOffsets[i];
-        const char *attrName = base + offset;
-        const char *attrValue = base + ctx.matchOffsets[++i];
-        setAttribute(attrName, attrValue, attributeNameNotEncoded);
-    }
+    deserializeAttributes(src, base, ctx);
 
     if (value)
         delete value;
@@ -3102,6 +3094,18 @@ void PTree::deserializeSelf(IBufferedSerialInputStream &src, PTreeDeserializeCon
         value = new CPTValue(src, size);
     else
         value = nullptr;
+}
+
+void PTree::deserializeAttributes(IBufferedSerialInputStream &src, const char * base, PTreeDeserializeContext &ctx)
+{
+    constexpr bool attributeNameNotEncoded = false; // Deserialized attribute name is in its original unencoded form
+    for (unsigned i=0; i < ctx.matchOffsets.size(); i += 2)
+    {
+        size32_t offset = ctx.matchOffsets[i];
+        const char *attrName = base + offset;
+        const char *attrValue = base + ctx.matchOffsets[++i];
+        setAttribute(attrName, attrValue, attributeNameNotEncoded);
+    }
 }
 
 void PTree::serializeAttributes(MemoryBuffer &tgt)

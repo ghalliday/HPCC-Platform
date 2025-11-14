@@ -660,6 +660,7 @@ public:
 
     void serializeCutOff(IBufferedSerialOutputStream &tgt, int cutoff=-1, int depth=0) const;
     void deserializeSelf(IBufferedSerialInputStream &src, PTreeDeserializeContext &ctx);
+    void deserializeAttributes(IBufferedSerialInputStream &src, const char * base, PTreeDeserializeContext &ctx);
     void serializeAttributes(IBufferedSerialOutputStream &tgt) const;
 
     void cloneIntoSelf(const IPropertyTree &srcTree, bool sub);     // clone the name and contents of srcTree into "this" tree
