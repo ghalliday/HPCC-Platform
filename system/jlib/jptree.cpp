@@ -3831,8 +3831,6 @@ void LocalPTree::deserializeAttributes(IBufferedSerialInputStream &src, const ch
         size32_t offset = ctx.matchOffsets[i];
         const char *attrName = base + offset;
         const char *attrValue = base + ctx.matchOffsets[++i];
-        if (!attrName)
-            return;
 
         const char *key = attrName;
         assertex (attrValue);// cannot have NULL value should be "" by now
