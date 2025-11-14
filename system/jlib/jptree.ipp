@@ -38,9 +38,13 @@
 class jlib_decl PTreeDeserializeContext
 {
 public:
+    PTreeDeserializeContext(CriticalSection & _cs, bool _exclusive) : lock(_cs, _exclusive), exclusive(_exclusive) {}
+
     std::vector<size32_t> matchOffsets{30};
     // This class can be extended in the future to hold state during deserialization
     // For now, it serves as a placeholder for the context parameter
+    CLeavableCriticalBlock lock;
+    bool exclusive = false;
 };
 
 ///////////////////

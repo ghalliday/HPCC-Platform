@@ -213,7 +213,8 @@ enum ipt_flags
     ipt_lowmem  = 0x10,   // Prioritize low memory usage over speed
     ipt_escaped = 0x20,   // Name is escaped to handle extended character set
     ipt_ext4    = 0x40,   // Used internally in Dali
-    ipt_ext5    = 0x80    // Used internally in Dali
+    ipt_ext5    = 0x80,    // Used internally in Dali
+    ipt_exclusive = 0x100, // Exclusive access to the atom tables
 };
 
 jlib_decl IPTreeMaker *createPTreeMaker(byte flags=ipt_none, IPropertyTree *root=NULL, IPTreeNodeCreator *nodeCreator=NULL);

@@ -4051,7 +4051,7 @@ void CAtomPTree::deserializeAttributes(IBufferedSerialInputStream &src, const ch
 {
     numAttrs = ctx.matchOffsets.size() / 2;
 
-    CriticalBlock block(hashcrit);
+    CLeavableCriticalBlock block(hashcrit, !ctx.exclusive);
     attrs = newAttrArray(numAttrs);
     for (unsigned i=0; i < numAttrs; i++)
     {
@@ -4567,7 +4567,7 @@ IPropertyTree *createPTree(MemoryBuffer &src, byte flags)
 
 IPropertyTree *createPTreeFromBinary(IBufferedSerialInputStream &src, byte flags)
 {
-    PTreeDeserializeContext ctx;
+    PTreeDeserializeContext ctx(CAtomPTree::hashcrit, (flags & ipt_lowmem) && (flags & ipt_exclusive));
     IPropertyTree *tree = createPTree(nullptr, flags);
     tree->deserializeFromStream(src, ctx);
     return tree;
