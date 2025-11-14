@@ -740,7 +740,7 @@ IValue * doFoldExternalCall(IHqlExpression* expr, unsigned foldOptions, const ch
     {
     case type_varstring:
     case type_varunicode:
-        if isUnknownLength((retType->getSize()))
+        if (isUnknownLength((retType->getSize()))
         {
             // variable length varstring, should return as char*
             retCharStar = true;
@@ -754,7 +754,7 @@ IValue * doFoldExternalCall(IHqlExpression* expr, unsigned foldOptions, const ch
     case type_qstring:
     case type_unicode:
     case type_utf8:
-        if isUnknownLength((retType->getSize()))
+        if (isUnknownLength((retType->getSize()))
         {
             // string, pass in the reference of length var and char* var. After function call,
             // values will be stored in them.
@@ -1418,7 +1418,7 @@ IValue * doFoldExternalCall(IHqlExpression* expr, unsigned foldOptions, const ch
         }
         
         Linked<ITypeInfo> resultType = retType;
-        if isUnknownLength((resultType->getSize()))
+        if (isUnknownLength((resultType->getSize()))
             resultType.setown(getStretchedType(tlen, resultType));
 
         switch (typecode)

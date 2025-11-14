@@ -3344,7 +3344,7 @@ IHqlExpression * ensureExprType(IHqlExpression * expr, ITypeInfo * type, node_op
                 promotedType.set(castType);
             else if (!isSameBasicType(promotedType, castType))
             {
-                if !isUnknownLength((promotedType->getSize()))
+                if (!isUnknownLength((promotedType->getSize()))
                 {
                     promotedType.setown(getStretchedType(UNKNOWN_LENGTH, childType));
                 }
@@ -3361,7 +3361,7 @@ IHqlExpression * ensureExprType(IHqlExpression * expr, ITypeInfo * type, node_op
     {
         return ensureExprType(expr, type->queryPromotedType(), castOp);
     }
-    else if isUnknownLength((type->getStringLen()))
+    else if (isUnknownLength((type->getStringLen()))
     {
         //Optimize away casts to unknown length if the rest of the type matches.
         if (exprType->getTypeCode() == tc)
@@ -3391,7 +3391,7 @@ IHqlExpression * ensureExprType(IHqlExpression * expr, ITypeInfo * type, node_op
 
         /*
         The following might produce better code, but it generally makes things worse.....
-        if !isUnknownLength(((exprType->getSize())) && (isStringType(exprType) || isUnicodeType(exprType)))
+        if (!isUnknownLength(((exprType->getSize())) && (isStringType(exprType) || isUnicodeType(exprType)))
         {
             Owned<ITypeInfo> stretchedType = getStretchedType(exprType->getStringLen(), type);
             return ensureExprType(expr, stretchedType, castOp);
@@ -12419,13 +12419,13 @@ static void normalizeCallParameters(HqlExprArray & resolvedActuals, IHqlExpressi
                 case type_function:
                     break;
                 case type_unicode:
-                    if isUnknownLength(((type->getSize())) && (actual->queryType()->getTypeCode() == type_varunicode))
+                    if (isUnknownLength(((type->getSize())) && (actual->queryType()->getTypeCode() == type_varunicode))
                         break;
                     actual.setown(ensureExprType(actual, type));
                     break;
     #if 0
                 case type_string:
-                    if isUnknownLength((type->getSize()))
+                    if (isUnknownLength((type->getSize()))
                     {
                         ITypeInfo * actualType = actual->queryType();
                         if ((actualType->getTypeCode() == type_varstring) && (actualType->queryCharset() == type->queryCharset())))

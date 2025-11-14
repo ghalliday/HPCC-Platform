@@ -2316,7 +2316,7 @@ ITypeInfo * CAlienColumnInfo::queryPhysicalType()
 ITypeInfo * CAlienColumnInfo::getPhysicalSourceType()
 {
     ITypeInfo * physicalType = queryPhysicalType();
-    if isUnknownLength((physicalType->getSize()))
+    if (isUnknownLength((physicalType->getSize()))
         return getStretchedType(INFINITE_LENGTH, physicalType);
 
     return LINK(physicalType);
@@ -2389,7 +2389,7 @@ void CAlienColumnInfo::setColumn(HqlCppTranslator & translator, BuildCtx & ctx, 
 
     OwnedHqlExpr absoluteCall = replaceSelector(call, querySelfReference(), self);
     OwnedHqlExpr selectedCall = cursor->bindToRow(absoluteCall, queryRootSelf());
-    if isUnknownLength((physicalType->getSize()))
+    if (isUnknownLength((physicalType->getSize()))
     {
         CHqlBoundExpr boundCall;
         translator.buildExpr(ctx, selectedCall, boundCall);
@@ -2860,7 +2860,7 @@ void CXmlColumnInfo::buildFixedStringAssign(HqlCppTranslator & translator, Build
 void CXmlColumnInfo::buildColumnAssign(HqlCppTranslator & translator, BuildCtx & ctx, IReferenceSelector * selector, const CHqlBoundTarget & target)
 {
     Linked<ITypeInfo> type = queryPhysicalType();
-    if !isUnknownLength((type->getSize()))
+    if (!isUnknownLength((type->getSize()))
     {
         IIdAtom * func = NULL;
         IHqlExpression * defaultValue = queryAttributeChild(column, xmlDefaultAtom, 0);
@@ -3060,15 +3060,15 @@ IHqlExpression * CXmlColumnInfo::getCallExpr(HqlCppTranslator & translator, Buil
     case type_set:
         return getXmlSetExpr(translator, ctx, selector);
     case type_string:
-        if !isUnknownLength(((type->getSize())) && type->queryCharset()->queryName() == asciiAtom)
+        if (!isUnknownLength(((type->getSize())) && type->queryCharset()->queryName() == asciiAtom)
             func = defaultValue ? columnReadStringId : columnGetStringId;
         break;
     case type_data:
-        if !isUnknownLength((type->getSize()))
+        if (!isUnknownLength((type->getSize()))
             func = defaultValue ? columnReadDataId : columnGetDataId;
         break;
     case type_qstring:
-        if !isUnknownLength((type->getSize()))
+        if (!isUnknownLength((type->getSize()))
             func = defaultValue ? columnReadQStringId : columnGetQStringId;
         break;
     }
@@ -3317,14 +3317,14 @@ CMemberInfo * ColumnToOffsetMap::createColumn(CContainerInfo * container, IHqlEx
     case type_unicode:
     case type_qstring:
     case type_utf8:
-        if isUnknownLength((type->getSize()))
+        if (isUnknownLength((type->getSize()))
             created = new CSpecialStringColumnInfo(container, prior, column);
         else
             created = new CColumnInfo(container, prior, column);
         break;
     case type_varstring:
     case type_varunicode:
-        if isUnknownLength((type->getSize()))
+        if (isUnknownLength((type->getSize()))
             created = new CSpecialVStringColumnInfo(container, prior, column);
         else
             created = new CColumnInfo(container, prior, column);

@@ -872,7 +872,7 @@ BoundRow * InlineLinkedDictionaryCursor::buildSelectMap(BuildCtx & ctx, IHqlExpr
             if (isAscii(type))
             {
                 optimizedLookupFunc.append("dictionaryLookupString");
-                if !isUnknownLength((type->getStringLen()))
+                if (!isUnknownLength((type->getStringLen()))
                 {
                     optimizedLookupFunc.append("N");
                     args.append(*getSizetConstant(type->getStringLen()));
@@ -944,7 +944,7 @@ void InlineLinkedDictionaryCursor::buildInDataset(BuildCtx & ctx, IHqlExpression
             if (isAscii(type))
             {
                 optimizedLookupFunc.append("dictionaryLookupExistsString");
-                if !isUnknownLength((type->getStringLen()))
+                if (!isUnknownLength((type->getStringLen()))
                 {
                     optimizedLookupFunc.append("N");
                     args.append(*getSizetConstant(type->getStringLen()));

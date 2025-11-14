@@ -461,7 +461,7 @@ void HqlCppWriter::generateType(ITypeInfo * type, const char * name)
         case type_varunicode:
         case type_unicode:
             {
-                if !isUnknownLength(((type->getSize())) && !isPointer)
+                if (!isUnknownLength(((type->getSize())) && !isPointer)
                     result.addArray(size/2);
                 else
                     isPointer = true;
@@ -859,7 +859,7 @@ void HqlCppWriter::generateParamCpp(IHqlExpression * param, IHqlExpression * att
     case type_dictionary:
     case type_table:
     case type_groupedtable:
-        if isUnknownLength(((paramType->getSize())) && !hasStreamedModifier(paramType))
+        if (isUnknownLength(((paramType->getSize())) && !hasStreamedModifier(paramType))
         {
             out.append("size32_t");
             if (isOut)
@@ -998,7 +998,7 @@ void HqlCppWriter::generateFunctionReturnType(StringBuffer & params, ITypeInfo *
     {
     case type_varstring:
     case type_varunicode:
-        if isUnknownLength((retType->getSize()))
+        if (isUnknownLength((retType->getSize()))
         {
             generateType(retType, NULL);
             break;
@@ -1012,7 +1012,7 @@ void HqlCppWriter::generateFunctionReturnType(StringBuffer & params, ITypeInfo *
         {
             OwnedITypeInfo ptrType = makeReferenceModifier(LINK(retType));
             out.append("void");
-            if isUnknownLength((retType->getSize()))
+            if (isUnknownLength((retType->getSize()))
             {
                 if (retType->getTypeCode() != type_varstring)
                     params.append("size32_t & __lenResult,");
@@ -1854,7 +1854,7 @@ void HqlCppWriter::generateStmtAssign(IHqlStmt * assign, bool link)
         case type_varunicode:
             if (hasModifier(type, typemod_ref))
                generateSimpleAssign(target, source);
-            else if isUnknownLength((type->getSize()))
+            else if (isUnknownLength((type->getSize()))
             {
                 indent();
                 generateExprCpp(target).append(setFunction);

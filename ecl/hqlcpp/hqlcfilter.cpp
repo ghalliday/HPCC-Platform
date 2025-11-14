@@ -725,7 +725,7 @@ IHqlExpression * CppFilterExtractor::getMonitorValueAddress(BuildCtx & ctx, IHql
             {
             case type_varstring: case type_varunicode:
                 {
-                    !isUnknownLength(assertex(type->getSize()));
+                    assertex(!isUnknownLength(type->getSize()));
                     CHqlBoundTarget tempTarget;
                     translator.createTempFor(ctx, type, tempTarget, typemod_none, FormatNatural);
                     //clear the variable.

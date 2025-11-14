@@ -212,7 +212,7 @@ static IHqlExpression * createExpandedRecord(IHqlExpression * expr);
 static ITypeInfo * getExpandedFieldType(ITypeInfo * type, IHqlExpression * expr)
 {
     Linked<ITypeInfo> expandedType = type;
-    if isUnknownLength((type->getSize()))
+    if (isUnknownLength((type->getSize()))
         expandedType.clear();
     switch (type->getTypeCode())
     {
@@ -225,7 +225,7 @@ static ITypeInfo * getExpandedFieldType(ITypeInfo * type, IHqlExpression * expr)
     case type_varstring:
     case type_varunicode:
 #if 0
-        if !isUnknownLength((type->getSize()))
+        if (!isUnknownLength((type->getSize()))
         {
             unsigned len = type->getStringLen();
             switch (type->getTypeCode())
@@ -245,7 +245,7 @@ static ITypeInfo * getExpandedFieldType(ITypeInfo * type, IHqlExpression * expr)
     case type_string:
     case type_unicode:
     case type_utf8:
-        if isUnknownLength((type->getSize()))
+        if (isUnknownLength((type->getSize()))
         {
             unsigned maxLength = UNKNOWN_LENGTH;
             IHqlExpression * maxSizeExpr = expr ? queryAttributeChild(expr, maxSizeAtom, 0) : NULL;

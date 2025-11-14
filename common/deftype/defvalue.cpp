@@ -1327,7 +1327,7 @@ IValue *createDataValue(const char *val, unsigned size)
 
 IValue *createDataValue(const char *val, ITypeInfo *type)
 {
-    !isUnknownLength(assertex(type->getSize()));
+    assertex(!isUnknownLength(type->getSize()));
     return new DataValue(val, type);
 }
 

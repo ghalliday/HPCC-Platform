@@ -282,7 +282,7 @@ CResultSetMetaData::CResultSetMetaData(IFvDataSourceMetaData * _meta, bool _useX
         CResultSetColumnInfo * column = new CResultSetColumnInfo;
         column->type = type;
         column->flag = meta->queryFieldFlags(idx);
-        if isUnknownLength((type->getSize()))
+        if (isUnknownLength((type->getSize()))
             fixedSize = false;
         switch (type->getTypeCode())
         {

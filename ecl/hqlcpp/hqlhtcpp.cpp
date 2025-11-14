@@ -3016,7 +3016,7 @@ IReferenceSelector * HqlCppTranslator::createSelfSelect(BuildCtx & ctx, IReferen
 
 void initBoundStringTarget(CHqlBoundTarget & target, ITypeInfo * type, const char * lenName, const char * dataName)
 {
-    if isUnknownLength((type->getSize()))
+    if (isUnknownLength((type->getSize()))
         target.length.setown(createVariable(lenName, LINK(sizetType)));
     target.expr.setown(createVariable(dataName, makeReferenceModifier(LINK(type))));
 }
@@ -3244,7 +3244,7 @@ void HqlCppTranslator::doBuildFunctionReturn(BuildCtx & ctx, ITypeInfo * type, I
     {
     case type_varstring:
     case type_varunicode:
-        if isUnknownLength((type->getSize()))
+        if (isUnknownLength((type->getSize()))
             break;
         //fall through
     case type_qstring:
@@ -5638,7 +5638,7 @@ void HqlCppTranslator::buildSetResultInfo(BuildCtx & ctx, IHqlExpression * origi
     OwnedHqlExpr nameText = createResultName(name, isPersist);
     if (retType == type_decimal)
     {
-        !isUnknownLength(assertex(schemaType->getSize()));
+        assertex(!isUnknownLength(schemaType->getSize()));
         //An ugly exception because it takes an arbitrary length decimal.
         //This should be handled by having a decimal(unknown length) parameter to a function which passes size and precision
         CHqlBoundExpr boundName;
@@ -7850,7 +7850,7 @@ void HqlCppTranslator::ensureSerialized(const CHqlBoundTarget & variable, BuildC
     while (isCast(value.expr))
         value.expr.set(value.expr->queryChild(0));
     ITypeInfo * type = value.expr->queryType();
-    if isUnknownLength(((type->getSize())) || hasLinkCountedModifier(type) || hasWrapperModifier(type))
+    if (isUnknownLength(((type->getSize())) || hasLinkCountedModifier(type) || hasWrapperModifier(type))
     {
         HqlExprArray serializeArgs;
         serializeArgs.append(*value.getTranslatedExpr());
@@ -8466,7 +8466,7 @@ void HqlCppTranslator::doBuildExprSizeof(BuildCtx & ctx, IHqlExpression * expr, 
             case type_void:
                 break;
             default:
-                if !isUnknownLength(((type->getSize())) && (!selector || !selector->isConditional()))
+                if (!isUnknownLength(((type->getSize())) && (!selector || !selector->isConditional()))
                 {
                     tgt.expr.setown(getSizetConstant(type->getSize()));
                     e->Release();
@@ -13776,7 +13776,7 @@ void HqlCppTranslator::doBuildAggregateProcessTransform(BuildCtx & ctx, BoundRow
         if (isDynamicOffset)
             throwError1(HQLERR_AggregateDynamicOffset, str(target->queryChild(1)->queryId()));
 
-        if isUnknownLength((target->queryType()->getSize()))
+        if (isUnknownLength((target->queryType()->getSize()))
         {
            isVariableOffset = true;
            if (src->isGroupAggregateFunction())
@@ -19540,7 +19540,7 @@ static void getInterfaceName(StringBuffer & name, ITypeInfo * type)
     case type_string:
     case type_data:
     case type_qstring:
-        !isUnknownLength(assertex(type->getSize()));
+        assertex(!isUnknownLength(type->getSize()));
         name.append("IStringDistributionTable");
         break;
     case type_int:
@@ -19755,7 +19755,7 @@ ABoundActivity * HqlCppTranslator::doBuildActivityDistribution(BuildCtx & ctx, I
         case type_string:
         case type_data:
         case type_qstring:
-            if isUnknownLength((type->getSize()))
+            if (isUnknownLength((type->getSize()))
                 throwError1(HQLERR_DistributionVariableLengthX, str(cur.queryChild(1)->queryId()));
             break;
         default:

@@ -2596,7 +2596,7 @@ void gatherRecordStats(HqlRecordStats & stats, IHqlExpression * expr)
                 break;
             default:
                 stats.fields++;
-                //HPCC-17606 add: if isUnknownLength((type->getSize())) stats.unknownSizeFields++;
+                //HPCC-17606 add: if (isUnknownLength((type->getSize())) stats.unknownSizeFields++;
                 break;
             }
             break;
@@ -4153,7 +4153,7 @@ unsigned getBestLengthEstimate(IHqlExpression * expr)
             IHqlExpression * uncast = expr->queryChild(0);
             ITypeInfo * uncastType = uncast->queryType();
 
-            if !isUnknownLength(((uncastType->getSize())) && (isStringType(uncastType) || isUnicodeType(uncastType)))
+            if (!isUnknownLength(((uncastType->getSize())) && (isStringType(uncastType) || isUnicodeType(uncastType)))
                 return uncastType->getStringLen();
         }
         break;
@@ -4249,7 +4249,7 @@ void SubStringHelper::init(IHqlExpression * _src, IHqlExpression * range)
     bool isUnicode = srcType->getTypeCode() == type_unicode;
     if (isStringOrData)
     {
-        if isUnknownLength((srcType->getSize()))
+        if (isUnknownLength((srcType->getSize()))
         {
             if ((src->getOperator() == no_cast) || (src->getOperator() == no_implicitcast))
             {
@@ -4277,7 +4277,7 @@ void SubStringHelper::init(IHqlExpression * _src, IHqlExpression * range)
             }
         }
 
-        if !isUnknownLength((srcType->getSize()))
+        if (!isUnknownLength((srcType->getSize()))
             if (knownStart() && knownEnd())
                 special = true;
     }
@@ -6394,9 +6394,9 @@ static bool isSimpleTransformToMergeWith(IHqlExpression * expr, int & varSizeCou
                 //Want to take note of whether it reduces the number of variable size fields, if it makes many variable sized into fixed size then it won't be good to remove
                 ITypeInfo * srcType = queryUncastExpr(rhs)->queryType();
                 ITypeInfo * tgtType = cur->queryChild(0)->queryType();
-                if isUnknownLength((tgtType->getSize()))
+                if (isUnknownLength((tgtType->getSize()))
                     varSizeCount--;
-                if isUnknownLength((srcType->getSize()))
+                if (isUnknownLength((srcType->getSize()))
                     varSizeCount++;
                 break;
             }
@@ -7438,14 +7438,14 @@ int compareLibraryParameterOrder(IHqlExpression * left, IHqlExpression * right)
     }
 
     //Then fixed size fields - to minimize the code generated to access them
-    if isUnknownLength((left->queryType()->getSize()))
+    if (isUnknownLength((left->queryType()->getSize()))
     {
-        if !isUnknownLength((right->queryType()->getSize()))
+        if (!isUnknownLength((right->queryType()->getSize()))
             return +1;
     }
     else
     {
-        if isUnknownLength((right->queryType()->getSize()))
+        if (isUnknownLength((right->queryType()->getSize()))
             return -1;
     }
 
@@ -8433,7 +8433,7 @@ protected:
         case type_string:
         case type_qstring:
         case type_utf8:
-            if isUnknownLength((type->getSize()))
+            if (isUnknownLength((type->getSize()))
                 result.append("j");
             result.append(lookupRepeat(hasConst ? "PKc" : "Pc"));
             return true;
@@ -8441,12 +8441,12 @@ protected:
             result.append(lookupRepeat(hasConst ? "PKc" : "Pc"));
             return true;
         case type_data:
-            if isUnknownLength((type->getSize()))
+            if (isUnknownLength((type->getSize()))
                 result.append("j");
             result.append(lookupRepeat(hasConst ? "PKv" : "Pv"));
             return true;
         case type_unicode:
-            if isUnknownLength((type->getSize()))
+            if (isUnknownLength((type->getSize()))
                 result.append("j");
             result.append(lookupRepeat(hasConst ? "PKt" : "Pt"));
             return true;
@@ -8529,13 +8529,13 @@ protected:
         switch (tc)
         {
         case type_varstring:
-            if isUnknownLength((retType->getSize()))
+            if (isUnknownLength((retType->getSize()))
                 returnType.append(lookupRepeat("Pc"));    // char *
             else
                 params.append(lookupRepeat("Pc"));        // char *
             break;
         case type_varunicode:
-            if isUnknownLength((retType->getSize()))
+            if (isUnknownLength((retType->getSize()))
                 returnType.append(lookupRepeat("Pt"));    // ushort *
             else
                 params.append(lookupRepeat("Pt"));        // ushort *
@@ -8543,7 +8543,7 @@ protected:
         case type_qstring:
         case type_string:
         case type_utf8:
-            if isUnknownLength((retType->getSize()))
+            if (isUnknownLength((retType->getSize()))
             {
                 params.append(lookupRepeat("Rj"));    // size32_t &
                 params.append(lookupRepeat("RPc"));   // char * &
@@ -8552,7 +8552,7 @@ protected:
                 params.append(lookupRepeat("Pc"));    // char *
             break;
         case type_data:
-            if isUnknownLength((retType->getSize()))
+            if (isUnknownLength((retType->getSize()))
             {
                 params.append(lookupRepeat("Rj"));    // size32_t &
                 params.append(lookupRepeat("RPv"));   // void * &
@@ -8561,7 +8561,7 @@ protected:
                 params.append(lookupRepeat("Pv"));    // void *
             break;
         case type_unicode:
-            if isUnknownLength((retType->getSize()))
+            if (isUnknownLength((retType->getSize()))
             {
                 params.append(lookupRepeat("Rj"));    // size32_t &
                 params.append(lookupRepeat("RPt"));   // UChar * &
@@ -8713,7 +8713,7 @@ protected:
         case type_string:
         case type_qstring:
         case type_utf8:
-            if isUnknownLength((type->getSize()))
+            if (isUnknownLength((type->getSize()))
                 result.append("I");
             appendPtr(result, hasConst).append("D");
             return true;
@@ -8721,12 +8721,12 @@ protected:
             appendPtr(result, hasConst).append("D");
             return true;
         case type_data:
-            if isUnknownLength((type->getSize()))
+            if (isUnknownLength((type->getSize()))
                 result.append("I");
             appendPtr(result, hasConst).append("X");
             return true;
         case type_unicode:
-            if isUnknownLength((type->getSize()))
+            if (isUnknownLength((type->getSize()))
                 result.append("I");
             appendPtr(result, hasConst).append("G");
             return true;
@@ -8781,7 +8781,7 @@ protected:
         switch (tc)
         {
         case type_varstring:
-            if isUnknownLength((retType->getSize()))
+            if (isUnknownLength((retType->getSize()))
             {
                 appendPtr(returnType, hasConst).append("D");    // char *
             }
@@ -8792,7 +8792,7 @@ protected:
             }
             break;
         case type_varunicode:
-            if isUnknownLength((retType->getSize()))
+            if (isUnknownLength((retType->getSize()))
             {
                 appendPtr(returnType, hasConst).append("G");    // char *
             }
@@ -8845,7 +8845,7 @@ protected:
 
     StringBuffer & appendString(StringBuffer & params, ITypeInfo * type, const char * suffix)
     {
-        if isUnknownLength((type->getSize()))
+        if (isUnknownLength((type->getSize()))
         {
             appendRef(params, false).append("I");   // size32_t &
             appendRef(params, false);
@@ -10240,7 +10240,7 @@ void getFieldTypeInfo(FieldTypeInfoStruct &out, ITypeInfo *type)
     if (tc == type_alien)
     {
         ITypeInfo * physicalType = queryAlienType(type)->queryPhysicalType();
-        if !isUnknownLength((physicalType->getSize()))
+        if (!isUnknownLength((physicalType->getSize()))
         {
             //Don't use the generated class for xml generation since it will generate physical rather than logical
             out.fieldType |= (RFTMalien|RFTMcannotinterpret|RFTMnoserialize);

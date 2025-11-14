@@ -2829,7 +2829,7 @@ void HqlGram::addField(const attribute &errpos, IIdAtom * name, ITypeInfo *_type
         fieldType.set(fieldType->queryChildType());
         break;
     case type_decimal:
-        if isUnknownLength((fieldType->getSize()))
+        if (isUnknownLength((fieldType->getSize()))
         {
             reportWarning(CategorySyntax, ERR_BAD_FIELD_TYPE, errpos.pos, "Fields of unknown length decimal not currently supported");
             fieldType.setown(makeDecimalType(MAX_DECIMAL_DIGITS, MAX_DECIMAL_PRECISION, fieldType->isSigned()));
@@ -7896,7 +7896,7 @@ void HqlGram::checkIndexFieldType(IHqlExpression * expr, bool isPayload, bool in
             default:
                 if (!type->isScalar())
                     reportInvalidIndexFieldType(expr, false, errpos);
-                else if isUnknownLength(((type->getSize())) && !variableOk)
+                else if (isUnknownLength(((type->getSize())) && !variableOk)
                 {
                     reportError(ERR_INDEX_BADTYPE, errpos, "Variable size fields (%s) are not supported inside indexes", str(id));
                     break;
@@ -12677,15 +12677,15 @@ void HqlGram::checkSizeof(ITypeInfo* type, attribute& errpos, bool isDataset)
             reportError(ERR_SIZEOF_WRONGPARAM,errpos,"Can not determine the size of SET");
             break;
         case type_qstring: 
-            if isUnknownLength((type->getSize()))
+            if (isUnknownLength((type->getSize()))
                 reportError(ERR_SIZEOF_WRONGPARAM,errpos,"SIZEOF: QSTRING has unknown size");
             break;
         case type_varstring: 
-            if isUnknownLength((type->getSize()))
+            if (isUnknownLength((type->getSize()))
                 reportError(ERR_SIZEOF_WRONGPARAM,errpos,"SIZEOF: VARSTRING has unknown size");
             break;
         case type_string:
-            if isUnknownLength((type->getSize()))
+            if (isUnknownLength((type->getSize()))
                 reportError(ERR_SIZEOF_WRONGPARAM,errpos,"SIZEOF: STRING has unknown size");
             break;
         case type_alien:
