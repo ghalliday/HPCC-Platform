@@ -406,7 +406,7 @@ public:
         const byte *inData = (const byte *)setData;
         const byte *endData = inData + totalBytes;
         int numElems;
-        if (elemSize == UNKNOWN_LENGTH)
+        if (isUnknownLength(elemSize))
         {
             numElems = 0;
             // Will need 2 passes to work out how many elements there are in the set :(
