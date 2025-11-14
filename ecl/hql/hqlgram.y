@@ -290,6 +290,7 @@ static void eclsyntaxerror(HqlGram * parser, const char * s, short yystate, int 
   LAST
   LEFT
   LENGTH
+  LENGTHSIZE
   LIBRARY
   LIKELY
   LIMIT
@@ -3123,6 +3124,11 @@ buildFlag
                             parser->normalizeExpression($3, type_numeric, false);
                             $$.setExpr(createExprAttribute(maxLengthAtom, $3.getExpr()), $1);
                         }
+    | LENGTHSIZE '(' constExpression ')'
+                        {
+                            parser->normalizeExpression($3, type_int, false);
+                            $$.setExpr(createExprAttribute(lengthSizeAtom, $3.getExpr()), $1);
+                        }
     | RESTRICTED        {
                             $$.setExpr(createAttribute(restrictedAtom));
                             $$.setPosition($1);
@@ -3478,6 +3484,11 @@ indexFlag
                         {
                             parser->normalizeExpression($3, type_numeric, false);
                             $$.setExpr(createExprAttribute(maxLengthAtom, $3.getExpr()), $1);
+                        }
+    | LENGTHSIZE '(' constExpression ')'
+                        {
+                            parser->normalizeExpression($3, type_int, false);
+                            $$.setExpr(createExprAttribute(lengthSizeAtom, $3.getExpr()), $1);
                         }
     | bloomAttr
     | hashedIndexAttr
@@ -4722,6 +4733,12 @@ recordOption
                             $$.setExpr(createExprAttribute(maxLengthAtom, $3.getExpr()));
                             $$.setPosition($1);
                         }
+    | LENGTHSIZE '(' constExpression ')'
+                        {
+                            parser->normalizeExpression($3, type_int, false);
+                            $$.setExpr(createExprAttribute(lengthSizeAtom, $3.getExpr()));
+                            $$.setPosition($1);
+                        }
     | MAXSIZE '(' constExpression ')'
                         {
                             parser->normalizeExpression($3, type_numeric, false);
@@ -5009,6 +5026,11 @@ fieldAttr
                         {
                             parser->normalizeExpression($3, type_int, true, false);
                             $$.setExpr(createExprAttribute(maxLengthAtom, $3.getExpr()));
+                        }
+    | LENGTHSIZE '(' expression ')'
+                        {
+                            parser->normalizeExpression($3, type_int, true, false);
+                            $$.setExpr(createExprAttribute(lengthSizeAtom, $3.getExpr()));
                         }
     | MAXSIZE '(' expression ')' 
                         {
@@ -10788,6 +10810,12 @@ csvOption
                             $$.setExpr(createExprAttribute(maxLengthAtom, $3.getExpr()));
                             $$.setPosition($1);
                         }
+    | LENGTHSIZE '(' constExpression ')'
+                        {
+                            parser->normalizeExpression($3, type_int, false);
+                            $$.setExpr(createExprAttribute(lengthSizeAtom, $3.getExpr()));
+                            $$.setPosition($1);
+                        }
     | MAXSIZE '(' constExpression ')'
                         {
                             $$.setExpr(createExprAttribute(maxLengthAtom, $3.getExpr()));
@@ -11507,6 +11535,11 @@ parseFlag
                         {
                             parser->normalizeExpression($3, type_numeric, false);
                             $$.setExpr(createExprAttribute(maxLengthAtom, $3.getExpr()));
+                        }
+    | LENGTHSIZE '(' constExpression ')'
+                        {
+                            parser->normalizeExpression($3, type_int, false);
+                            $$.setExpr(createExprAttribute(lengthSizeAtom, $3.getExpr()));
                         }
     | MAXSIZE '(' constExpression ')'
                         {

@@ -739,6 +739,7 @@ MODULE_INIT(INIT_PRIORITY_HQLATOM)
     leftonlyAtom = createLowerCaseAtom("left only");
     leftouterAtom = createLowerCaseAtom("left outer");
     MAKEATOM(legacy);
+    MAKEATOM(lengthSize);
     MAKEATOM(library);
     MAKEATOM(lightweight);
     MAKESYSATOM(lightweight);
