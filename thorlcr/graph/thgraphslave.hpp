@@ -36,6 +36,7 @@
 interface IStartableEngineRowStream : extends IEngineRowStream
 {
     virtual void start() = 0;
+    virtual memsize_t getPeakRowMemory() const = 0;
 };
 
 class COutputTiming
@@ -186,6 +187,12 @@ public:
     }
     bool isFastThrough() const;
     bool suppressLookAhead() const;
+    memsize_t getPeakRowMemory() const
+    {
+        if (lookAhead && lookAheadActive)
+            return lookAhead->getPeakRowMemory();
+        return 0;
+    }
 };
 typedef IArrayOf<CThorInput> CThorInputArray;
 
@@ -229,6 +236,17 @@ protected:
         offset_t peakTempSize = queryPeakTempSize();
         if (peakTempSize)
             activeStats.mergeStatistic(StSizePeakTempDisk, peakTempSize);
+        
+        // Gather peak row memory from all inputs with look-ahead
+        memsize_t totalPeakRowMemory = 0;
+        ForEachItemIn(i, inputs)
+        {
+            memsize_t inputPeak = inputs.item(i).getPeakRowMemory();
+            if (inputPeak > totalPeakRowMemory)
+                totalPeakRowMemory = inputPeak;
+        }
+        if (totalPeakRowMemory)
+            activeStats.setStatistic(StSizePeakRowMemory, totalPeakRowMemory);
     }
 public:
     IMPLEMENT_IINTERFACE_USING(CActivityBase)

@@ -74,6 +74,7 @@ class CSmartRowBuffer: public CSimpleInterface, implements ISmartRowBuffer, impl
     CActivityBase *activity;
     ThorRowQueue *in;
     size32_t insz;
+    size32_t peakInsz;
     ThorRowQueue *out;
     CFileOwner tmpFileOwner;
     Owned<IFileIO> tempFileIO;
@@ -269,6 +270,7 @@ public:
         blocksize = ((bufsize/2+0xfffff)/0x100000)*0x100000;
         numblocks = 0;
         insz = 0;
+        peakInsz = 0;
         eoi = false;
         diskfree.setown(createThreadSafeBitSet());
 
@@ -309,6 +311,8 @@ public:
             diskflush();
         in->enqueue(row);
         insz += sz;
+        if (insz > peakInsz)
+            peakInsz = insz;
         if (waiting) {
             waitsem.signal();
             waiting = false;
@@ -447,6 +451,10 @@ public:
         else
             return 0;
     }
+    size32_t getPeakRowMemory() const
+    {
+        return peakInsz;
+    }
 };
 
 
@@ -457,6 +465,7 @@ class CSmartRowInMemoryBuffer: public CSimpleInterface, implements ISmartRowBuff
     IThorRowInterfaces *rowIf;
     ThorRowQueue *in;
     size32_t insz;
+    size32_t peakInsz;
     SpinLock lock; // MORE: This lock is held for quite long periods.  I suspect it could be significantly optimized.
     bool waitingin;
     Semaphore waitinsem;
@@ -484,6 +493,7 @@ public:
         waitingout = false;
         blocksize = ((bufsize/2+0xfffff)/0x100000)*0x100000;
         insz = 0;
+        peakInsz = 0;
         eoi = false;
     }
 
@@ -524,6 +534,8 @@ public:
             if (!eoi) {
                 in->enqueue(row);
                 insz += sz;
+                if (insz > peakInsz)
+                    peakInsz = insz;
 #ifdef _TRACE_SMART_PUTGET
                 ActPrintLog(activity, "***putRow2(%x) insize = %d ",insz);
 #endif
@@ -649,6 +661,10 @@ public:
     {
         return 0;
     }
+    size32_t getPeakRowMemory() const
+    {
+        return peakInsz;
+    }
 };
 
 
@@ -741,6 +757,7 @@ class CCompressedSpillingRowStream: public CSimpleInterfaceOf<ISmartRowBuffer>, 
     // in-memory related members
     CSPSCQueue<RowEntry> inMemRows;
     std::atomic<memsize_t> inMemRowsMemoryUsage = 0; // NB updated from writer and reader threads
+    std::atomic<memsize_t> peakInMemRowsMemoryUsage = 0;
     Semaphore moreRows;
     std::atomic<bool> readerWaitingForQ = false; // set by reader, cleared by writer
 
@@ -960,7 +977,10 @@ class CCompressedSpillingRowStream: public CSimpleInterfaceOf<ISmartRowBuffer>, 
         if (queued)
         {
             trace("WRITE: Q: nextOutputRow: %" RCPF "u", nextOutputRow.load());
-            inMemRowsMemoryUsage += rowSz;
+            memsize_t newUsage = inMemRowsMemoryUsage += rowSz;
+            memsize_t currentPeak = peakInMemRowsMemoryUsage.load();
+            while (newUsage > currentPeak && !peakInMemRowsMemoryUsage.compare_exchange_weak(currentPeak, newUsage))
+                ;
             ++nextOutputRow;
             recentlyQueued = true;
         }
@@ -1110,6 +1130,10 @@ public:
         if (currentOutputIFileIO)
             v += currentOutputIFileIO->getStatistic(kind);
         return v;
+    }
+    memsize_t getPeakRowMemory() const
+    {
+        return peakInMemRowsMemoryUsage.load();
     }
 // IRowStream
     virtual const void *nextRow() override
@@ -2531,6 +2555,7 @@ class CSharedFullSpillingWriteAhead : public CInterfaceOf<ISharedRowStreamReader
     std::vector<Owned<COutputRowStream>> outputs;
     std::deque<std::tuple<const void *, size32_t>> rows;
     memsize_t rowsMemUsage = 0;
+    memsize_t peakRowsMemUsage = 0;
     std::atomic<rowcount_t> totalInputRowsRead = 0; // not used until spilling begins, represents count of all rows read
     rowcount_t inMemTotalRows = 0; // whilst in memory, represents count of all rows seen
     CriticalSection readAheadCS; // ensure single reader (leader), reads ahead (updates rows/totalInputRowsRead/inMemTotalRows)
@@ -2751,6 +2776,8 @@ public:
                     size32_t sz = thorRowMemoryFootprint(serializer, row);
                     rows.emplace_back(row, sz);
                     rowsMemUsage += sz;
+                    if (rowsMemUsage > peakRowsMemUsage)
+                        peakRowsMemUsage = rowsMemUsage;
                     if ((rowsMemUsage >= options.inMemReadAheadGranularity) ||
                         (rows.size() >= options.inMemReadAheadGranularityRows))
                         break;
@@ -2812,6 +2839,10 @@ public:
     virtual unsigned __int64 getStatistic(StatisticKind kind) const override
     {
         return stats.getStatisticValue(kind);
+    }
+    memsize_t getPeakRowMemory() const
+    {
+        return peakRowsMemUsage;
     }
 };
 

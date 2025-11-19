@@ -142,6 +142,7 @@ class CParallelFunnel : implements IRowStream, public CSimpleInterface
     SimpleInterThreadQueueOf<const void, true> rows;
     Semaphore fullSem;
     size32_t totSize;
+    size32_t peakTotSize;
     unsigned waiting = 0;
     bool stopped;
     Linked<IOutputRowSerializer> serializer;
@@ -161,6 +162,8 @@ class CParallelFunnel : implements IRowStream, public CSimpleInterface
             }
             rows.enqueue(row);
             totSize += rowSize;
+            if (totSize > peakTotSize)
+                peakTotSize = totSize;
             if (totSize > FUNNEL_MIN_BUFF_SIZE)
             {
                 waiting++;
@@ -193,6 +196,8 @@ class CParallelFunnel : implements IRowStream, public CSimpleInterface
             }
             rows.enqueueMany(numRows, newRows);
             totSize += rowSizes;
+            if (totSize > peakTotSize)
+                peakTotSize = totSize;
             if (totSize > FUNNEL_MIN_BUFF_SIZE)
             {
                 waiting++;
@@ -229,6 +234,7 @@ public:
         stopped = false;
         waiting = 0;
         totSize = 0;
+        peakTotSize = 0;
         eoss = 0;
         serializer.set(activity.queryRowSerializer());
         for (unsigned i=0; i<activity.queryNumInputs(); i++)
@@ -330,6 +336,11 @@ public:
         if (numToSignal)
             fullSem.signal(numToSignal);
         return row.getClear();
+    }
+    
+    size32_t getPeakRowMemory() const
+    {
+        return peakTotSize;
     }
 
 friend class CInputHandler;
@@ -562,6 +573,15 @@ public:
         calcMetaInfoSize(info, inputs);
     }
     virtual bool isGrouped() const override { return grouped; }
+    virtual void gatherActiveStats(CRuntimeStatisticCollection &activeStats) const override
+    {
+        PARENT::gatherActiveStats(activeStats);
+        if (parallelOutput)
+        {
+            CParallelFunnel *funnel = static_cast<CParallelFunnel *>(parallelOutput.get());
+            activeStats.setStatistic(StSizePeakRowMemory, funnel->getPeakRowMemory());
+        }
+    }
 };
 
 /////

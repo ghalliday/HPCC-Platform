@@ -62,6 +62,7 @@ interface ISmartRowBuffer: extends IRowStream
 {
     virtual IRowWriter *queryWriter() = 0;
     virtual unsigned __int64 getStatistic(StatisticKind kind) const = 0;
+    virtual memsize_t getPeakRowMemory() const = 0;
 };
 
 class CActivityBase;
@@ -89,6 +90,7 @@ interface ISharedRowStreamReader : extends IInterface
     virtual void cancel()=0;
     virtual void reset() = 0;
     virtual unsigned __int64 getStatistic(StatisticKind kind) const = 0;
+    virtual memsize_t getPeakRowMemory() const = 0;
 };
 
 

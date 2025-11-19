@@ -407,7 +407,10 @@ public:
     {
         PARENT::gatherActiveStats(activeStats);
         if (sharedRowStream)
+        {
             mergeRemappedStats(activeStats, sharedRowStream, diskToTempStatsMap);
+            activeStats.setStatistic(StSizePeakRowMemory, sharedRowStream->getPeakRowMemory());
+        }
     }
 // ISharedSmartBufferCallback impl.
     virtual void paged() { pagedOut = true; }
