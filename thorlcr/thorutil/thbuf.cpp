@@ -1870,6 +1870,10 @@ public:
     {
         return 0;
     }
+    virtual memsize_t getPeakRowMemory() const override
+    {
+        return 0;
+    }
 friend class COutput;
 friend class CRowSet;
 };

@@ -72,6 +72,7 @@ public:
     virtual void stop() override;
     virtual const void *nextRow() override;
     virtual void resetEOF() { throwUnexpected(); }
+    virtual memsize_t getPeakRowMemory() const override { return 0; }
 };
 
 
