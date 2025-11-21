@@ -33,6 +33,7 @@
 #include "jmisc.hpp"
 #include "jprop.hpp"
 #include "jthread.hpp"
+#include "jhtree.hpp"
 
 #include "thormisc.hpp"
 #include "slavmain.hpp"
@@ -215,6 +216,13 @@ static bool RegisterSelf(SocketEndpoint &masterEp)
             globals->setPropInt(xpath, defaultStrandBlockSize);
         }
         DBGLOG("Strand defaults: numStrands=%u, blockSize=%u", numStrands, blockSize);
+
+        IPropertyTree * pageCache = globals->queryPropTree("pageCache");
+        if (pageCache)
+        {
+            //MORE: Ensure the filename is relative, so it does not clash with other workers on the same node
+            initializeDiskPageCache(pageCache);
+        }
 
         const char *_masterBuildTag = globals->queryProp("@masterBuildTag");
         const char *masterBuildTag = _masterBuildTag?_masterBuildTag:"no build tag";

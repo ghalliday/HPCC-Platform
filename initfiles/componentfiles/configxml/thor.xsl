@@ -190,6 +190,9 @@
 
       <xsl:apply-templates select="@*[string(.) != '']"/>
 
+      <xsl:copy-of select="pageCache"/>
+      <xsl:copy-of select="AddrCleanerPluginProcess"/>
+
       <xsl:copy-of select="/Environment/Software/vaults"/>
       <xsl:copy-of select="/Environment/Software/Directories"/> 
       <xsl:choose>
