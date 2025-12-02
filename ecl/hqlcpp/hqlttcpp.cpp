@@ -8044,11 +8044,25 @@ static void mergeThorGraphs(HqlExprArray & exprs, bool resourceConditionalAction
 
         }
 
-        if (cur->getOperator() == no_thor)
+        node_operator newOp = cur->getOperator();
+        if (newOp == no_thor)
         {
             thorActions.append(*LINK(cur->queryChild(0)));
+            cur.clear();
         }
-        else
+        else if (((newOp == no_actionlist) || (newOp == no_orderedactionlist)) && thorActions.ordinality())
+        {
+            IHqlExpression * firstAction = cur->queryChild(0);
+            if (firstAction->getOperator() == no_thor)
+            {
+                thorActions.append(*LINK(firstAction->queryChild(0)));
+                OwnedHqlExpr newThorAction = createValue(no_thor, makeVoidType(), createActionList(thorActions));
+                thorActions.kill();
+                cur.setown(replaceChild(cur, 0, newThorAction));
+            }
+        }
+
+        if (cur)
         {
             if (thorActions.ordinality())
             {
