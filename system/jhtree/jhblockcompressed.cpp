@@ -132,6 +132,8 @@ void CJHBlockCompressedSearchNode::load(CKeyHdr *_keyHdr, const void *rawData, o
 
 int CJHBlockCompressedSearchNode::compareValueAt(const char *src, unsigned int index) const
 {
+    dbgassertex(index < hdr.numKeys);
+
     return memcmp(src, keyBuf + index*keyRecLen, keyCompareLen);
 }
 
@@ -265,6 +267,7 @@ void CJHBlockCompressedVarNode::load(CKeyHdr *_keyHdr, const void *rawData, offs
 
 int CJHBlockCompressedVarNode::compareValueAt(const char *src, unsigned int index) const
 {
+    dbgassertex(index < hdr.numKeys);
     return memcmp(src, keyBuf + offsets[index], keyCompareLen);
 }
 
@@ -306,6 +309,7 @@ bool CJHBlockCompressedVarNode::getKeyAt(unsigned int num, char *dst) const
 
 size32_t CJHBlockCompressedVarNode::getSizeAt(unsigned int num) const
 {
+    dbgassertex(num < hdr.numKeys);
     const char * p = keyBuf + offsets[num];
     KEYRECSIZE_T reclen = sizes[num];
     if (keyHdr->hasSpecialFileposition())
@@ -317,7 +321,7 @@ size32_t CJHBlockCompressedVarNode::getSizeAt(unsigned int num) const
 offset_t CJHBlockCompressedVarNode::getFPosAt(unsigned int num) const
 {
     if (num >= hdr.numKeys) return 0;
-    if (!zeroFilePosition) return 0;
+    if (zeroFilePosition) return 0;
 
     const char * p = keyBuf + offsets[num];
     KEYRECSIZE_T reclen = sizes[num];

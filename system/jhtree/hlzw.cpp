@@ -119,7 +119,7 @@ int KeyCompressor::writekey(offset_t fPtr, const char *key, unsigned datalength,
             else
             {
                 byte firstByte = (byte)(payloadLength >> 8) | 0x80;
-                tempKeyBuffer.append((byte)((payloadLength & 0x7f) | 0x80));
+                tempKeyBuffer.append(firstByte);
                 tempKeyBuffer.append((byte)payloadLength);
             }
         }
