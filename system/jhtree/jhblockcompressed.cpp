@@ -310,7 +310,6 @@ bool CJHBlockCompressedVarNode::getKeyAt(unsigned int num, char *dst) const
 size32_t CJHBlockCompressedVarNode::getSizeAt(unsigned int num) const
 {
     dbgassertex(num < hdr.numKeys);
-    const char * p = keyBuf + offsets[num];
     KEYRECSIZE_T reclen = sizes[num];
     if (keyHdr->hasSpecialFileposition())
         return reclen + sizeof(offset_t);
