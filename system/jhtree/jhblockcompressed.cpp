@@ -422,6 +422,10 @@ BlockCompressedIndexCompressor::BlockCompressedIndexCompressor(unsigned keyedSiz
         {
             context.compressionOptions.append(',').append(value);
         }
+        else if (strieq(option, "leading"))
+        {
+            context.commonLeading = strToBool(value);
+        }
     };
 
     processOptionString(options, processOption);
