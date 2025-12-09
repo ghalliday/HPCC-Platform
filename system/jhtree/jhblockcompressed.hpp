@@ -25,6 +25,7 @@
 #include "jio.hpp"
 #include "jfile.hpp"
 #include "ctfile.hpp"
+#include <vector>
 
 
 class CJHBlockCompressedSearchNode : public CJHSearchNode
@@ -84,16 +85,29 @@ struct CBlockCompressedBuildContext
     StringBuffer compressionOptions;
     CompressionMethod compressionMethod = COMPRESS_METHOD_ZSTDS;
     bool zeroFilePos = false;
+    unsigned minCommonLeading = 0;
 };
 
 class jhtree_decl CBlockCompressedWriteNode : public CWriteNode
 {
 private:
+    struct KeyRecord
+    {
+        offset_t pos;
+        MemoryAttr data;
+        size32_t size;
+        unsigned __int64 sequence;
+    };
+
     KeyCompressor compressor;
     char *lastKeyValue = nullptr;
+    char *firstKeyValue = nullptr;
     unsigned __int64 lastSequence = 0;
     size32_t keyLen = 0;
+    size32_t keyCompareLength = 0;
     size32_t memorySize = 0;
+    size32_t commonPrefixLength = 0;
+    std::vector<KeyRecord> addedKeys;
     const CBlockCompressedBuildContext& context;
 public:
     CBlockCompressedWriteNode(offset_t fpos, CKeyHdr *keyHdr, bool isLeafNode, const CBlockCompressedBuildContext& ctx);
@@ -104,6 +118,9 @@ public:
     virtual const void *getLastKeyValue() const override { return lastKeyValue; }
     virtual unsigned __int64 getLastSequence() const override { return lastSequence; }
     virtual size32_t getMemorySize() const override { return memorySize; }
+
+private:
+    bool extractCommonPrefix();
 };
 
 class BlockCompressedIndexCompressor : public CInterfaceOf<IIndexCompressor>

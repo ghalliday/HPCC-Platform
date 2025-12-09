@@ -337,21 +337,32 @@ CBlockCompressedWriteNode::CBlockCompressedWriteNode(offset_t _fpos, CKeyHdr *_k
 {
     hdr.compressionType = BlockCompression;
     keyLen = keyHdr->getMaxKeyLength();
+    keyCompareLength = keyHdr->getNodeKeyLength();
     if (!isLeafNode)
     {
-        keyLen = keyHdr->getNodeKeyLength();
+        keyLen = keyCompareLength;
     }
     lastKeyValue = (char *) malloc(keyLen);
+    firstKeyValue = (char *) malloc(keyCompareLength);
     lastSequence = 0;
+    commonPrefixLength = 0;
 }
 
 CBlockCompressedWriteNode::~CBlockCompressedWriteNode()
 {
     free(lastKeyValue);
+    free(firstKeyValue);
 }
 
 bool CBlockCompressedWriteNode::add(offset_t pos, const void *indata, size32_t insize, unsigned __int64 sequence)
 {
+    // Check if the new row matches the common prefix
+    if (commonPrefixLength > 0)
+    {
+        if (memcmp(indata, firstKeyValue, commonPrefixLength) != 0)
+            return false;
+    }
+
     if (hdr.numKeys == 0)
     {
         unsigned __int64 rsequence = sequence;
@@ -375,20 +386,161 @@ bool CBlockCompressedWriteNode::add(offset_t pos, const void *indata, size32_t i
 
         ICompressHandler * handler = queryCompressHandler(context.compressionMethod);
         compressor.open(keyPtr, maxBytes-hdr.keyBytes, handler, context.compressionOptions, isVariable, fixedKeySize);
+
+        // Save the first key value for potential prefix detection
+        memcpy(firstKeyValue, indata, keyCompareLength);
     }
 
-    unsigned writeOptions = (context.zeroFilePos ? KeyCompressor::DefaultOptions : KeyCompressor::TrailingFilePosition);
-    if (0xffff == hdr.numKeys || 0 == compressor.writekey(pos, (const char *)indata, insize, writeOptions, keyHdr->getNodeKeyLength()))
+    if (0xffff == hdr.numKeys)
         return false;
 
     if (insize>keyLen)
         throw MakeStringException(0, "key+payload (%u) exceeds max length (%u)", insize, keyLen);
+
+    unsigned writeOptions = (context.zeroFilePos ? KeyCompressor::DefaultOptions : KeyCompressor::TrailingFilePosition);
+    const char * dataToWrite = (const char *)indata + commonPrefixLength;
+    size32_t sizeToWrite = insize - commonPrefixLength;
+    if (0 == compressor.writekey(pos, dataToWrite, sizeToWrite, writeOptions, keyHdr->getNodeKeyLength()))
+    {
+        if (!extractCommonPrefix())
+            return false;
+
+        assertex(commonPrefixLength != 0);
+        dataToWrite = (const char *)indata + commonPrefixLength;
+        sizeToWrite = insize - commonPrefixLength;
+        if (0 == compressor.writekey(pos, dataToWrite, sizeToWrite, writeOptions, keyHdr->getNodeKeyLength()))
+            return false;
+    }
+
+    // Track this key for potential future re-compression
+    if (context.minCommonLeading > 0)
+    {
+        KeyRecord record;
+        record.pos = pos;
+        record.data.set(insize, indata);
+        record.size = insize;
+        record.sequence = sequence;
+        addedKeys.push_back(std::move(record));
+    }
 
     memcpy(lastKeyValue, indata, insize);
     lastSequence = sequence;
     hdr.numKeys++;
     memorySize += insize + sizeof(pos);
     return true;
+}
+
+bool CBlockCompressedWriteNode::extractCommonPrefix()
+{
+    // Handle compression failure with prefix detection
+    if ((context.minCommonLeading == 0) || (commonPrefixLength != 0))
+        return false;
+
+    // Compare first key and last key to find common prefix
+    size32_t prefixLen = 0;
+    for (size32_t i = 0; i < keyCompareLength; i++)
+    {
+        if (firstKeyValue[i] == ((const char *)indata)[i])
+            prefixLen++;
+        else
+            break;
+    }
+
+    if (prefixLen < context.minCommonLeading)
+        return false;
+
+    // Close current compressor
+    compressor.close();
+
+    // Adjust the fixed key size to account for the removed prefix
+    bool isVariable = keyHdr->isVariable();
+    bool hasFilepos = !context.zeroFilePos;
+    size32_t adjustedKeyLen = keyLen - commonPrefixLength;
+    size32_t fixedKeySize = isVariable ? 0 : (hasFilepos ? adjustedKeyLen + sizeof(offset_t) : adjustedKeyLen);
+
+    // Calculate reduced capacity
+    size32_t reducedCapacity = maxBytes - hdr.keyBytes - commonPrefixLength - 1;
+    ICompressHandler * handler = queryCompressHandler(context.compressionMethod);
+
+    // Create a temporary compressor with reduced capacity
+    KeyCompressor tempCompressor;
+    tempCompressor.open(keyPtr, reducedCapacity, handler, context.compressionOptions, isVariable, fixedKeySize);
+
+    // Re-add all previously added keys without the prefix
+    bool allAdded = true;
+    for (const KeyRecord& record : addedKeys)
+    {
+        const char * keyData = (const char *)record.data.get();
+        size32_t keySize = record.size;
+
+        // Skip the common prefix
+        if (keySize > commonPrefixLength)
+        {
+            keyData += commonPrefixLength;
+            keySize -= commonPrefixLength;
+        }
+        else
+        {
+            keyData = "";
+            keySize = 0;
+        }
+
+        if (0 == tempCompressor.writekey(record.pos, keyData, keySize, writeOptions, keyHdr->getNodeKeyLength()))
+        {
+            allAdded = false;
+            break;
+        }
+    }
+
+    if (allAdded)
+    {
+        // Swap the temporary compressor with the member compressor
+        compressor.close();
+        compressor = std::move(tempCompressor);
+
+        // Retry adding the new row with the prefix removed
+        const char * newKeyData = (const char *)indata;
+        size32_t newKeySize = insize;
+        if (insize > commonPrefixLength)
+        {
+            newKeyData += commonPrefixLength;
+            newKeySize = insize - commonPrefixLength;
+        }
+        else
+        {
+            newKeyData = "";
+            newKeySize = 0;
+        }
+
+        if (0 == compressor.writekey(pos, newKeyData, newKeySize, writeOptions, keyHdr->getNodeKeyLength()))
+            return false;
+
+        // Successfully added with prefix compression
+        if (insize>keyLen)
+            throw MakeStringException(0, "key+payload (%u) exceeds max length (%u)", insize, keyLen);
+
+        // Track this key for potential future re-compression
+        if (context.minCommonLeading > 0)
+        {
+            KeyRecord record;
+            record.pos = pos;
+            record.data.set(insize, indata);
+            record.size = insize;
+            record.sequence = sequence;
+            addedKeys.push_back(std::move(record));
+        }
+
+        memcpy(lastKeyValue, indata, insize);
+        lastSequence = sequence;
+        hdr.numKeys++;
+        memorySize += insize + sizeof(pos);
+        return true;
+    }
+
+    // Store the common prefix
+    commonPrefixLength = prefixLen;
+    return false;
+
 }
 
 void CBlockCompressedWriteNode::finalize()
@@ -424,7 +576,7 @@ BlockCompressedIndexCompressor::BlockCompressedIndexCompressor(unsigned keyedSiz
         }
         else if (strieq(option, "leading"))
         {
-            context.commonLeading = strToBool(value);
+            context.minCommonLeading = atoi(value);
         }
     };
 
