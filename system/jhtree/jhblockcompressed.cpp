@@ -120,10 +120,16 @@ void CJHBlockCompressedSearchNode::load(CKeyHdr *_keyHdr, const void *rawData, o
     CompressionMethod compressionMethod = *(CompressionMethod*) keys;
     keys += sizeof(CompressionMethod);
     
-    zeroFilePosition = *(bool*) keys;
-    keys += sizeof(bool);
+    flags = *(byte*) keys;
+    keys += sizeof(byte);
     
-    keyRecLen = zeroFilePosition ? keyLen : (keyLen + sizeof(offset_t));
+    keyRecLen = (flags & BCFzeroFilePosition) ? keyLen : (keyLen + sizeof(offset_t));
+
+    // Prefix compression does not provide enough payback to be worth implementing yet
+    // It would require changes to the locate functions to first compare the prefix, and then
+    // the remainder of the key.  It would also require changes to getKeyAt()
+    if(flags & BCFhasPrefix)
+        throw makeStringExceptionV(JHTREE_KEY_UNSUPPORTED_COMPRESSION, "BlockCompressed node has prefix flag set - unsupported in search nodes");
 
     CCycleTimer expansionTimer(true);
     keyBuf = expandBlock(keys, inMemorySize, compressionMethod);
@@ -145,7 +151,7 @@ bool CJHBlockCompressedSearchNode::fetchPayload(unsigned int index, char *dst, P
     const char * p = keyBuf + index*keyRecLen;
     if (keyHdr->hasSpecialFileposition())
     {
-        if (zeroFilePosition)
+        if (flags & BCFzeroFilePosition)
         {
             memcpy(dst+keyCompareLen, p+keyCompareLen, keyLen-keyCompareLen);
             *(offset_t*)(dst+keyLen) = 0;
@@ -184,7 +190,7 @@ size32_t CJHBlockCompressedSearchNode::getSizeAt(unsigned int index) const
 offset_t CJHBlockCompressedSearchNode::getFPosAt(unsigned int index) const
 {
     if (index >= hdr.numKeys) return 0;
-    if (zeroFilePosition) return 0;
+    if (flags & BCFzeroFilePosition) return 0;
 
     offset_t pos;
     const char * p = keyBuf + index*keyRecLen + keyLen;
@@ -240,6 +246,17 @@ void CJHNewBlobNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _fpos,
 
 //=========================================================================================================
 
+static inline size32_t readVariablePayloadSize(const byte *& finger)
+{
+    size32_t payloadSize = *finger++;
+    if (payloadSize & 0x80)
+    {
+        payloadSize &= 0x7f;
+        payloadSize = (payloadSize << 8) | *finger++;
+    }
+    return payloadSize;
+}
+
 void CJHBlockCompressedVarNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _fpos, bool needCopy)
 {
     CJHBlockCompressedSearchNode::load(_keyHdr, rawData, _fpos, needCopy);
@@ -250,17 +267,12 @@ void CJHBlockCompressedVarNode::load(CKeyHdr *_keyHdr, const void *rawData, offs
     size32_t keyedLen = keyHdr->getNodeKeyLength();
     for (unsigned int i=0; i<getNumKeys(); i++)
     {
-        unsigned payloadSize = *finger++;
-        if (payloadSize & 0x80)
-        {
-            payloadSize &= 0x7f;
-            payloadSize = (payloadSize << 8) | *finger++;
-        }
+        size32_t payloadSize = readVariablePayloadSize(finger);
         size32_t recsize = payloadSize + keyedLen;
         offsets[i] = (const char *)finger - keyBuf;
         sizes[i] = recsize;
         finger += recsize;
-        if (!zeroFilePosition)
+        if (!(flags & BCFzeroFilePosition))
             finger += sizeof(offset_t);
     }
 }
@@ -281,7 +293,7 @@ bool CJHBlockCompressedVarNode::fetchPayload(unsigned int num, char *dst, Payloa
         KEYRECSIZE_T reclen = sizes[num];
         if (keyHdr->hasSpecialFileposition())
         {
-            if (zeroFilePosition)
+            if (flags & BCFzeroFilePosition)
             {
                 memcpy(dst+keyCompareLen, p+keyCompareLen, reclen-keyCompareLen);
                 *(offset_t*)(dst+keyLen) = 0;
@@ -320,7 +332,7 @@ size32_t CJHBlockCompressedVarNode::getSizeAt(unsigned int num) const
 offset_t CJHBlockCompressedVarNode::getFPosAt(unsigned int num) const
 {
     if (num >= hdr.numKeys) return 0;
-    if (zeroFilePosition) return 0;
+    if (flags & BCFzeroFilePosition) return 0;
 
     const char * p = keyBuf + offsets[num];
     KEYRECSIZE_T reclen = sizes[num];
@@ -332,26 +344,36 @@ offset_t CJHBlockCompressedVarNode::getFPosAt(unsigned int num) const
 
 //=========================================================================================================
 
-CBlockCompressedWriteNode::CBlockCompressedWriteNode(offset_t _fpos, CKeyHdr *_keyHdr, bool isLeafNode, const CBlockCompressedBuildContext& ctx) : 
+CBlockCompressedWriteNode::CBlockCompressedWriteNode(offset_t _fpos, CKeyHdr *_keyHdr, bool isLeafNode, CBlockCompressedBuildContext& ctx) :
     CWriteNode(_fpos, _keyHdr, isLeafNode), context(ctx)
 {
     hdr.compressionType = BlockCompression;
     keyLen = keyHdr->getMaxKeyLength();
+    keyCompareLength = keyHdr->getNodeKeyLength();
     if (!isLeafNode)
-    {
-        keyLen = keyHdr->getNodeKeyLength();
-    }
+        keyLen = keyCompareLength;
+
     lastKeyValue = (char *) malloc(keyLen);
+    firstKeyValue = (char *) malloc(keyCompareLength);
     lastSequence = 0;
+    commonPrefixLength = 0;
 }
 
 CBlockCompressedWriteNode::~CBlockCompressedWriteNode()
 {
     free(lastKeyValue);
+    free(firstKeyValue);
 }
 
 bool CBlockCompressedWriteNode::add(offset_t pos, const void *indata, size32_t insize, unsigned __int64 sequence)
 {
+    // Check if the new row matches the common prefix
+    if (commonPrefixLength > 0)
+    {
+        if (memcmp(indata, firstKeyValue, commonPrefixLength) != 0)
+            return false;
+    }
+
     if (hdr.numKeys == 0)
     {
         unsigned __int64 rsequence = sequence;
@@ -364,9 +386,9 @@ bool CBlockCompressedWriteNode::add(offset_t pos, const void *indata, size32_t i
         keyPtr += sizeof(context.compressionMethod);
         hdr.keyBytes += sizeof(context.compressionMethod);
         
-        *(bool*)keyPtr = context.zeroFilePos;
-        keyPtr += sizeof(bool);
-        hdr.keyBytes += sizeof(bool);
+        *(byte*)keyPtr = context.zeroFilePos ? BCFzeroFilePosition : 0;
+        keyPtr++;
+        hdr.keyBytes++;
 
         //Adjust the fixed key size to include the fileposition field which is written by writekey
         bool isVariable = keyHdr->isVariable();
@@ -375,27 +397,154 @@ bool CBlockCompressedWriteNode::add(offset_t pos, const void *indata, size32_t i
 
         ICompressHandler * handler = queryCompressHandler(context.compressionMethod);
         compressor.open(keyPtr, maxBytes-hdr.keyBytes, handler, context.compressionOptions, isVariable, fixedKeySize);
+
+        // Save the first key value for potential prefix detection
+        memcpy(firstKeyValue, indata, keyCompareLength);
     }
 
-    unsigned writeOptions = (context.zeroFilePos ? KeyCompressor::DefaultOptions : KeyCompressor::TrailingFilePosition);
-    if (0xffff == hdr.numKeys || 0 == compressor.writekey(pos, (const char *)indata, insize, writeOptions, keyHdr->getNodeKeyLength()))
+    if (0xffff == hdr.numKeys)
         return false;
 
     if (insize>keyLen)
         throw MakeStringException(0, "key+payload (%u) exceeds max length (%u)", insize, keyLen);
 
+    unsigned writeOptions = (context.zeroFilePos ? KeyCompressor::DefaultOptions : KeyCompressor::TrailingFilePosition);
+    const char * dataToWrite = (const char *)indata + commonPrefixLength;
+    size32_t sizeToWrite = insize - commonPrefixLength;
+    if (0 == compressor.writekey(pos, dataToWrite, sizeToWrite, writeOptions, keyHdr->getNodeKeyLength()))
+    {
+        if (!extractCommonPrefix(pos, indata, insize, sequence))
+            return false;
+
+        assertex(commonPrefixLength != 0);
+        dataToWrite = (const char *)indata + commonPrefixLength;
+        sizeToWrite = insize - commonPrefixLength;
+        if (0 == compressor.writekey(pos, dataToWrite, sizeToWrite, writeOptions, keyHdr->getNodeKeyLength()))
+            return false;
+    }
+
     memcpy(lastKeyValue, indata, insize);
     lastSequence = sequence;
     hdr.numKeys++;
-    memorySize += insize + sizeof(pos);
+    memorySize += sizeToWrite + (context.zeroFilePos ? 0 : sizeof(pos));
+    return true;
+}
+
+bool CBlockCompressedWriteNode::extractCommonPrefix(offset_t pos, const void *indata, size32_t insize, unsigned __int64 sequence)
+{
+    // Handle compression failure with prefix detection
+    if ((context.minCommonPrefix == 0) || (commonPrefixLength != 0))
+        return false;
+
+    // Compare first key and last key to find common prefix
+    size32_t prefixLen = 0;
+    for (size32_t i = 0; i < keyCompareLength; i++)
+    {
+        if (firstKeyValue[i] == ((const char *)indata)[i])
+            prefixLen++;
+        else
+            break;
+    }
+
+    if (prefixLen > 255)
+        prefixLen = 255;
+
+    if (prefixLen < context.minCommonPrefix)
+        return false;
+
+    // Worth checking to see if the data recompresses better with the prefix removed
+    // Close current compressor and clone the compressed data so it can be restored if necessary
+    compressor.close();
+    MemoryAttr originalCompressedData(compressor.buflen(), keyPtr);
+
+    // Decompress the existing compressed data to walk through the keys
+    ICompressHandler * handler = queryCompressHandler(context.compressionMethod);
+    Owned<IExpander> expander = handler->getExpander(context.compressionOptions);
+    size32_t decompressedSize = expander->init(keyPtr);
+    assertex(decompressedSize != 0);
+    MemoryAttr decompressedData(decompressedSize);
+    expander->expand(decompressedData.mem());
+
+    // Adjust the fixed key size to account for the removed prefix
+    bool isVariable = keyHdr->isVariable();
+    bool hasFilepos = !context.zeroFilePos;
+    size32_t adjustedKeyLen = keyLen - prefixLen;
+    size32_t fixedKeySize = isVariable ? 0 : (hasFilepos ? adjustedKeyLen + sizeof(offset_t) : adjustedKeyLen);
+
+    // Recreate the compressor with reduced capacity, and reduced key size
+    size32_t prefixReserved = prefixLen + 1;
+    size32_t reducedCapacity = maxBytes - hdr.keyBytes - prefixReserved;
+    compressor.open(keyPtr + prefixReserved, reducedCapacity, handler, context.compressionOptions, isVariable, fixedKeySize);
+
+    // Re-add all previously added keys without the prefix
+    const byte * finger = decompressedData.bytes();
+    unsigned writeOptions = (context.zeroFilePos ? KeyCompressor::DefaultOptions : KeyCompressor::TrailingFilePosition);
+    for (unsigned i = 0; i < hdr.numKeys; i++)
+    {
+        // Parse the key record from the decompressed data
+        size32_t recordSize = keyLen;
+        const byte * keyData = finger;
+        offset_t fpos = 0;
+
+        if (isVariable)
+        {
+            size32_t payloadSize = readVariablePayloadSize(finger);
+            recordSize = payloadSize + keyCompareLength;
+            keyData = finger;
+        }
+        finger += recordSize;
+
+        // Extract file position if present
+        if (!context.zeroFilePos)
+        {
+            memcpy(&fpos, finger, sizeof(offset_t));
+            _WINREV(fpos);
+            finger += sizeof(offset_t);
+        }
+
+        // Skip the common prefix when writing
+        const byte * keyToWrite = keyData + prefixLen;
+        size32_t sizeToWrite = recordSize - prefixLen;
+        if (0 == compressor.writekey(fpos, (const char *)keyToWrite, sizeToWrite, writeOptions, keyHdr->getNodeKeyLength()))
+        {
+            compressor.close();
+            finished = true; // prevent close being called later
+            //restore the cloned data
+            memcpy(keyPtr, originalCompressedData.bytes(), originalCompressedData.length());
+            compressedSize = originalCompressedData.length();
+            return false;
+        }
+    }
+
+    noPrefixCount = hdr.numKeys;
+    memorySize = memorySize + prefixReserved - (prefixLen * hdr.numKeys);
+
+    // Store the common prefix at the start of the key data.
+    keyPtr[-1] |= BCFhasPrefix;
+    *keyPtr = (byte)prefixLen;
+    memcpy(keyPtr + 1, firstKeyValue, prefixLen);
+    keyPtr += prefixLen + 1;
+
+    // Ensure all new entries strip it (or are rejected if it does not match)
+    commonPrefixLength = prefixLen;
     return true;
 }
 
 void CBlockCompressedWriteNode::finalize()
 {
-    compressor.close();
+    if (!finished)
+    {
+        compressor.close();
+        compressedSize = compressor.buflen();
+    }
     if (hdr.numKeys)
-        hdr.keyBytes = compressor.buflen() + sizeof(unsigned __int64) + sizeof(CompressionMethod) + sizeof(bool); // rsequence + compressionMethod + zeroFilePosition
+    {
+        size32_t prefixExtra = commonPrefixLength ? (commonPrefixLength + 1) : 0;
+        // rsequence + compressionMethod + zeroFilePosition + prefix + compressed-data
+        hdr.keyBytes = sizeof(unsigned __int64) + sizeof(CompressionMethod) + sizeof(bool) + prefixExtra + compressedSize;
+        DBGLOG("Compressed node %u was %u prefix %u ", hdr.numKeys, noPrefixCount, commonPrefixLength);
+        context.totalMemorySize += sizeof(unsigned __int64) + sizeof(CompressionMethod) + sizeof(bool) + prefixExtra + memorySize;
+    }
 }
 
 //=========================================================================================================
@@ -422,9 +571,15 @@ BlockCompressedIndexCompressor::BlockCompressedIndexCompressor(unsigned keyedSiz
         {
             context.compressionOptions.append(',').append(value);
         }
+        else if (strieq(option, "prefix"))
+        {
+            context.minCommonPrefix = atoi(value);
+        }
     };
 
-    processOptionString(options, processOption);
+    const char * colon= strchr(options, ':');
+    if (colon)
+        processOptionString(colon+1, processOption);
 
     context.compressionHandler = queryCompressHandler(compressionMethod);
     if (!context.compressionHandler)

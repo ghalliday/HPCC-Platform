@@ -256,8 +256,6 @@ public:
         hdr->metadataHead = 0;
         hdr->firstLeaf = 0;
 
-        keyHdr->write(out, &headCRC);  // Reserve space for the header - we may seek back and write it properly later
-
         doCrc = true;
         duplicateCount = 0;
         const char * compression = defaultCompression;
@@ -289,12 +287,17 @@ public:
             else if (strieq(compression, "hybrid") || startsWithIgnoreCase(compression, "hybrid:"))
                 indexCompressor.setown(new HybridIndexCompressor(keyedSize, keyHdr, _helper, compression, isTLK));
             else if (strieq(compression, "legacy"))
+            {
+                hdr->ktype |= HTREE_COMPRESSED_KEY;
                 indexCompressor.setown(new LegacyIndexCompressor);
+            }
             else
                 throw makeStringExceptionV(0, "Unrecognised index compression format %s", compression);
         }
         else
             indexCompressor.setown(new LegacyIndexCompressor);
+
+        keyHdr->write(out, &headCRC);  // Reserve space for the header - we may seek back and write it properly later
     }
     
     ~CKeyBuilder()

@@ -26,6 +26,11 @@
 #include "jfile.hpp"
 #include "ctfile.hpp"
 
+enum BlockCompressedFlags : byte
+{
+    BCFzeroFilePosition     = 0x01,
+    BCFhasPrefix            = 0x02,
+};
 
 class CJHBlockCompressedSearchNode : public CJHSearchNode
 {
@@ -33,7 +38,7 @@ protected:
     size32_t keyLen = 0;
     size32_t keyCompareLen = 0;
     size32_t keyRecLen = 0;
-    bool zeroFilePosition = true;
+    byte flags = 0;
 
     unsigned __int64 firstSequence = 0;
 
@@ -84,6 +89,8 @@ struct CBlockCompressedBuildContext
     StringBuffer compressionOptions;
     CompressionMethod compressionMethod = COMPRESS_METHOD_ZSTDS;
     bool zeroFilePos = false;
+    unsigned minCommonPrefix = 0;
+    offset_t totalMemorySize = 0;
 };
 
 class jhtree_decl CBlockCompressedWriteNode : public CWriteNode
@@ -91,12 +98,18 @@ class jhtree_decl CBlockCompressedWriteNode : public CWriteNode
 private:
     KeyCompressor compressor;
     char *lastKeyValue = nullptr;
+    char *firstKeyValue = nullptr;
     unsigned __int64 lastSequence = 0;
     size32_t keyLen = 0;
+    size32_t keyCompareLength = 0;
     size32_t memorySize = 0;
-    const CBlockCompressedBuildContext& context;
+    size32_t commonPrefixLength = 0;
+    size32_t compressedSize = 0;
+    size32_t noPrefixCount = 0;
+    CBlockCompressedBuildContext & context;
+    bool finished = false;
 public:
-    CBlockCompressedWriteNode(offset_t fpos, CKeyHdr *keyHdr, bool isLeafNode, const CBlockCompressedBuildContext& ctx);
+    CBlockCompressedWriteNode(offset_t fpos, CKeyHdr *keyHdr, bool isLeafNode, CBlockCompressedBuildContext& ctx);
     ~CBlockCompressedWriteNode();
 
     virtual bool add(offset_t pos, const void *data, size32_t size, unsigned __int64 sequence) override;
@@ -104,11 +117,14 @@ public:
     virtual const void *getLastKeyValue() const override { return lastKeyValue; }
     virtual unsigned __int64 getLastSequence() const override { return lastSequence; }
     virtual size32_t getMemorySize() const override { return memorySize; }
+
+private:
+    bool extractCommonPrefix(offset_t pos, const void *indata, size32_t insize, unsigned __int64 sequence);
 };
 
 class BlockCompressedIndexCompressor : public CInterfaceOf<IIndexCompressor>
 {
-    CBlockCompressedBuildContext context;
+    mutable CBlockCompressedBuildContext context;
 public:
     BlockCompressedIndexCompressor(unsigned keyedSize, IHThorIndexWriteArg *helper, const char* options, bool isTLK);
 
@@ -136,7 +152,7 @@ public:
 
     virtual offset_t queryLeafMemorySize() const override
     {
-        return 0;
+        return context.totalMemorySize;
     }
 };
 

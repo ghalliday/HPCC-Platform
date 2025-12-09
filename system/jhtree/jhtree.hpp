@@ -310,8 +310,9 @@ extern jhtree_decl IIndexLookup *createIndexLookup(IKeyManager *keyManager);
 
 extern jhtree_decl void setIndexScaling(unsigned _inplaceSizeFactor, unsigned _lz4SpeedFactor, unsigned _zStdSpeedFactor);
 
-#define JHTREE_KEY_NOT_SORTED JHTREE_ERROR_START
-#define JHTREE_KEY_UNKNOWN_COMPRESSION (JHTREE_ERROR_START+1)
+#define JHTREE_KEY_NOT_SORTED                   JHTREE_ERROR_START
+#define JHTREE_KEY_UNKNOWN_COMPRESSION          (JHTREE_ERROR_START+1)
+#define JHTREE_KEY_UNSUPPORTED_COMPRESSION      (JHTREE_ERROR_START+2)
 
 constexpr bool isIndexReadActivity(ThorActivityKind actKind)
 {
