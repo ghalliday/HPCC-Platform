@@ -175,7 +175,7 @@ public:
     offset_t leafMemorySize = 0;
     struct {
         double minCompressionThreshold = 0.95; // use uncompressed if compressed is > 95% uncompressed
-        unsigned maxCompressionFactor = 50;    // Don't compress payload to less than 2% of the original by default (because when it is read it will use lots of memory)
+        unsigned maxCompressionFactor = defaultMaxCompressionFactor;    // Don't compress payload to less than 2% of the original by default (because when it is read it will use lots of memory)
         bool recompress = false;
         bool reuseCompressor = true;
         CompressionMethod blobCompression = COMPRESS_METHOD_LZW;
