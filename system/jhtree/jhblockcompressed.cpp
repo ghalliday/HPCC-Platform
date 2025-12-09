@@ -402,7 +402,7 @@ bool CBlockCompressedWriteNode::add(offset_t pos, const void *indata, size32_t i
     size32_t sizeToWrite = insize - commonPrefixLength;
     if (0 == compressor.writekey(pos, dataToWrite, sizeToWrite, writeOptions, keyHdr->getNodeKeyLength()))
     {
-        if (!extractCommonPrefix())
+        if (!extractCommonPrefix(pos, indata, insize, sequence))
             return false;
 
         assertex(commonPrefixLength != 0);
@@ -430,7 +430,7 @@ bool CBlockCompressedWriteNode::add(offset_t pos, const void *indata, size32_t i
     return true;
 }
 
-bool CBlockCompressedWriteNode::extractCommonPrefix()
+bool CBlockCompressedWriteNode::extractCommonPrefix(offset_t pos, const void *indata, size32_t insize, unsigned __int64 sequence)
 {
     // Handle compression failure with prefix detection
     if ((context.minCommonLeading == 0) || (commonPrefixLength != 0))
@@ -458,89 +458,71 @@ bool CBlockCompressedWriteNode::extractCommonPrefix()
     size32_t adjustedKeyLen = keyLen - commonPrefixLength;
     size32_t fixedKeySize = isVariable ? 0 : (hasFilepos ? adjustedKeyLen + sizeof(offset_t) : adjustedKeyLen);
 
-    // Calculate reduced capacity
-    size32_t reducedCapacity = maxBytes - hdr.keyBytes - commonPrefixLength - 1;
+    // Clone the compressed data so it can be restored if necessary
+    MemoryAttr originalCompressedData(compressor.buflen(), keyPtr);
+
+    // Decompress the existing compressed data to walk through the keys
     ICompressHandler * handler = queryCompressHandler(context.compressionMethod);
+    Owned<IExpander> expander = handler->getExpander(context.compressionOptions);
+    size32_t decompressedSize = expander->init(keyPtr);
+    assertex(decompressedSize != 0);
+    MemoryAttr decompressedData(decompressedSize);
+    expander->expand(decompressedData.mem());
+
 
     // Create a temporary compressor with reduced capacity
     KeyCompressor tempCompressor;
+    MemoryAttr tempBlock(maxBytes);
+    size32_t reducedCapacity = maxBytes - hdr.keyBytes - commonPrefixLength - 1;
     tempCompressor.open(keyPtr, reducedCapacity, handler, context.compressionOptions, isVariable, fixedKeySize);
 
     // Re-add all previously added keys without the prefix
-    bool allAdded = true;
-    for (const KeyRecord& record : addedKeys)
+    const byte * finger = decompressedData.bytes();
+    unsigned writeOptions = (context.zeroFilePos ? KeyCompressor::DefaultOptions : KeyCompressor::TrailingFilePosition);
+    for (unsigned i = 0; i < hdr.numKeys; i++)
     {
-        const char * keyData = (const char *)record.data.get();
-        size32_t keySize = record.size;
+        // Parse the key record from the decompressed data
+        size32_t recordSize = keyLen;
+        const byte * keyData = finger;
+        offset_t fpos = 0;
 
-        // Skip the common prefix
-        if (keySize > commonPrefixLength)
+        if (isVariable)
         {
-            keyData += commonPrefixLength;
-            keySize -= commonPrefixLength;
+            // Read variable length prefix
+            unsigned payloadSize = *finger++;
+            if (payloadSize & 0x80)
+            {
+                payloadSize &= 0x7f;
+                payloadSize = (payloadSize << 8) | *finger++;
+            }
+            recordSize = payloadSize + keyCompareLength;
+            keyData = finger;
         }
-        else
-        {
-            keyData = "";
-            keySize = 0;
-        }
+        finger += recordSize;
 
-        if (0 == tempCompressor.writekey(record.pos, keyData, keySize, writeOptions, keyHdr->getNodeKeyLength()))
+        // Extract file position if present
+        if (!context.zeroFilePos)
         {
-            allAdded = false;
-            break;
-        }
-    }
-
-    if (allAdded)
-    {
-        // Swap the temporary compressor with the member compressor
-        compressor.close();
-        compressor = std::move(tempCompressor);
-
-        // Retry adding the new row with the prefix removed
-        const char * newKeyData = (const char *)indata;
-        size32_t newKeySize = insize;
-        if (insize > commonPrefixLength)
-        {
-            newKeyData += commonPrefixLength;
-            newKeySize = insize - commonPrefixLength;
-        }
-        else
-        {
-            newKeyData = "";
-            newKeySize = 0;
+            memcpy(&fpos, finger, sizeof(offset_t));
+            _WINREV(fpos);
+            finger += sizeof(offset_t);
         }
 
-        if (0 == compressor.writekey(pos, newKeyData, newKeySize, writeOptions, keyHdr->getNodeKeyLength()))
+        // Skip the common prefix when writing
+        const byte * keyToWrite = keyData + prefixLen;
+        size32_t sizeToWrite = recordSize - prefixLen;
+        if (0 == tempCompressor.writekey(fpos, (const char *)keyToWrite, sizeToWrite, writeOptions, keyHdr->getNodeKeyLength()))
+        {
+            tempCompressor.close();
+            //restore the cloned data
+            memcpy(keyPtr, originalCompressedData.bytes(), originalCompressedData.length());
             return false;
-
-        // Successfully added with prefix compression
-        if (insize>keyLen)
-            throw MakeStringException(0, "key+payload (%u) exceeds max length (%u)", insize, keyLen);
-
-        // Track this key for potential future re-compression
-        if (context.minCommonLeading > 0)
-        {
-            KeyRecord record;
-            record.pos = pos;
-            record.data.set(insize, indata);
-            record.size = insize;
-            record.sequence = sequence;
-            addedKeys.push_back(std::move(record));
         }
-
-        memcpy(lastKeyValue, indata, insize);
-        lastSequence = sequence;
-        hdr.numKeys++;
-        memorySize += insize + sizeof(pos);
-        return true;
     }
 
     // Store the common prefix
     commonPrefixLength = prefixLen;
-    return false;
-
+    return true;
 }
 
 void CBlockCompressedWriteNode::finalize()

@@ -120,7 +120,7 @@ public:
     virtual size32_t getMemorySize() const override { return memorySize; }
 
 private:
-    bool extractCommonPrefix();
+    bool extractCommonPrefix(offset_t pos, const void *indata, size32_t insize, unsigned __int64 sequence);
 };
 
 class BlockCompressedIndexCompressor : public CInterfaceOf<IIndexCompressor>
