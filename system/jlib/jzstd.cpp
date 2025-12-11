@@ -251,7 +251,9 @@ protected:
     ZSTD_CStream * zstdStream = nullptr;
 
     //Options for configuring the compressor:
-    int compressionLevel = ZSTD_CLEVEL_DEFAULT;
+    // The default compression level is set to 6 because for that compression level, the extra time to compress
+    // more than compensate for the reduced storage costs of indexes.
+    int compressionLevel = 6;
 };
 
 //---------------------------------------------------------------------------------------------------------------------
