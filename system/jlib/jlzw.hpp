@@ -189,7 +189,6 @@ extern jlib_decl ICompressHandler *queryCompressHandler(CompressionMethod method
 extern jlib_decl ICompressHandler *queryDefaultCompressHandler();
 extern jlib_decl bool addCompressorHandler(ICompressHandler *handler); // returns true if added, false if already registered
 extern jlib_decl bool removeCompressorHandler(ICompressHandler *handler); // returns true if present and removed
-extern jlib_decl CompressionMethod queryPersistMethod(CompressionMethod method);
 
 extern jlib_decl ICompressor *getCompressor(const char *type, const char *options=NULL);
 extern jlib_decl IExpander *getExpander(const char *type, const char *options=NULL);

@@ -2395,6 +2395,7 @@ public:
     CCompressedFileWriter(IFileIO *_fileio,CompressedFileTrailer &_trailer,ICFmode _mode, bool _setcrc,ICompressor *_compressor, unsigned bufferSize)
         : CCompressedFileBase(_fileio, _trailer, bufferSize), mode(_mode), setcrc(_setcrc), compressor(_compressor)
     {
+        assertex(compressor);
         curblocknum = (unsigned)-1; // relies on wrap
 
         assertex(trailer.recordSize == 0);
@@ -2741,11 +2742,11 @@ ICompressedFileIO *createCompressedFileWriter(IFileIO *fileio, bool append, bool
 
     if (!appending)
     {
-        memset(&trailer,0,sizeof(trailer));
-        trailer.crc = ~0U;
-
         compMethod = compressor->getCompressionMethod();
         assertex(compMethod < COMPRESS_METHOD_LAST_PERSISTED && compMethod != COMPRESS_METHOD_LZ4HC3);
+
+        memset(&trailer,0,sizeof(trailer));
+        trailer.crc = ~0U;
 
         //Preserve the legacy compressedType values for backward compatibility
         if (compMethod == COMPRESS_METHOD_FASTLZ)
@@ -3131,7 +3132,16 @@ MODULE_INIT(INIT_PRIORITY_STANDARD)
         {
         }
 
-        virtual ICompressor * createCompressor(const char *options) = 0;
+        virtual CompressionMethod queryAliasMethod() const
+        {
+            return aliasMethod;
+        }
+
+        virtual const char *queryType() const override
+        {
+            return translateFromCompMethod(aliasMethod);
+        }
+
         virtual ICompressor *getCompressor(const char *options) override final
         {
             if (!options)
@@ -3141,6 +3151,9 @@ MODULE_INIT(INIT_PRIORITY_STANDARD)
             combinedOptions.append(defaultOptions).append(",").append(options);
             return createCompressor(combinedOptions);
         }
+    protected:
+        virtual ICompressor * createCompressor(const char *options) = 0;
+
     protected:
         CompressionMethod aliasMethod;
         const char * defaultOptions;
@@ -3173,7 +3186,8 @@ MODULE_INIT(INIT_PRIORITY_STANDARD)
     {
     public:
         virtual const char *queryType() const override { return "LZ4HC3"; }
-        virtual CompressionMethod queryPersistMethod() const override { return COMPRESS_METHOD_LZ4HC3; }
+        virtual CompressionMethod queryAliasMethod() const override { return COMPRESS_METHOD_LZ4HC3; }
+        virtual CompressionMethod queryPersistMethod() const override { return COMPRESS_METHOD_LZ4HC; }
         virtual ICompressor *getCompressor(const char *options) override {
             StringBuffer opts(options);
             opts.append(',').append("hclevel=3"); // note extra leading comma will be ignored
@@ -3218,7 +3232,6 @@ MODULE_INIT(INIT_PRIORITY_STANDARD)
     public:
         CZStdSOptCompressHandler(CompressionMethod _aliasMethod, const char * defaultOptions) : CCompressHandlerWithOptions(_aliasMethod, defaultOptions) {}
 
-        virtual const char *queryType() const override { return "ZSTDS"; }
         virtual CompressionMethod queryPersistMethod() const override { return COMPRESS_METHOD_ZSTDS; }
         virtual ICompressor *createCompressor(const char *options) override { return createZStdStreamCompressor(options); }
         virtual IExpander *getExpander(const char *options) override { return createZStdStreamExpander(); }
@@ -3228,7 +3241,6 @@ MODULE_INIT(INIT_PRIORITY_STANDARD)
     public:
         CZStdOptCompressHandler(CompressionMethod _aliasMethod, const char * _defaultOptions) : CCompressHandlerWithOptions(_aliasMethod, _defaultOptions) {}
 
-        virtual const char *queryType() const override { return "ZSTD"; }
         virtual CompressionMethod queryPersistMethod() const override { return COMPRESS_METHOD_ZSTD; }
         virtual ICompressor *createCompressor(const char *options) override { return createZStdCompressor(options); }
         virtual IExpander *getExpander(const char *options) override { return createZStdExpander(); }
@@ -3324,13 +3336,6 @@ ICompressHandler *queryCompressHandler(CompressionMethod method)
     return compressors.lookup(method);
 }
 
-CompressionMethod queryPersistMethod(CompressionMethod method)
-{
-    ICompressHandler *handler = queryCompressHandler(method);
-    assertex(handler);
-    return handler->queryPersistMethod();
-}
-
 void setDefaultCompressor(const char *type)
 {
     ICompressHandler *_defaultCompressor = queryCompressHandler(type);
@@ -3371,6 +3376,8 @@ CompressionMethod translateToCompMethod(const char *compStr, CompressionMethod d
             compMethod = COMPRESS_METHOD_FASTLZ;
         else if (strieq("LZW", compStr))
             compMethod = COMPRESS_METHOD_LZW;
+        else if (strieq("LZWLE", compStr))
+            compMethod = COMPRESS_METHOD_LZW_LITTLE_ENDIAN;
         else if (strieq("RDIFF", compStr))
             compMethod = COMPRESS_METHOD_ROWDIF;
         else if (strieq("RANDROW", compStr))
@@ -3421,6 +3428,8 @@ const char *translateFromCompMethod(unsigned compMethod)
             return "RANDROW";
         case COMPRESS_METHOD_LZW:
             return "LZW";
+        case COMPRESS_METHOD_LZW_LITTLE_ENDIAN:
+            return "LZWLE";
         case COMPRESS_METHOD_FASTLZ:
             return "FLZ";
         case COMPRESS_METHOD_LZ4:

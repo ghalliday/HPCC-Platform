@@ -378,7 +378,7 @@ bool EventRecorder::startRecording(const char * optionsText, const char * filena
             {
                 ICompressHandler * compression = queryCompressHandler(valueText);
                 if (compression)
-                    compressionType = compression->queryPersistMethod();
+                    compressionType = compression->queryAliasMethod();
             }
         }
         else if (strieq(option, "log"))
