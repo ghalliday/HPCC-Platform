@@ -145,7 +145,7 @@ public:
             }
             case CompressToBuffer:
             {
-                compressToBuffer(compressed, srcLen, ptr, handler.queryMethod(), options);
+                compressToBuffer(compressed, srcLen, ptr, handler.queryAliasMethod(), options);
                 break;
             }
             case FixedBlockCompress:
