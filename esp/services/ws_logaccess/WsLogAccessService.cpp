@@ -1,4 +1,5 @@
 #include <ws_logaccess/WsLogAccessService.hpp>
+#include "jerror.hpp"
 
 Cws_logaccessEx::Cws_logaccessEx()
 {
@@ -403,8 +404,21 @@ bool Cws_logaccessEx::onGetHealthReport(IEspContext &context, IEspGetHealthRepor
     StringBuffer code;
     if (!queryRemoteLogAccessor())
     {
-        messages.append("Configuration Error - LogAccess plugin not available, review logAccess configuration!");
-        code.set("Fail");
+        IException * loadError = queryRemoteLogAccessorLoadError();
+        if (loadError)
+        {
+            messages.append("Configuration Error - LogAccess plugin not available.");
+            StringBuffer msg;
+            loadError->errorMessage(msg);
+            messages.append(msg.str());
+        }
+        else
+            messages.append("Configuration Error - Unknown error");
+
+        if (loadError && (loadError->errorCode() == JLIBERRR_NoRemoteLogConfig))
+            code.set("Warning");
+        else
+            code.set("Fail");
     }
     else
     {

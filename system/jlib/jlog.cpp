@@ -30,6 +30,7 @@
 #include "lnuid.h"
 #include <sys/stat.h>
 #include "jtrace.hpp"
+#include "jerror.hpp"
 
 using namespace ln_uid;
 
@@ -2414,6 +2415,7 @@ public:
 
 static CNullManager nullManager;
 static Singleton<IRemoteLogAccess> logAccessor;
+static Owned<IException> logAccessorError;
 
 
 MODULE_INIT(INIT_PRIORITY_JLOG)
@@ -3457,7 +3459,7 @@ IRemoteLogAccess *queryRemoteLogAccessor()
 #endif
 
                 if (!logAccessPluginConfig)
-                    throw makeStringException(-1, "RemoteLogAccessLoader: logaccess configuration not available!");
+                    throw makeStringException(JLIBERRR_NoRemoteLogConfig, "RemoteLogAccessLoader: logaccess configuration not available!");
 
                 constexpr const char * methodName = "queryRemoteLogAccessor";
                 constexpr const char * instFactoryName = "createInstance";
@@ -3466,7 +3468,7 @@ IRemoteLogAccess *queryRemoteLogAccessor()
                 StringBuffer type;
                 logAccessPluginConfig->getProp("@type", type);
                 if (type.isEmpty())
-                    throw makeStringExceptionV(-1, "%s RemoteLogAccess plugin kind not specified.", methodName);
+                    throw makeStringExceptionV(JLIBERRR_PluginKindNotSpecified, "%s RemoteLogAccess plugin kind not specified.", methodName);
                 libName.append("lib").append(type.str()).append("logaccess");
 
                 //Load the DLL/SO
@@ -3474,7 +3476,7 @@ IRemoteLogAccess *queryRemoteLogAccessor()
 
                 newLogAccessPluginMethod_t_ xproc = (newLogAccessPluginMethod_t_)GetSharedProcedure(logAccessPluginLib, instFactoryName);
                 if (xproc == nullptr)
-                    throw makeStringExceptionV(-1, "%s cannot locate procedure %s in library '%s'", methodName, instFactoryName, libName.str());
+                    throw makeStringExceptionV(JLIBERRR_CannotLocateFactory, "%s cannot locate procedure %s in library '%s'", methodName, instFactoryName, libName.str());
 
                 //Call logaccessplugin instance factory and return the new instance
                 DBGLOG("Calling '%s' in log access plugin '%s'", instFactoryName, libName.str());
@@ -3483,11 +3485,16 @@ IRemoteLogAccess *queryRemoteLogAccessor()
             catch (IException *e)
             {
                 EXCLOG(e, "Could not load remote log access plug-in: ");
-                e->Release();
+                logAccessorError.setown(e);
             }
             return remoteLogAccessor;
         }
     );
+}
+
+IException * queryRemoteLogAccessorLoadError()
+{
+    return logAccessorError;
 }
 
 void setDefaultJobName(const char * name)

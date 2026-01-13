@@ -35,6 +35,10 @@
 #define JLIBERR_UnexpectedValue                 6004
 #define JLIBERR_K8sServiceError                 6005
 
+#define JLIBERRR_PluginKindNotSpecified         6010
+#define JLIBERRR_CannotLocateFactory            6011
+#define JLIBERRR_NoRemoteLogConfig              6012
+
 //---- Text for all errors (make it easy to internationalise) ---------------------------
 
 #define JLIBERR_BadlyFormedDateTime_Text        "Badly formatted date/time '%s'"
