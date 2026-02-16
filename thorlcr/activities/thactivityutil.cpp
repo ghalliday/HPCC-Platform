@@ -302,6 +302,12 @@ public:
                 throw getexception.getClear();
         }
     }
+    memsize_t getPeakRowMemory() const
+    {
+        if (smartbuf)
+            return smartbuf->getPeakRowMemory();
+        return 0;
+    }
 };
 
 
