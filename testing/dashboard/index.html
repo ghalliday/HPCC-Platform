@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HPCC Testing Dashboard</title>
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <h1>HPCC Platform Testing Dashboard</h1>
+            <div class="header-controls">
+                <div class="date-selector">
+                    <label for="test-date">Test Date:</label>
+                    <input type="date" id="test-date" value="2026-02-17">
+                    <button id="refresh-btn" class="btn btn-primary">Refresh</button>
+                </div>
+                <div class="view-controls">
+                    <button id="compare-mode-btn" class="btn btn-secondary">Compare Mode</button>
+                    <button id="export-btn" class="btn btn-secondary">Export</button>
+                </div>
+            </div>
+        </header>
+
+        <section class="summary-cards">
+            <div class="card summary-card">
+                <h3>Overall Pass Rate</h3>
+                <div class="metric">
+                    <span class="metric-value">94.2%</span>
+                    <span class="metric-trend positive">+2.1%</span>
+                </div>
+            </div>
+            <div class="card summary-card">
+                <h3>Critical Failures</h3>
+                <div class="metric">
+                    <span class="metric-value">3</span>
+                    <span class="metric-trend negative">+1</span>
+                </div>
+            </div>
+            <div class="card summary-card">
+                <h3>Active Versions</h3>
+                <div class="metric">
+                    <span class="metric-value">5</span>
+                    <span class="metric-trend neutral">—</span>
+                </div>
+            </div>
+            <div class="card summary-card">
+                <h3>Last Updated</h3>
+                <div class="metric">
+                    <span class="metric-value">2h ago</span>
+                    <span class="metric-trend neutral">—</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="test-grid">
+            <div class="grid-container">
+                <div class="grid-header">
+                    <div class="header-cell test-header">Test Type</div>
+                    <div class="header-cell platform-header">Platform</div>
+                    <div class="header-cell version-header">9.12.x</div>
+                    <div class="header-cell version-header">9.14.x</div>
+                    <div class="header-cell version-header">10.0.x</div>
+                    <div class="header-cell version-header">10.2.x</div>
+                    <div class="header-cell version-header">master</div>
+                </div>
+
+                <!-- Regression Tests -->
+                <div class="test-group" data-test="regression">
+                    <div class="test-row">
+                        <div class="test-cell-label" rowspan="3">
+                            <div class="test-name-label">
+                                <span>Regression</span>
+                                <button class="info-btn" data-test="regression">ⓘ</button>
+                            </div>
+                        </div>
+                        <div class="platform-label">hthor</div>
+                        <div class="test-cell status-pass" data-test="regression" data-platform="hthor" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,245/1,250 (99.6%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="regression" data-platform="hthor" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,248/1,250 (99.8%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="regression" data-platform="hthor" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,246/1,250 (99.7%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="regression" data-platform="hthor" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,243/1,250 (99.4%)</div>
+                        </div>
+                        <div class="test-cell status-fail" data-test="regression" data-platform="hthor" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,215/1,250 (97.2%)</div>
+                        </div>
+                    </div>
+                    <div class="test-row">
+                        <div class="blank-cell"></div>
+                        <div class="platform-label">Thor</div>
+                        <div class="test-cell status-warn" data-test="regression" data-platform="thor" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,238/1,250 (99.0%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="regression" data-platform="thor" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,247/1,250 (99.8%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="regression" data-platform="thor" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,244/1,250 (99.5%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="regression" data-platform="thor" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,241/1,250 (99.3%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="regression" data-platform="thor" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,240/1,250 (99.2%)</div>
+                        </div>
+                    </div>
+                    <div class="test-row">
+                        <div class="blank-cell"></div>
+                        <div class="platform-label">Roxie</div>
+                        <div class="test-cell status-pass" data-test="regression" data-platform="roxie" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,242/1,250 (99.4%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="regression" data-platform="roxie" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,249/1,250 (99.9%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="regression" data-platform="roxie" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,247/1,250 (99.8%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="regression" data-platform="roxie" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,244/1,250 (99.5%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="regression" data-platform="roxie" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">1,243/1,250 (99.4%)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OBT Tests -->
+                <div class="test-group" data-test="obt">
+                    <div class="test-row">
+                        <div class="test-cell-label" rowspan="3">
+                            <div class="test-name-label">
+                                <span>OBT</span>
+                                <button class="info-btn" data-test="obt">ⓘ</button>
+                            </div>
+                        </div>
+                        <div class="platform-label">hthor</div>
+                        <div class="test-cell status-pass" data-test="obt" data-platform="hthor" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">892/900 (99.1%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="obt" data-platform="hthor" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">898/900 (99.8%)</div>
+                        </div>
+                        <div class="test-cell status-warn" data-test="obt" data-platform="hthor" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">875/900 (97.2%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="obt" data-platform="hthor" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">891/900 (99.0%)</div>
+                        </div>
+                        <div class="test-cell status-warn" data-test="obt" data-platform="hthor" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">872/900 (96.9%)</div>
+                        </div>
+                    </div>
+                    <div class="test-row">
+                        <div class="blank-cell"></div>
+                        <div class="platform-label">Thor</div>
+                        <div class="test-cell status-pass" data-test="obt" data-platform="thor" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">895/900 (99.4%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="obt" data-platform="thor" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">896/900 (99.6%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="obt" data-platform="thor" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">893/900 (99.2%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="obt" data-platform="thor" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">894/900 (99.3%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="obt" data-platform="thor" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">890/900 (98.9%)</div>
+                        </div>
+                    </div>
+                    <div class="test-row">
+                        <div class="blank-cell"></div>
+                        <div class="platform-label">Roxie</div>
+                        <div class="test-cell status-pass" data-test="obt" data-platform="roxie" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">897/900 (99.7%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="obt" data-platform="roxie" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">899/900 (99.9%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="obt" data-platform="roxie" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">897/900 (99.7%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="obt" data-platform="roxie" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">896/900 (99.6%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="obt" data-platform="roxie" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">895/900 (99.4%)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BVT Tests -->
+                <div class="test-group" data-test="bvt">
+                    <div class="test-row">
+                        <div class="test-cell-label" rowspan="3">
+                            <div class="test-name-label">
+                                <span>BVT</span>
+                                <button class="info-btn" data-test="bvt">ⓘ</button>
+                            </div>
+                        </div>
+                        <div class="platform-label">hthor</div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="hthor" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">156/160 (97.5%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="hthor" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">160/160 (100%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="hthor" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">158/160 (98.8%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="hthor" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">157/160 (98.1%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="hthor" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">155/160 (96.9%)</div>
+                        </div>
+                    </div>
+                    <div class="test-row">
+                        <div class="blank-cell"></div>
+                        <div class="platform-label">Thor</div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="thor" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">158/160 (98.8%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="thor" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">159/160 (99.4%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="thor" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">157/160 (98.1%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="thor" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">156/160 (97.5%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="thor" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">157/160 (98.1%)</div>
+                        </div>
+                    </div>
+                    <div class="test-row">
+                        <div class="blank-cell"></div>
+                        <div class="platform-label">Roxie</div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="roxie" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">159/160 (99.4%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="roxie" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">160/160 (100%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="roxie" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">159/160 (99.4%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="roxie" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">158/160 (98.8%)</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="bvt" data-platform="roxie" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">159/160 (99.4%)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coverage Tests -->
+                <div class="test-group" data-test="coverage">
+                    <div class="test-row">
+                        <div class="test-cell-label" rowspan="3">
+                            <div class="test-name-label">
+                                <span>Coverage</span>
+                                <button class="info-btn" data-test="coverage">ⓘ</button>
+                            </div>
+                        </div>
+                        <div class="platform-label">hthor</div>
+                        <div class="test-cell status-pass" data-test="coverage" data-platform="hthor" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">82.4% lines</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="coverage" data-platform="hthor" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">83.7% lines</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="coverage" data-platform="hthor" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">84.9% lines</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="coverage" data-platform="hthor" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">85.3% lines</div>
+                        </div>
+                        <div class="test-cell status-warn" data-test="coverage" data-platform="hthor" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">76.8% lines</div>
+                        </div>
+                    </div>
+                    <div class="test-row">
+                        <div class="blank-cell"></div>
+                        <div class="platform-label">Thor</div>
+                        <div class="test-cell status-pass" data-test="coverage" data-platform="thor" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">85.2% lines</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="coverage" data-platform="thor" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">86.1% lines</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="coverage" data-platform="thor" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">87.5% lines</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="coverage" data-platform="thor" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">88.2% lines</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="coverage" data-platform="thor" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">89.1% lines</div>
+                        </div>
+                    </div>
+                    <div class="test-row">
+                        <div class="blank-cell"></div>
+                        <div class="platform-label">Roxie</div>
+                        <div class="test-cell status-pass" data-test="coverage" data-platform="roxie" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">79.8% lines</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="coverage" data-platform="roxie" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">81.3% lines</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="coverage" data-platform="roxie" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">82.6% lines</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="coverage" data-platform="roxie" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">83.7% lines</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="coverage" data-platform="roxie" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">84.5% lines</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Tests -->
+                <div class="test-group" data-test="performance">
+                    <div class="test-row">
+                        <div class="test-cell-label" rowspan="3">
+                            <div class="test-name-label">
+                                <span>Performance</span>
+                                <button class="info-btn" data-test="performance">ⓘ</button>
+                            </div>
+                        </div>
+                        <div class="platform-label">hthor</div>
+                        <div class="test-cell status-pass" data-test="performance" data-platform="hthor" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">-2.1% vs baseline</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="performance" data-platform="hthor" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">-1.5% vs baseline</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="performance" data-platform="hthor" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">-3.2% vs baseline</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="performance" data-platform="hthor" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">-0.9% vs baseline</div>
+                        </div>
+                        <div class="test-cell status-fail" data-test="performance" data-platform="hthor" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">+12.5% vs baseline</div>
+                        </div>
+                    </div>
+                    <div class="test-row">
+                        <div class="blank-cell"></div>
+                        <div class="platform-label">Thor</div>
+                        <div class="test-cell status-pass" data-test="performance" data-platform="thor" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">+1.3% vs baseline</div>
+                        </div>
+                        <div class="test-cell status-warn" data-test="performance" data-platform="thor" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">+4.2% vs baseline</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="performance" data-platform="thor" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">-1.8% vs baseline</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="performance" data-platform="thor" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">+2.1% vs baseline</div>
+                        </div>
+                        <div class="test-cell status-warn" data-test="performance" data-platform="thor" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">+5.7% vs baseline</div>
+                        </div>
+                    </div>
+                    <div class="test-row">
+                        <div class="blank-cell"></div>
+                        <div class="platform-label">Roxie</div>
+                        <div class="test-cell status-pass" data-test="performance" data-platform="roxie" data-version="9.12.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">-0.8% vs baseline</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="performance" data-platform="roxie" data-version="9.14.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">+0.5% vs baseline</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="performance" data-platform="roxie" data-version="10.0.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">-2.4% vs baseline</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="performance" data-platform="roxie" data-version="10.2.x">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">+0.3% vs baseline</div>
+                        </div>
+                        <div class="test-cell status-pass" data-test="performance" data-platform="roxie" data-version="master">
+                            <div class="status-indicator"></div>
+                            <div class="test-stats">+1.2% vs baseline</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Modal for test info -->
+        <div id="test-info-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2 id="modal-title">Test Information</h2>
+                <div id="modal-body">
+                    <!-- Content will be dynamically inserted -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/dashboard.js"></script>
+</body>
+</html>
