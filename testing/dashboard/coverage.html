@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coverage Tests - HPCC Testing Dashboard</title>
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <h1>Coverage Tests</h1>
+            <div class="header-controls">
+                <a href="index.html" class="btn btn-secondary">← Back to Dashboard</a>
+            </div>
+        </header>
+
+        <section class="test-description">
+            <div class="card">
+                <h2>Test Purpose</h2>
+                <p>Coverage tests measure the percentage of code that is exercised by the test suites. This metric helps identify untested code paths and ensures comprehensive test coverage across the HPCC Platform codebase.</p>
+                <p>The coverage analysis tracks which lines of code are executed during test runs, helping developers identify areas that need additional testing and ensuring that critical code paths are adequately validated.</p>
+            </div>
+        </section>
+
+        <section class="test-grid">
+            <div class="grid-container">
+                <div class="grid-header">
+                    <div class="header-cell test-header">Platform</div>
+                    <div class="header-cell version-header">9.12.x</div>
+                    <div class="header-cell version-header">9.14.x</div>
+                    <div class="header-cell version-header">10.0.x</div>
+                    <div class="header-cell version-header">10.2.x</div>
+                    <div class="header-cell version-header">master</div>
+                </div>
+
+                <!-- hthor Results -->
+                <div class="test-group">
+                    <div class="test-row">
+                        <div class="test-cell-label" rowspan="1">
+                            <div class="test-name-label">
+                                <span>hthor</span>
+                            </div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">87.2%</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">88.5%</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">89.1%</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">89.8%</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">90.2%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Thor Results -->
+                <div class="test-group">
+                    <div class="test-row">
+                        <div class="test-cell-label" rowspan="1">
+                            <div class="test-name-label">
+                                <span>Thor</span>
+                            </div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">85.4%</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">86.1%</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">86.9%</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">87.5%</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">88.3%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Roxie Results -->
+                <div class="test-group">
+                    <div class="test-row">
+                        <div class="test-cell-label" rowspan="1">
+                            <div class="test-name-label">
+                                <span>Roxie</span>
+                            </div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">83.7%</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">84.2%</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">85.1%</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">85.8%</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">86.4%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>

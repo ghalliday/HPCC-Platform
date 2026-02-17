@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Regression Tests - HPCC Testing Dashboard</title>
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <h1>Regression Tests</h1>
+            <div class="header-controls">
+                <a href="index.html" class="btn btn-secondary">← Back to Dashboard</a>
+            </div>
+        </header>
+
+        <section class="test-description">
+            <div class="card">
+                <h2>Test Purpose</h2>
+                <p>Regression tests ensure that new code changes do not break existing functionality. This comprehensive test suite runs across all platforms (hthor, Thor, and Roxie) and versions to validate that previously working features continue to function correctly after updates.</p>
+                <p>The regression test suite contains over 1,250 individual test cases covering core ECL language features, platform capabilities, and common usage patterns.</p>
+            </div>
+        </section>
+
+        <section class="test-grid">
+            <div class="grid-container">
+                <div class="grid-header">
+                    <div class="header-cell test-header">Platform</div>
+                    <div class="header-cell version-header">9.12.x</div>
+                    <div class="header-cell version-header">9.14.x</div>
+                    <div class="header-cell version-header">10.0.x</div>
+                    <div class="header-cell version-header">10.2.x</div>
+                    <div class="header-cell version-header">master</div>
+                </div>
+
+                <!-- hthor Results -->
+                <div class="test-group">
+                    <div class="test-row">
+                        <div class="test-cell-label" rowspan="1">
+                            <div class="test-name-label">
+                                <span>hthor</span>
+                            </div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">1,245/1,250 (99.6%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">1,248/1,250 (99.8%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">1,246/1,250 (99.7%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">1,243/1,250 (99.4%)</div>
+                        </div>
+                        <div class="test-cell status-fail">
+                            <div class="test-stats">1,215/1,250 (97.2%)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Thor Results -->
+                <div class="test-group">
+                    <div class="test-row">
+                        <div class="test-cell-label" rowspan="1">
+                            <div class="test-name-label">
+                                <span>Thor</span>
+                            </div>
+                        </div>
+                        <div class="test-cell status-warn">
+                            <div class="test-stats">1,238/1,250 (99.0%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">1,247/1,250 (99.8%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">1,244/1,250 (99.5%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">1,241/1,250 (99.3%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">1,240/1,250 (99.2%)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Roxie Results -->
+                <div class="test-group">
+                    <div class="test-row">
+                        <div class="test-cell-label" rowspan="1">
+                            <div class="test-name-label">
+                                <span>Roxie</span>
+                            </div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">1,242/1,250 (99.4%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">1,249/1,250 (99.9%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">1,247/1,250 (99.8%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">1,244/1,250 (99.5%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">1,243/1,250 (99.4%)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>

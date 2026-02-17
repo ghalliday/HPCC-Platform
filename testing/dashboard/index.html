@@ -17,7 +17,10 @@
                     <button id="refresh-btn" class="btn btn-primary">Refresh</button>
                 </div>
                 <div class="view-controls">
-                    <button id="compare-mode-btn" class="btn btn-secondary">Compare Mode</button>
+                    <div class="date-selector">
+                        <label for="compare-date">Compare to:</label>
+                        <input type="date" id="compare-date" placeholder="Select date">
+                    </div>
                     <button id="export-btn" class="btn btn-secondary">Export</button>
                 </div>
             </div>
@@ -71,7 +74,7 @@
                     <div class="test-row">
                         <div class="test-cell-label" rowspan="3">
                             <div class="test-name-label">
-                                <span>Regression</span>
+                                <a href="regression.html" class="test-link">Regression</a>
                                 <button class="info-btn" data-test="regression">ⓘ</button>
                             </div>
                         </div>
@@ -152,7 +155,7 @@
                     <div class="test-row">
                         <div class="test-cell-label" rowspan="3">
                             <div class="test-name-label">
-                                <span>OBT</span>
+                                <a href="obt.html" class="test-link">OBT</a>
                                 <button class="info-btn" data-test="obt">ⓘ</button>
                             </div>
                         </div>
@@ -233,14 +236,14 @@
                     <div class="test-row">
                         <div class="test-cell-label" rowspan="3">
                             <div class="test-name-label">
-                                <span>BVT</span>
+                                <a href="bvt.html" class="test-link">BVT</a>
                                 <button class="info-btn" data-test="bvt">ⓘ</button>
                             </div>
                         </div>
                         <div class="platform-label">hthor</div>
                         <div class="test-cell status-pass" data-test="bvt" data-platform="hthor" data-version="9.12.x">
                             <div class="status-indicator"></div>
-                            <div class="test-stats">156/160 (97.5%)</div>
+                            <div class="test-stats">523/525 (99.6%)</div>
                         </div>
                         <div class="test-cell status-pass" data-test="bvt" data-platform="hthor" data-version="9.14.x">
                             <div class="status-indicator"></div>
@@ -314,14 +317,14 @@
                     <div class="test-row">
                         <div class="test-cell-label" rowspan="3">
                             <div class="test-name-label">
-                                <span>Coverage</span>
+                                <a href="coverage.html" class="test-link">Coverage</a>
                                 <button class="info-btn" data-test="coverage">ⓘ</button>
                             </div>
                         </div>
                         <div class="platform-label">hthor</div>
                         <div class="test-cell status-pass" data-test="coverage" data-platform="hthor" data-version="9.12.x">
                             <div class="status-indicator"></div>
-                            <div class="test-stats">82.4% lines</div>
+                            <div class="test-stats">87.2%</div>
                         </div>
                         <div class="test-cell status-pass" data-test="coverage" data-platform="hthor" data-version="9.14.x">
                             <div class="status-indicator"></div>
@@ -395,7 +398,7 @@
                     <div class="test-row">
                         <div class="test-cell-label" rowspan="3">
                             <div class="test-name-label">
-                                <span>Performance</span>
+                                <a href="performance.html" class="test-link">Performance</a>
                                 <button class="info-btn" data-test="performance">ⓘ</button>
                             </div>
                         </div>

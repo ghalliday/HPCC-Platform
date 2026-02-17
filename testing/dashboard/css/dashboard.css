@@ -190,6 +190,32 @@ body {
     background-color: rgba(108, 117, 125, 0.1);
 }
 
+/* Test Description */
+.test-description {
+    margin-bottom: var(--spacing-lg);
+}
+
+.test-description .card {
+    padding: var(--spacing-lg);
+}
+
+.test-description h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: var(--spacing-md);
+    color: var(--color-primary);
+}
+
+.test-description p {
+    margin-bottom: var(--spacing-md);
+    line-height: 1.7;
+    color: var(--color-text);
+}
+
+.test-description p:last-child {
+    margin-bottom: 0;
+}
+
 /* Test Grid */
 .test-grid {
     background: var(--color-bg-card);
@@ -211,6 +237,11 @@ body {
     position: sticky;
     top: 0;
     z-index: 10;
+}
+
+/* Detail pages with 6 columns (Platform + 5 versions) */
+.grid-header:has(.header-cell:nth-child(6):last-child) {
+    grid-template-columns: 120px repeat(5, 1fr);
 }
 
 .header-cell {
@@ -242,6 +273,18 @@ body {
 
 .test-name {
     font-size: 14px;
+}
+
+.test-link {
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.test-link:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
 }
 
 .info-btn {
@@ -276,6 +319,11 @@ body {
     display: grid;
     grid-template-columns: 120px 80px repeat(5, 1fr);
     border-bottom: 1px solid #f0f0f0;
+}
+
+/* Detail pages with 6 columns (Platform + 5 versions) */
+.test-row:has(.test-cell:nth-child(6):last-child) {
+    grid-template-columns: 120px repeat(5, 1fr);
 }
 
 .test-row:last-child {
@@ -344,34 +392,34 @@ body {
 }
 
 .test-cell:hover {
-    background-color: #f8f9fa;
     transform: scale(1.02);
     z-index: 5;
     box-shadow: var(--shadow-md);
 }
 
-.status-indicator {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    margin-bottom: 4px;
-    flex-shrink: 0;
+.test-cell.status-pass {
+    background-color: rgba(40, 167, 69, 0.1);
 }
 
-.test-cell.status-pass .status-indicator {
-    background-color: var(--color-success);
-    box-shadow: 0 0 8px rgba(40, 167, 69, 0.4);
+.test-cell.status-pass:hover {
+    background-color: rgba(40, 167, 69, 0.2);
 }
 
-.test-cell.status-warn .status-indicator {
-    background-color: var(--color-warning);
-    box-shadow: 0 0 8px rgba(255, 193, 7, 0.4);
+.test-cell.status-warn {
+    background-color: rgba(255, 193, 7, 0.15);
 }
 
-.test-cell.status-fail .status-indicator {
-    background-color: var(--color-danger);
-    box-shadow: 0 0 8px rgba(220, 53, 69, 0.4);
+.test-cell.status-warn:hover {
+    background-color: rgba(255, 193, 7, 0.25);
+}
+
+.test-cell.status-fail {
+    background-color: rgba(220, 53, 69, 0.15);
     animation: pulse 2s infinite;
+}
+
+.test-cell.status-fail:hover {
+    background-color: rgba(220, 53, 69, 0.25);
 }
 
 @keyframes pulse {
@@ -379,14 +427,14 @@ body {
         opacity: 1;
     }
     50% {
-        opacity: 0.5;
+        opacity: 0.7;
     }
 }
 
 .test-stats {
     text-align: center;
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--color-text);
     white-space: nowrap;
 }

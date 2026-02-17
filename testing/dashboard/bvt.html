@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BVT Tests - HPCC Testing Dashboard</title>
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <h1>BVT (Build Verification Test)</h1>
+            <div class="header-controls">
+                <a href="index.html" class="btn btn-secondary">← Back to Dashboard</a>
+            </div>
+        </header>
+
+        <section class="test-description">
+            <div class="card">
+                <h2>Test Purpose</h2>
+                <p>Build Verification Tests (BVT) are a focused set of smoke tests that verify the basic functionality of a build before more extensive testing begins. These tests are designed to quickly identify major issues that would prevent further testing.</p>
+                <p>The BVT suite contains approximately 525 critical test cases that must pass for a build to be considered viable for further testing and deployment.</p>
+            </div>
+        </section>
+
+        <section class="test-grid">
+            <div class="grid-container">
+                <div class="grid-header">
+                    <div class="header-cell test-header">Platform</div>
+                    <div class="header-cell version-header">9.12.x</div>
+                    <div class="header-cell version-header">9.14.x</div>
+                    <div class="header-cell version-header">10.0.x</div>
+                    <div class="header-cell version-header">10.2.x</div>
+                    <div class="header-cell version-header">master</div>
+                </div>
+
+                <!-- hthor Results -->
+                <div class="test-group">
+                    <div class="test-row">
+                        <div class="test-cell-label" rowspan="1">
+                            <div class="test-name-label">
+                                <span>hthor</span>
+                            </div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">523/525 (99.6%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">524/525 (99.8%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">521/525 (99.2%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">522/525 (99.4%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">520/525 (99.0%)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Thor Results -->
+                <div class="test-group">
+                    <div class="test-row">
+                        <div class="test-cell-label" rowspan="1">
+                            <div class="test-name-label">
+                                <span>Thor</span>
+                            </div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">524/525 (99.8%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">525/525 (100%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">523/525 (99.6%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">524/525 (99.8%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">521/525 (99.2%)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Roxie Results -->
+                <div class="test-group">
+                    <div class="test-row">
+                        <div class="test-cell-label" rowspan="1">
+                            <div class="test-name-label">
+                                <span>Roxie</span>
+                            </div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">522/525 (99.4%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">524/525 (99.8%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">523/525 (99.6%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">525/525 (100%)</div>
+                        </div>
+                        <div class="test-cell status-pass">
+                            <div class="test-stats">522/525 (99.4%)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
