@@ -722,27 +722,22 @@ def main():
                 print(f"  Output written to: {args.output_xml}")
                 
                 # Deploy if requested
-                if args.deploy and replacements:
-                    remoteroot = merged_config_vars.get('REMOTEROOT', '')
-                    initd_path = f"{remoteroot}/etc/init.d" if remoteroot else '/etc/init.d'
-                    env_path = f"{remoteroot}/etc/HPCCSystems/environment.xml" if remoteroot else '/etc/HPCCSystems/environment.xml'
-                    deployment = DeploymentManager(dry_run=args.dry_run, initd_path=initd_path, env_path=env_path)
-                    if not deployment.deploy(args.output_xml, roxie_ips_list, commands):
+                if args.deploy:
+                    if replacements:
+                        remoteroot = merged_config_vars.get('REMOTEROOT', '')
+                        initd_path = f"{remoteroot}/etc/init.d" if remoteroot else '/etc/init.d'
+                        env_path = f"{remoteroot}/etc/HPCCSystems/environment.xml" if remoteroot else '/etc/HPCCSystems/environment.xml'
+                        deployment = DeploymentManager(dry_run=args.dry_run, initd_path=initd_path, env_path=env_path)
+                        if not deployment.deploy(args.output_xml, roxie_ips_list, commands):
+                            sys.exit(1)
+                    else:
+                        print("\n  Skipping deployment: No environment replacements defined")
+                    
+                # Run tests if tests are defined
+                if tests:
+                    test_runner = TestRunner(dry_run=args.dry_run)
+                    if not test_runner.run_tests(tests, merged_config_vars, options, config.basename):
                         sys.exit(1)
-                    
-                    # Run tests if deployment succeeded and tests are defined
-                    if tests:
-                        test_runner = TestRunner(dry_run=args.dry_run)
-                        if not test_runner.run_tests(tests, merged_config_vars, options, config.basename):
-                            sys.exit(1)
-                elif args.deploy and not replacements:
-                    print("\n  Skipping deployment: No environment replacements defined")
-                    
-                    # Run tests even without deployment if tests are defined
-                    if tests:
-                        test_runner = TestRunner(dry_run=args.dry_run)
-                        if not test_runner.run_tests(tests, merged_config_vars, options, config.basename):
-                            sys.exit(1)
             else:
                 print(f"\n  Warning: Input XML file not found: {input_xml}")
             

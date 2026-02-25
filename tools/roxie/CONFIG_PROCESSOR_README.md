@@ -57,7 +57,7 @@ python config_processor.py [OPTIONS] config_file1 [config_file2 ...]
 - `--roxie-port`: Port number associated with Roxies (overrides environment)
 - `--input-xml`: Input XML file to process (overrides [config] INPUT or defaults to environment.in.xml)
 - `--output-xml`: Output XML file to write (default: `environment.out.xml`)
-- `--dry-run`: Trace the deployment steps without executing them
+- `--dry-run`: Trace the deployment and test execution steps without executing them
 - `--deploy`: Deploy the environment configuration to remote machines
 
 ## Example
