@@ -11,6 +11,8 @@ import sys
 import argparse
 import re
 import subprocess
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -412,13 +414,13 @@ class TestRunner:
         Returns:
             Extracted filename or empty string
         """
-        match = re.search(r'<filename>([^<]+)</filename>', xml_output)
+        match = re.search(r"filename='([^']+)'", xml_output)
         if match:
             return match.group(1)
         return ""
     
     def run_tests(self, tests: List[Tuple[str, str]], config_vars: Dict[str, str],
-                  options: Dict[str, str], test_file_basename: str) -> bool:
+                  options: Dict[str, str], test_file_basename: str, copy_events_arg: bool = False) -> bool:
         """
         Run tests using testsocket.
         
@@ -427,6 +429,7 @@ class TestRunner:
             config_vars: Configuration variables from [config] section
             options: Options from [options] section
             test_file_basename: Base name of the test file
+            copy_events_arg: Command-line flag to copy event files
         
         Returns:
             True if all tests succeed, False otherwise
@@ -441,6 +444,7 @@ class TestRunner:
         roxie_port = config_vars.get('ROXIE_PORT', '')
         roxie_ips = config_vars.get('ROXIE_IPS', '')
         testfile = config_vars.get('TESTFILE', '')
+        results_base = config_vars.get('RESULTS', 'results')
         
         if not submit_ip or not roxie_port:
             print("Warning: SUBMIT_IP or ROXIE_PORT not configured")
@@ -448,6 +452,13 @@ class TestRunner:
         
         roxie_ips_list = [ip.strip() for ip in roxie_ips.split(',')] if roxie_ips else []
         event_trace = options.get('eventTrace', '0') == '1'
+        # Copy events if command-line flag is set OR copyEvents option is enabled
+        copy_events = copy_events_arg or (options.get('copyEvents', '0') == '1')
+        
+        # Create results base directory if it doesn't exist (skip in dry-run)
+        results_path = Path(results_base)
+        if not self.dry_run:
+            results_path.mkdir(parents=True, exist_ok=True)
         
         print(f"\n{'='*60}")
         print(f"Running {len(tests)} test(s)")
@@ -457,6 +468,16 @@ class TestRunner:
             full_test_name = f"{test_file_basename}_{test_name}"
             print(f"\nTest: {full_test_name}")
             
+            # Capture start timestamp
+            start_time = time.time()
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            # Create test-specific directory structure: results/full_test_name/timestamp/
+            test_dir = results_path / full_test_name / timestamp
+            if not self.dry_run:
+                test_dir.mkdir(parents=True, exist_ok=True)
+                print(f"  Results directory: {test_dir}")
+            
             # a) Start event recording if enabled
             if event_trace and roxie_ips_list:
                 print("  Starting event recording...")
@@ -464,7 +485,7 @@ class TestRunner:
                     event_args = [f"{ip}:{roxie_port}"]
                     if int(roxie_port) > 9999:
                         event_args.append('-ssl')
-                    event_args.append("<control:startEventRecording options='all'/>")
+                    event_args.extend(['-k', "<control:startEventRecording options='all'/>"])
                     self._run_testsocket(testsocket, event_args)
             
             # b) Run the actual test
@@ -484,12 +505,16 @@ class TestRunner:
                 test_args.extend(['-ff', testfile])
             
             # Add extra parameters
-            test_args.extend(['-ts', '-q'])
+            test_args.extend(['-k', '-ts', '-q'])
             
-            # Run test and redirect to results file
-            results_file = f"results_{full_test_name}"
-            self._run_testsocket(testsocket, test_args, results_file)
+            # Run test and redirect to results file in timestamp directory
+            results_file = test_dir / "results.xml"
+            self._run_testsocket(testsocket, test_args, str(results_file))
+            
+            # Calculate elapsed time
+            elapsed_time = time.time() - start_time
             print(f"  Results written to: {results_file}")
+            print(f"  Elapsed time: {elapsed_time:.2f} seconds")
             
             # c) Stop event recording if enabled
             if event_trace and roxie_ips_list:
@@ -498,12 +523,43 @@ class TestRunner:
                     event_args = [f"{ip}:{roxie_port}"]
                     if int(roxie_port) > 9999:
                         event_args.append('-ssl')
-                    event_args.append("<control:stopEventRecording/>")
+                    event_args.extend(['-k', "<control:stopEventRecording/>"])
                     output = self._run_testsocket(testsocket, event_args)
-                    if output:
-                        filename = self._extract_filename_from_xml(output)
-                        if filename:
-                            print(f"    Event trace file on {ip}: {filename}")
+                    filename = self._extract_filename_from_xml(output)
+                    if filename:
+                        print(f"    Event trace file on {ip}: {filename}")
+                        
+                        # Always append to summary.txt in timestamp directory
+                        summary_txt = test_dir / "summary.txt"
+                        with open(summary_txt, 'a') as f:
+                            f.write(f"{ip},{filename}\n")
+                        print(f"    Event info appended to: {summary_txt}")
+                        
+                        # Copy event trace file only if copy_events is enabled
+                        if copy_events:
+                            local_filename = Path(filename).name
+                            local_path = test_dir / f"{ip}_{local_filename}"
+                            
+                            try:
+                                cmd = ['scp', f'{ip}:{filename}', str(local_path)]
+                                result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+                                print(f"    Copied to: {local_path}")
+                            except subprocess.CalledProcessError as e:
+                                print(f"    Warning: Failed to copy event trace file: {e.stderr.strip()}", file=sys.stderr)
+            
+            # Append summary to CSV file (skip in dry-run)
+            if not self.dry_run:
+                summary_file = results_path / f"summary_{full_test_name}.csv"
+                file_exists = summary_file.exists()
+                
+                with open(summary_file, 'a') as f:
+                    # Write header if file is new
+                    if not file_exists:
+                        f.write("timestamp,elapsed_time\n")
+                    # Write data row
+                    f.write(f"{timestamp},{elapsed_time:.2f}\n")
+                
+                print(f"  Summary appended to: {summary_file}")
         
         print(f"\n{'='*60}")
         print("Test execution completed")
@@ -563,6 +619,12 @@ def parse_arguments():
         '--deploy',
         action='store_true',
         help='Deploy the environment configuration to remote machines'
+    )
+    
+    parser.add_argument(
+        '--copy-events',
+        action='store_true',
+        help='Copy event trace files from remote machines to results directory'
     )
     
     return parser.parse_args()
@@ -736,7 +798,7 @@ def main():
                 # Run tests if tests are defined
                 if tests:
                     test_runner = TestRunner(dry_run=args.dry_run)
-                    if not test_runner.run_tests(tests, merged_config_vars, options, config.basename):
+                    if not test_runner.run_tests(tests, merged_config_vars, options, config.basename, args.copy_events):
                         sys.exit(1)
             else:
                 print(f"\n  Warning: Input XML file not found: {input_xml}")
