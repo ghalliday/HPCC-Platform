@@ -187,7 +187,7 @@ extern jhtree_decl bool isIndexFile(const char *fileName)
 
 
 // CKeyHdr
-CKeyHdr::CKeyHdr(unsigned _id) : keyId(_id)
+CKeyHdr::CKeyHdr(const char * _filename, unsigned _id) : filename(_filename), keyId(_id)
 {
     memset(&hdr, 0, sizeof(hdr));
 }
@@ -1007,7 +1007,10 @@ void CJHLegacySearchNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _
                     //which is otherwise tricky to track down.
                     //This can only legally happen if there is an index with 0 entries
                     if (keyHdr->getNumRecords() != 0)
-                        throw MakeStringException(0, "Zeroed index node detected at offset %llu", getFpos());
+                    {
+                        const char * filename = keyHdr->querySafeFilename();
+                        throw MakeStringException(0, "Zeroed index node detected at offset %llu in file %s", getFpos(), filename);
+                    }
                 }
             }
         }

@@ -122,7 +122,7 @@ protected:
 
     CKeyIndex(unsigned _iD, const char *_name, bool _forceTLK);
     ~CKeyIndex();
-    void init(KeyHdr &hdr, const INodeLoader & nodeLoader);
+    void init(const char * filename, KeyHdr &hdr, const INodeLoader & nodeLoader);
     void loadBloomFilters(const INodeLoader & nodeLoader);
     void ensureBloomFiltersLoaded(const INodeLoader & nodeLoader) const;
 

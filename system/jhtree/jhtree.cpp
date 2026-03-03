@@ -1376,13 +1376,13 @@ const CJHSearchNode *CKeyIndex::getRootNode(const INodeLoader & nodeLoader) cons
     return root.getClear();
 }
 
-void CKeyIndex::init(KeyHdr &hdr, const INodeLoader & nodeLoader)
+void CKeyIndex::init(const char * filename, KeyHdr &hdr, const INodeLoader & nodeLoader)
 {
     if (forceTLK)
         hdr.ktype |= HTREE_TOPLEVEL_KEY; // Once upon a time, thor did not set
     assertex((hdr.ktype & COL_PREFIX) != 0);   // We have not generated a key without COL_PREFIX set for over 20 years
 
-    keyHdr = new CKeyHdr(iD);
+    keyHdr = new CKeyHdr(filename, iD);
     try
     {
         keyHdr->load(hdr);
@@ -1453,7 +1453,7 @@ void CMemKeyIndex::ensureReady()
     }
 
     DefaultNodeLoader loader(*this); // Will never actually be used
-    init(hdr, loader);
+    init(nullptr, hdr, loader);
     initialised.store(true, std::memory_order_release);
 }
 
@@ -1561,7 +1561,7 @@ void CDiskKeyIndex::ensureReady()
         }
     }
 
-    init(hdr, nodeLoader);
+    init(io->queryFile()->queryFilename(), hdr, nodeLoader);
 
     initialised.store(true, std::memory_order_release);
 }
