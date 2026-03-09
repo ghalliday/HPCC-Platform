@@ -9529,14 +9529,19 @@ public:
                         idx++;
                         return row;  // optimization for the case where only one output still active.
                     }
+
+                    if (row) LinkRoxieRow(row);
+
                     CriticalBlock b(crit);
                     headIdx++;
                     idx++;
                     if (activeOutputs==1)
+                    {
+                        if (row) ReleaseRoxieRow(row);
                         return row;  // optimization for the case where only one output still active.
+                    }
 
                     buffer.enqueue(row);
-                    if (row) LinkRoxieRow(row);
                     return row;
                 }
                 catch (IException *E)
@@ -9625,50 +9630,62 @@ public:
 
     void stop(unsigned oid, unsigned & idx)
     {
+        PointerArrayOf<const void> toRelease;
         // Note that OutputAdaptor code ensures that stop is not called more than once per adaptor
-        CriticalBlock b(crit);
+        {
+            CriticalBlock b(crit);
 #ifdef TRACE_STARTSTOP
-        if (traceStartStop)
-        {
-            CTXLOG("SPLIT %p: stop %d child %d activeOutputs %d numOutputs %d numOriginalOutputs %d state %s", this, activityId, oid, activeOutputs, numOutputs, numOriginalOutputs, queryStateText(state));
-            if (watchActivityId && watchActivityId==activityId)
+            if (traceStartStop)
             {
-                CTXLOG("WATCH: stop %d", activityId);
-            }
-        }
-#endif
-        if (state != STATEstarting && state != STATEstarted)
-            initOutputs();
-        if (activeOutputs > 1)
-        {
-            if (tailIdx==idx)
-            {
-                // Discard all buffered rows that are there purely for this adaptor to read them
-                unsigned min = minIndex(oid);
-                if (min != (unsigned) -1) 
-                // what does -1 signify?? No-one wants anything? In which case can't we kill all rows?? 
-                // Should never happen though if there are still some active.
-                // there may be a small window where adaptors are blocked on the semaphore...
+                CTXLOG("SPLIT %p: stop %d child %d activeOutputs %d numOutputs %d numOriginalOutputs %d state %s", this, activityId, oid, activeOutputs.load(), numOutputs, numOriginalOutputs, queryStateText(state));
+                if (watchActivityId && watchActivityId==activityId)
                 {
-#ifdef TRACE_SPLIT
-                    CTXLOG("%p: Discarding buffered rows from %d to %d for oid %x (%d outputs active)", this, idx, min, oid, activeOutputs);
-#endif
-                    while (tailIdx < min)
-                    {
-                        ReleaseRoxieRow(buffer.dequeue());
-                        tailIdx++;
-                    }
+                    CTXLOG("WATCH: stop %d", activityId);
                 }
             }
-            activeOutputs--;
-            idx = (unsigned) -1; // causes minIndex not to save rows for me...
-            return;
-        }
-#ifdef TRACE_SPLIT
-        CTXLOG("%p: All outputs done", this);
 #endif
-        activeOutputs = numOutputs;
-        CRoxieServerActivity::stop();
+            if (state != STATEstarting && state != STATEstarted)
+                initOutputs();
+            if (activeOutputs > 1)
+            {
+                if (tailIdx==idx)
+                {
+                    // Discard all buffered rows that are there purely for this adaptor to read them
+                    unsigned min = minIndex(oid);
+                    if (min != (unsigned) -1) 
+                    // what does -1 signify?? No-one wants anything? In which case can't we kill all rows?? 
+                    // Should never happen though if there are still some active.
+                    // there may be a small window where adaptors are blocked on the semaphore...
+                    {
+#ifdef TRACE_SPLIT
+                        CTXLOG("%p: Discarding buffered rows from %d to %d for oid %x (%d outputs active)", this, idx, min, oid, activeOutputs.load());
+#endif
+                        while (tailIdx < min)
+                        {
+                            toRelease.append(buffer.dequeue());
+                            tailIdx++;
+                        }
+                    }
+                }
+                activeOutputs--;
+                idx = (unsigned) -1; // causes minIndex not to save rows for me...
+            }
+            else
+            {
+#ifdef TRACE_SPLIT
+                CTXLOG("%p: All outputs done", this);
+#endif
+                activeOutputs = numOutputs;
+                CRoxieServerActivity::stop();
+            }
+        } // end of critical block
+
+        while (toRelease.ordinality())
+        {
+            const void *row = toRelease.popGet();
+            if (row)
+                ReleaseRoxieRow(row);
+        }
     };
 
     virtual IIndexReadActivityInfo *queryIndexReadActivity() override
