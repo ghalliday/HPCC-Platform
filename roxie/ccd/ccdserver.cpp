@@ -9301,8 +9301,8 @@ public:
     QueueOf<const void, true> buffer;
     CriticalSection crit;
     CriticalSection crit2;
-    unsigned tailIdx;
-    unsigned headIdx;
+    std::atomic<unsigned> tailIdx;
+    std::atomic<unsigned> headIdx;
     Owned<IException> readError;
     Owned<IException> startError;
 
