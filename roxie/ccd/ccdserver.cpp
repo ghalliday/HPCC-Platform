@@ -9294,7 +9294,7 @@ class CRoxieServerThroughSpillActivity : public CRoxieServerActivity
 
 public:
     IHThorArg &helper;
-    unsigned activeOutputs;
+    std::atomic<unsigned> activeOutputs;
     unsigned numOutputs;
     unsigned numOriginalOutputs;
 
