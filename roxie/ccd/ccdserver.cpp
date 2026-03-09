@@ -25875,14 +25875,12 @@ protected:
     const void *left;                   // LHS row
     PointerArrayOf<KeyedJoinHeader> rows;           // matching RHS rows
     std::atomic<unsigned> endMarkersPending; // How many agent responses still waiting for
-    CJoinGroup *groupStart;     // Head of group, or NULL if not grouping
+    CJoinGroup *groupStart;     // Head of group, or NULL if not grouping 
     unsigned lastPartNo;
     unsigned pos;
-    unsigned candidates;        // Number of RHS keyed candidates - note this may not be the same as rows.ordinality()
+    std::atomic<unsigned> candidates;        // Number of RHS keyed candidates - note this may not be the same as rows.ordinality()
 
-public:
-
-    void *operator new(size_t size, roxiemem::IFixedRowHeap * heap)
+public:    void *operator new(size_t size, roxiemem::IFixedRowHeap * heap)
     {
         return heap->allocate();
     }
@@ -25973,7 +25971,7 @@ public:
             candidates += candidateCount;
         }
 #ifdef TRACE_JOINGROUPS
-        DBGLOG("CJoinGroup::noteEndReceived %p from %d, candidates %d + %d, my count was %d, group count was %d", this, lineNo, candidates, candidateCount, endMarkersPending.load(), groupStart ? groupStart->endMarkersPending.load() : 0);
+        DBGLOG("CJoinGroup::noteEndReceived %p from %d, candidates %d + %d, my count was %d, group count was %d", this, lineNo, candidates.load(), candidateCount, endMarkersPending.load(), groupStart ? groupStart->endMarkersPending.load() : 0);
 #endif
         // NOTE - as soon as endMarkersPending and groupStart->endMarkersPending are decremented to zero this object may get released asynchronously by other threads
         // There must therefore be nothing in this method after them that acceses member variables. Think of it as a delete this...
