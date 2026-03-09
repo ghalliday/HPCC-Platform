@@ -26730,7 +26730,7 @@ public:
     virtual IFinalRoxieInput *queryOutput(unsigned idx)
     {
         if (idx==(unsigned)-1)
-            idx = 0;
+        idx = 0;
         return idx ? NULL : &remote;
     }
 
@@ -26764,27 +26764,37 @@ public:
 
     void processCompletedGroups()
     {
-        CriticalBlock c(groupsCrit);
-        while (groups.ordinality())
+        PointerArrayOf<CJoinGroup> completed;
         {
-            if (!groups.head()->complete())
-                break;
-            Owned<CJoinGroup> head = groups.dequeue();
+            CriticalBlock c(groupsCrit);
+            while (groups.ordinality())
+            {
+                if (!groups.head()->complete())
+                    break;
+                completed.append(groups.dequeue());
+            }
+        }
+
+        unsigned idx = 0;
+        while (idx < completed.ordinality())
+        {
+            Owned<CJoinGroup> head = completed.item(idx++);
             if (preserveGroups)
             {
                 assert(head->isHeadRecord());
-                assert(groups.head()->inGroup(head));
                 unsigned joinGroupSize = 0;
-                while (groups.ordinality() && groups.head()->inGroup(head))
+                while (idx < completed.ordinality() && completed.item(idx)->inGroup(head))
                 {
-                    Owned<CJoinGroup> finger = groups.dequeue();
+                    Owned<CJoinGroup> finger = completed.item(idx++);
                     joinGroupSize += doJoinGroup(finger);
                 }
                 if (joinGroupSize)
                     remote.addResult(NULL);
             }
             else
+            {
                 doJoinGroup(head);
+            }
         }
     }
 
