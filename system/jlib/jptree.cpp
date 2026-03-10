@@ -5404,6 +5404,31 @@ protected:
 template <class X>
 class CXMLReader : public CXMLReaderBase<X>, implements IPTreeReader
 {
+    class CNodeState
+    {
+    public:
+        CNodeState()
+        {
+            tagName.ensureCapacity(15);
+            completeTagname.ensureCapacity(15);
+            base64 = binary = endTag = false;
+        }
+        inline void reset()
+        {
+            base64 = binary = endTag = false;
+            tagName.clear();
+            completeTagname.clear();
+            tagText.clear();
+        }
+
+        StringBuffer tagName;
+        StringBuffer completeTagname;
+        StringBuffer tagText;
+        bool base64, binary, endTag;
+    };
+    CICopyArrayOf<CNodeState> statePool;
+    unsigned stateDepth;
+
     bool rootTerminated;
     StringBuffer attrName, attrval;
     StringBuffer tmpStr;
@@ -5416,6 +5441,7 @@ class CXMLReader : public CXMLReaderBase<X>, implements IPTreeReader
     void resetState()
     {
         rootTerminated = false;
+        stateDepth = 0;
     }
 
 public:
@@ -5464,6 +5490,12 @@ public:
         resetState();
     }
 
+    ~CXMLReader()
+    {
+        ForEachItemIn(i, statePool)
+            delete &statePool.item(i);
+    }
+
     virtual void reset() override
     {
         resetState();
@@ -5473,6 +5505,22 @@ public:
 // IPTreeReader
     virtual void load() override { loadXML(); }
     virtual offset_t queryOffset() override { return curOffset; }
+
+    CNodeState *pushState() {
+        if (stateDepth >= statePool.length())
+            statePool.append(*new CNodeState());
+        CNodeState *state = &statePool.item(stateDepth++);
+        state->reset();
+        return state;
+    }
+    void popState() {
+        stateDepth--;
+    }
+    struct StatePopper {
+        CXMLReader *reader;
+        StatePopper(CXMLReader *_reader) : reader(_reader) {}
+        ~StatePopper() { reader->popState(); }
+    };
 
     void loadXML()
     {
@@ -5518,7 +5566,10 @@ restart:
     }
     void _loadXML()
     {
+        CNodeState *state = pushState();
+        StatePopper popper(this);
 restart:
+        state->reset();
         offset_t startOffset = curOffset-2;
         if ('!' == nextChar) // not sure this branch can ever be hit.
         {
@@ -5528,29 +5579,25 @@ restart:
                 expecting("<");
             goto restart;
         }
-        StringBuffer completeTagname;
-        StringBuffer tagName;
         if (ignoreWhiteSpace)
             skipWS();
         bool seenColon = false;
         while (!isspace(nextChar) && nextChar != '>' && nextChar != '/')
         {
-            completeTagname.append(nextChar);
+            state->completeTagname.append(nextChar);
             if (ignoreNameSpaces && !seenColon && ':' == nextChar)
             {
-                tagName.clear();
+                state->tagName.clear();
                 seenColon = true;
             }
             else
-                tagName.append(nextChar);
+                state->tagName.append(nextChar);
             readNext();
             if ('<' == nextChar)
                 error("Unmatched close tag encountered");
         }
-        iEvent->beginNode(tagName.str(), false, startOffset);
+        iEvent->beginNode(state->tagName.str(), false, startOffset);
         skipWS();
-        bool endTag = false;
-        bool base64 = false;
         while(nextChar != '>')
         {
             skipWS();
@@ -5559,7 +5606,7 @@ restart:
                 readNext();
                 if (nextChar != '>')
                     expecting(">");
-                endTag = true;
+                state->endTag = true;
                 break;
             }
 
@@ -5606,16 +5653,15 @@ restart:
 
             if (0 == strcmp(attrName.str(), "@xsi:type") &&
                (0 == stricmp(tmpStr.str(),"SOAP-ENC:base64")))
-               base64 = true;
+               state->base64 = true;
             else
                 iEvent->newAttribute(attrName.str(), tmpStr.str());
             readNext();
             skipWS();
         }
-        iEvent->beginNodeContent(tagName.str());
-        StringBuffer tagText;
-        bool binary = base64;
-        if (!endTag)
+        iEvent->beginNodeContent(state->tagName.str());
+        state->binary = state->base64;
+        if (!state->endTag)
         {
             if (nextChar == '>')
             {
@@ -5630,10 +5676,10 @@ restart:
                             eos();
                         mark.clear();
                         bool hasEntity = false;
-                        while (nextChar && nextChar !='<') { 
+                        while (nextChar && nextChar !='<') {
                             if (nextChar == '&') hasEntity = true;
-                            mark.append(nextChar); 
-                            readNext(); 
+                            mark.append(nextChar);
+                            readNext();
                         }
                         size32_t l = mark.length();
                         if (l)
@@ -5643,15 +5689,15 @@ restart:
                                 while (l-- && isspace(mark.charAt(l)));
                                 mark.setLength(l+1);
                             }
-                            tagText.ensureCapacity(tagText.length() + mark.length());
+                            state->tagText.ensureCapacity(state->tagText.length() + mark.length());
                             if (hasEntity)
-                                _decodeXML(mark.length()+1, mark.str(), tagText);
+                                _decodeXML(mark.length()+1, mark.str(), state->tagText);
                             else
-                                tagText.append(mark.length(), mark.str());
+                                state->tagText.append(mark.length(), mark.str());
                         }
                         readNext();
                         if ('!' == nextChar)
-                            parseDirective(tagText);
+                            parseDirective(state->tagText);
                         else if ('?' == nextChar)
                         {
                             parsePI(tmpStr.clear());
@@ -5665,15 +5711,15 @@ restart:
                     }
                     if (nextChar=='/')
                     {
-                        if (base64)
+                        if (state->base64)
                         {
-                            JBASE64_Decode(tagText.str(), tmpStr.clear());
-                            tagText.swapWith(tmpStr);
+                            JBASE64_Decode(state->tagText.str(), tmpStr.clear());
+                            state->tagText.swapWith(tmpStr);
                         }
                         else
                         {
-                            if (strlen(tagText.str()) != tagText.length())
-                                binary = true;
+                            if (strlen(state->tagText.str()) != state->tagText.length())
+                                state->binary = true;
                         }
                         break; // exit
                     }
@@ -5684,19 +5730,19 @@ restart:
                 unsigned i = 0;
                 while (!isspace(nextChar) && nextChar != '>')
                 {
-                    if ((i >= completeTagname.length()) ||
-                        (nextChar != completeTagname.charAt(i++)))
+                    if ((i >= state->completeTagname.length()) ||
+                        (nextChar != state->completeTagname.charAt(i++)))
                         error("Mismatched opening and closing tags");
                     readNext();
                 }
-                if (i != completeTagname.length())
+                if (i != state->completeTagname.length())
                     error("Mismatched opening and closing tags");
                 skipWS();
                 if (nextChar != '>')
                     expecting(">");
             }
         }
-        iEvent->endNode(tagName.str(), tagText.length(), tagText.str(), binary, curOffset);
+        iEvent->endNode(state->tagName.str(), state->tagText.length(), state->tagText.str(), state->binary, curOffset);
     }
 };
 
