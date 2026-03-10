@@ -5646,16 +5646,20 @@ restart:
             else
                 error();
 
+            const char *valStr;
             if (hasEntity)
+            {
                 _decodeXML(0, attrval.str(), tmpStr.clear());
+                valStr = tmpStr.str();
+            }
             else
-                tmpStr.clear().append(attrval);
+                valStr = attrval.str();
 
             if (0 == strcmp(attrName.str(), "@xsi:type") &&
-               (0 == stricmp(tmpStr.str(),"SOAP-ENC:base64")))
+               (0 == stricmp(valStr,"SOAP-ENC:base64")))
                state->base64 = true;
             else
-                iEvent->newAttribute(attrName.str(), tmpStr.str());
+                iEvent->newAttribute(attrName.str(), valStr);
             readNext();
             skipWS();
         }
@@ -5991,16 +5995,20 @@ public:
                     else
                         error();
 
+                    const char *valStr;
                     if (hasEntity)
+                    {
                         _decodeXML(0, attrval.str(), tmpStr.clear());
+                        valStr = tmpStr.str();
+                    }
                     else
-                        tmpStr.clear().append(attrval);
+                        valStr = attrval.str();
 
                     if (0 == strcmp(attrName.str(), "@xsi:type") &&
-                       (0 == stricmp(tmpStr.str(),"SOAP-ENC:base64")))
+                       (0 == stricmp(valStr,"SOAP-ENC:base64")))
                        stateInfo->base64 = true;
                     else
-                        iEvent->newAttribute(attrName.str(), tmpStr.str());
+                        iEvent->newAttribute(attrName.str(), valStr);
                     readNext();
                     skipWS();
                 }
