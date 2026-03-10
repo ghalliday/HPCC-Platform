@@ -5527,22 +5527,24 @@ restart:
                 expecting("<");
             goto restart;
         }
+        StringBuffer completeTagname;
         StringBuffer tagName;
         if (ignoreWhiteSpace)
             skipWS();
+        bool seenColon = false;
         while (!isspace(nextChar) && nextChar != '>' && nextChar != '/')
         {
-            tagName.append(nextChar);
+            completeTagname.append(nextChar);
+            if (ignoreNameSpaces && !seenColon && ':' == nextChar)
+            {
+                tagName.clear();
+                seenColon = true;
+            }
+            else
+                tagName.append(nextChar);
             readNext();
             if ('<' == nextChar)
                 error("Unmatched close tag encountered");
-        }
-        StringBuffer completeTagname(tagName);
-        if (ignoreNameSpaces)
-        {
-            const char *colon;
-            if ((colon = strchr(tagName.str(), ':')) != NULL)
-                tagName.remove(0, (size32_t)(colon - tagName.str() + 1));
         }
         iEvent->beginNode(tagName.str(), false, startOffset);
         skipWS();
