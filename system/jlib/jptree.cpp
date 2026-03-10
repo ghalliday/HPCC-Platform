@@ -5407,6 +5407,7 @@ class CXMLReader : public CXMLReaderBase<X>, implements IPTreeReader
     bool rootTerminated;
     StringBuffer attrName, attrval;
     StringBuffer tmpStr;
+    StringBuffer mark;
 
     void init()
     {
@@ -5572,6 +5573,7 @@ restart:
             skipWS();
             if (nextChar == '=') readNext(); else expecting("=");
             skipWS();
+            bool hasEntity = false;
             if (nextChar == '"')
             {
                 readNext();
@@ -5579,6 +5581,7 @@ restart:
                 {
                     if (!nextChar)
                         eos();
+                    if (nextChar == '&') hasEntity = true;
                     attrval.append(nextChar);
                     readNext();
                 }
@@ -5588,6 +5591,7 @@ restart:
                 readNext();
                 while (nextChar != '\'')
                 {
+                    if (nextChar == '&') hasEntity = true;
                     attrval.append(nextChar);
                     readNext();
                 }
@@ -5595,7 +5599,10 @@ restart:
             else
                 error();
 
-            _decodeXML(0, attrval.str(), tmpStr.clear());
+            if (hasEntity)
+                _decodeXML(0, attrval.str(), tmpStr.clear());
+            else
+                tmpStr.clear().append(attrval);
 
             if (0 == strcmp(attrName.str(), "@xsi:type") &&
                (0 == stricmp(tmpStr.str(),"SOAP-ENC:base64")))
@@ -5621,10 +5628,14 @@ restart:
                             skipWS();
                         if ('\0' == nextChar)
                             eos();
-                        StringBuffer mark;
-                        while (nextChar && nextChar !='<') { mark.append(nextChar); readNext(); }
+                        mark.clear();
+                        bool hasEntity = false;
+                        while (nextChar && nextChar !='<') { 
+                            if (nextChar == '&') hasEntity = true;
+                            mark.append(nextChar); 
+                            readNext(); 
+                        }
                         size32_t l = mark.length();
-                        size32_t r = l+1;
                         if (l)
                         {
                             if (ignoreWhiteSpace)
@@ -5632,8 +5643,11 @@ restart:
                                 while (l-- && isspace(mark.charAt(l)));
                                 mark.setLength(l+1);
                             }
-                            tagText.ensureCapacity(mark.length());
-                            _decodeXML(r, mark.str(), tagText);
+                            tagText.ensureCapacity(tagText.length() + mark.length());
+                            if (hasEntity)
+                                _decodeXML(mark.length()+1, mark.str(), tagText);
+                            else
+                                tagText.append(mark.length(), mark.str());
                         }
                         readNext();
                         if ('!' == nextChar)
@@ -5905,6 +5919,7 @@ public:
                     skipWS();
                     if (nextChar == '=') readNext(); else expecting("=");
                     skipWS();
+                    bool hasEntity = false;
                     if (nextChar == '"')
                     {
                         readNext();
@@ -5912,6 +5927,7 @@ public:
                         {
                             if (!nextChar)
                                 eos();
+                            if (nextChar == '&') hasEntity = true;
                             attrval.append(nextChar);
                             readNext();
                         }
@@ -5921,6 +5937,7 @@ public:
                         readNext();
                         while (nextChar != '\'')
                         {
+                            if (nextChar == '&') hasEntity = true;
                             attrval.append(nextChar);
                             readNext();
                         }
@@ -5928,7 +5945,10 @@ public:
                     else
                         error();
 
-                    _decodeXML(0, attrval.str(), tmpStr.clear());
+                    if (hasEntity)
+                        _decodeXML(0, attrval.str(), tmpStr.clear());
+                    else
+                        tmpStr.clear().append(attrval);
 
                     if (0 == strcmp(attrName.str(), "@xsi:type") &&
                        (0 == stricmp(tmpStr.str(),"SOAP-ENC:base64")))
@@ -5970,11 +5990,15 @@ public:
                             eos();
                         mark.clear();
                         state = tagMarker;
-                        while (nextChar && nextChar !='<') { mark.append(nextChar); readNext(); }
+                        bool hasEntity = false;
+                        while (nextChar && nextChar !='<') { 
+                            if (nextChar == '&') hasEntity = true;
+                            mark.append(nextChar); 
+                            readNext(); 
+                        }
                         if (!nextChar)
                             break;
                         size32_t l = mark.length();
-                        size32_t r = l+1;
                         if (l && stateInfo)
                         {
                             if (ignoreWhiteSpace)
@@ -5987,8 +6011,11 @@ public:
                                     mark.setLength((size32_t)(t-tb+1));
                                 }
                             }
-                            stateInfo->tagText.ensureCapacity(mark.length());
-                            _decodeXML(r, mark.str(), stateInfo->tagText);
+                            stateInfo->tagText.ensureCapacity(stateInfo->tagText.length() + mark.length());
+                            if (hasEntity)
+                                _decodeXML(mark.length()+1, mark.str(), stateInfo->tagText);
+                            else
+                                stateInfo->tagText.append(mark.length(), mark.str());
                         }
                         if (endOfRoot && mark.length())
                         {
