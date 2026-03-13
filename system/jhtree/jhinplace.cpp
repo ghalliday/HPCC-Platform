@@ -32,6 +32,7 @@
 #include "jhinplace.hpp"
 #include "jstats.h"
 #include "jevent.hpp"
+#include "keybuild.hpp"
 
 #ifdef _DEBUG
 //#define SANITY_CHECK_INPLACE_BUILDER     // painfully expensive consistency check
@@ -2650,10 +2651,10 @@ void CInplaceLeafWriteNode::write(IFileIOStream *out, CRC32 *crc)
 
 //=========================================================================================================
 
-
-InplaceIndexCompressor::InplaceIndexCompressor(size32_t keyedSize, const CKeyHdr * keyHdr, IHThorIndexWriteArg * helper, const char * _compressionName)
-: compressionName(_compressionName)
+InplaceIndexCompressor::InplaceIndexCompressor(KeyBuilderOptions & options, size32_t keyedSize, const CKeyHdr * keyHdr)
+: compressionName(options.compression)
 {
+    IHThorIndexWriteArg *helper = options.helper;
     if (helper)
     {
         //Nothing currently relies on the null row being created....
@@ -2682,8 +2683,11 @@ InplaceIndexCompressor::InplaceIndexCompressor(size32_t keyedSize, const CKeyHdr
     ctx.compressionOptions.clear().append("hclevel=3,blob(zstd6)"); // If using the lz4hc use the minimum compression level
     if (colon)
     {
-        auto processOption = [this,&useDefaultCompression](const char * option, const char * value)
+        auto processOption = [this, &options, &useDefaultCompression](const char * option, const char * value)
         {
+            if (options.setOption(option, value))
+                return;
+
             CompressionMethod method = translateToCompMethod(option, COMPRESS_METHOD_NONE);
             if (method != COMPRESS_METHOD_NONE)
             {

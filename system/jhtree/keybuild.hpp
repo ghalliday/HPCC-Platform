@@ -105,6 +105,15 @@ public:
     {
         compression.set(value);
     }
+    bool setOption(const char * option, const char * value)
+    {
+        if (strieq(option, "nodeSize"))
+        {
+            nodeSize = atoi(value);
+            return true;
+        }
+        return false;
+    }
 
 public:
     unsigned flags = 0;
@@ -127,7 +136,7 @@ interface IKeyBuilder : public IInterface
     virtual unsigned __int64 getStatistic(StatisticKind kind) const = 0;
 };
 
-extern jhtree_decl IKeyBuilder *createKeyBuilder(IFileIOStream *_out, const KeyBuilderOptions &options);
+extern jhtree_decl IKeyBuilder *createKeyBuilder(IFileIOStream *_out, KeyBuilderOptions &options);
 
 interface IKeyDesprayer : public IInterface
 {

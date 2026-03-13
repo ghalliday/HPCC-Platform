@@ -35,6 +35,7 @@
 #include "ctfile.hpp"
 #include "jstats.h"
 #include "jevent.hpp"
+#include "keybuild.hpp"
 
 int CJHBlockCompressedSearchNode::locateGE(const char * search, unsigned minIndex) const
 {
@@ -388,13 +389,20 @@ void CBlockCompressedBuildContext::initCompressor()
     compressor.setown(compressionHandler->getCompressor(compressionOptions.str()));
 }
 
-HybridIndexCompressor::HybridIndexCompressor(unsigned keyedSize, const CKeyHdr* keyHdr, IHThorIndexWriteArg *helper, const char * compression, bool isTLK)
+HybridIndexCompressor::HybridIndexCompressor(KeyBuilderOptions &options, unsigned keyedSize, const CKeyHdr* keyHdr)
 {
+    IHThorIndexWriteArg *helper = options.helper;
+    const char * compression = options.compression;
+    bool isTLK = options.isTLK;
+
     //Process options for leaf (block-compressed) nodes
     leafContext.compressionMethod = COMPRESS_METHOD_ZSTDS6;
 
-    auto processOption = [this](const char * option, const char * value)
+    auto processOption = [this, &options](const char * option, const char * value)
     {
+        if (options.setOption(option, value))
+            return;
+
         CompressionMethod method = translateToCompMethod(option, COMPRESS_METHOD_NONE);
         if (method != COMPRESS_METHOD_NONE)
         {
@@ -431,7 +439,7 @@ HybridIndexCompressor::HybridIndexCompressor(unsigned keyedSize, const CKeyHdr* 
     if (!isTLK && helper && (helper->getFlags() & TIWzerofilepos))
         leafContext.zeroFilePos = true;
 
-    branchCompressor.setown(new InplaceIndexCompressor(keyedSize, keyHdr, helper, compression));
+    branchCompressor.setown(new InplaceIndexCompressor(options, keyedSize, keyHdr));
 }
 
 CWriteNodeBase *HybridIndexCompressor::createNode(offset_t _fpos, CKeyHdr *_keyHdr, NodeType nodeType) const

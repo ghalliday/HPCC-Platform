@@ -12980,7 +12980,7 @@ public:
         if (keyedSize == (size32_t)-1)
             keyedSize = helper.queryDiskRecordSize()->getFixedSize();
         properties.setPropInt64("@keyedSize", keyedSize);
-        properties.setPropInt("@nodeSize", nodeSize);
+        properties.setPropInt("@nodeSize", options.nodeSize);
 
         // Set the compression type that was actually used
         properties.setProp("@compressionType", indexCompressionType.str());

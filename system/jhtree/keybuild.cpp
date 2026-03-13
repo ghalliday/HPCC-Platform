@@ -180,7 +180,7 @@ private:
     bool isTLK = false;
 
 public:
-    CKeyBuilder(IFileIOStream *_out, const KeyBuilderOptions &options)
+    CKeyBuilder(IFileIOStream *_out, KeyBuilderOptions & options)
         : out(_out), enforceOrder(options.enforceOrder), isTLK(options.isTLK)
     {
         sequence = options.startSequence;
@@ -196,11 +196,8 @@ public:
 
         levels = 0;
         records = 0;
-        nextPos = options.nodeSize; // leaving room for header
         prevLeafNode = NULL;
 
-        assertex(options.nodeSize >= CKeyHdr::getSize());
-        assertex(options.nodeSize <= 0xffff); // stored in a short in the header - we should fix that if/when we restructure header
         if (!(options.flags & COL_PREFIX))
             throw MakeStringException(0, "Invalid flags in CKeyBuilder::CKeyBuilder - COL_PREFIX is required");
         unsigned flags = options.flags;
@@ -208,6 +205,52 @@ public:
             flags |= USE_TRAILING_HEADER;
         if ((flags & (HTREE_QUICK_COMPRESSED_KEY|HTREE_VARSIZE)) == (HTREE_QUICK_COMPRESSED_KEY|HTREE_VARSIZE))
             flags &= ~HTREE_QUICK_COMPRESSED;  // Quick does not support variable-size rows
+
+        doCrc = true;
+        duplicateCount = 0;
+        const char * compression = options.compression;
+        if (options.helper)
+        {
+            partitionFieldMask = options.helper->getPartitionFieldMask();
+            auto bloomInfo = options.helper->queryBloomInfo();
+            if (bloomInfo)
+            {
+                const RtlRecord &recinfo = options.helper->queryDiskRecordSize()->queryRecordAccessor(true);
+                while (*bloomInfo)
+                {
+                    bloomBuilders.append(*createBloomBuilder(*bloomInfo[0]));
+                    rowHashers.append(*createRowHasher(recinfo, bloomInfo[0]->getBloomFields()));
+                    bloomInfo++;
+                }
+            }
+        }
+
+        unsigned version = 1;
+        if (!isEmptyString(compression))
+        {
+            version = 2;
+            if (strieq(compression, "POC") || startsWithIgnoreCase(compression, "POC:"))
+                indexCompressor.setown(new PocIndexCompressor);
+            else if (strieq(compression, "inplace") || startsWithIgnoreCase(compression, "inplace:"))
+                indexCompressor.setown(new InplaceIndexCompressor(options, keyedSize, keyHdr));
+            else if (strieq(compression, "hybrid") || startsWithIgnoreCase(compression, "hybrid:"))
+                indexCompressor.setown(new HybridIndexCompressor(options, keyedSize, keyHdr));
+            else if (strieq(compression, "legacy"))
+            {
+                flags |= HTREE_COMPRESSED_KEY;
+                indexCompressor.setown(new LegacyIndexCompressor);
+            }
+            else
+                throw makeStringExceptionV(0, "Unrecognised index compression format %s", compression);
+        }
+        else
+            indexCompressor.setown(new LegacyIndexCompressor);
+
+        nextPos = options.nodeSize; // leaving room for header
+
+        assertex(options.nodeSize >= CKeyHdr::getSize());
+        assertex(options.nodeSize <= 0xffff); // stored in a short in the header - we should fix that if/when we restructure header
+
         KeyHdr *hdr = keyHdr->getHdrStruct();
         hdr->nodeSize = options.nodeSize;
         hdr->extsiz = 4096;
@@ -229,49 +272,10 @@ public:
         hdr->fposOffset = 0;
         hdr->fileSize = 0;
         hdr->nodeKeyLength = options.keyFieldSize;
-        hdr->version = 1;
+        hdr->version = version;
         hdr->blobHead = 0;
         hdr->metadataHead = 0;
         hdr->firstLeaf = 0;
-
-        doCrc = true;
-        duplicateCount = 0;
-        const char * compression = options.compression;
-        if (options.helper)
-        {
-            partitionFieldMask = options.helper->getPartitionFieldMask();
-            auto bloomInfo = options.helper->queryBloomInfo();
-            if (bloomInfo)
-            {
-                const RtlRecord &recinfo = options.helper->queryDiskRecordSize()->queryRecordAccessor(true);
-                while (*bloomInfo)
-                {
-                    bloomBuilders.append(*createBloomBuilder(*bloomInfo[0]));
-                    rowHashers.append(*createRowHasher(recinfo, bloomInfo[0]->getBloomFields()));
-                    bloomInfo++;
-                }
-            }
-        }
-
-        if (!isEmptyString(compression))
-        {
-            hdr->version = 2;    // Old builds will give a reasonable error message
-            if (strieq(compression, "POC") || startsWithIgnoreCase(compression, "POC:"))
-                indexCompressor.setown(new PocIndexCompressor);
-            else if (strieq(compression, "inplace") || startsWithIgnoreCase(compression, "inplace:"))
-                indexCompressor.setown(new InplaceIndexCompressor(keyedSize, keyHdr, options.helper, compression));
-            else if (strieq(compression, "hybrid") || startsWithIgnoreCase(compression, "hybrid:"))
-                indexCompressor.setown(new HybridIndexCompressor(keyedSize, keyHdr, options.helper, compression, isTLK));
-            else if (strieq(compression, "legacy"))
-            {
-                hdr->ktype |= HTREE_COMPRESSED_KEY;
-                indexCompressor.setown(new LegacyIndexCompressor);
-            }
-            else
-                throw makeStringExceptionV(0, "Unrecognised index compression format %s", compression);
-        }
-        else
-            indexCompressor.setown(new LegacyIndexCompressor);
 
         keyHdr->write(out, &headCRC);  // Reserve space for the header - we may seek back and write it properly later
     }
@@ -744,7 +748,7 @@ protected:
     }
 };
 
-extern jhtree_decl IKeyBuilder *createKeyBuilder(IFileIOStream *_out, const KeyBuilderOptions &options)
+extern jhtree_decl IKeyBuilder *createKeyBuilder(IFileIOStream *_out, KeyBuilderOptions &options)
 {
     return new CKeyBuilder(_out, options);
 }
