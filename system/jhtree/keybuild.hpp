@@ -105,6 +105,15 @@ public:
     {
         compression.set(value);
     }
+    bool setOption(const char * option, const char * value)
+    {
+        if (strieq(option, "nodeSize"))
+        {
+            nodeSize = atoi(value);
+            return true;
+        }
+        return false;
+    }
 
 public:
     unsigned flags = 0;

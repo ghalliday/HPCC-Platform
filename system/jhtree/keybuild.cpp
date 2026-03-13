@@ -180,9 +180,10 @@ private:
     bool isTLK = false;
 
 public:
-    CKeyBuilder(IFileIOStream *_out, const KeyBuilderOptions &options)
-        : out(_out), enforceOrder(options.enforceOrder), isTLK(options.isTLK)
+    CKeyBuilder(IFileIOStream *_out, const KeyBuilderOptions &_options)
+        : out(_out), enforceOrder(_options.enforceOrder), isTLK(_options.isTLK)
     {
+        KeyBuilderOptions options = _options;
         sequence = options.startSequence;
         keyHdr.setown(new CWriteKeyHdr());
 
@@ -196,11 +197,8 @@ public:
 
         levels = 0;
         records = 0;
-        nextPos = options.nodeSize; // leaving room for header
         prevLeafNode = NULL;
 
-        assertex(options.nodeSize >= CKeyHdr::getSize());
-        assertex(options.nodeSize <= 0xffff); // stored in a short in the header - we should fix that if/when we restructure header
         if (!(options.flags & COL_PREFIX))
             throw MakeStringException(0, "Invalid flags in CKeyBuilder::CKeyBuilder - COL_PREFIX is required");
         unsigned flags = options.flags;
@@ -208,31 +206,6 @@ public:
             flags |= USE_TRAILING_HEADER;
         if ((flags & (HTREE_QUICK_COMPRESSED_KEY|HTREE_VARSIZE)) == (HTREE_QUICK_COMPRESSED_KEY|HTREE_VARSIZE))
             flags &= ~HTREE_QUICK_COMPRESSED;  // Quick does not support variable-size rows
-        KeyHdr *hdr = keyHdr->getHdrStruct();
-        hdr->nodeSize = options.nodeSize;
-        hdr->extsiz = 4096;
-        hdr->length = keyValueSize; 
-        hdr->ktype = flags;
-        hdr->timeid = 0;
-        hdr->clstyp = 1;  // IDX_CLOSE
-        hdr->maxkbn = options.nodeSize-sizeof(NodeHdr);
-        hdr->maxkbl = hdr->maxkbn;
-        hdr->flpntr = sizeof(offset_t);
-        hdr->verson = 130; // version from ctree.
-        hdr->keypad = ' ';
-        hdr->flflvr = 1;
-        hdr->flalgn = 8;
-        hdr->maxmrk = hdr->nodeSize/4; // always this in ctree.
-        hdr->namlen = 255;
-        hdr->defrel = 8;
-        hdr->hdrseq = 0;
-        hdr->fposOffset = 0;
-        hdr->fileSize = 0;
-        hdr->nodeKeyLength = options.keyFieldSize;
-        hdr->version = 1;
-        hdr->blobHead = 0;
-        hdr->metadataHead = 0;
-        hdr->firstLeaf = 0;
 
         doCrc = true;
         duplicateCount = 0;
@@ -255,16 +228,15 @@ public:
 
         if (!isEmptyString(compression))
         {
-            hdr->version = 2;    // Old builds will give a reasonable error message
             if (strieq(compression, "POC") || startsWithIgnoreCase(compression, "POC:"))
                 indexCompressor.setown(new PocIndexCompressor);
             else if (strieq(compression, "inplace") || startsWithIgnoreCase(compression, "inplace:"))
-                indexCompressor.setown(new InplaceIndexCompressor(keyedSize, keyHdr, options.helper, compression));
+                indexCompressor.setown(new InplaceIndexCompressor(options, keyedSize, keyHdr));
             else if (strieq(compression, "hybrid") || startsWithIgnoreCase(compression, "hybrid:"))
-                indexCompressor.setown(new HybridIndexCompressor(keyedSize, keyHdr, options.helper, compression, isTLK));
+                indexCompressor.setown(new HybridIndexCompressor(options, keyedSize, keyHdr));
             else if (strieq(compression, "legacy"))
             {
-                hdr->ktype |= HTREE_COMPRESSED_KEY;
+                flags |= HTREE_COMPRESSED_KEY;
                 indexCompressor.setown(new LegacyIndexCompressor);
             }
             else
@@ -272,6 +244,37 @@ public:
         }
         else
             indexCompressor.setown(new LegacyIndexCompressor);
+
+        nextPos = options.nodeSize; // leaving room for header
+
+        assertex(options.nodeSize >= CKeyHdr::getSize());
+        assertex(options.nodeSize <= 0xffff); // stored in a short in the header - we should fix that if/when we restructure header
+
+        KeyHdr *hdr = keyHdr->getHdrStruct();
+        hdr->nodeSize = options.nodeSize;
+        hdr->extsiz = 4096;
+        hdr->length = keyValueSize; 
+        hdr->ktype = flags;
+        hdr->timeid = 0;
+        hdr->clstyp = 1;  // IDX_CLOSE
+        hdr->maxkbn = options.nodeSize-sizeof(NodeHdr);
+        hdr->maxkbl = hdr->maxkbn;
+        hdr->flpntr = sizeof(offset_t);
+        hdr->verson = 130; // version from ctree.
+        hdr->keypad = ' ';
+        hdr->flflvr = 1;
+        hdr->flalgn = 8;
+        hdr->maxmrk = hdr->nodeSize/4; // always this in ctree.
+        hdr->namlen = 255;
+        hdr->defrel = 8;
+        hdr->hdrseq = 0;
+        hdr->fposOffset = 0;
+        hdr->fileSize = 0;
+        hdr->nodeKeyLength = options.keyFieldSize;
+        hdr->version = (isEmptyString(compression)) ? 1 : 2;
+        hdr->blobHead = 0;
+        hdr->metadataHead = 0;
+        hdr->firstLeaf = 0;
 
         keyHdr->write(out, &headCRC);  // Reserve space for the header - we may seek back and write it properly later
     }

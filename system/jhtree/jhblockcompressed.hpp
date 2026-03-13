@@ -112,6 +112,8 @@ public:
     virtual size32_t getMemorySize() const override { return memorySize; }
 };
 
+class KeyBuilderOptions;
+
 //---------------------------------------------------------------------------------------------------------------------
 class HybridIndexCompressor : public CInterfaceOf<IIndexCompressor>
 {
@@ -120,7 +122,7 @@ protected:
     CBlockCompressedBuildContext leafContext;
     CompressionMethod blobCompression = COMPRESS_METHOD_ZSTD6;
 public:
-    HybridIndexCompressor(unsigned keyedSize, const CKeyHdr* keyHdr, IHThorIndexWriteArg *helper, const char * compression, bool isTLK);
+    HybridIndexCompressor(KeyBuilderOptions &options, unsigned keyedSize, const CKeyHdr* keyHdr);
 
     virtual const char *queryName() const override { return "Hybrid"; }
     virtual CWriteNodeBase *createNode(offset_t _fpos, CKeyHdr *_keyHdr, NodeType nodeType) const override;

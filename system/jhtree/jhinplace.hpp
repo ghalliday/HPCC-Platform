@@ -26,6 +26,9 @@
 #include "jfile.hpp"
 #include "ctfile.hpp"
 
+class CKeyHdr;
+class KeyBuilderOptions;
+
 class InplaceNodeSearcher
 {
 public:
@@ -327,7 +330,7 @@ protected:
 class InplaceIndexCompressor : public CInterfaceOf<IIndexCompressor>
 {
 public:
-    InplaceIndexCompressor(size32_t keyedSize, const CKeyHdr * keyHdr, IHThorIndexWriteArg * helper, const char * _compressionName);
+    InplaceIndexCompressor(KeyBuilderOptions & options, size32_t keyedSize, const CKeyHdr * keyHdr);
 
     virtual const char *queryName() const override { return compressionName.str(); }
     virtual CWriteNodeBase *createNode(offset_t _fpos, CKeyHdr *_keyHdr, NodeType nodeType) const override
