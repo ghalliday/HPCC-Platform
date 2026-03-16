@@ -201,7 +201,7 @@ public:
             flags |= HTREE_VARSIZE;
         if (isTlk)
             flags |= HTREE_TOPLEVEL_KEY;
-        buildUserMetadata(metadata, *helper);
+        buildUserMetadata(metadata, *helper, indexCompressionType.str());
         buildLayoutMetadata(metadata);
         // NOTE - if you add any more flags here, be sure to update checkReservedMetadataName
         unsigned nodeSize = metadata->getPropInt("_nodeSize", NODESIZE);

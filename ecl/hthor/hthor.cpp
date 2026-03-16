@@ -1281,7 +1281,7 @@ void CHThorIndexWriteActivity::execute()
         if (isVariable)
             flags |= HTREE_VARSIZE;
         Owned<IPropertyTree> metadata;
-        buildUserMetadata(metadata, helper);
+        buildUserMetadata(metadata, helper, indexCompressionType.str());
         buildLayoutMetadata(metadata);
         nodeSize = metadata->getPropInt("_nodeSize", NODESIZE);
         if (metadata->getPropBool("_noSeek", defaultNoSeek))

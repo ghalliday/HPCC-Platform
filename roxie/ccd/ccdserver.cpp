@@ -12807,8 +12807,20 @@ public:
                 flags |= HTREE_COMPRESSED_KEY;
             if (isVariable)
                 flags |= HTREE_VARSIZE;
+
+            IRoxieServerContext * serverContext = ctx->queryServerContext();
+            SCMStringBuffer defaultIndexCompression;
+            if (serverContext)
+            {
+                IConstWorkUnit *workunit = serverContext->queryWorkUnit();
+                if (workunit)
+                    workunit->getDebugValue("defaultIndexCompression", defaultIndexCompression);
+            }
+
+            getIndexCompressionType(indexCompressionType, &helper, defaultIndexCompression.str());
+
             Owned<IPropertyTree> metadata;
-            buildUserMetadata(metadata, helper);
+            buildUserMetadata(metadata, helper, indexCompressionType.str());
             buildLayoutMetadata(metadata);
             nodeSize = metadata->getPropInt("_nodeSize", NODESIZE);
             if (metadata->getPropBool("_noSeek", ctx->queryOptions().noSeekBuildIndex))
@@ -12821,17 +12833,6 @@ public:
             Owned<IFileIOStream> out = createBufferedIOStream(io, 0x100000);
             if (!needsSeek)
                 out.setown(createNoSeekIOStream(out));
-
-            IRoxieServerContext * serverContext = ctx->queryServerContext();
-            SCMStringBuffer defaultIndexCompression;
-            if (serverContext)
-            {
-                IConstWorkUnit *workunit = serverContext->queryWorkUnit();
-                if (workunit)
-                    workunit->getDebugValue("defaultIndexCompression", defaultIndexCompression);
-            }
-
-            getIndexCompressionType(indexCompressionType, &helper, defaultIndexCompression.str());
 
             KeyBuilderOptions options(flags, maxDiskRecordSize, nodeSize, helper.getKeyedSize(), &helper);
             options.setCompression(indexCompressionType);

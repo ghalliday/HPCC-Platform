@@ -368,7 +368,7 @@ void mergeDerivedInformation(DerivedIndexInformation & result, const DerivedInde
 
 //-----------------------------------------------------------------------------
 
-void buildUserMetadata(Owned<IPropertyTree> & metadata, IHThorIndexWriteArg & helper)
+void buildUserMetadata(Owned<IPropertyTree> & metadata, IHThorIndexWriteArg & helper, const char * compressionOptions)
 {
     size32_t nameLen;
     char * nameBuff;
@@ -394,6 +394,24 @@ void buildUserMetadata(Owned<IPropertyTree> & metadata, IHThorIndexWriteArg & he
         if(!metadata)
             metadata.setown(createPTree("metadata", ipt_fast));
         metadata->setProp(name.str(), value.str());
+    }
+
+    if (compressionOptions)
+    {
+        const char * colon = strchr(compressionOptions, ':');
+        if (colon)
+        {
+            auto processOption = [&](const char * option, const char * value)
+            {
+                if (strieq(option, "nodeSize"))
+                {
+                    if(!metadata)
+                        metadata.setown(createPTree("metadata", ipt_fast));
+                    metadata->setPropInt("_nodeSize", atoi(value));
+                }
+            };
+            processOptionString(colon+1, processOption);
+        }
     }
 }
 
