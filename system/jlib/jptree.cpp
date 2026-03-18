@@ -1,4 +1,3 @@
-
 /*##############################################################################
 
     HPCC SYSTEMS software Copyright (C) 2012 HPCC Systems®.
@@ -4773,7 +4772,6 @@ IPTreeReadException *createPTreeReadException(int code, const char *msg, const c
     return new CPTreeReadException(code, msg, context, line, offset);
 }
 
-template <typename T>
 class CommonReaderBase : public CInterface
 {
     Linked<ISimpleReadStream> lstream;
@@ -4799,7 +4797,9 @@ private:
     {
         bufPtr = buf;
         nextChar = 0;
-        if (nullTerm || stream)
+        if (nullTerm)
+            bufRemaining = (size32_t)-1;
+        else if (stream)
             bufRemaining = 0;
         curOffset = 0;
         line = 0;
@@ -4838,7 +4838,7 @@ public:
         bufSize = 0; // not used for direct reads
         stream = NULL;  // not used for direct reads
         curOffset = 0;
-        bufRemaining = 0;
+        bufRemaining = (size32_t)-1;
         nullTerm = true;
         buf = (byte *)_buf;
         bufOwned = false;
@@ -4862,8 +4862,7 @@ protected:
         curOffset -= n;
         size32_t d = (size32_t)(bufPtr-buf);
         if (n > d) n = d;
-        if (!nullTerm)
-            bufRemaining += n;
+        bufRemaining += n;
         for (;;)
         {
             --bufPtr;
@@ -4942,10 +4941,10 @@ protected:
             size32_t bR = bufRemaining;
             if (nullTerm)
             {
-                byte *tPtr = bufPtr;
+                bR = 0;
                 while (bR<40)
                 {
-                    if ('\0' == *tPtr++) break;
+                    if ('\0' == bufPtr[bR]) break;
                     bR++;
                 }
             }
@@ -4976,7 +4975,28 @@ protected:
             return true;
         return readNextToken();
     }
-    inline bool readNextToken();
+    inline bool readNextToken()
+    {
+        // do own buffering, to have reasonable error context.
+        if (unlikely(0 == bufRemaining))
+        {
+            if (stream)
+                bufRemaining = stream->read(bufSize, buf);
+            if (!bufRemaining)
+                return false;
+            bufPtr = buf;
+        }
+        --bufRemaining;
+        nextChar = *bufPtr++;
+        if (unlikely((0 == nextChar) && nullTerm))
+        {
+            --bufPtr;
+            return false;
+        }
+        if (10 == nextChar)
+            line++;
+        return true;
+    }
     inline bool checkSkipWS()
     {
         while (isspace(nextChar)) if (!checkReadNext()) return false;
@@ -4988,54 +5008,7 @@ protected:
     }
 };
 
-class CInstStreamReader { public: }; // only used to ensure different template definitions.
-class CInstBufferReader { public: };
-class CInstStringReader { public: };
-
-template <> inline bool CommonReaderBase<CInstStreamReader>::readNextToken()
-{
-    // do own buffering, to have reasonable error context.
-    if (0 == bufRemaining)
-    {
-        size32_t _bufRemaining = stream->read(bufSize, buf);
-        if (!_bufRemaining)
-            return false;
-        bufRemaining = _bufRemaining;
-        bufPtr = buf;
-    }
-    --bufRemaining;
-    nextChar = *bufPtr++;
-    if (10 == nextChar)
-        line++;
-    return true;
-}
-
-template <> inline bool CommonReaderBase<CInstBufferReader>::readNextToken()
-{
-    if (0 == bufRemaining)
-        return false;
-    --bufRemaining;
-    nextChar = *bufPtr++;
-    if (10 == nextChar)
-        line++;
-    return true;
-}
-
-template <> inline bool CommonReaderBase<CInstStringReader>::readNextToken()
-{
-    nextChar = *bufPtr++;
-    if ('\0' == nextChar)
-    {
-        --bufPtr;
-        return false;
-    }
-    if (10 == nextChar)
-        line++;
-    return true;
-}
-
-template <typename X>
-class CXMLReaderBase : public CommonReaderBase<X>, implements IEntityHelper
+class CXMLReaderBase : public CommonReaderBase, implements IEntityHelper
 {
     StringAttrMapping entityTable;
 protected:
@@ -5052,7 +5025,7 @@ private:
         hadXMLDecl = false;
     }
 public:
-    typedef CommonReaderBase<X> PARENT;
+    typedef CommonReaderBase PARENT;
     using PARENT::nextChar;
     using PARENT::readNext;
     using PARENT::expecting;
@@ -5063,19 +5036,19 @@ public:
     using PARENT::readerOptions;
 
     CXMLReaderBase(ISimpleReadStream &_stream, IPTreeNotifyEvent &_iEvent, PTreeReaderOptions _xmlReaderOptions, size32_t _bufSize=0)
-        : CommonReaderBase<X>(_stream, _iEvent, _xmlReaderOptions, _bufSize)
+        : CommonReaderBase(_stream, _iEvent, _xmlReaderOptions, _bufSize)
     {
         init();
         resetState();
     }
     CXMLReaderBase(const void *_buf, size32_t bufLength, IPTreeNotifyEvent &_iEvent, PTreeReaderOptions _xmlReaderOptions)
-        : CommonReaderBase<X>(_buf, bufLength, _iEvent, _xmlReaderOptions)
+        : CommonReaderBase(_buf, bufLength, _iEvent, _xmlReaderOptions)
     {
         init();
         resetState();
     }
     CXMLReaderBase(const void *_buf, IPTreeNotifyEvent &_iEvent, PTreeReaderOptions _xmlReaderOptions)
-        : CommonReaderBase<X>(_buf, _iEvent, _xmlReaderOptions)
+        : CommonReaderBase(_buf, _iEvent, _xmlReaderOptions)
     {
         init();
         resetState();
@@ -5401,8 +5374,7 @@ protected:
 };
 
 
-template <class X>
-class CXMLReader : public CXMLReaderBase<X>, implements IPTreeReader
+class CXMLReader : public CXMLReaderBase, implements IPTreeReader
 {
     bool rootTerminated;
     StringBuffer attrName, attrval;
@@ -5418,7 +5390,7 @@ class CXMLReader : public CXMLReaderBase<X>, implements IPTreeReader
     }
 
 public:
-    typedef CXMLReaderBase<X> PARENT;
+    typedef CXMLReaderBase PARENT;
     using PARENT::nextChar;
     using PARENT::readNext;
     using PARENT::expecting;
@@ -5684,10 +5656,9 @@ restart:
     }
 };
 
-template <class X>
-class CPullXMLReader : public CXMLReaderBase<X>, implements IPullPTreeReader
+class CPullXMLReader : public CXMLReaderBase, implements IPullPTreeReader
 {
-    typedef CXMLReaderBase<X> PARENT;
+    typedef CXMLReaderBase PARENT;
     using PARENT::nextChar;
     using PARENT::readNext;
     using PARENT::expecting;
@@ -5752,17 +5723,17 @@ public:
     IMPLEMENT_IINTERFACE;
 
     CPullXMLReader(ISimpleReadStream &stream, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions, size32_t bufSize=0)
-        : CXMLReaderBase<X>(stream, iEvent, xmlReaderOptions, bufSize)
+        : CXMLReaderBase(stream, iEvent, xmlReaderOptions, bufSize)
     {
         resetState();
     }
     CPullXMLReader(const void *buf, size32_t bufLength, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions)
-        : CXMLReaderBase<X>(buf, bufLength, iEvent, xmlReaderOptions)
+        : CXMLReaderBase(buf, bufLength, iEvent, xmlReaderOptions)
     {
         resetState();
     }
     CPullXMLReader(const void *buf, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions)
-        : CXMLReaderBase<X>(buf, iEvent, xmlReaderOptions)
+        : CXMLReaderBase(buf, iEvent, xmlReaderOptions)
     {
         resetState();
     }
@@ -6107,65 +6078,35 @@ public:
 
 IPTreeReader *createXMLStreamReader(ISimpleReadStream &stream, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions, size32_t bufSize)
 {
-    class CXMLStreamReader : public CXMLReader<CInstStreamReader>
-    {
-    public:
-        CXMLStreamReader(ISimpleReadStream &stream, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions, size32_t bufSize=0) : CXMLReader<CInstStreamReader>(stream, iEvent, xmlReaderOptions, bufSize) { }
-    };
-    return new CXMLStreamReader(stream, iEvent, xmlReaderOptions, bufSize);
+    return new CXMLReader(stream, iEvent, xmlReaderOptions, bufSize);
 }
 
 IPTreeReader *createXMLStringReader(const char *xml, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions)
 {
-    class CXMLStringReader : public CXMLReader<CInstStringReader>
-    {
-    public:
-        CXMLStringReader(const void *xml, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions) : CXMLReader<CInstStringReader>(xml, iEvent, xmlReaderOptions) { }
-    };
     if (NULL == xml)
         throw createPTreeReadException(PTreeRead_syntax, "Null string passed to createXMLStringReader", NULL, 0, 0);
-    return new CXMLStringReader(xml, iEvent, xmlReaderOptions);
+    return new CXMLReader(xml, iEvent, xmlReaderOptions);
 }
 
 IPTreeReader *createXMLBufferReader(const void *buf, size32_t bufLength, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions)
 {
-    class CXMLBufferReader : public CXMLReader<CInstBufferReader>
-    {
-    public:
-        CXMLBufferReader(const void *buf, size32_t bufLength, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions) : CXMLReader<CInstBufferReader>(buf, bufLength, iEvent, xmlReaderOptions) { }
-    };
-    return new CXMLBufferReader(buf, bufLength, iEvent, xmlReaderOptions);
+    return new CXMLReader(buf, bufLength, iEvent, xmlReaderOptions);
 }
 
 
 IPullPTreeReader *createPullXMLStreamReader(ISimpleReadStream &stream, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions, size32_t bufSize)
 {
-    class CXMLStreamReader : public CPullXMLReader<CInstStreamReader>
-    {
-    public:
-        CXMLStreamReader(ISimpleReadStream &stream, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions, size32_t bufSize=0) : CPullXMLReader<CInstStreamReader>(stream, iEvent, xmlReaderOptions, bufSize) { }
-    };
-    return new CXMLStreamReader(stream, iEvent, xmlReaderOptions, bufSize);
+    return new CPullXMLReader(stream, iEvent, xmlReaderOptions, bufSize);
 }
 
 IPullPTreeReader *createPullXMLStringReader(const char *xml, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions)
 {
-    class CXMLStringReader : public CPullXMLReader<CInstStringReader>
-    {
-    public:
-        CXMLStringReader(const void *xml, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions) : CPullXMLReader<CInstStringReader>(xml, iEvent, xmlReaderOptions) { }
-    };
-    return new CXMLStringReader(xml, iEvent, xmlReaderOptions);
+    return new CPullXMLReader(xml, iEvent, xmlReaderOptions);
 }
 
 IPullPTreeReader *createPullXMLBufferReader(const void *buf, size32_t bufLength, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions)
 {
-    class CXMLBufferReader : public CPullXMLReader<CInstBufferReader>
-    {
-    public:
-        CXMLBufferReader(const void *buf, size32_t bufLength, IPTreeNotifyEvent &iEvent, PTreeReaderOptions xmlReaderOptions) : CPullXMLReader<CInstBufferReader>(buf, bufLength, iEvent, xmlReaderOptions) { }
-    };
-    return new CXMLBufferReader(buf, bufLength, iEvent, xmlReaderOptions);
+    return new CPullXMLReader(buf, bufLength, iEvent, xmlReaderOptions);
 }
 
 IPTreeMaker *createPTreeMaker(byte flags, IPropertyTree *root, IPTreeNodeCreator *nodeCreator)
@@ -7389,11 +7330,10 @@ typedef enum _ptElementType
     elementTypeArray
 } ptElementType;
 
-template <typename X>
-class CJSONReaderBase : public CommonReaderBase<X>
+class CJSONReaderBase : public CommonReaderBase
 {
 public:
-    typedef CommonReaderBase<X> PARENT;
+    typedef CommonReaderBase PARENT;
     using PARENT::reset;
     using PARENT::nextChar;
     using PARENT::readNextToken;
@@ -7408,15 +7348,15 @@ public:
     using PARENT::ignoreWhiteSpace;
 
     CJSONReaderBase(ISimpleReadStream &_stream, IPTreeNotifyEvent &_iEvent, PTreeReaderOptions _readerOptions, size32_t _bufSize=0) :
-      CommonReaderBase<X>(_stream, _iEvent, _readerOptions, _bufSize)
+      CommonReaderBase(_stream, _iEvent, _readerOptions, _bufSize)
     {
     }
     CJSONReaderBase(const void *_buf, size32_t bufLength, IPTreeNotifyEvent &_iEvent, PTreeReaderOptions _readerOptions) :
-        CommonReaderBase<X>(_buf, bufLength, _iEvent, _readerOptions)
+        CommonReaderBase(_buf, bufLength, _iEvent, _readerOptions)
     {
     }
     CJSONReaderBase(const void *_buf, IPTreeNotifyEvent &_iEvent, PTreeReaderOptions _readerOptions) :
-        CommonReaderBase<X>(_buf, _iEvent, _readerOptions)
+        CommonReaderBase(_buf, _iEvent, _readerOptions)
     {
     }
     ~CJSONReaderBase()
@@ -7554,10 +7494,9 @@ protected:
     }
 };
 
-template <class X>
-class CJSONReader : public CJSONReaderBase<X>, implements IPTreeReader
+class CJSONReader : public CJSONReaderBase, implements IPTreeReader
 {
-    typedef CJSONReaderBase<X> PARENT;
+    typedef CJSONReaderBase PARENT;
     using PARENT::checkBOM;
     using PARENT::rewind;
     using PARENT::readNext;
@@ -7789,10 +7728,9 @@ public:
     virtual offset_t queryOffset() { return curOffset; }
 };
 
-template <class X>
-class CPullJSONReader : public CJSONReaderBase<X>, implements IPullPTreeReader
+class CPullJSONReader : public CJSONReaderBase, implements IPullPTreeReader
 {
-    typedef CJSONReaderBase<X> PARENT;
+    typedef CJSONReaderBase PARENT;
     using PARENT::checkBOM;
     using PARENT::rewind;
     using PARENT::readNext;
@@ -7866,17 +7804,17 @@ public:
     IMPLEMENT_IINTERFACE;
 
     CPullJSONReader(ISimpleReadStream &stream, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions, size32_t bufSize=0)
-        : CJSONReaderBase<X>(stream, iEvent, readerOptions, bufSize)
+        : CJSONReaderBase(stream, iEvent, readerOptions, bufSize)
     {
         init();
     }
     CPullJSONReader(const void *buf, size32_t bufLength, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions)
-        : CJSONReaderBase<X>(buf, bufLength, iEvent, readerOptions)
+        : CJSONReaderBase(buf, bufLength, iEvent, readerOptions)
     {
         init();
     }
     CPullJSONReader(const void *buf, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions)
-        : CJSONReaderBase<X>(buf, iEvent, readerOptions)
+        : CJSONReaderBase(buf, iEvent, readerOptions)
     {
         init();
     }
@@ -8212,65 +8150,35 @@ public:
 
 IPTreeReader *createJSONStreamReader(ISimpleReadStream &stream, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions, size32_t bufSize)
 {
-    class CJSONStreamReader : public CJSONReader<CInstStreamReader>
-    {
-    public:
-        CJSONStreamReader(ISimpleReadStream &stream, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions, size32_t bufSize=0) : CJSONReader<CInstStreamReader>(stream, iEvent, readerOptions, bufSize) { }
-    };
-    return new CJSONStreamReader(stream, iEvent, readerOptions, bufSize);
+    return new CJSONReader(stream, iEvent, readerOptions, bufSize);
 }
 
 IPTreeReader *createJSONStringReader(const char *json, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions)
 {
-    class CJSONStringReader : public CJSONReader<CInstStringReader>
-    {
-    public:
-        CJSONStringReader(const void *json, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions) : CJSONReader<CInstStringReader>(json, iEvent, readerOptions) { }
-    };
     if (NULL == json)
         throw createPTreeReadException(PTreeRead_syntax, "Null string passed to createJSONStringReader", NULL, 0, 0);
-    return new CJSONStringReader(json, iEvent, readerOptions);
+    return new CJSONReader(json, iEvent, readerOptions);
 }
 
 IPTreeReader *createJSONBufferReader(const void *buf, size32_t bufLength, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions)
 {
-    class CJSONBufferReader : public CJSONReader<CInstBufferReader>
-    {
-    public:
-        CJSONBufferReader(const void *buf, size32_t bufLength, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions) : CJSONReader<CInstBufferReader>(buf, bufLength, iEvent, readerOptions) { }
-    };
-    return new CJSONBufferReader(buf, bufLength, iEvent, readerOptions);
+    return new CJSONReader(buf, bufLength, iEvent, readerOptions);
 }
 
 
 IPullPTreeReader *createPullJSONStreamReader(ISimpleReadStream &stream, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions, size32_t bufSize)
 {
-    class CJSONStreamReader : public CPullJSONReader<CInstStreamReader>
-    {
-    public:
-        CJSONStreamReader(ISimpleReadStream &stream, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions, size32_t bufSize=0) : CPullJSONReader<CInstStreamReader>(stream, iEvent, readerOptions, bufSize) { }
-    };
-    return new CJSONStreamReader(stream, iEvent, readerOptions, bufSize);
+    return new CPullJSONReader(stream, iEvent, readerOptions, bufSize);
 }
 
 IPullPTreeReader *createPullJSONStringReader(const char *json, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions)
 {
-    class CJSONStringReader : public CPullJSONReader<CInstStringReader>
-    {
-    public:
-        CJSONStringReader(const void *json, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions) : CPullJSONReader<CInstStringReader>(json, iEvent, readerOptions) { }
-    };
-    return new CJSONStringReader(json, iEvent, readerOptions);
+    return new CPullJSONReader(json, iEvent, readerOptions);
 }
 
 IPullPTreeReader *createPullJSONBufferReader(const void *buf, size32_t bufLength, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions)
 {
-    class CJSONBufferReader : public CPullJSONReader<CInstBufferReader>
-    {
-    public:
-        CJSONBufferReader(const void *buf, size32_t bufLength, IPTreeNotifyEvent &iEvent, PTreeReaderOptions readerOptions) : CPullJSONReader<CInstBufferReader>(buf, bufLength, iEvent, readerOptions) { }
-    };
-    return new CJSONBufferReader(buf, bufLength, iEvent, readerOptions);
+    return new CPullJSONReader(buf, bufLength, iEvent, readerOptions);
 }
 
 IPropertyTree *createPTreeFromJSONString(const char *json, byte flags, PTreeReaderOptions readFlags, IPTreeMaker *iMaker)
