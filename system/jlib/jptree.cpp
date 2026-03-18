@@ -5499,24 +5499,24 @@ restart:
                 expecting("<");
             goto restart;
         }
-        StringBuffer tagName;
         if (ignoreWhiteSpace)
             skipWS();
+        StringBuffer completeTagname;
+        unsigned afterColonOffset = 0;
         while (!isspace(nextChar) && nextChar != '>' && nextChar != '/')
         {
-            tagName.append(nextChar);
+            completeTagname.append(nextChar);
+            if (nextChar == ':')
+                afterColonOffset = completeTagname.length();
             readNext();
             if ('<' == nextChar)
                 error("Unmatched close tag encountered");
         }
-        StringBuffer completeTagname(tagName);
+        const char * tagName = completeTagname.str();
         if (ignoreNameSpaces)
-        {
-            const char *colon;
-            if ((colon = strchr(tagName.str(), ':')) != NULL)
-                tagName.remove(0, (size32_t)(colon - tagName.str() + 1));
-        }
-        iEvent->beginNode(tagName.str(), false, startOffset);
+            tagName += afterColonOffset;
+
+        iEvent->beginNode(tagName, false, startOffset);
         skipWS();
         bool endTag = false;
         bool base64 = false;
@@ -5575,7 +5575,7 @@ restart:
             readNext();
             skipWS();
         }
-        iEvent->beginNodeContent(tagName.str());
+        iEvent->beginNodeContent(tagName);
         StringBuffer tagText;
         bool binary = base64;
         if (!endTag)
@@ -5652,7 +5652,7 @@ restart:
                     expecting(">");
             }
         }
-        iEvent->endNode(tagName.str(), tagText.length(), tagText.str(), binary, curOffset);
+        iEvent->endNode(tagName, tagText.length(), tagText.str(), binary, curOffset);
     }
 };
 
@@ -7336,9 +7336,7 @@ public:
     typedef CommonReaderBase PARENT;
     using PARENT::reset;
     using PARENT::nextChar;
-    using PARENT::readNextToken;
     using PARENT::checkReadNext;
-    using PARENT::checkStartReadNext;
     using PARENT::readNext;
     using PARENT::expecting;
     using PARENT::match;
