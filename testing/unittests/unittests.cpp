@@ -120,7 +120,7 @@ static constexpr const char * defaultYaml = R"!!(
 version: "1.0"
 unittests:
 - PTreeBinaryTimingStressTest:
-    path: ""
+    path: "/home/gavin/dev/hpcc/testing/unittests/data/dalisds100mb.bin.zst"
     iterations: 5
 global:
   storage:
