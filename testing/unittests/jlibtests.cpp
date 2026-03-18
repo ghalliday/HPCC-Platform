@@ -3792,6 +3792,7 @@ class PTreeBinaryTimingStressTest : public CppUnit::TestFixture
 {
     CPPUNIT_TEST_SUITE(PTreeBinaryTimingStressTest);
     CPPUNIT_TEST(testBinaryTimingWithNormalVsLowMem);
+    CPPUNIT_TEST(testXMLTimingWithNormalVsLowMem);
     CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -3853,6 +3854,52 @@ public:
         DBGLOG("│ Binary Low Memory    │ %15llu │",
                (unsigned long long)binaryLowMemResults.avgDeserializeCycles);
         DBGLOG("│ Binary LowMem Diff   │ %+14.2f%% │",
+               lowMemDeserializeDiff);
+        DBGLOG("└──────────────────────┴─────────────────┘");
+    }
+
+    void testXMLTimingWithNormalVsLowMem()
+    {
+        // Load Binary data
+        MemoryBuffer binaryData;
+        try
+        {
+            // Read raw file (with automatic decompression)
+            readBinaryFile(binaryPath.str(), binaryData);
+        }
+        catch (IException *e)
+        {
+            StringBuffer msg;
+            e->errorMessage(msg);
+            e->Release();
+            CPPUNIT_FAIL(msg.str());
+        }
+
+        unsigned binaryDataLen = (unsigned)binaryData.length();
+        CPPUNIT_ASSERT_MESSAGE("Binary timing test data is empty", binaryDataLen > 0);
+
+        // Run XML timing tests
+        TimingResults xmlNormalResults = performXMLTimingTestWithResults("XML Normal", binaryData, iterations, ipt_none);
+        TimingResults xmlLowMemResults = performXMLTimingTestWithResults("XML Low Memory", binaryData, iterations, ipt_lowmem);
+
+        // Calculate differences
+        double lowMemDeserializeDiff = 0.0;
+        if (xmlNormalResults.avgDeserializeCycles)
+            lowMemDeserializeDiff = ((double)xmlLowMemResults.avgDeserializeCycles - (double)xmlNormalResults.avgDeserializeCycles) / (double)xmlNormalResults.avgDeserializeCycles * 100.0;
+
+        // Display results
+        DBGLOG("=== XML TIMING COMPARISON TEST ===");
+        DBGLOG("Binary data size: %u bytes", binaryDataLen);
+        DBGLOG("Iterations: %u", iterations);
+        DBGLOG("┌──────────────────────┬─────────────────┐");
+        DBGLOG("│ Mode                 │ Avg Deserialize │");
+        DBGLOG("│                      │ (cycles)        │");
+        DBGLOG("├──────────────────────┼─────────────────┤");
+        DBGLOG("│ XML Normal           │ %15llu │",
+               (unsigned long long)xmlNormalResults.avgDeserializeCycles);
+        DBGLOG("│ XML Low Memory       │ %15llu │",
+               (unsigned long long)xmlLowMemResults.avgDeserializeCycles);
+        DBGLOG("│ XML LowMem Diff      │ %+14.2f%% │",
                lowMemDeserializeDiff);
         DBGLOG("└──────────────────────┴─────────────────┘");
     }
@@ -3936,6 +3983,46 @@ protected:
         results.avgDeserializeCycles = totalDeserializeCycles / iterations;
         results.testName = testName;
         results.flags = flags;
+
+        return results;
+    }
+
+    TimingResults performXMLTimingTestWithResults(const char *testName, MemoryBuffer &binaryDataBuffer, unsigned iterations, byte flags)
+    {
+        assertex(testName);
+        unsigned binaryDataLen = binaryDataBuffer.length();
+        assertex(binaryDataLen > 0);
+        assertex(iterations > 0);
+
+        // First deserialize from binary to get the tree
+        binaryDataBuffer.reset();
+        Owned<IBufferedSerialInputStream> in = createBufferedSerialInputStream(binaryDataBuffer);
+        Owned<IPropertyTree> tree = createPTreeFromBinary(*in, flags);
+
+        // Convert to XML string
+        StringBuffer xmlOutput;
+        toXML(tree, xmlOutput);
+        unsigned xmlDataLen = xmlOutput.length();
+
+        // Time the XML deserialization
+        CCycleTimer timer;
+        cycle_t totalDeserializeCycles = 0;
+
+        for (unsigned i = 0; i < iterations; i++)
+        {
+            timer.reset();
+            Owned<IPropertyTree> deserializedTree = createPTreeFromXMLString(xmlOutput.str(), flags, ptr_ignoreWhiteSpace, nullptr);
+            totalDeserializeCycles += timer.elapsedCycles();
+        }
+
+        TimingResults results;
+        results.totalDeserializeCycles = totalDeserializeCycles;
+        results.avgDeserializeCycles = totalDeserializeCycles / iterations;
+        results.testName = testName;
+        results.flags = flags;
+
+        // Log XML data size for reference
+        DBGLOG("%s: XML data size: %u bytes", testName, xmlDataLen);
 
         return results;
     }
