@@ -49,6 +49,7 @@ set (    SRCS
          fxpptests.cpp
          espapicmdtests.cpp
          filetests.cpp
+         ptreetests.cpp
          wutests.cpp
          ${HPCC_SOURCE_DIR}/esp/bindings/SOAP/xpp/fxpp/FragmentedXmlPullParser.cpp
          ${HPCC_SOURCE_DIR}/esp/bindings/SOAP/xpp/fxpp/FragmentedXmlAssistant.cpp
