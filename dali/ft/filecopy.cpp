@@ -2986,6 +2986,25 @@ void FileSprayer::setReplicate(bool _replicate)
     replicate = _replicate;
 }
 
+void FileSprayer::avoidRecompressionIfPossible()
+{
+    // If the source is not an index, then keyCompression makes no sense.
+    // This could be set for a non-index if this is part of deploying a packagemap
+    copyKey = (srcAttr && strsame(srcAttr->queryProp("@kind"), "key"));
+    if (!copyKey)
+        keyCompression.clear();
+
+    //If the key is already compressed using the correct format, then copy-as-is
+    if (!keyCompression.isEmpty())
+    {
+        const char * existingCompression = srcAttr->queryProp("@compressionType");
+        // Check the prefix.  This means requesting to compression to "hybrid" will avoid recompressing
+        // an index that was compressed with "hybrid:zstds(level=6)" for example.
+        if (startsWithIgnoreCase(existingCompression, keyCompression.get()))
+            keyCompression.clear();
+    }
+}
+
 void FileSprayer::setSource(IDistributedFile * source)
 {
     distributedSource.set(source);
@@ -2996,6 +3015,8 @@ void FileSprayer::setSource(IDistributedFile * source)
 
     compressedInput = source->isCompressed();
     extractSourceFormat(srcAttr);
+    avoidRecompressionIfPossible();
+
     unsigned numParts = source->numParts();
     for (unsigned idx=0; idx < numParts; idx++)
     {
@@ -3012,7 +3033,6 @@ void FileSprayer::setSource(IDistributedFile * source)
     }
 
     gatherFileSizes(false);
-
 }
 
 
@@ -3036,6 +3056,7 @@ void FileSprayer::setSource(IFileDescriptor * source, unsigned copy, unsigned mi
     if (history)
         srcHistory.setown(createPTreeFromIPT(history));
     extractSourceFormat(srcAttr);
+    avoidRecompressionIfPossible();
 
     RemoteFilename filename;
     unsigned numParts = source->numParts();
@@ -3775,6 +3796,9 @@ cost_type FileSprayer::updateTargetProperties()
             curProps.setPropInt64(FPfooterLength, footerSize);
         }
 
+        if (keyCompression)
+            curProps.setProp("@compressionType", keyCompression.get());
+
         if (srcAttr.get() && !mirroring) {
             StringBuffer s;
             // copy some attributes (do as iterator in case we want to change to *exclude* some
@@ -3795,7 +3819,7 @@ cost_type FileSprayer::updateTargetProperties()
                         ((stricmp(aname,FArecordCount)==0)&&!gotrc) ||
                         ((stricmp(aname,"@blockCompressed")==0)&&copyCompressed) ||
                         ((stricmp(aname,"@rowCompressed")==0)&&copyCompressed)||
-                        ((stricmp(aname,"@compressionType")==0)&&copyCompressed)||
+                        ((stricmp(aname,"@compressionType")==0)&&(copyCompressed||copyKey))||
                         (stricmp(aname,"@local")==0)||
                         (stricmp(aname,"@recordCount")==0) ||
                         (stricmp(aname,"@lfnHash")==0)

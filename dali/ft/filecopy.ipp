@@ -225,6 +225,7 @@ protected:
     bool allowSplit() const;
     void analyseFileHeaders(bool setcurheadersize);
     void assignPartitionFilenames();
+    void avoidRecompressionIfPossible();
     void beforeTransfer();
     bool calcCRC();
     bool calcInputCRC();
@@ -349,6 +350,7 @@ protected:
     bool                    compressOutput;
     bool                    copyCompressed;
     bool                    useFtSlave;
+    bool                    copyKey = false;
     unsigned __int64        totalLengthRead;
     unsigned __int64        totalNumReads;
     unsigned __int64        totalNumWrites;
