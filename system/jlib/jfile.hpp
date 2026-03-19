@@ -281,7 +281,7 @@ extern jlib_decl IFileIO * createIFileIO(IFile * creator, HANDLE handle,IFOmode 
 extern jlib_decl IDirectoryIterator * createDirectoryIterator(const char * path = NULL, const char * wildcard = NULL, bool sub = false, bool includedirs = true);
 extern jlib_decl IDirectoryIterator * createNullDirectoryIterator();
 extern jlib_decl IFileIO * createIORange(IFileIO * file, offset_t header, offset_t length);     // restricts input/output to a section of a file.
-extern jlib_decl IFileIO * createDelayedFileIO(IFileIO * io, unsigned delayNs);
+extern jlib_decl IFileIO * createDelayedFileIO(IFileIO * io, unsigned delayNs, unsigned jitterNs = 0); // adds a delay to all operations (for testing)
 extern jlib_decl IFileIO * createNullFileIO();
 
 extern jlib_decl IFileIOStream * createIOStream(IFileIO * file);        // links argument

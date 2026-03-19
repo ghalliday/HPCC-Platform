@@ -159,17 +159,25 @@ protected:
 };
 
 
-// This class is for testing to allow a delay to be added to all reads and writes
+// This class is for testing to allow a delay to be added to all IFileIO operations
 class CDelayedFileIO final : public CIndirectFileIO
 {
 public:
-    CDelayedFileIO(IFileIO * _io, unsigned _delayNs);
+    CDelayedFileIO(IFileIO * _io, unsigned _delayNs, unsigned _jitterNs = 0);
 
-    virtual size32_t read(offset_t pos, size32_t len, void * data);
-    virtual size32_t write(offset_t pos, size32_t len, const void * data);
+    virtual size32_t read(offset_t pos, size32_t len, void * data) override;
+    virtual offset_t size() override;
+    virtual size32_t write(offset_t pos, size32_t len, const void * data) override;
+    virtual void setSize(offset_t size) override;
+    virtual void flush() override;
+    virtual void close() override;
 
-protected:
+private:
+    void applyDelay() const;
+
+private:
     unsigned delayNs;
+    unsigned jitterNs;
 };
 
 

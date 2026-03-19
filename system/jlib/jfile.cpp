@@ -2334,25 +2334,59 @@ IFile * CIndirectFileIO::queryFile() const
 
 //---------------------------------------------------------------------------
 
-CDelayedFileIO::CDelayedFileIO(IFileIO * _io, unsigned _delayNs)
-    : CIndirectFileIO(_io), delayNs(_delayNs)
+CDelayedFileIO::CDelayedFileIO(IFileIO * _io, unsigned _delayNs, unsigned _jitterNs)
+    : CIndirectFileIO(_io), delayNs(_delayNs), jitterNs(_jitterNs)
 {
+}
+
+void CDelayedFileIO::applyDelay() const
+{
+    unsigned totalDelay = delayNs;
+    if (jitterNs > 0)
+        totalDelay += (getRandom() % jitterNs);
+    if (totalDelay > 0)
+        NanoSleep(totalDelay);
 }
 
 size32_t CDelayedFileIO::read(offset_t pos, size32_t len, void * data)
 {
-    NanoSleep(delayNs);
+    applyDelay();
     return CIndirectFileIO::read(pos, len, data);
 }
+
+offset_t CDelayedFileIO::size()
+{
+    applyDelay();
+    return CIndirectFileIO::size();
+}
+
 size32_t CDelayedFileIO::write(offset_t pos, size32_t len, const void * data)
 {
-    NanoSleep(delayNs);
+    applyDelay();
     return CIndirectFileIO::write(pos, len, data);
 }
 
-IFileIO * createDelayedFileIO(IFileIO * io, unsigned delayNs)
+void CDelayedFileIO::setSize(offset_t size)
 {
-    return new CDelayedFileIO(io, delayNs);
+    applyDelay();
+    CIndirectFileIO::setSize(size);
+}
+
+void CDelayedFileIO::flush()
+{
+    applyDelay();
+    CIndirectFileIO::flush();
+}
+
+void CDelayedFileIO::close()
+{
+    applyDelay();
+    CIndirectFileIO::close();
+}
+
+IFileIO * createDelayedFileIO(IFileIO * io, unsigned delayNs, unsigned jitterNs)
+{
+    return new CDelayedFileIO(io, delayNs, jitterNs);
 }
 
 
