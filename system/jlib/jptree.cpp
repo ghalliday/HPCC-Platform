@@ -4905,12 +4905,12 @@ protected:
             error("Unsupported utf16 format detected in BOM header", false);
         return false;
     }
-    inline void expecting(const char *str)
+    inline void expecting(const char *str) __attribute__((noreturn))
     {
         StringBuffer errorMsg("Expecting \"");
         error(errorMsg.append(str).append("\"").str());
     }
-    inline void eos()
+    inline void eos() __attribute__((noreturn))
     {
         error("String terminator hit");
     }
@@ -5542,21 +5542,11 @@ restart:
             skipWS();
             if (nextChar == '=') readNext(); else expecting("=");
             skipWS();
-            if (nextChar == '"')
+            if ((nextChar == '"') || (nextChar == '\''))
             {
+                char quoteChar = nextChar;
                 readNext();
-                while (nextChar != '"')
-                {
-                    if (!nextChar)
-                        eos();
-                    attrval.append(nextChar);
-                    readNext();
-                }
-            }
-            else if (nextChar == '\'')
-            {
-                readNext();
-                while (nextChar != '\'')
+                while (nextChar != quoteChar)
                 {
                     attrval.append(nextChar);
                     readNext();
@@ -5876,19 +5866,9 @@ public:
                     skipWS();
                     if (nextChar == '"')
                     {
+                        char quoteChar = nextChar;
                         readNext();
-                        while (nextChar != '"')
-                        {
-                            if (!nextChar)
-                                eos();
-                            attrval.append(nextChar);
-                            readNext();
-                        }
-                    }
-                    else if (nextChar == '\'')
-                    {
-                        readNext();
-                        while (nextChar != '\'')
+                        while (nextChar != quoteChar)
                         {
                             attrval.append(nextChar);
                             readNext();
