@@ -151,14 +151,21 @@ class PTreeXPathTests : public CppUnit::TestFixture
         const char * expectedValue;
     };
 
+    inline const char * safe(const char * str)
+    {
+        return str ? str : "nullptr";
+    }
+
     void checkXPath(IPropertyTree * root, const char * testName, size_t testNumber, const char * rootXPath, const char * queryXPath, const char * expectedValue)
     {
+        const char * safeRootXPath = safe(rootXPath);
+        const char * safeQueryXPath = safe(queryXPath);
         try
         {
             IPropertyTree * startNode = root->queryPropTree(rootXPath);
             if (!startNode)
             {
-                VStringBuffer msg("Test '%s' [#%zu]: Failed to find rootXPath: '%s'", testName, testNumber, rootXPath);
+                VStringBuffer msg("Test '%s' [#%zu]: Failed to find rootXPath: '%s'", testName, testNumber, safeRootXPath);
                 CPPUNIT_FAIL(msg.str());
             }
 
@@ -168,7 +175,7 @@ class PTreeXPathTests : public CppUnit::TestFixture
                 if (!actualValue || strcmp(actualValue, expectedValue) != 0)
                 {
                     VStringBuffer msg("Test '%s' [#%zu]: Mismatch for root '%s', query '%s'. Expected: '%s', Actual: '%s'",
-                                testName, testNumber, rootXPath ? rootXPath : "/", queryXPath, expectedValue, actualValue ? actualValue : "nullptr");
+                                testName, testNumber, safeRootXPath, safeQueryXPath, expectedValue, safe(actualValue));
                     CPPUNIT_FAIL(msg.str());
                 }
             }
@@ -177,7 +184,7 @@ class PTreeXPathTests : public CppUnit::TestFixture
                 if (actualValue)
                 {
                     VStringBuffer msg("Test '%s' [#%zu]: Expected null for root '%s', query '%s', but got: '%s'",
-                                testName, testNumber, rootXPath ? rootXPath : "/", queryXPath, actualValue);
+                                testName, testNumber, safeRootXPath, safeQueryXPath, actualValue);
                     CPPUNIT_FAIL(msg.str());
                 }
             }
@@ -188,7 +195,7 @@ class PTreeXPathTests : public CppUnit::TestFixture
             e->errorMessage(errMsg);
             e->Release();
             VStringBuffer msg("Test '%s' [#%zu]: Exception in checkXPath (root: '%s', query: '%s'): %s",
-                       testName, testNumber, rootXPath ? rootXPath : "/", queryXPath, errMsg.str());
+                       testName, testNumber, safeRootXPath, safeQueryXPath, errMsg.str());
             CPPUNIT_FAIL(msg.str());
         }
     }
@@ -212,12 +219,14 @@ class PTreeXPathTests : public CppUnit::TestFixture
 
     void checkIterator(IPropertyTree * root, const char * testName, size_t testNumber, const char * rootXPath, const char * iteratorXPath, const std::vector<const char *> & expectedUids)
     {
+        const char * safeRootXPath = safe(rootXPath);
+        const char * safeIteratorXPath = safe(iteratorXPath);
         try
         {
             IPropertyTree * startNode = root->queryPropTree(rootXPath);
             if (!startNode)
             {
-                VStringBuffer msg("Test '%s' [#%zu]: Failed to find rootXPath: '%s'", testName, testNumber, rootXPath);
+                VStringBuffer msg("Test '%s' [#%zu]: Failed to find rootXPath: '%s'", testName, testNumber, safeRootXPath);
                 CPPUNIT_FAIL(msg.str());
                 return;
             }
@@ -237,7 +246,7 @@ class PTreeXPathTests : public CppUnit::TestFixture
             if (actualUids.size() != expectedUids.size())
             {
                 VStringBuffer msg("Test '%s' [#%zu]: Mismatch in count for root '%s', query '%s'. Expected: %zu, Actual: %zu",
-                            testName, testNumber, rootXPath ? rootXPath : "/", iteratorXPath, expectedUids.size(), actualUids.size());
+                            testName, testNumber, safeRootXPath, safeIteratorXPath, expectedUids.size(), actualUids.size());
                 CPPUNIT_FAIL(msg.str());
                 return;
             }
@@ -247,7 +256,7 @@ class PTreeXPathTests : public CppUnit::TestFixture
                 if (actualUids[i] != expectedUids[i])
                 {
                     VStringBuffer msg("Test '%s' [#%zu]: Mismatch at index %zu for root '%s', query '%s'. Expected: '%s', Actual: '%s'",
-                                testName, testNumber, i, rootXPath ? rootXPath : "/", iteratorXPath, expectedUids[i], actualUids[i].c_str());
+                                testName, testNumber, i, safeRootXPath, safeIteratorXPath, expectedUids[i], actualUids[i].c_str());
                     CPPUNIT_FAIL(msg.str());
                     return;
                 }
@@ -259,7 +268,7 @@ class PTreeXPathTests : public CppUnit::TestFixture
             e->errorMessage(errMsg);
             e->Release();
             VStringBuffer msg("Test '%s' [#%zu]: Exception in checkIterator (root: '%s', query: '%s'): %s",
-                       testName, testNumber, rootXPath ? rootXPath : "/", iteratorXPath, errMsg.str());
+                       testName, testNumber, safeRootXPath, safeIteratorXPath, errMsg.str());
             CPPUNIT_FAIL(msg.str());
         }
     }
