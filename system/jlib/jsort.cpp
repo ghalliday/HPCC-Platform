@@ -703,9 +703,14 @@ typedef void ** VECTOR;
 
 class CRowStreamMerger
 {
+    struct HeapNode {
+        unsigned stream;
+        const void *row;
+    };
+
     const void **pending;
     size32_t *recsize;
-    unsigned *mergeheap;
+    HeapNode *mergeheap;
     unsigned activeInputs; 
     count_t recno;
     const ICompare *icmp;
@@ -721,7 +726,7 @@ class CRowStreamMerger
     inline int buffCompare(unsigned a, unsigned b)
     {
         //MTIME_SECTION(defaultTimer, "CJStreamMergerBase::buffCompare");
-        return icmp->docompare(pending[mergeheap[a]], pending[mergeheap[b]]);
+        return icmp->docompare(mergeheap[a].row, mergeheap[b].row);
     }
 
     bool promote(unsigned p)
@@ -737,8 +742,7 @@ class CRowStreamMerger
     {
         //MTIME_SECTION(defaultTimer, "CJStreamMergerBase::siftDown");
         // assuming that all descendants of p form a heap, sift p down to its correct position, and so include it in the heap
-        unsigned target = mergeheap[p];
-        const void *targetRow = pending[target];
+        HeapNode target = mergeheap[p];
         unsigned initialP = p;
 
         while(1)
@@ -749,11 +753,11 @@ class CRowStreamMerger
             if(c+1 < activeInputs)
             {
                 int childcmp = buffCompare(c+1, c);
-                if((childcmp < 0) || ((childcmp == 0) && (mergeheap[c+1] < mergeheap[c])))
+                if((childcmp < 0) || ((childcmp == 0) && (mergeheap[c+1].stream < mergeheap[c].stream)))
                     ++c;
             }
-            int cmp = icmp->docompare(pending[mergeheap[c]], targetRow); // Compare child to target
-            if((cmp > 0) || ((cmp == 0) && (mergeheap[c] > target)))
+            int cmp = icmp->docompare(mergeheap[c].row, target.row); // Compare child to target
+            if((cmp > 0) || ((cmp == 0) && (mergeheap[c].stream > target.stream)))
                 break;
 
             mergeheap[p] = mergeheap[c];
@@ -790,20 +794,24 @@ class CRowStreamMerger
         {
             if(cmp == 0)
             {
-                if(mergeheap[c] < mergeheap[0])
+                if(mergeheap[c].stream < mergeheap[0].stream)
                 {
-                    unsigned r = mergeheap[c];
+                    HeapNode r = mergeheap[c];
                     mergeheap[c] = mergeheap[0];
                     mergeheap[0] = r;
                 }
-                if(!pullInput(mergeheap[c]))
+                unsigned strm = mergeheap[c].stream;
+                if(!pullInput(strm)) {
                     if(!promote(c))
                         break;
+                } else {
+                    mergeheap[c].row = pending[strm];
+                }
                 siftDown(c);
             }
             else
             {
-                unsigned r = mergeheap[c];
+                HeapNode r = mergeheap[c];
                 mergeheap[c] = mergeheap[0];
                 mergeheap[0] = r;
                 if(siftDown(c))
@@ -817,15 +825,19 @@ class CRowStreamMerger
             return;
         while(childcmp == 0)
         {
-            if(mergeheap[c] < mergeheap[0])
+            if(mergeheap[c].stream < mergeheap[0].stream)
             {
-                unsigned r = mergeheap[c];
+                HeapNode r = mergeheap[c];
                 mergeheap[c] = mergeheap[0];
                 mergeheap[0] = r;
             }
-            if(!pullInput(mergeheap[c]))
+            unsigned strm = mergeheap[c].stream;
+            if(!pullInput(strm)) {
                 if(!promote(c))
                     break;
+            } else {
+                mergeheap[c].row = pending[strm];
+            }
             siftDown(c);
             childcmp = buffCompare(c, 0);
         }
@@ -855,9 +867,13 @@ class CRowStreamMerger
         if (!activeInputs)
             return false;
         if (recno) {
-            if(!pullInput(mergeheap[0]))
+            unsigned strm = mergeheap[0].stream;
+            if(!pullInput(strm)) {
                 if(!promote(0))
                     return false;
+            } else {
+                mergeheap[0].row = pending[strm];
+            }
             // we have changed the element at the top of the heap, so need to sift it down to maintain the heap property
             if(partdedup)
                 siftDownDedupTop();
@@ -902,13 +918,16 @@ public:
         unsigned i;
         recsize = NULL;
         if (numstreams) {
-            byte *buf = (byte *)workingbuf.allocate(numstreams*(sizeof(void *)+sizeof(unsigned)));
+            byte *buf = (byte *)workingbuf.allocate(numstreams*(sizeof(void *)+sizeof(HeapNode)));
             pending = (const void **)buf;
-            mergeheap = (unsigned *)(pending+numstreams);
+            mergeheap = (HeapNode *)(pending+numstreams);
             for (i=0;i<numstreams;i++) {
                 pending[i] = NULL;
-                if (pullInput(i)) 
-                    mergeheap[activeInputs++] = i;
+                if (pullInput(i)) {
+                    mergeheap[activeInputs].stream = i;
+                    mergeheap[activeInputs].row = pending[i];
+                    activeInputs++;
+                }
             }
         }
         else {
@@ -921,13 +940,14 @@ public:
     {
         while (activeInputs) {
             activeInputs--;
-            if (pending[mergeheap[activeInputs]]) {
-                provider.releaseRow(pending[mergeheap[activeInputs]]);
+            unsigned strm = mergeheap[activeInputs].stream;
+            if (pending[strm]) {
+                provider.releaseRow(pending[strm]);
 #ifdef _DEBUG
-                assertex(!stopped[mergeheap[activeInputs]]);
-                stopped[mergeheap[activeInputs]] = true;
+                assertex(!stopped[strm]);
+                stopped[strm] = true;
 #endif
-                provider.stop(mergeheap[activeInputs]);
+                provider.stop(strm);
             }
         }
         pending = NULL;
@@ -944,7 +964,7 @@ public:
     {
         if (!_next())
             return NULL;
-        unsigned strm = mergeheap[0];
+        unsigned strm = mergeheap[0].stream;
         const void *row = pending[strm];
         pending[strm] = NULL;
         return row;
