@@ -101,9 +101,9 @@ public:
     
     const void *nextRow()
     { 
-        if (stream) {
+        if (likely(stream)) {
             OwnedConstThorRow row = stream->nextRow();
-            if (row)
+            if (likely(row))
                 return row.getClear();
 #ifdef _FULL_TRACE
             char url[100];

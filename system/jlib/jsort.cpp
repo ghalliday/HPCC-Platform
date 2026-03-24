@@ -737,27 +737,35 @@ class CRowStreamMerger
     {
         //MTIME_SECTION(defaultTimer, "CJStreamMergerBase::siftDown");
         // assuming that all descendants of p form a heap, sift p down to its correct position, and so include it in the heap
-        bool nochange = true;
+        unsigned target = mergeheap[p];
+        const void *targetRow = pending[target];
+        unsigned initialP = p;
+
         while(1)
         {
             unsigned c = p*2 + 1;
             if(c >= activeInputs) 
-                return nochange;
+                break;
             if(c+1 < activeInputs)
             {
                 int childcmp = buffCompare(c+1, c);
                 if((childcmp < 0) || ((childcmp == 0) && (mergeheap[c+1] < mergeheap[c])))
                     ++c;
             }
-            int cmp = buffCompare(c, p);
-            if((cmp > 0) || ((cmp == 0) && (mergeheap[c] > mergeheap[p])))
-                return nochange;
-            nochange = false;
-            unsigned r = mergeheap[c];
-            mergeheap[c] = mergeheap[p];
-            mergeheap[p] = r;
+            int cmp = icmp->docompare(pending[mergeheap[c]], targetRow); // Compare child to target
+            if((cmp > 0) || ((cmp == 0) && (mergeheap[c] > target)))
+                break;
+
+            mergeheap[p] = mergeheap[c];
             p = c;
         }
+
+        if (p != initialP)
+        {
+            mergeheap[p] = target;
+            return false; // Changed
+        }
+        return true; // No change
     }
 
     void siftDownDedupTop()
