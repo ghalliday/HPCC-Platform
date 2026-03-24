@@ -745,6 +745,8 @@ class CRowStreamMerger
         HeapNode target = mergeheap[p];
         unsigned initialP = p;
 
+        // Phase 1: Floyd's Optimization - Drop down to a leaf tracking the path of minimum children.
+        // This halves the number of ICompare calls by delaying the target comparison.
         while(1)
         {
             unsigned c = p*2 + 1;
@@ -756,20 +758,25 @@ class CRowStreamMerger
                 if((childcmp < 0) || ((childcmp == 0) && (mergeheap[c+1].stream < mergeheap[c].stream)))
                     ++c;
             }
-            int cmp = icmp->docompare(mergeheap[c].row, target.row); // Compare child to target
-            if((cmp > 0) || ((cmp == 0) && (mergeheap[c].stream > target.stream)))
-                break;
 
             mergeheap[p] = mergeheap[c];
             p = c;
         }
 
-        if (p != initialP)
+        // Phase 2: Bubble the originally displaced element up to its correct resting place
+        while(p > initialP)
         {
-            mergeheap[p] = target;
-            return false; // Changed
+            unsigned parent = (p - 1) / 2;
+            int cmp = icmp->docompare(target.row, mergeheap[parent].row);
+            if((cmp > 0) || ((cmp == 0) && (target.stream > mergeheap[parent].stream)))
+                break;
+
+            mergeheap[p] = mergeheap[parent];
+            p = parent;
         }
-        return true; // No change
+
+        mergeheap[p] = target;
+        return (p == initialP); // true if no change, false if changed
     }
 
     void siftDownDedupTop()
