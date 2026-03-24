@@ -114,9 +114,9 @@ public:
     const void *nextRow()
     {
         RECHECK(busy);
-        if (!socket.get())
+        if (unlikely(!socket.get()))
             return NULL;
-        if (dsz.eos()) {
+        if (unlikely(dsz.eos())) {
             inbuf.clear();
 #ifdef _FULL_TRACE
             LOG(MCthorDetailedDebugInfo, "CSocketRowStream.nextRow recv (%d,%x)",id,(unsigned)(memsize_t)socket.get());
