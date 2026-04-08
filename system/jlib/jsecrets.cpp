@@ -27,23 +27,20 @@
 #include "jsecrets.hpp"
 #include "jthread.hpp"
 
-//including cpp-httplib single header file REST client
 //  doesn't work with format-nonliteral as an error
 //
 #if defined(__clang__) || defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 
-//httplib also generates warning about access outside of array bounds in gcc
 #pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
 
 #if defined(_USE_OPENSSL) || defined(EMSCRIPTEN)
-#define CPPHTTPLIB_OPENSSL_SUPPORT
 #endif
 
 #undef INVALID_SOCKET
-#include "httplib.h"
+#include "jcurl.hpp"
 
 #if defined(__clang__) || defined(__GNUC__)
 #pragma GCC diagnostic pop
@@ -686,21 +683,23 @@ protected:
         setTimevalMS(readTimeout, (time_t) vault->getPropInt("@readTimeout"));
         setTimevalMS(writeTimeout, (time_t) vault->getPropInt("@writeTimeout"));
 
-        PROGLOG("Vault: httplib verify_server=%s", boolToStr(verify_server));
+        PROGLOG("Vault: jcurl verify_server=%s", boolToStr(verify_server));
     }
 
-    void initHttpClient(httplib::Client &cli, httplib::Headers &headers, unsigned &numRetries)
+    void initHttpClient(IJlibHttpClient* cli, std::map<std::string, std::string> &headers, unsigned &numRetries)
     {
         numRetries = retries;
-        cli.enable_server_certificate_verification(verify_server);
-        if (!isEmptyTimeval(connectTimeout))
-            cli.set_connection_timeout(connectTimeout.tv_sec, connectTimeout.tv_usec);
-        if (!isEmptyTimeval(readTimeout))
-            cli.set_read_timeout(readTimeout.tv_sec, readTimeout.tv_usec);
-        if (!isEmptyTimeval(writeTimeout))
-            cli.set_write_timeout(writeTimeout.tv_sec, writeTimeout.tv_usec);
-        if (username.length() && password.length())
-            cli.set_basic_auth(username, password);
+        if (cli)
+        {
+            cli->setVerifyServer(verify_server);
+            long cTimeout = connectTimeout.tv_sec * 1000 + connectTimeout.tv_usec / 1000;
+            long rTimeout = readTimeout.tv_sec * 1000 + readTimeout.tv_usec / 1000;
+            long wTimeout = writeTimeout.tv_sec * 1000 + writeTimeout.tv_usec / 1000;
+            cli->setTimeouts(cTimeout, rTimeout, wTimeout);
+            if (username.length() && password.length())
+                cli->setBasicAuth(username.str(), password.str());
+            cli->setHeaders(headers);
+        }
     }
 
     void throwAuthError(const char *authType, const char *msg)
@@ -880,21 +879,21 @@ private:
             case VaultAuthType::clientcert:
                 return "clientcert";
         }
-        return "unknown";
-    }
-    void buildClientHeaders(httplib::Headers &headers) const
+        return "unknown";std::map<std::string, std::string> &headers) const
     {
         if (vaultNamespace.length())
-            headers.emplace("X-Vault-Namespace", vaultNamespace.str());
+            headers["X-Vault-Namespace"] = vaultNamespace.str();
     }
 
-    void processClientTokenResponse(httplib::Result &res)
+    void processClientTokenResponse(int httpCode, IJlibHttpClient* cli, StringBuffer& responseBody)
     {
-        if (!res)
-            throwAuthErrorV(queryAuthType(), "login communication error %d", res.error());
-        if (res.error()!=0)
-            throwAuthErrorV(queryAuthType(), "JSECRETS login calling HTTPLIB POST returned error %d", res.error());
-        if (res->status != 200)
+        if (httpCode < 0)
+            throwAuthErrorV(queryAuthType(), "login communication error %d", cli->getErrorCode());
+        if (cli->getErrorCode() != 0)
+            throwAuthErrorV(queryAuthType(), "JSECRETS login calling Http POST returned error %d", cli->getErrorCode());
+        if (httpCode != 200)
+            throwAuthErrorV(queryAuthType(), "[%d](%d) - response: %s", httpCode, cli->getErrorCode(), responseBody.str());
+        const char *json = responseBody.
             throwAuthErrorV(queryAuthType(), "[%d](%d) - response: %s", res->status, res.error(), res->body.c_str());
         const char *json = res->body.c_str();
         if (isEmptyString(json))
@@ -955,23 +954,25 @@ private:
 
         std::string json;
         json.append("{\"jwt\": \"").append(login_token.str()).append("\", \"role\": \"").append(authRole.str()).append("\"}");
-        httplib::Client cli(schemeHostPort.str());
-        httplib::Headers headers;
+        Owned<IJlibHttpClient> cli = createJlibHttpClient(schemeHostPort.str());
+        std::map<std::string, std::string> headers;
         buildClientHeaders(headers);
 
         unsigned numRetries = 0;
         initHttpClient(cli, headers, numRetries);
-        httplib::Result res = cli.Post("/v1/auth/kubernetes/login", headers, json, "application/json");
-        while (!res && numRetries > 0)
+        StringBuffer resBody;
+        int httpCode = cli->post("/v1/auth/kubernetes/login", json.c_str(), "application/json", resBody);
+        while (httpCode < 0 && numRetries > 0)
         {
-            OERRLOG("Retrying vault %s kubernetes auth, communication error %d", name.str(), res.error());
+            OERRLOG("Retrying vault %s kubernetes auth, communication error %d", name.str(), cli->getErrorCode());
             if (retryWait)
                 Sleep(retryWait);
             numRetries--;
-            res = cli.Post("/v1/auth/kubernetes/login", headers, json, "application/json");
+            resBody.clear();
+            httpCode = cli->post("/v1/auth/kubernetes/login", json.c_str(), "application/json", resBody);
         }
 
-        processClientTokenResponse(res);
+        processClientTokenResponse(httpCode, cli, resBody);
     }
 
     void clientCertLogin(bool permissionDenied)
@@ -984,23 +985,26 @@ private:
         std::string json;
         json.append("{\"name\": \"").append(authRole.str()).append("\"}"); //name can be empty but that is inefficient because vault would have to search for the cert being used
 
-        httplib::Client cli(schemeHostPort.str(), clientCertPath, clientKeyPath);
-        httplib::Headers headers;
+        Owned<IJlibHttpClient> cli = createJlibHttpClient(schemeHostPort.str());
+        cli->setClientCert(clientCertPath.c_str(), clientKeyPath.c_str());
+        std::map<std::string, std::string> headers;
         buildClientHeaders(headers);
 
         unsigned numRetries = 0;
         initHttpClient(cli, headers, numRetries);
-        httplib::Result res = cli.Post("/v1/auth/cert/login", headers, json, "application/json");
-        while (!res && numRetries > 0)
+        StringBuffer resBody;
+        int httpCode = cli->post("/v1/auth/cert/login", json.c_str(), "application/json", resBody);
+        while (httpCode < 0 && numRetries > 0)
         {
-            OERRLOG("Retrying vault %s client cert auth, communication error %d", name.str(), res.error());
+            OERRLOG("Retrying vault %s client cert auth, communication error %d", name.str(), cli->getErrorCode());
             if (retryWait)
                 Sleep(retryWait);
             numRetries--;
-            res = cli.Post("/v1/auth/cert/login", headers, json, "application/json");
+            resBody.clear();
+            httpCode = cli->post("/v1/auth/cert/login", json.c_str(), "application/json", resBody);
         }
 
-        processClientTokenResponse(res);
+        processClientTokenResponse(httpCode, cli, resBody);
     }
 
     //if we tried to use our token and it returned access denied it could be that we need to login again, or
@@ -1023,23 +1027,25 @@ private:
         std::string json;
         json.append("{\"role_id\": \"").append(appRoleId).append("\", \"secret_id\": \"").append(appRoleSecretId).append("\"}");
 
-        httplib::Client cli(schemeHostPort.str());
-        httplib::Headers headers;
+        Owned<IJlibHttpClient> cli = createJlibHttpClient(schemeHostPort.str());
+        std::map<std::string, std::string> headers;
         buildClientHeaders(headers);
 
         unsigned numRetries = 0;
         initHttpClient(cli, headers, numRetries);
-        httplib::Result res = cli.Post("/v1/auth/approle/login", headers, json, "application/json");
-        while (!res && numRetries > 0)
+        StringBuffer resBody;
+        int httpCode = cli->post("/v1/auth/approle/login", json.c_str(), "application/json", resBody);
+        while (httpCode < 0 && numRetries > 0)
         {
-            OERRLOG("Retrying vault %s appRole auth, communication error %d", name.str(), res.error());
+            OERRLOG("Retrying vault %s appRole auth, communication error %d", name.str(), cli->getErrorCode());
             if (retryWait)
                 Sleep(retryWait);
             numRetries--;
-            res = cli.Post("/v1/auth/approle/login", headers, json, "application/json");
+            resBody.clear();
+            httpCode = cli->post("/v1/auth/approle/login", json.c_str(), "application/json", resBody);
         }
 
-        processClientTokenResponse(res);
+        processClientTokenResponse(httpCode, cli, resBody);
     }
     void checkAuthentication(bool permissionDenied)
     {
@@ -1076,27 +1082,29 @@ private:
                 return SecretFetchStatus::failure;
             }
 
-            httplib::Client cli(schemeHostPort.str());
-            httplib::Headers headers = {
+            Owned<IJlibHttpClient> cli = createJlibHttpClient(schemeHostPort.str());
+            std::map<std::string, std::string> headers = {
                 { "X-Vault-Token", clientToken.str() }
             };
             buildClientHeaders(headers);
 
             unsigned numRetries = 0;
             initHttpClient(cli, headers, numRetries);
-            httplib::Result res = cli.Get(location, headers);
-            while (!res && numRetries > 0)
+            StringBuffer resBody;
+            int httpCode = cli->get(location, resBody);
+            while (httpCode < 0 && numRetries > 0)
             {
-                OERRLOG("Retrying vault %s get secret, communication error %d location %s", name.str(), res.error(), location);
+                OERRLOG("Retrying vault %s get secret, communication error %d location %s", name.str(), cli->getErrorCode(), location);
                 if (retryWait)
                     Sleep(retryWait);
                 numRetries--;
-                res = cli.Get(location, headers);
+                resBody.clear();
+                httpCode = cli->get(location, resBody);
             }
 
-            if (res)
+            if (httpCode >= 0)
             {
-                if (res->status == 200)
+                if (httpCode == 200)
                 {
                     content.append(res->body.c_str());
                     return SecretFetchStatus::success;
@@ -1329,21 +1337,21 @@ private:
         return endpoint;
     }
 
-    void buildClientHeaders(httplib::Headers &headers) const
+    void buildClientHeaders(std::map<std::string, std::string> &headers) const
     {
         // Reserved for Akeyless-specific headers.
     }
 
-    void processTokenResponse(httplib::Result &res)
+    void processTokenResponse(int httpCode, IJlibHttpClient* cli, StringBuffer& responseBody)
     {
         // Note, called inside a critical section, so updates are protected
-        if (!res)
-            throwAuthErrorV("akeyless", "login communication error %d", res.error());
-        if (res.error()!=0)
-            throwAuthErrorV("akeyless", "login calling HTTPLIB POST returned error %d", res.error());
-        if (res->status != 200)
-            throwAuthErrorV("akeyless", "[%d](%d) - response: %s", res->status, res.error(), res->body.c_str());
-        const char *json = res->body.c_str();
+        if (httpCode < 0)
+            throwAuthErrorV("akeyless", "login communication error %d", cli->getErrorCode());
+        if (cli->getErrorCode() != 0)
+            throwAuthErrorV("akeyless", "login calling HTTP POST returned error %d", cli->getErrorCode());
+        if (httpCode != 200)
+            throwAuthErrorV("akeyless", "[%d](%d) - response: %s", httpCode, cli->getErrorCode(), responseBody.str());
+        const char *json = responseBody.str();
         if (isEmptyString(json))
             throwAuthError("akeyless", "empty login response");
 
@@ -1407,32 +1415,34 @@ private:
         appendJSONValue(json, "json", true);
         json.append('}');
 
-        httplib::Client cli(schemeHostPort.str());
-        httplib::Headers headers;
+        Owned<IJlibHttpClient> cli = createJlibHttpClient(schemeHostPort.str());
+        std::map<std::string, std::string> headers;
         buildClientHeaders(headers);
 
         unsigned numRetries = 0;
         initHttpClient(cli, headers, numRetries);
         StringBuffer endpoint;
         buildEndpoint(endpoint, "auth");
-        httplib::Result res = cli.Post(endpoint.str(), headers, json.str(), "application/json");
-        while (!res && numRetries > 0)
+        StringBuffer resBody;
+        int httpCode = cli->post(endpoint.str(), json.str(), "application/json", resBody);
+        while (httpCode < 0 && numRetries > 0)
         {
-            OERRLOG("Retrying vault %s akeyless auth, communication error %d", name.str(), res.error());
+            OERRLOG("Retrying vault %s akeyless auth, communication error %d", name.str(), cli->getErrorCode());
             if (retryWait)
                 Sleep(retryWait);
             numRetries--;
-            res = cli.Post(endpoint.str(), headers, json.str(), "application/json");
+            resBody.clear();
+            httpCode = cli->post(endpoint.str(), json.str(), "application/json", resBody);
         }
 
-        processTokenResponse(res);
+        processTokenResponse(httpCode, cli, resBody);
         token.set(clientToken);
     }
 
     SecretFetchStatus getSecretFromVault(StringBuffer &content, const char *secretName, const char *version, const char *accessToken)
     {
-        httplib::Client cli(schemeHostPort.str());
-        httplib::Headers headers;
+        Owned<IJlibHttpClient> cli = createJlibHttpClient(schemeHostPort.str());
+        std::map<std::string, std::string> headers;
         buildClientHeaders(headers);
 
         unsigned numRetries = 0;
@@ -1459,7 +1469,8 @@ private:
 
         StringBuffer endpoint;
         buildEndpoint(endpoint, "get-secret-value");
-        httplib::Result res = cli.Post(endpoint.str(), headers, json.str(), "application/json");
+        StringBuffer resBody;
+        int httpCode = cli->post(endpoint.str(), json.str(), "application/json", resBody);
         while (!res && numRetries > 0)
         {
             OERRLOG("Retrying vault %s get secret, communication error %d", name.str(), res.error());
