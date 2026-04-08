@@ -13,6 +13,7 @@ interface IJlibHttpClient : extends IInterface
     virtual void setBasicAuth(const char* username, const char* password) = 0;
     virtual void setVerifyServer(bool verify) = 0;
     virtual void setClientCert(const char* certPath, const char* keyPath) = 0;
+    virtual void setCACert(const char* caCertPath) = 0;
     
     // Timeouts
     virtual void setTimeouts(long connectTimeoutMs, long readTimeoutMs, long writeTimeoutMs) = 0;

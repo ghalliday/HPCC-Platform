@@ -18,7 +18,6 @@
 #include "jptree.hpp"
 #include "jstring.hpp"
 
-//including cpp-httplib single header file REST client
 //  doesn't work with format-nonliteral as an error
 //
 #if defined(__clang__) || defined(__GNUC__)
@@ -28,8 +27,6 @@
 #endif
 
 #undef INVALID_SOCKET
-#define CPPHTTPLIB_OPENSSL_SUPPORT
-#include "httplib.h"
 
 #if defined(__clang__) || defined(__GNUC__)
 #pragma GCC diagnostic pop
@@ -74,8 +71,8 @@ protected:
     int readTimeout = 5;
     int writeTimeout = 5;
     bool configurationValid = false;
-    std::shared_ptr<httplib::Client> pClient;
-    httplib::Headers elasticHeaders;
+    Owned<IJlibHttpClient> pClient;
+    std::map<std::string, std::string> elasticHeaders;
     std::map<unsigned int, std::string> metricReportNames;
     std::string indexDocEndpoint;
 };

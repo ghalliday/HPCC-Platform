@@ -23,7 +23,6 @@ set ( srcs
 include_directories(
         ${HPCC_SOURCE_DIR}/system/include
         ${HPCC_SOURCE_DIR}/system/jlib
-        ${HPCC_SOURCE_DIR}/system/httplib
 )
 
 SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${STRICT_CXX_FLAGS}")

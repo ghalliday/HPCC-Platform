@@ -71,7 +71,7 @@ bool ElasticMetricSink::getHostConfig(const IPropertyTree *pSettingsTree)
             return false;
         }
 
-        // build url for use with httplib Client
+        // build url for use with jcurl Client
         elasticHostUrl.append(hostProtocol).append("://").append(hostDomain);
         if (!hostPort.isEmpty())
             elasticHostUrl.append(":").append(hostPort);
@@ -208,22 +208,24 @@ bool ElasticMetricSink::getDynamicMappingSuffixesFromIndex(const IPropertyTree *
 
     std::string endpoint;
     endpoint.append("/").append(indexName.str()).append("/_mapping");
-    httplib::Result res = pClient->Get(endpoint.c_str(), elasticHeaders);
+    
+    pClient->setHeaders(elasticHeaders);
+    StringBuffer resBody;
+    int res = pClient->get(endpoint.c_str(), resBody);
 
-    if (res == nullptr)
+    if (res < 0)
     {
-        httplib::Error err = res.error();
-        OWARNLOG("ElasticMetricSink: Unable to connect to ElasticSearch host '%s', httplib Error = %d", elasticHostUrl.str(), err);
+        OWARNLOG("ElasticMetricSink: Unable to connect to ElasticSearch host '%s', jcurl Error = %d", elasticHostUrl.str(), res);
         return false;
     }
 
-    if (res->status != 200)
+    if (res != 200)
     {
-        OWARNLOG("ElasticMetricSink: Error response status = %d, unable to retrieve mapping for index '%s'", res->status, indexName.str());
+        OWARNLOG("ElasticMetricSink: Error response status = %d, unable to retrieve mapping for index '%s'", res, indexName.str());
         return false;
     }
 
-    nlohmann::json data = nlohmann::json::parse(res->body);
+    nlohmann::json data = nlohmann::json::parse(resBody.str());
 
     auto indexConfig = data[indexName.str()];
     if (indexConfig.is_null())
@@ -325,15 +327,13 @@ void ElasticMetricSink::intializeElasticClient()
         elasticHeaders.insert({"Authorization", basicAuth.str()});
     }
 
-    pClient = std::make_shared<httplib::Client>(elasticHostUrl.str());
+    pClient.setown(createJlibHttpClient(elasticHostUrl.str()));
 
     // Add cert path if needed
     if (!certificateFilePath.isEmpty())
-        pClient->set_ca_cert_path(certificateFilePath.str());
+        pClient->setCACert(certificateFilePath.str());
 
-    pClient->set_connection_timeout(connectTimeout);
-    pClient->set_read_timeout(readTimeout);
-    pClient->set_write_timeout(writeTimeout);
+    pClient->setTimeouts(connectTimeout * 1000, readTimeout * 1000, writeTimeout * 1000);
 }
 
 
@@ -427,16 +427,17 @@ void ElasticMetricSink::doCollection()
     // Index if report data is not empty
     if (!json.empty())
     {
-        auto resp = pClient->Post(indexDocEndpoint.c_str(), elasticHeaders, json, "application/json");
+        pClient->setHeaders(elasticHeaders);
+        StringBuffer resBody;
+        int resp = pClient->post(indexDocEndpoint.c_str(), json.c_str(), "application/json", resBody);
 
-        if (resp == nullptr)
+        if (resp < 0)
         {
-            httplib::Error err = resp.error();
-            OWARNLOG("ElasticMetricSink: Unable to connect to ElasticSearch host '%s, httplib Error = %d", elasticHostUrl.str(), err);
+            OWARNLOG("ElasticMetricSink: Unable to connect to ElasticSearch host '%s', jcurl Error = %d", elasticHostUrl.str(), resp);
         }
-        else if (resp->status != 200 && resp->status != 201)
+        else if (resp != 200 && resp != 201)
         {
-            OWARNLOG("ElasticMetricSink: Error response status = %d reporting metrics to Index '%s'", resp->status, indexName.str());
+            OWARNLOG("ElasticMetricSink: Error response status = %d reporting metrics to Index '%s'", resp, indexName.str());
         }
     }
 }
@@ -452,18 +453,19 @@ bool ElasticMetricSink::validateIndex()
 {
     std::string endpoint;
     endpoint.append("/").append(indexName.str());
-    auto res = pClient->Get(endpoint.c_str(), elasticHeaders);
+    
+    pClient->setHeaders(elasticHeaders);
+    StringBuffer resBody;
+    int res = pClient->get(endpoint.c_str(), resBody);
 
-    if (res == nullptr)
+    if (res < 0)
     {
-        httplib::Error err = res.error();
-        OWARNLOG("ElasticMetricSink: Unable to connect to ElasticSearch host '%s, httplib Error = %d", elasticHostUrl.str(), err);
+        OWARNLOG("ElasticMetricSink: Unable to connect to ElasticSearch host '%s', jcurl Error = %d", elasticHostUrl.str(), res);
         return false;
     }
-
-    else if (res->status != 200)
+    else if (res != 200)
     {
-        OWARNLOG("ElasticMetricSink: Error response status = %d accessing Index '%s'", res->status, indexName.str());
+        OWARNLOG("ElasticMetricSink: Error response status = %d accessing Index '%s'", res, indexName.str());
         return false;
     }
 

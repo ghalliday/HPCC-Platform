@@ -25,27 +25,13 @@
 #include <map>
 #include <vector>
 
-//including cpp-httplib single header file REST client
-//  doesn't work with format-nonliteral as an error
-//
-#if defined(__clang__) || defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-nonliteral"
-#endif
-
-#undef INVALID_SOCKET
-#include "httplib.h"
-
-#if defined(__clang__) || defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
+#include "jsocket.hpp"
 
 #ifdef _USE_OPENSSL
 #include <openssl/x509v3.h>
 #endif
 
 using namespace hpccMetrics;
-using namespace httplib;
 
 #ifdef PROMETHEUSSINK_EXPORTS
 #define PROMETHEUSSINK_API DECL_EXPORT
@@ -75,7 +61,6 @@ private:
     static constexpr const char * PROMETHEUS_METRICS_SERVICE_RESP_TYPE = "text/html; charset=UTF-8";
     static constexpr int          DEFAULT_PROMETHEUS_METRICS_SERVICE_PORT = 8767;
     static constexpr const char * DEFAULT_PROMETHEUS_METRICS_SERVICE_NAME = "/metrics";
-    static constexpr const char * HTTPLIB_ERROR_MESSAGE_HEADER_NAME = "EXCEPTION_WHAT";
     static constexpr const char * PROMETHEUS_METRICS_HTTP_ERROR = R"!!(<!DOCTYPE html><html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
@@ -93,7 +78,7 @@ protected:
         prometheussink->startServer();
     }
 
-    Server m_server;
+    Owned<ISocket> m_serverSocket;
 
     virtual void startCollection(MetricsManager * pReporter) override;
     virtual void stopCollection() override;

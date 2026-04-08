@@ -27,62 +27,17 @@ extern "C" MetricSink* getSinkInstance(const char *name, const IPropertyTree *pS
     return new PrometheusMetricSink(name, pSettingsTree);
 }
 
-PrometheusMetricSink::PrometheusMetricSink(const char *name, const IPropertyTree *pSettingsTree) :
-    MetricSink(name, PROMETHEUS_REPORTER_TYPE)
+PrometheusMetricSink::PrometheusMetricSink(const char *name, const IPropertyTree *pSettingsTree)
+    : MetricSink(name, PROMETHEUS_REPORTER_TYPE)
 {
-    m_metricsManager = nullptr;
-    m_metricsSinkName = name;
-    m_processing = false;
-    m_port = DEFAULT_PROMETHEUS_METRICS_SERVICE_PORT;
-    m_verbose = false;
-
-    if (pSettingsTree)
-    {
-        m_verbose = pSettingsTree->getPropBool("@verbose", false);
-        m_port = pSettingsTree->getPropInt("@port", DEFAULT_PROMETHEUS_METRICS_SERVICE_PORT);
-
-        pSettingsTree->getProp("@serviceName", m_metricsServiceName);
-
-        if (m_metricsServiceName.isEmpty())
-            m_metricsServiceName = DEFAULT_PROMETHEUS_METRICS_SERVICE_NAME;
-        else
-            if (m_metricsServiceName.charAt(0) != '/')
-                m_metricsServiceName.insert(0, '/');
-
-
-        m_server.set_error_handler([](const Request& req, Response& res)
-        {
-            StringBuffer msg(detail::status_message(res.status));
-            if (res.status == 500)
-            {
-                if (res.has_header(HTTPLIB_ERROR_MESSAGE_HEADER_NAME))
-                    msg.append(" - ").append(res.get_header_value(HTTPLIB_ERROR_MESSAGE_HEADER_NAME).c_str());
-                else
-                    msg.append(" - ").append("encountered unknown error!");
-
-                LOG(MCdebugError, "PrometheusMetricsService: %s", msg.str());
-            }
-
-            VStringBuffer respmessage(PROMETHEUS_METRICS_HTTP_ERROR, msg.str(), req.path.c_str(), res.status);
-            res.set_content(respmessage.str(), PROMETHEUS_METRICS_SERVICE_RESP_TYPE);
-
-            LOG(MCuserError, "PrometheusMetricsService Error: %s", msg.str());
-            LOG(MCuserInfo, "TxSummary[status=%d;user=@%s:%d;contLen=%ld;req=%s;path=%s]", res.status, req.remote_addr.c_str(), req.remote_port, req.content_length, req.method.c_str(), req.path.c_str());
-        });
-
-        m_server.Get(m_metricsServiceName.str(), [&](const Request& req, Response& res)
-        {
-            LOG(MCdebugInfo, "GET PrometheusMetricsService%s, from %s:%d", req.path.c_str(), req.remote_addr.c_str(), req.remote_port);
-
-            StringBuffer payload;
-            toPrometheusMetrics(m_metricsManager->queryMetricsForReport(std::string(m_metricsSinkName.str())), payload, m_verbose);
-
-            res.set_content(payload.str(), PROMETHEUS_METRICS_SERVICE_RESP_TYPE);
-            res.status = 200;
-            LOG(MCdebugInfo, "PrometheusMetricsService Response: %s\n", payload.str());
-            LOG(MCuserInfo, "TxSummary[status=%d;user=@%s:%d;contLen=%ld;req=GET;path=%s]", res.status, req.remote_addr.c_str(), req.remote_port, req.content_length, req.path.c_str());
-        });
-    }
+    m_metricsSinkName.set(name);
+    m_port = pSettingsTree->getPropInt("@port", DEFAULT_PROMETHEUS_METRICS_SERVICE_PORT);
+    m_verbose = pSettingsTree->getPropBool("@verbose", false);
+    m_metricsServiceName.set(pSettingsTree->queryProp("@name"));
+    if (m_metricsServiceName.isEmpty())
+        m_metricsServiceName.set(DEFAULT_PROMETHEUS_METRICS_SERVICE_NAME);
+    else if (m_metricsServiceName.charAt(0) != '/')
+        m_metricsServiceName.insert(0, '/');
 }
 
 const char * PrometheusMetricSink::mapHPCCMetricTypeToPrometheusStr(MetricType type)
@@ -275,12 +230,53 @@ void PrometheusMetricSink::stopCollection()
 {
     LOG(MCoperatorProgress, "PrometheusMetricsService stopping:  port: '%i' uri: '%s' sinkname: '%s'", m_port, m_metricsServiceName.str(), m_metricsSinkName.str());
     m_processing = false;
-    m_server.stop();
+    if (m_serverSocket)
+        m_serverSocket->cancel_accept();
     m_collectThread.join();
 }
 
 void PrometheusMetricSink::startServer()
 {
     LOG(MCoperatorProgress, "PrometheusMetricsService started:  port: '%i' uri: '%s' sinkname: '%s'", m_port, m_metricsServiceName.str(), m_metricsSinkName.str());
-    m_server.listen(BIND_ALL_LOCAL_NICS, m_port);
+    try
+    {
+        m_serverSocket.setown(ISocket::create(m_port));
+        while (m_processing)
+        {
+            Owned<ISocket> client = m_serverSocket->accept(true);
+            if (client && m_processing)
+            {
+                char req_buf[256];
+                size32_t size_read = 0;
+                client->readtms(req_buf, 4, sizeof(req_buf)-1, size_read, 2000, false);
+                
+                StringBuffer payload;
+                toPrometheusMetrics(m_metricsManager->queryMetricsForReport(std::string(m_metricsSinkName.str())), payload, m_verbose);
+                
+                StringBuffer response;
+                response.append("HTTP/1.1 200 OK
+");
+                response.append("Content-Type: ").append(PROMETHEUS_METRICS_SERVICE_RESP_TYPE).append("
+");
+                response.append("Connection: close
+");
+                response.append("Content-Length: ").append(payload.length()).append("
+
+");
+                response.append(payload);
+                
+                client->write(response.str(), response.length());
+                client->close();
+            }
+        }
+    }
+    catch (IException *e)
+    {
+        if (e->errorCode() != JSOCKERR_cancel_accept)
+            EXCLOG(e, "PrometheusMetricsService");
+        e->Release();
+    }
+    catch (...)
+    {
+    }
 }

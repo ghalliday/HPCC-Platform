@@ -235,7 +235,6 @@ include_directories (
          ${HPCC_SOURCE_DIR}/system/globalid
          ${HPCC_SOURCE_DIR}/system/security/shared
          ${HPCC_SOURCE_DIR}/system/security/cryptohelper
-         ${HPCC_SOURCE_DIR}/system/httplib
          ${OPENTELEMETRY_CPP_INCLUDE_DIRS}
          ${CMAKE_CURRENT_BINARY_DIR}  # for generated jelog.h file
          ${CMAKE_BINARY_DIR}
