@@ -206,7 +206,8 @@ set (    INCLUDES
         jutil.hpp
         jtrace.hpp
         jzstd.hpp
-        ${HPCC_SOURCE_DIR}/system/httplib/httplib.h
+        jcurl.hpp
+        jcurl.cpp
         ${HPCC_SOURCE_DIR}/system/security/shared/opensslcommon.hpp
         ${HPCC_SOURCE_DIR}/system/security/cryptohelper/cryptocommon.cpp
         ${HPCC_SOURCE_DIR}/system/security/cryptohelper/digisign.cpp
@@ -241,9 +242,6 @@ include_directories (
          ${CMAKE_BINARY_DIR}/oss
     )
 
-# ensure httplib uses poll rather than select - otherwise it fail if too many sockets have been opened.
-ADD_DEFINITIONS( -DCPPHTTPLIB_USE_POLL )
-
 ADD_DEFINITIONS( -D_USRDLL -DJLIB_EXPORTS )
 HPCC_ADD_LIBRARY( jlib SHARED ${SRCS} ${INCLUDES} )
 
@@ -255,7 +253,8 @@ target_link_libraries ( jlib
        )
 
 if (NOT WIN32 AND NOT WIN64 AND NOT APPLE AND NOT EMSCRIPTEN)
-    target_link_libraries ( jlib PkgConfig::liburing )
+    tar CURL::libcurl
+       get_link_libraries ( jlib PkgConfig::liburing )
 endif ()
 
 if ( ${HAVE_LIBDL} )
