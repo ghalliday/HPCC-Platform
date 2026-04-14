@@ -53,7 +53,7 @@ BufferedSocket::BufferedSocket(ISocket* socket)
     
     if(socket == NULL)
     {
-        throw MakeStringException(-1, "can't create BufferedSocket from NULL socket");
+        throw MakeStringException(JLIBERR_BufferedSocketFromNull, "can't create BufferedSocket from NULL socket");
     }
     
     m_socket = socket;

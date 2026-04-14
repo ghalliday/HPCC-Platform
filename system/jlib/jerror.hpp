@@ -50,7 +50,14 @@
 #define JLIBERR_BufferDiskFull                 6020
 #define JLIBERR_BufferErrorWritingFile         6021
 
-#define JLIBERR_SocketError                    6025
+#define JLIBERR_SocketInvalidNetworkAddress    6025
+#define JLIBERR_SocketSelectError              6026
+#define JLIBERR_SocketEpollError               6027
+#define JLIBERR_SocketEpollInvalidState        6028
+#define JLIBERR_SocketInvalidEndpointName      6029
+#define JLIBERR_SocketWaitMultipleMalloc       6030
+#define JLIBERR_SocketWaitMultipleError        6031
+#define JLIBERR_BufferedSocketFromNull         6032
 
 //---- Text for all errors (make it easy to internationalise) ---------------------------
 
