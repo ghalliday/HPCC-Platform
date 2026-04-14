@@ -21,6 +21,7 @@
 #include "daadmin.hpp"
 
 #include "ws_dfsclient.hpp"
+#include "daerr.hpp"
 
 
 using namespace daadmin;
@@ -129,7 +130,7 @@ void usage(const char *exe)
   printf("  timeout=<seconds>               -- set dali connect timeout\n");
 }
 
-#define CHECKPARAMS(mn,mx) { if ((np<mn)||(np>mx)) throw MakeStringException(-1,"%s: incorrect number of parameters",cmd); }
+#define CHECKPARAMS(mn,mx) { if ((np<mn)||(np>mx)) throw MakeStringException(DALIERR_SIncorrectNumberOfParameters, "%s: incorrect number of parameters",cmd); }
 
 static constexpr const char * defaultYaml = R"!!(
 version: "1.0"
@@ -452,7 +453,7 @@ int main(int argc, const char* argv[])
                     }
                     else if (strieq(cmd,"dfsperm")) {
                         if (!userDesc.get())
-                            throw MakeStringException(-1,"dfsperm requires username to be set (user=)");
+                            throw MakeStringException(DALIERR_DfspermRequiresUsernameToBeSetUser, "dfsperm requires username to be set (user=)");
                         CHECKPARAMS(1,1);
                         ret = dfsperm(params.item(1),userDesc);
                     }
@@ -534,7 +535,7 @@ int main(int argc, const char* argv[])
                         else if (strieq("path", fileOrPath))
                             unlock(params.item(1), false);
                         else
-                            throw MakeStringException(0, "unknown type [ %s ], must be 'file' or 'path'", fileOrPath);
+                            throw MakeStringException(DALIERR_UnknownTypeSMustBeFileOr, "unknown type [ %s ], must be 'file' or 'path'", fileOrPath);
                     }
                     else if (strieq(cmd,"validateStore")) {
                         CHECKPARAMS(0,2);
@@ -891,7 +892,7 @@ static void remoteTest(const char *logicalName, bool withDali)
     else
     {
         if (!withDali)
-            throw makeStringExceptionV(0, "remotetest for non-remote files needs Dali.");
+            throw makeStringExceptionV(DALIERR_RemotetestForNonRemoteFilesNeedsDali, "remotetest for non-remote files needs Dali.");
 
         legacyDfsFile.setown(queryDistributedFileDirectory().lookup(dlfn, userDesc, AccessMode::tbdRead, false, false, nullptr, false));
     }

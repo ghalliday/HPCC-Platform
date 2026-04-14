@@ -23,6 +23,7 @@
 
 #include "daclient.hpp"
 #include "dasds.hpp"
+#include "daerr.hpp"
 
 void usage(const char *exe)
 {
@@ -78,7 +79,7 @@ int main(int argc, char* argv[])
             }
             DaliClientRole roleType = CSystemCapability::decodeRole(argv[2]);
             if (DCR_Unknown == roleType)
-                throw MakeStringException(0, "Unknown role: %s", argv[2]);
+                throw MakeStringException(DALIERR_UnknownRoleS, "Unknown role: %s", argv[2]);
             const char *system = argv[3];
 
             CSystemCapability sc(roleType, system);
@@ -116,16 +117,16 @@ int main(int argc, char* argv[])
             while (csvread(*stream, system, sizeof(system)))
             {
                 DaliClientRole roleType;
-                if (!csvread(*stream, role, sizeof(role))) throw MakeStringException(0, "Invalid format (role)");
+                if (!csvread(*stream, role, sizeof(role))) throw MakeStringException(DALIERR_InvalidFormatRole, "Invalid format (role)");
                 else
                 {
                     roleType = CSystemCapability::decodeRole(role);
                     if (DCR_Unknown == roleType)
-                        throw MakeStringException(0, "Unknown role: %s", role);
+                        throw MakeStringException(DALIERR_UnknownRoleS, "Unknown role: %s", role);
                 }
                 unsigned addrLength = csvread(*stream, addr, sizeof(addr));
                 if (!addrLength)
-                    throw MakeStringException(0, "Invalid format address)");
+                    throw MakeStringException(DALIERR_InvalidFormatAddress, "Invalid format address)");
                 unsigned cpuSNLength = csvread(*stream, cpusn, sizeof(cpusn), true);
                 exporter.add(roleType, system, addr, cpuSNLength?cpusn:NULL);
             }

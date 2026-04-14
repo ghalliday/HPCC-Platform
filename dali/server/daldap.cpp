@@ -35,6 +35,7 @@ using namespace cryptohelper;
 #include "secloader.hpp"
 #include "ldapsecurity.ipp"
 #include "ldapsecurity.hpp"
+#include "daerr.hpp"
 
 static void ignoreSigPipe()
 {
@@ -73,7 +74,7 @@ public:
 
                 const char* pszErrMsg = "Invalid LDAP server address!";
                 OERRLOG(pszErrMsg);
-                throw MakeStringException(-1, pszErrMsg);
+                throw MakeStringException(DALIERR_Pszerrmsg, pszErrMsg);
                 */
             }
             else

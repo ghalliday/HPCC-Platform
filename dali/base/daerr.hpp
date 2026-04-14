@@ -133,4 +133,61 @@
 
 
 
+
+#define DALIERR_Pszerrmsg 5925 // pszErrMsg
+#define DALIERR_UnrecognizedAuthMethodSpecifiedAuthS 5926 // Unrecognized auth method specified, (auth: %s)
+#define DALIERR_UnableToLocateLdapDefaultsFileS 5927 // Unable to locate LDAP defaults file '%s'
+#define DALIERR_CouldNotDeduceTheEndOfThe 5928 // Could not deduce the end of the record - pathological 
+#define DALIERR_UnrecognisedCharacterEscapeSequenceC 5929 // unrecognised character escape sequence '\\%c'
+#define DALIERR_LaunchftslavecmdFailedToFindDafilesrvServiceNamed 5930 // launchFtSlaveCmd: failed to find dafilesrv service named: '%s'
+#define DALIERR_LaunchftslavecmdConfiguredServiceSIsOfApplication 5931 // launchFtSlaveCmd: configured service '%s' is of application type '%s' ('spray' type required)
+#define DALIERR_LaunchftslavecmdNoSprayDafilesrvServicesFound 5932 // launchFtSlaveCmd: no 'spray' dafilesrv services found
+#define DALIERR_PushingToMultipleTargetsWithNoSplit 5933 // Pushing to multiple targets with no split is not supported to this target plane (%s)
+#define DALIERR_FailedToOpenFileS 5934 // Failed to open file %s
+#define DALIERR_RequestedOutputFieldSNotFound 5935 // Requested output field '%s' not found
+#define DALIERR_CannotFilterOnPayloadFieldS 5936 // Cannot filter on payload field '%s'
+#define DALIERR_ScaWorkunitServicesGetNotImplementedFor 5937 // SCA_WORKUNIT_SERVICES_GET not implemented for online workunits!
+#define DALIERR_CouldNotConnectToSashaServerOn 5938 // Could not connect to Sasha server on %s
+#define DALIERR_SashaServerSProtocolError 5939 // Sasha server[%s]: Protocol error
+#define DALIERR_ServiceUndefined 5940 // 'service' undefined
+#define DALIERR_UnrecognisedServiceS 5941 // Unrecognised 'service': %s
+#define DALIERR_CouldNotCreateFileS 5942 // Could not create file %s
+#define DALIERR_CouldNotOpenFileS 5943 // Could not open file %s
+#define DALIERR_XrefallocatorAllocRequestedSizeTooLargeReq 5944 // XRefAllocator::alloc : Requested size too large: req: %d, used: %zu, max: %zu
+#define DALIERR_CfiledescCreateNumpartsTooLargeDMax 5945 // cFileDesc::create : numParts too large: %d (max 4096)
+#define DALIERR_LogpfxIsmisplacedInvalidDirectoryNameInFile 5946 // LOGPFX "isMisplaced: Invalid directory name in file path: %s"
+#define DALIERR_LogpfxFailedToCreateDirectoryS 5947 // LOGPFX "Failed to create directory: %s"
+#define DALIERR_CapabilitiesBinaryIsTooLarge 5948 // Capabilities binary is too large
+#define DALIERR_CapabilitiesBinaryWrongFormat 5949 // Capabilities binary wrong format
+#define DALIERR_UnknownRoleS 5950 // Unknown role: %s
+#define DALIERR_InvalidFormatRole 5951 // Invalid format (role)
+#define DALIERR_InvalidFormatAddress 5952 // Invalid format address)
+#define DALIERR_ExpectingXpathTailNodeInS 5953 // Expecting xpath tail node in: %s
+#define DALIERR_InvalidXpathEmpty 5954 // Invalid xpath (empty)
+#define DALIERR_InvalidXpathNoTrailingXpathNodeProvided 5955 // Invalid xpath (no trailing xpath node provided)
+#define DALIERR_ExternalFileNotSupported 5956 // External file not supported
+#define DALIERR_ForeignFileNotSupported 5957 // Foreign file not supported
+#define DALIERR_CouldNotFindFileS 5958 // Could not find file: '%s'
+#define DALIERR_CannotBeUsedOnASuperfile 5959 // Cannot be used on a superfile
+#define DALIERR_InvalidPartNumberMustBeInThe 5960 // Invalid part number, must be in the range 1 - %u
+#define DALIERR_InvalidModeS 5961 // Invalid mode: %s
+#define DALIERR_FailedToConnectToEnvironmentSoftware 5962 // Failed to connect to Environment/Software
+#define DALIERR_FailedToConnectToWorkunits 5963 // Failed to connect to /WorkUnits
+#define DALIERR_ExpectingUidSGenerateddllDButFound 5964 // Expecting uid=%s @ GeneratedDll[%d], but found uid=%s
+#define DALIERR_SourceAndTargetClusterGroupsCannotBe 5965 // source and target cluster groups cannot be the same! cluster = %s
+#define DALIERR_CouldNotFindSourceClusterGroupS 5966 // Could not find source cluster group: %s
+#define DALIERR_CouldNotFindTargetClusterGroupS 5967 // Could not find target cluster group: %s
+#define DALIERR_UnsupportedTargetClusterIsWiderThanSource 5968 // Unsupported - target cluster is wider than source (target size=%u, source size=%u
+#define DALIERR_UnsupportedTargetClusterMustBeAFactor 5969 // Unsupported - target cluster must be a factor of source cluster size (target size=%u, source size=%u
+#define DALIERR_FailedToCreateBackupFile 5970 // Failed to create backup file
+#define DALIERR_SIncorrectNumberOfParameters 5971 // %s: incorrect number of parameters
+#define DALIERR_DfspermRequiresUsernameToBeSetUser 5972 // dfsperm requires username to be set (user=)
+#define DALIERR_UnknownTypeSMustBeFileOr 5973 // unknown type [ %s ], must be 'file' or 'path'
+#define DALIERR_RemotetestForNonRemoteFilesNeedsDali 5974 // remotetest for non-remote files needs Dali.
+#define DALIERR_FailedToConnectToPathS 5975 // Failed to connect to path %s
+#define DALIERR_TestOutOfRangeThereAreOnly 5976 // Test out of range, there are only %d tests
+#define DALIERR_NoSourceLogicalFilenameSupplied 5977 // no source logical filename supplied
+#define DALIERR_FileSHasNoRecordDefinition 5978 // File '%s' has no record definition
+#define DALIERR_LocalAndSdsOutputsMismatch 5979 // Local and SDS outputs mismatch
+
 #endif

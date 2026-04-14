@@ -419,6 +419,7 @@ offset_t CGeneralTransformer::tell()
 #include "hqlexpr.hpp"
 #include "hqlutil.hpp"
 #include "rtldynfield.hpp"
+#include "daerr.hpp"
 
 class CIndexTransformer : public CTransformerBase
 {
@@ -446,7 +447,7 @@ public:
 
         inputIO.setown(inputFile->open(IFOread));
         if (!inputIO)
-            throw MakeStringException(999, "Failed to open file %s", inputFile->queryFilename());
+            throw MakeStringException(DALIERR_FailedToOpenFileS, "Failed to open file %s", inputFile->queryFilename());
         return true;
     }
 
@@ -584,7 +585,7 @@ void CIndexTransformer::initializeTransform(IFileIOStream * out)
         {
             unsigned fieldNum = inrec.getFieldNum(fieldNames.item(idx));
             if (fieldNum == (unsigned) -1)
-                throw MakeStringException(0, "Requested output field '%s' not found", fieldNames.item(idx));
+                throw MakeStringException(DALIERR_RequestedOutputFieldSNotFound, "Requested output field '%s' not found", fieldNames.item(idx));
             const RtlFieldInfo *field = inrec.queryOriginalField(fieldNum);
             if (isTLK && (field->flags & RFTMispayloadfield))
                 continue;  // payload fields not include in the TLK
@@ -635,7 +636,7 @@ void CIndexTransformer::initializeTransform(IFileIOStream * out)
             unsigned idx = thisFilter.queryFieldIndex();
             const RtlFieldInfo *field = inrec.queryOriginalField(idx);
             if (field->flags & RFTMispayloadfield)
-                throw MakeStringException(0, "Cannot filter on payload field '%s'", field->name);
+                throw MakeStringException(DALIERR_CannotFilterOnPayloadFieldS, "Cannot filter on payload field '%s'", field->name);
         }
     }
     rowFilter.createSegmentMonitors(manager);

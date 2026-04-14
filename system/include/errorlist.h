@@ -76,6 +76,9 @@
 #define DALI_ERROR_START        5800
 #define DALI_ERROR_END          5999
 
+#define DFU_ERROR_START         7600
+#define DFU_ERROR_END           7799
+
 //Jlib
 #define JLIB_ERROR_START        6000
 #define JLIB_ERROR_END          6499

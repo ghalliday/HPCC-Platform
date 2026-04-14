@@ -16,6 +16,7 @@
 #endif
 
 #include "sacmd.hpp"
+#include "daerr.hpp"
 
 bool restoreWU(const char * sashaserver,const char *wuid)
 {
@@ -179,10 +180,10 @@ void DumpWorkunitTimings(IPropertyTree *wu)
                             fileio.clear();
                             file.setown(createIFile(logname.str()));
                             if (!file) 
-                                throw MakeStringException(-1,"Could not create file %s",logname.str());
+                                throw MakeStringException(DALIERR_CouldNotCreateFileS, "Could not create file %s",logname.str());
                             fileio.setown(file->open(IFOwrite));
                             if (!fileio) 
-                                throw MakeStringException(-1,"Could not open file %s",logname.str());
+                                throw MakeStringException(DALIERR_CouldNotOpenFileS, "Could not open file %s",logname.str());
                             filepos = fileio->size();
                             curfilename.clear().append(logname);
                         }

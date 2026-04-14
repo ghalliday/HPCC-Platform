@@ -40,6 +40,7 @@
 
 #include "XRefFilesNode.hpp"
 #include "XRefNodeManager.hpp"
+#include "dfuerr.hpp"
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -518,7 +519,7 @@ void CXRefNode::BuildXRefData(IPropertyTree & pTree,const char* Cluster)
 
 //  DBGLOG("CXRefNode::BuildXRefData");
     if(m_XRefTree.get() == 0)
-        throw MakeStringException(-1, "No XRef Dali Tree available");
+        throw MakeStringException(DFUERR_NoXrefDaliTreeAvailable, "No XRef Dali Tree available");
 
     Owned<IXRefFilesNode> lost = getLostFiles();
     Owned<IXRefFilesNode> found = getFoundFiles() ;

@@ -49,6 +49,7 @@ static bool fixSizes = false;
 //#define CONNECT_EACH_PATH
 
 #include "dfuxreflib.hpp"
+#include "dfuerr.hpp"
 
 extern IPropertyTree *getDirectory(const char * directory, INode * node, unsigned short port);
 
@@ -349,7 +350,7 @@ static unsigned short getDafsPort(const SocketEndpoint &ep,unsigned &numfails,Cr
     else 
         numfails++;
 #else
-    throw MakeStringExceptionDirect(-1, err.str());
+    throw MakeStringExceptionDirect(DFUERR_ErrStr, err.str());
 #endif
     return 0;
 }
@@ -1594,7 +1595,7 @@ void loadFromDFS(CXRefManagerBase &manager,IGroup *grp,unsigned numdirs,const ch
 
     Owned<IRemoteConnection> conn = querySDS().connect(SDS_DFS_ROOT,myProcessSession(),RTM_LOCK_READ, INFINITE);
     if (!conn) {
-        throw MakeStringException(-1,"Could not connect to Files");
+        throw MakeStringException(DFUERR_CouldNotConnectToFiles, "Could not connect to Files");
         
     }
     conn->changeMode(RTM_NONE);

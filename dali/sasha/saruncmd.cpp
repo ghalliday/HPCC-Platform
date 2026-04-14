@@ -4,6 +4,7 @@
 #include "mpbase.hpp"
 #include "sacmd.hpp"
 #include "saruncmd.hpp"
+#include "daerr.hpp"
 
 class CSashaCmdExecutor : public CInterfaceOf<ISashaCmdExecutor>
 {
@@ -20,7 +21,7 @@ class CSashaCmdExecutor : public CInterfaceOf<ISashaCmdExecutor>
             cmd->setDFU(true);
         cmd->addId(wuid);
         if (!cmd->send(node, defaultTimeoutMs))
-            throw makeStringExceptionV(-1, "Could not connect to Sasha server on %s", nodeText.str());
+            throw makeStringExceptionV(DALIERR_CouldNotConnectToSashaServerOn, "Could not connect to Sasha server on %s", nodeText.str());
         if (cmd->numIds()==0)
         {
             // nothing restored
@@ -38,7 +39,7 @@ class CSashaCmdExecutor : public CInterfaceOf<ISashaCmdExecutor>
             cmd->setDFU(true);
         cmd->addId(wuid);
         if (!cmd->send(node, defaultTimeoutMs))
-            throw makeStringExceptionV(-1, "Could not connect to Sasha server on %s", nodeText.str());
+            throw makeStringExceptionV(DALIERR_CouldNotConnectToSashaServerOn, "Could not connect to Sasha server on %s", nodeText.str());
         if (cmd->numIds()==0)
         {
             // nothing archived
@@ -81,7 +82,7 @@ class CSashaCmdExecutor : public CInterfaceOf<ISashaCmdExecutor>
         cmd->setLimit(req->maxNumberWUs);
         cmd->setSortDescending(req->descending);
         if (!cmd->send(node, defaultTimeoutMs))
-            throw makeStringExceptionV(-1, "Could not connect to Sasha server on %s", nodeText.str());
+            throw makeStringExceptionV(DALIERR_CouldNotConnectToSashaServerOn, "Could not connect to Sasha server on %s", nodeText.str());
 
         unsigned n = cmd->numIds();
         if (n == 0)
@@ -118,9 +119,9 @@ public:
         Owned<ISashaCommand> cmd = createSashaCommand();
         cmd->setAction(SCA_GETVERSION);
         if (!cmd->send(node, defaultTimeoutMs))
-            throw makeStringExceptionV(-1, "Could not connect to Sasha server on %s", nodeText.str());
+            throw makeStringExceptionV(DALIERR_CouldNotConnectToSashaServerOn, "Could not connect to Sasha server on %s", nodeText.str());
         if (!cmd->getId(0, version))
-            throw makeStringExceptionV(-1, "Sasha server[%s]: Protocol error", nodeText.str());
+            throw makeStringExceptionV(DALIERR_SashaServerSProtocolError, "Sasha server[%s]: Protocol error", nodeText.str());
         return version;
     }
     virtual StringBuffer &getLastServerMessage(StringBuffer &message) const override

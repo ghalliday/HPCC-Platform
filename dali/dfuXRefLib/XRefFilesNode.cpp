@@ -23,6 +23,7 @@
 
 #include "jlzw.hpp"
 #include "dautils.hpp"
+#include "dfuerr.hpp"
 
 
 // NB: fills dst with content of xml file at filePath and adds a null terminator
@@ -43,11 +44,11 @@ void readXrefBranch(const char *branchName, const char *filePath, offset_t maxFi
                     char *ptr = (char *)dst.reserveTruncate((size32_t)fileSize+1);
                     size32_t bytesRead = fileIO->read(0, (size32_t)fileSize, ptr);
                     if (bytesRead == 0)
-                        throw makeStringExceptionV(0, "Failed to read %s from file", branchName);
+                        throw makeStringExceptionV(DFUERR_FailedToReadSFromFile, "Failed to read %s from file", branchName);
                     ptr[fileSize] = '\0'; // Ensure null-terminated
                 }
                 else
-                    throw makeStringExceptionV(0, "File exceeds maximum size tolerance (%u MB). File size = %u MB", (unsigned)(maxFileSize / 0x100000), (unsigned)(fileSize / 0x100000));
+                    throw makeStringExceptionV(DFUERR_FileExceedsMaximumSizeToleranceUMb, "File exceeds maximum size tolerance (%u MB). File size = %u MB", (unsigned)(maxFileSize / 0x100000), (unsigned)(fileSize / 0x100000));
             }
         }
     }

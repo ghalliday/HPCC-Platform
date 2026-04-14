@@ -29,6 +29,7 @@ static bool fixGroups = false;
 static bool verbose = false;
 
 #include "dfuxreflib.hpp"
+#include "dfuerr.hpp"
 
 
 
@@ -187,7 +188,7 @@ int main(int argc, char* argv[])
                         confirmed = true;
                 }
                 if (!confirmed)
-                    throw MakeStringException(0, "Aborted");
+                    throw MakeStringException(DFUERR_Aborted, "Aborted");
             }
             DBGLOG("Starting%s",cmdline.str());
             IPropertyTree * pReturnTree = RunProcess(xrefCmd, clusters.ordinality(), clusters.getArray(), args.ordinality(), args.getArray(), mode, NULL, 4);

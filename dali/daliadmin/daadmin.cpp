@@ -59,6 +59,7 @@
 #endif
 
 #include "daadmin.hpp"
+#include "daerr.hpp"
 
 namespace daadmin
 {
@@ -96,7 +97,7 @@ static const char *splitpath(const char *path,StringBuffer &head,StringBuffer &t
         path = tmp.append('/').append(path).str();
     const char *tail = splitXPath(path, head);
     if (!tail)
-        throw MakeStringException(0, "Expecting xpath tail node in: %s", path);
+        throw MakeStringException(DALIERR_ExpectingXpathTailNodeInS, "Expecting xpath tail node in: %s", path);
     return tail;
 }
 
@@ -396,9 +397,9 @@ void wget(const char *path)
 bool add(const char *path, const char *val, StringBuffer &out)
 {
     if (!path || !*path)
-        throw makeStringException(0, "Invalid xpath (empty)");
+        throw makeStringException(DALIERR_InvalidXpathEmpty, "Invalid xpath (empty)");
     if ('/' == path[strlen(path)-1])
-        throw makeStringException(0, "Invalid xpath (no trailing xpath node provided)");
+        throw makeStringException(DALIERR_InvalidXpathNoTrailingXpathNodeProvided, "Invalid xpath (no trailing xpath node provided)");
     Owned<IRemoteConnection> conn = querySDS().connect(path, myProcessSession(), RTM_LOCK_WRITE|RTM_CREATE_ADD, daliConnectTimeoutMs);
     if (!conn)
     {
@@ -501,16 +502,16 @@ void setdfspartattr(const char *lname, unsigned partNum, const char *attr, const
     CDfsLogicalFileName lfn;
     lfn.set(lname);
     if (lfn.isExternal())
-        throw MakeStringException(0, "External file not supported");
+        throw MakeStringException(DALIERR_ExternalFileNotSupported, "External file not supported");
     if (lfn.isForeign())
-        throw MakeStringException(0, "Foreign file not supported");
+        throw MakeStringException(DALIERR_ForeignFileNotSupported, "Foreign file not supported");
     Owned<IDistributedFile> file = queryDistributedFileDirectory().lookup(lname, userDesc, AccessMode::tbdRead, false, false, nullptr, defaultPrivilegedUser);
     if (!file)
-        throw MakeStringException(0, "Could not find file: '%s'", lname);
+        throw MakeStringException(DALIERR_CouldNotFindFileS, "Could not find file: '%s'", lname);
     if (file->querySuperFile())
-        throw MakeStringException(0, "Cannot be used on a superfile");
+        throw MakeStringException(DALIERR_CannotBeUsedOnASuperfile, "Cannot be used on a superfile");
     if (!partNum || partNum>file->numParts())
-        throw MakeStringException(0, "Invalid part number, must be in the range 1 - %u", file->numParts());
+        throw MakeStringException(DALIERR_InvalidPartNumberMustBeInThe, "Invalid part number, must be in the range 1 - %u", file->numParts());
 
     IDistributedFilePart &part = file->queryPart(partNum-1);
 
@@ -1890,7 +1891,7 @@ void holdlock(const char *logicalFile, const char *mode, IUserDescriptor *userDe
     else if (strieq(mode, "write"))
         accessMode = AccessMode::tbdWrite;
     else
-        throw MakeStringException(0,"Invalid mode: %s", mode);
+        throw MakeStringException(DALIERR_InvalidModeS, "Invalid mode: %s", mode);
 
     PROGLOG("Looking up file: %s, mode=%s", logicalFile, mode);
     Owned<IDistributedFile> file = queryDistributedFileDirectory().lookup(logicalFile, userDesc, accessMode, false, false, NULL, defaultPrivilegedUser, 5000);
@@ -1984,7 +1985,7 @@ void serverlist(const char *mask)
 {
     Owned<IRemoteConnection> conn = querySDS().connect( "/Environment/Software", myProcessSession(),  RTM_LOCK_READ, SDS_LOCK_TIMEOUT);
     if (!conn)
-        throw MakeStringException(0,"Failed to connect to Environment/Software");
+        throw MakeStringException(DALIERR_FailedToConnectToEnvironmentSoftware, "Failed to connect to Environment/Software");
     IPropertyTree* root = conn->queryRoot();
     Owned<IPropertyTreeIterator> services= root->getElements("*");
     ForEach(*services) {
@@ -2011,7 +2012,7 @@ void clusterlist(const char *mask)
 {
     Owned<IRemoteConnection> conn = querySDS().connect("/Environment/Software", myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT);
     if (!conn)
-        throw MakeStringException(0,"Failed to connect to Environment/Software");
+        throw MakeStringException(DALIERR_FailedToConnectToEnvironmentSoftware, "Failed to connect to Environment/Software");
     IPropertyTree* root = conn->queryRoot();
     Owned<IPropertyTreeIterator> clusters;
     clusters.setown(root->getElements("ThorCluster"));
@@ -2488,7 +2489,7 @@ public:
         OwnedIFile ifile = createIFile(fName);
         OwnedIFileIO ifileio = ifile->open(IFOread);
         if (!ifileio)
-            throw MakeStringException(0, "Failed to open: %s", ifile->queryFilename());
+            throw MakeStringException(DALIERR_FailedToOpenS, "Failed to open: %s", ifile->queryFilename());
         parser = new CParse(ifileio->size(), pc);
         Owned<IIOStream> stream = createIOStream(ifileio);
         xmlReader.setown(createPullXMLStreamReader(*stream, *parser, xmlOptions));
@@ -2886,7 +2887,7 @@ void validateStore(bool fix, bool deleteFiles, bool verbose)
     PROGLOG("Gathering list of workunits");
     Owned<IRemoteConnection> conn = querySDS().connect("/WorkUnits", myProcessSession(), RTM_LOCK_READ, 10000);
     if (!conn)
-        throw MakeStringException(0, "Failed to connect to /WorkUnits");
+        throw MakeStringException(DALIERR_FailedToConnectToWorkunits, "Failed to connect to /WorkUnits");
     AtomRefTable wuids;
     Owned<IPropertyTreeIterator> wuidIter = conn->queryRoot()->getElements("*");
     ForEach(*wuidIter)
@@ -2951,7 +2952,7 @@ void validateStore(bool fix, bool deleteFiles, bool verbose)
             throwUnexpected();
         const char *uidQuery = gd->queryProp("@uid");
         if (0 != strcmp(uid, uidQuery))
-            throw MakeStringException(0, "Expecting uid=%s @ GeneratedDll[%d], but found uid=%s", uid, index, uidQuery);
+            throw MakeStringException(DALIERR_ExpectingUidSGenerateddllDButFound, "Expecting uid=%s @ GeneratedDll[%d], but found uid=%s", uid, index, uidQuery);
         if (verbose)
             PROGLOG("Removing: %s, uid=%s", path.str(), uid);
         if (fix)
@@ -2991,7 +2992,7 @@ void validateStore(bool fix, bool deleteFiles, bool verbose)
 void migrateFiles(const char *srcGroup, const char *tgtGroup, const char *filemask, const char *_options)
 {
     if (strieq(srcGroup, tgtGroup))
-        throw makeStringExceptionV(0, "source and target cluster groups cannot be the same! cluster = %s", srcGroup);
+        throw makeStringExceptionV(DALIERR_SourceAndTargetClusterGroupsCannotBe, "source and target cluster groups cannot be the same! cluster = %s", srcGroup);
 
     enum class mg_options : unsigned { nop, createmaps=1, listonly=2, dryrun=4, verbose=8};
 
@@ -3050,7 +3051,7 @@ void migrateFiles(const char *srcGroup, const char *tgtGroup, const char *filema
                 Owned<IFile> iFile = createIFile(filePartList);
                 Owned<IFileIO> iFileIO = iFile->open(IFOcreate);
                 if (!iFileIO)
-                    throw makeStringExceptionV(0, "Failed to open: %s", filePartList.str());
+                    throw makeStringExceptionV(DALIERR_FailedToOpenS, "Failed to open: %s", filePartList.str());
                 stream.setown(createBufferedIOStream(iFileIO));
                 fileLists.replace(stream.getLink(), p);
             }
@@ -3072,17 +3073,17 @@ void migrateFiles(const char *srcGroup, const char *tgtGroup, const char *filema
         {
             srcClusterGroup.setown(queryNamedGroupStore().lookup(srcGroup));
             if (!srcClusterGroup)
-                throw makeStringExceptionV(0, "Could not find source cluster group: %s", _srcGroup);
+                throw makeStringExceptionV(DALIERR_CouldNotFindSourceClusterGroupS, "Could not find source cluster group: %s", _srcGroup);
             tgtClusterGroup.setown(queryNamedGroupStore().lookup(tgtGroup));
             if (!tgtClusterGroup)
-                throw makeStringExceptionV(0, "Could not find target cluster group: %s", _tgtGroup);
+                throw makeStringExceptionV(DALIERR_CouldNotFindTargetClusterGroupS, "Could not find target cluster group: %s", _tgtGroup);
 
             srcClusterSize = srcClusterGroup->ordinality();
             tgtClusterSize = tgtClusterGroup->ordinality();
             if (tgtClusterSize>srcClusterSize)
-                throw makeStringExceptionV(0, "Unsupported - target cluster is wider than source (target size=%u, source size=%u", tgtClusterSize, srcClusterSize);
+                throw makeStringExceptionV(DALIERR_UnsupportedTargetClusterIsWiderThanSource, "Unsupported - target cluster is wider than source (target size=%u, source size=%u", tgtClusterSize, srcClusterSize);
             if (0 != (srcClusterSize%tgtClusterSize))
-                throw makeStringExceptionV(0, "Unsupported - target cluster must be a factor of source cluster size (target size=%u, source size=%u", tgtClusterSize, srcClusterSize);
+                throw makeStringExceptionV(DALIERR_UnsupportedTargetClusterMustBeAFactor, "Unsupported - target cluster must be a factor of source cluster size (target size=%u, source size=%u", tgtClusterSize, srcClusterSize);
 
             tgtClusterGroup->getText(tgtClusterGroupText);
         }
@@ -3537,7 +3538,7 @@ void cleanGeneratedDlls(bool dryRun, bool backup)
             StringBuffer bakName;
             Owned<IFileIO> iFileIO = createUniqueFile(NULL, "daliadmin_generateddlls", "bak", bakName);
             if (!iFileIO)
-                throw makeStringException(0, "Failed to create backup file");
+                throw makeStringException(DALIERR_FailedToCreateBackupFile, "Failed to create backup file");
             PROGLOG("Saving backup of GeneratedDlls to %s", bakName.str());
             saveXML(*iFileIO, generatedDllsTree, 2);
         }

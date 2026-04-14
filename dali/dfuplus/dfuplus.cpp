@@ -34,6 +34,7 @@
 #include "dafsserver.hpp"
 
 #include "jutil.hpp"
+#include "dfuerr.hpp"
 
 static class CSecuritySettings
 {
@@ -245,7 +246,7 @@ CDfuPlusHelper::CDfuPlusHelper(IProperties* _globals,   CDfuPlusMessagerIntercep
 
     const char* server = globals->queryProp("server");
     if(server == nullptr)
-        throw MakeStringException(-1, "Server url not specified");
+        throw MakeStringException(DFUERR_ServerUrlNotSpecified, "Server url not specified");
 
     StringBuffer url;
     if(Utils::strncasecmp(server, "http://", 7) != 0 && Utils::strncasecmp(server, "https://", 8) != 0)
@@ -301,7 +302,7 @@ int CDfuPlusHelper::doit()
 {
     const char* action = globals->queryProp("action");
     if(action == nullptr || *action == '\0')
-        throw MakeStringException(-1, "action is missing");
+        throw MakeStringException(DFUERR_ActionIsMissing, "action is missing");
     else if(stricmp(action, "spray") == 0)
         return spray();
     else if(stricmp(action, "replicate") == 0)
@@ -347,7 +348,7 @@ int CDfuPlusHelper::doit()
         return rundafs();
 #endif
     else
-        throw MakeStringException(-1, "Unknown dfuplus action");
+        throw MakeStringException(DFUERR_UnknownDfuplusAction, "Unknown dfuplus action");
     return 0;
 }
 
@@ -381,7 +382,7 @@ bool CDfuPlusHelper::fixedSpray(const char* srcxml,const char* srcip,const char*
         const char* rsstr = globals->queryProp("recordsize");
         recordsize = rsstr?atoi(rsstr):0;
         if(!recordsize && !globals->hasProp("nosplit"))
-            throw MakeStringException(-1, "recordsize not specified for fixed");
+            throw MakeStringException(DFUERR_RecordsizeNotSpecifiedForFixed, "recordsize not specified for fixed");
     }
 
     Owned<IClientSprayFixed> req = sprayclient->createSprayFixedRequest();
@@ -493,9 +494,9 @@ bool CDfuPlusHelper::variableSpray(const char* srcxml,const char* srcip,const ch
         if (!encoding)
             encoding = "utf8";
         else if (strieq(encoding, "ascii"))
-            throw MakeStringExceptionDirect(-1, "json format only accepts utf encodings");
+            throw MakeStringExceptionDirect(DFUERR_JsonFormatOnlyAcceptsUtfEncodings, "json format only accepts utf encodings");
         if(rowtag && *rowtag)
-            throw MakeStringExceptionDirect(-1, "You can't use rowtag option with json format");
+            throw MakeStringExceptionDirect(DFUERR_YouCanTUseRowtagOptionWith, "You can't use rowtag option with json format");
         if (rowpath && *rowpath)
             req->setSourceRowPath(rowpath);
     }
@@ -504,11 +505,11 @@ bool CDfuPlusHelper::variableSpray(const char* srcxml,const char* srcip,const ch
         if(isEmptyString(encoding))
             encoding = "utf8";
         else if(stricmp(encoding, "ascii") == 0)
-            throw MakeStringException(-1, "xml format only accepts utf encodings");
+            throw MakeStringException(DFUERR_XmlFormatOnlyAcceptsUtfEncodings, "xml format only accepts utf encodings");
         if(isEmptyString(rowtag))
-            throw MakeStringException(-1, "rowtag not specified.");
+            throw MakeStringException(DFUERR_RowtagNotSpecified, "rowtag not specified.");
         if(!isEmptyString(rowpath))
-            throw MakeStringException(-1, "You can't use rowpath option with xml format");
+            throw MakeStringException(DFUERR_YouCanTUseRowpathOptionWith, "You can't use rowpath option with xml format");
     }
     else if(stricmp(format, "csv") == 0)
     {
@@ -516,9 +517,9 @@ bool CDfuPlusHelper::variableSpray(const char* srcxml,const char* srcip,const ch
             encoding = "ascii";
 
         if(!isEmptyString(rowtag))
-            throw MakeStringException(-1, "You can't use rowtag option with csv/delimited format");
+            throw MakeStringException(DFUERR_YouCanTUseRowtagOptionWith, "You can't use rowtag option with csv/delimited format");
         if(!isEmptyString(rowpath))
-            throw MakeStringException(-1, "You can't use rowpath option with csv/delimited format");
+            throw MakeStringException(DFUERR_YouCanTUseRowpathOptionWith, "You can't use rowpath option with csv/delimited format");
 
         const char* separator = globals->queryProp("separator");
         if(separator)
@@ -629,21 +630,21 @@ int CDfuPlusHelper::spray()
     if(isEmptyString(srcxml))
     {
         if(isEmptyString(srcfile))
-            throw MakeStringException(-1, "srcfile not specified");
+            throw MakeStringException(DFUERR_SrcfileNotSpecified, "srcfile not specified");
         if(!usingSrcPlane && isEmptyString(srcip))
         {
 #ifdef DAFILESRV_LOCAL
             progress("srcip not specified - assuming spray from local machine\n");
             srcip = ".";
 #else
-            throw MakeStringException(-1, "Neither srcip nor srcplane specified");
+            throw MakeStringException(DFUERR_NeitherSrcipNorSrcplaneSpecified, "Neither srcip nor srcplane specified");
 #endif
         }
     }
     else
     {
         if(!isEmptyString(srcip) || !isEmptyString(srcfile) || usingSrcPlane)
-            throw MakeStringException(-1, "srcip/srcfile/srcplane and srcxml can't be used at the same time");
+            throw MakeStringException(DFUERR_SrcipSrcfileSrcplaneAndSrcxmlCanT, "srcip/srcfile/srcplane and srcxml can't be used at the same time");
         StringBuffer buf;
         buf.loadFile(srcxml);
         int len = buf.length();
@@ -652,10 +653,10 @@ int CDfuPlusHelper::spray()
 
     const char* dstname = globals->queryProp("dstname");
     if(isEmptyString(dstname))
-        throw MakeStringException(-1, "dstname not specified");
+        throw MakeStringException(DFUERR_DstnameNotSpecified, "dstname not specified");
     const char* dstcluster = globals->queryProp("dstcluster");
     if(isEmptyString(dstcluster))
-        throw MakeStringException(-1, "dstcluster not specified");
+        throw MakeStringException(DFUERR_DstclusterNotSpecified, "dstcluster not specified");
     const char* format = globals->queryProp("format");
     if(format == nullptr)
         format = "fixed";
@@ -677,12 +678,12 @@ int CDfuPlusHelper::spray()
     else if((stricmp(format, "csv") == 0)||(stricmp(format, "xml") == 0)||(stricmp(format, "json") == 0)||(stricmp(format, "variable") == 0))
         ok = variableSpray(srcxml,srcip,srcfile,srcplane,xmlbuf,dstcluster,dstname,format,wuid, errmsg);
     else
-        throw MakeStringException(-1, "format %s not supported", format);
+        throw MakeStringException(DFUERR_FormatSNotSupported, "format %s not supported", format);
     if (!ok) {
         if(errmsg.length())
             error("%s\n", errmsg.str());
         else
-            throw MakeStringException(-1, "unknown error spraying");
+            throw MakeStringException(DFUERR_UnknownErrorSpraying, "unknown error spraying");
     }
     else {
         const char* jobname = globals->queryProp("jobname");
@@ -701,7 +702,7 @@ int CDfuPlusHelper::replicate()
 {
     const char* srcname = globals->queryProp("srcname");
     if(srcname == nullptr)
-        throw MakeStringException(-1, "srcname not specified");
+        throw MakeStringException(DFUERR_SrcnameNotSpecified, "srcname not specified");
 
     bool nowait = globals->getPropBool("nowait", false);
 
@@ -746,7 +747,7 @@ int CDfuPlusHelper::despray()
 {
     const char* srcname = globals->queryProp("srcname");
     if(isEmptyString(srcname))
-        throw MakeStringException(-1, "srcname not specified");
+        throw MakeStringException(DFUERR_SrcnameNotSpecified, "srcname not specified");
 
     const char* dstxml = globals->queryProp("dstxml");
     const char* dstip = globals->queryProp("dstip");
@@ -763,14 +764,14 @@ int CDfuPlusHelper::despray()
             progress("dstip and dstplane not specified - assuming despray to local machine\n");
             dstip = ".";
 #else
-            throw MakeStringException(-1, "dstip not specified");
+            throw MakeStringException(DFUERR_DstipNotSpecified, "dstip not specified");
 #endif
         }
     }
     else
     {
         if(!isEmptyString(dstip) || !isEmptyString(dstfile) || !isEmptyString(dstplane))
-            throw MakeStringException(-1, "dstip/dstfile/dstplane and dstxml can't be used at the same time");
+            throw MakeStringException(DFUERR_DstipDstfileDstplaneAndDstxmlCanT, "dstip/dstfile/dstplane and dstxml can't be used at the same time");
         StringBuffer buf;
         buf.loadFile(dstxml);
         int len = buf.length();
@@ -859,10 +860,10 @@ int CDfuPlusHelper::copy()
 {
     const char* srcname = globals->queryProp("srcname");
     if(srcname == nullptr)
-        throw MakeStringException(-1, "srcname not specified");
+        throw MakeStringException(DFUERR_SrcnameNotSpecified, "srcname not specified");
     const char* dstname = globals->queryProp("dstname");
     if(dstname == nullptr)
-        throw MakeStringException(-1, "dstname not specified");
+        throw MakeStringException(DFUERR_DstnameNotSpecified, "dstname not specified");
     const char* dstcluster = globals->queryProp("dstcluster");
     const char* dstclusterroxie = globals->queryProp("dstclusterroxie");
     const char* srcdali = globals->queryProp("srcdali");
@@ -960,16 +961,16 @@ int CDfuPlusHelper::copysuper()
 {
     const char* srcname = globals->queryProp("srcname");
     if(srcname == nullptr)
-        throw MakeStringException(-1, "srcname not specified");
+        throw MakeStringException(DFUERR_SrcnameNotSpecified, "srcname not specified");
     const char* dstname = globals->queryProp("dstname");
     if(dstname == nullptr)
-        throw MakeStringException(-1, "dstname not specified");
+        throw MakeStringException(DFUERR_DstnameNotSpecified, "dstname not specified");
     const char* dstcluster = globals->queryProp("dstcluster");
     if(dstcluster == nullptr)
-        throw MakeStringException(-1, "dstcluster not specified");
+        throw MakeStringException(DFUERR_DstclusterNotSpecified, "dstcluster not specified");
     const char* srcdali = globals->queryProp("srcdali");
     if(srcdali == nullptr)
-        throw MakeStringException(-1, "srcdali not specified");
+        throw MakeStringException(DFUERR_SrcdaliNotSpecified, "srcdali not specified");
     const char* dstclusterroxie = globals->queryProp("dstclusterroxie"); // not sure if this applicable
     const char* srcusername = globals->queryProp("srcusername");
     const char* srcpassword = globals->queryProp("srcpassword");
@@ -1049,7 +1050,7 @@ int CDfuPlusHelper::monitor()
     const char* filename = globals->queryProp("file");
     bool sub = globals->getPropBool("sub");
     if ((lfn == nullptr) && (filename == nullptr))
-        throw MakeStringException(-1, "neither lfn nor filename specified");
+        throw MakeStringException(DFUERR_NeitherLfnNorFilenameSpecified, "neither lfn nor filename specified");
     int shotlimit = globals->getPropInt("shotlimit");
     if (shotlimit == 0)
         shotlimit = 1;
@@ -1159,7 +1160,7 @@ int CDfuPlusHelper::remove()
     }
 
     if(files.length() < 1)
-        throw MakeStringException(-1, "file name not specified");
+        throw MakeStringException(DFUERR_FileNameNotSpecified, "file name not specified");
 
     Owned<IClientDFUArrayActionRequest> req = dfuclient->createDFUArrayActionRequest();
     setMtlsSecret(req->rpc());
@@ -1237,9 +1238,9 @@ int CDfuPlusHelper::rename()
 
         // Validate that counts match
         if (srcArray.ordinality() != dstArray.ordinality())
-            throw makeStringExceptionV(-1, "srcnames and dstnames must have the same number of items (%d vs %d)", srcArray.ordinality(), dstArray.ordinality());
+            throw makeStringExceptionV(DFUERR_SrcnamesAndDstnamesMustHaveTheSame, "srcnames and dstnames must have the same number of items (%d vs %d)", srcArray.ordinality(), dstArray.ordinality());
         if (srcArray.ordinality() == 0)
-            throw makeStringException(-1, "No valid names found in srcnames/dstnames");
+            throw makeStringException(DFUERR_NoValidNamesFoundInSrcnamesDstnames, "No valid names found in srcnames/dstnames");
 
         // Create rename items from parsed arrays
         ForEachItemIn(i, srcArray)
@@ -1265,8 +1266,7 @@ int CDfuPlusHelper::rename()
         }
         else
         {
-            throw makeStringException(-1,
-                "Invalid rename usage. Use:\n"
+            throw makeStringException(DFUERR_InvalidRenameUsageUseN, "Invalid rename usage. Use:\n"
                 "  srcname=<old> dstname=<new>  (single file), or\n"
                 "  srcnames=<old1,old2,...> dstnames=<new1,new2,...>  (multiple files)");
         }
@@ -1378,7 +1378,7 @@ int CDfuPlusHelper::superfile(const char* action)
 {
     const char* superfile = globals->queryProp("superfile");
     if(superfile == nullptr || *superfile == '\0')
-        throw MakeStringException(-1, "superfile name is not specified");
+        throw MakeStringException(DFUERR_SuperfileNameIsNotSpecified, "superfile name is not specified");
 
     if(stricmp(action, "add") == 0 || stricmp(action, "remove") == 0)
     {
@@ -1461,7 +1461,7 @@ int CDfuPlusHelper::savexml()
 {
     const char* lfn = globals->queryProp("srcname");
     if(lfn == nullptr || *lfn == '\0')
-        throw MakeStringException(-1, "srcname not specified");
+        throw MakeStringException(DFUERR_SrcnameNotSpecified, "srcname not specified");
 
     Owned<IClientSavexmlRequest> req = dfuclient->createSavexmlRequest();
     setMtlsSecret(req->rpc());
@@ -1484,15 +1484,15 @@ int CDfuPlusHelper::savexml()
     {
         ofile = open(dstxml, _O_WRONLY | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE);
         if(ofile == -1)
-            throw MakeStringException(-1, "can't open file %s\n", dstxml);
+            throw MakeStringException(DFUERR_CanTOpenFileSN, "can't open file %s\n", dstxml);
     }
 
     const MemoryBuffer& xmlmap = resp->getXmlmap();
     ssize_t written = write(ofile, xmlmap.toByteArray(), xmlmap.length());
     if (written < 0)
-        throw MakeStringException(-1, "can't write to file %s\n", dstxml);
+        throw MakeStringException(DFUERR_CanTWriteToFileSN, "can't write to file %s\n", dstxml);
     if (written != xmlmap.length())
-        throw MakeStringException(-1, "truncated write to file %s\n", dstxml);
+        throw MakeStringException(DFUERR_TruncatedWriteToFileSN, "truncated write to file %s\n", dstxml);
     close(ofile);
     return 0;
 }
@@ -1501,7 +1501,7 @@ int CDfuPlusHelper::add()
 {
     const char* lfn = globals->queryProp("dstname");
     if(lfn == nullptr || *lfn == '\0')
-        throw MakeStringException(-1, "dstname not specified");
+        throw MakeStringException(DFUERR_DstnameNotSpecified, "dstname not specified");
 
     bool isRemote = false;
     const char* xmlfname = globals->queryProp("srcxml");
@@ -1512,12 +1512,12 @@ int CDfuPlusHelper::add()
     if(xmlfname == nullptr || *xmlfname == '\0')
     {
         if(srcname == nullptr || *srcname == '\0')
-            throw MakeStringException(-1, "Please specify srcxml for adding from xml, or srcname for adding from remote dali");
+            throw MakeStringException(DFUERR_PleaseSpecifySrcxmlForAddingFromXml, "Please specify srcxml for adding from xml, or srcname for adding from remote dali");
         else
         {
             isRemote = true;
             if(srcdali == nullptr || *srcdali == '\0')
-                throw MakeStringException(-1, "srcdali not specified for adding remote");
+                throw MakeStringException(DFUERR_SrcdaliNotSpecifiedForAddingRemote, "srcdali not specified for adding remote");
         }
     }
 
@@ -1584,7 +1584,7 @@ int CDfuPlusHelper::status()
 {
     const char* wuid = globals->queryProp("wuid");
     if(!wuid || !*wuid)
-        throw MakeStringException(-1, "wuid not specified");
+        throw MakeStringException(DFUERR_WuidNotSpecified, "wuid not specified");
     int limit = globals->getPropInt("limit", -1);
     if (isDfuPublisherWuid(wuid))
         return reportDfuPublisherStatus(wuid, limit);
@@ -1690,7 +1690,7 @@ int CDfuPlusHelper::abort()
 {
     const char* wuid = globals->queryProp("wuid");
     if(!wuid || !*wuid)
-        throw MakeStringException(-1, "wuid not specified");
+        throw MakeStringException(DFUERR_WuidNotSpecified, "wuid not specified");
 
     Owned<IClientAbortDFUWorkunit> req = sprayclient->createAbortDFUWorkunitRequest();
     setMtlsSecret(req->rpc());
@@ -1738,7 +1738,7 @@ int CDfuPlusHelper::listhistory()
 {
     const char* lfn = globals->queryProp("lfn");
     if (isEmptyString(lfn))
-        throw MakeStringException(-1, "srcname not specified");
+        throw MakeStringException(DFUERR_SrcnameNotSpecified, "srcname not specified");
 
     Owned<IClientListHistoryRequest> req = dfuclient->createListHistoryRequest();
     setMtlsSecret(req->rpc());
@@ -1918,12 +1918,12 @@ int CDfuPlusHelper::erasehistory()
 {
     const char* lfn = globals->queryProp("lfn");
     if (isEmptyString(lfn))
-        throw MakeStringException(-1, "srcname not specified");
+        throw MakeStringException(DFUERR_SrcnameNotSpecified, "srcname not specified");
 
     bool backup = globals->getPropBool("backup", true);
     const char* dstxml = globals->queryProp("dstxml");
     if (backup && isEmptyString(dstxml))
-        throw MakeStringException(-1, "dstxml not specified");
+        throw MakeStringException(DFUERR_DstxmlNotSpecified, "dstxml not specified");
 
     progress("\nErase history of '%s' with%s backup.\n", lfn, (backup ? "" : "out"));
 
@@ -1960,14 +1960,14 @@ int CDfuPlusHelper::erasehistory()
 
         int ofile = open(dstxml, _O_WRONLY | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE);
         if(ofile == -1)
-            throw MakeStringException(-1, "can't open file %s, erase history cancelled.\n", dstxml);
+            throw MakeStringException(DFUERR_CanTOpenFileSEraseHistory, "can't open file %s, erase history cancelled.\n", dstxml);
 
         ssize_t written = write(ofile, xmlDump.str(), xmlDump.length());
         if (written < 0)
-            throw MakeStringException(-1, "can't write to file %s, erase history cancelled.\n", dstxml);
+            throw MakeStringException(DFUERR_CanTWriteToFileSErase, "can't write to file %s, erase history cancelled.\n", dstxml);
 
         if (written != xmlDump.length())
-            throw MakeStringException(-1, "truncated write to file %s, erase history cancelled.\n", dstxml);
+            throw MakeStringException(DFUERR_TruncatedWriteToFileSEraseHistory, "truncated write to file %s, erase history cancelled.\n", dstxml);
 
         close(ofile);
 
@@ -1998,7 +1998,7 @@ int CDfuPlusHelper::resubmit()
 {
     const char* wuid = globals->queryProp("wuid");
     if(!wuid || !*wuid)
-        throw MakeStringException(-1, "wuid not specified");
+        throw MakeStringException(DFUERR_WuidNotSpecified, "wuid not specified");
 
     Owned<IClientSubmitDFUWorkunit> req = sprayclient->createSubmitDFUWorkunitRequest();
     setMtlsSecret(req->rpc());
@@ -2097,9 +2097,9 @@ int CDfuPlusHelper::waitToFinish(const char* wuid)
 int CDfuPlusHelper::updatejobname(const char* wuid, const char* jobname)
 {
     if(!wuid || !*wuid)
-        throw MakeStringException(-1, "wuid not specified");
+        throw MakeStringException(DFUERR_WuidNotSpecified, "wuid not specified");
     if(!jobname || !*jobname)
-        throw MakeStringException(-1, "jobname not specified");
+        throw MakeStringException(DFUERR_JobnameNotSpecified, "jobname not specified");
 
     Owned<IClientGetDFUWorkunit> req = sprayclient->createGetDFUWorkunitRequest();
     setMtlsSecret(req->rpc());

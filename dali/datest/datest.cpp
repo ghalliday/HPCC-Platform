@@ -39,6 +39,7 @@
 
 #include "jptree.hpp"
 #include "wsdfuaccess.hpp"
+#include "daerr.hpp"
 
 using namespace wsdfuaccess;
 using namespace dafsstream;
@@ -1144,7 +1145,7 @@ public:
             Owned<IRemoteConnection> conn = querySDS().connect(path, myProcessSession(), RTM_LOCK_WRITE|RTM_LOCK_SUB, 1000000);
             PROGLOG("connecting to %s", path.get());
             if (!conn)
-                throw MakeStringException(-1, "Failed to connect to path %s", path.get());
+                throw MakeStringException(DALIERR_FailedToConnectToPathS, "Failed to connect to path %s", path.get());
             IPropertyTree *root = conn->queryRoot();
 
             root->setPropInt("TTestProp1", fastRand());
@@ -1687,7 +1688,7 @@ void TestStress2()
         {
             test = whichTest-1; // (input = 1  based)
             if (test >= tests.ordinality())
-                throw MakeStringException(0, "Test out of range, there are only %d tests", tests.ordinality());
+                throw MakeStringException(DALIERR_TestOutOfRangeThereAreOnly, "Test out of range, there are only %d tests", tests.ordinality());
         }
 
         if (NotFound == test)
@@ -2422,7 +2423,7 @@ void testDfuStreamCopy(const char *srcFileName)
     try
     {
         if (isEmptyString(srcFileName))
-            throw makeStringException(0, "no source logical filename supplied");
+            throw makeStringException(DALIERR_NoSourceLogicalFilenameSupplied, "no source logical filename supplied");
 
         Owned<IUserDescriptor> userDesc = createUserDescriptor();
         userDesc->set("jsmith","password");
@@ -2437,7 +2438,7 @@ void testDfuStreamCopy(const char *srcFileName)
 
         const char *eclRecDef = srcFileEx->queryProperties().queryProp("ECL");
         if (!eclRecDef)
-            throw makeStringExceptionV(0, "File '%s' has no record definition", srcFileName);
+            throw makeStringExceptionV(DALIERR_FileSHasNoRecordDefinition, "File '%s' has no record definition", srcFileName);
         IOutputMetaData *srcMeta = srcFileEx->queryMeta();
 
         const char *srcGroup = srcFile->queryClusterGroupName();
@@ -3041,7 +3042,7 @@ NULL
             newFileSecondaryIO.clear();
 
             if (newOutput.length() != secondary.length() || 0 != memcmp(newOutput.toByteArray(), secondary.toByteArray(), newOutput.length()))
-                throw MakeStringException(0, "Local and SDS outputs mismatch");
+                throw MakeStringException(DALIERR_LocalAndSdsOutputsMismatch, "Local and SDS outputs mismatch");
 
             newFileSecondary->remove();
         }

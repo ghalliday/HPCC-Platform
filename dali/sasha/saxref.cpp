@@ -32,6 +32,7 @@
 #include "sacoalescer.hpp"
 #include "sacmd.hpp"
 #include "salds.hpp"
+#include "daerr.hpp"
 
 #define DEFAULT_MAXDIRTHREADS 500
 #define DEFAULT_MAXMEMORY 4096
@@ -100,7 +101,7 @@ public:
         if ((sz+oldUsed)>maxBytes)
         {
             usedBytes.fetch_sub(sz); // Roll back the increment
-            throw makeStringExceptionV(0, "XRefAllocator::alloc : Requested size too large: req: %d, used: %zu, max: %zu", sz, oldUsed, maxBytes);
+            throw makeStringExceptionV(DALIERR_XrefallocatorAllocRequestedSizeTooLargeReq, "XRefAllocator::alloc : Requested size too large: req: %d, used: %zu, max: %zu", sz, oldUsed, maxBytes);
         }
 
         void *ret = malloc(sz);
@@ -247,7 +248,7 @@ public:
         else if (numParts<=0xfff)
             mapLen = (numParts*4+7)/8;
         else
-            throw makeStringExceptionV(0, "cFileDesc::create : numParts too large: %d (max 4096)", numParts);
+            throw makeStringExceptionV(DALIERR_CfiledescCreateNumpartsTooLargeDMax, "cFileDesc::create : numParts too large: %d (max 4096)", numParts);
 
         size_t nameLen = strlen(name);
         if (nameLen>255)
@@ -644,7 +645,7 @@ public:
                     else if (*dirPerPartPtr=='/')
                     {
                         if (dirPerPartPtr==tailDirEndPtr)
-                            throw makeStringExceptionV(-1, LOGPFX "isMisplaced: Invalid directory name in file path: %s", fullPath);
+                            throw makeStringExceptionV(DALIERR_LogpfxIsmisplacedInvalidDirectoryNameInFile, LOGPFX "isMisplaced: Invalid directory name in file path: %s", fullPath);
 
                         // Reached end of directory name and found only digits, likely a dir-per-part directory
                         break;
@@ -1146,7 +1147,7 @@ public:
             addPathSepChar(sashaDir).append(dateTimeDir);
 
             if (!recursiveCreateDirectory(sashaDir))
-                throw makeStringExceptionV(0, LOGPFX "Failed to create directory: %s", sashaDir.str());
+                throw makeStringExceptionV(DALIERR_LogpfxFailedToCreateDirectoryS, LOGPFX "Failed to create directory: %s", sashaDir.str());
             PROGLOG(LOGPFX "Using Sasha storage at: %s", sashaDir.str());
 
             // Get block size once based on the plane of the file path

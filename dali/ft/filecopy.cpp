@@ -44,6 +44,7 @@
 
 #ifndef _CONTAINERIZED
 #include "dalienv.hpp"
+#include "daerr.hpp"
 #endif
 
 #ifdef _CONTAINERIZED
@@ -2366,7 +2367,7 @@ void replaceEscapeSequence(StringBuffer & out, const char * in, bool errorIfInva
                     break;
                 default:
                     if (errorIfInvalid)
-                        throw MakeStringException(1, "unrecognised character escape sequence '\\%c'", next);
+                        throw MakeStringException(DALIERR_UnrecognisedCharacterEscapeSequenceC, "unrecognised character escape sequence '\\%c'", next);
                     in--;   // keep it as is.
                     break;
                 }
@@ -4067,10 +4068,10 @@ IPropertyTree *FileSprayer::getSprayService() const
         VStringBuffer serviceQualifier("services[@name='%s']", sprayServiceName.get());
         serviceTree.setown(getGlobalConfigSP()->getPropTree(serviceQualifier));
         if (!serviceTree)
-            throw makeStringExceptionV(0, "launchFtSlaveCmd: failed to find dafilesrv service named: '%s'", sprayServiceName.get());
+            throw makeStringExceptionV(DALIERR_LaunchftslavecmdFailedToFindDafilesrvServiceNamed, "launchFtSlaveCmd: failed to find dafilesrv service named: '%s'", sprayServiceName.get());
         const char *serviceAppType = serviceTree->queryProp("@application");
         if (!strsame("spray", serviceAppType))
-            throw makeStringExceptionV(0, "launchFtSlaveCmd: configured service '%s' is of application type '%s' ('spray' type required)", sprayServiceName.get(), nullIfEmptyString(serviceAppType));
+            throw makeStringExceptionV(DALIERR_LaunchftslavecmdConfiguredServiceSIsOfApplication, "launchFtSlaveCmd: configured service '%s' is of application type '%s' ('spray' type required)", sprayServiceName.get(), nullIfEmptyString(serviceAppType));
     }
     else // find 1st of type 'spray'
     {
@@ -4078,7 +4079,7 @@ IPropertyTree *FileSprayer::getSprayService() const
         if (sprayServices->first())
             serviceTree.set(&sprayServices->query());
         else
-            throw makeStringException(0, "launchFtSlaveCmd: no 'spray' dafilesrv services found");
+            throw makeStringException(DALIERR_LaunchftslavecmdNoSprayDafilesrvServicesFound, "launchFtSlaveCmd: no 'spray' dafilesrv services found");
     }
     return serviceTree.getClear();
 }
@@ -4158,7 +4159,7 @@ bool FileSprayer::calcUsePull() const
                 if ((sources.ordinality() > 1) && (targets.ordinality() > 1) && !allowSplit())
                 {
                     if (!getComponentConfigSP()->getPropBool("expert/@allowPushNoSplit"))
-                        throw makeStringExceptionV(0, "Pushing to multiple targets with no split is not supported to this target plane (%s)", targetPlane.str());
+                        throw makeStringExceptionV(DALIERR_PushingToMultipleTargetsWithNoSplit, "Pushing to multiple targets with no split is not supported to this target plane (%s)", targetPlane.str());
                 }
             }
         }

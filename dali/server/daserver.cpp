@@ -53,6 +53,7 @@
 #include "daserver.hpp"
 #ifndef _NO_LDAP
 #include "daldap.hpp"
+#include "daerr.hpp"
 #endif
 
 Owned<IPropertyTree> serverConfig;
@@ -398,7 +399,7 @@ static IPropertyTree * getContainerLDAPConfiguration(const IPropertyTree *appCon
 
     if (!streq(authMethod, "ldap"))
     {
-        throw makeStringExceptionV(-1, "Unrecognized auth method specified, (auth: %s)", authMethod);
+        throw makeStringExceptionV(DALIERR_UnrecognizedAuthMethodSpecifiedAuthS, "Unrecognized auth method specified, (auth: %s)", authMethod);
     }
 
     //Get default LDAP attributes from ldap.yaml
@@ -408,7 +409,7 @@ static IPropertyTree * getContainerLDAPConfiguration(const IPropertyTree *appCon
     Owned<IPropertyTree> defaults;
     if (!checkFileExists(ldapDefaultsFile))
     {
-        throw makeStringExceptionV(-1, "Unable to locate LDAP defaults file '%s'", ldapDefaultsFile.str());
+        throw makeStringExceptionV(DALIERR_UnableToLocateLdapDefaultsFileS, "Unable to locate LDAP defaults file '%s'", ldapDefaultsFile.str());
     }
     defaults.setown(createPTreeFromYAMLFile(ldapDefaultsFile.str()));
 

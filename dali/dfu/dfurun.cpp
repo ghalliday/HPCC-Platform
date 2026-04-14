@@ -51,6 +51,7 @@ test multiclusteradd with replicate
 #include "dameta.hpp"
 
 #include "ws_dfsclient.hpp"
+#include "dfuerr.hpp"
 
 
 #define SDS_CONNECT_TIMEOUT (5*60*100)
@@ -359,7 +360,7 @@ class CDFUengine: public CInterface, implements IDFUengine
         GroupType groupType;
         Owned<IGroup> grp = queryNamedGroupStore().lookup(cluster, dir, groupType);
         if (!grp) {
-            throw MakeStringException(-1,"setFileRepeatOptions cluster %s not found",cluster);
+            throw MakeStringException(DFUERR_SetfilerepeatoptionsClusterSNotFound, "setFileRepeatOptions cluster %s not found",cluster);
             return;
         }
         ClusterPartDiskMapSpec spec;
@@ -706,14 +707,14 @@ public:
         {
             const char *dir = fd->queryDefaultDir();
             if (isEmptyString(dir))
-                throw makeStringException(-1,"Empty default directory.");
+                throw makeStringException(DFUERR_EmptyDefaultDirectory, "Empty default directory.");
 
             Owned<IPropertyTree> dropZonePlane = getDropZonePlane(planeName);
             if (!dropZonePlane)
-                throw makeStringExceptionV(-1,"DropZone %s not found.",planeName);
+                throw makeStringExceptionV(DFUERR_DropzoneSNotFound, "DropZone %s not found.",planeName);
             const char *relativePath = getRelativePath(dir,dropZonePlane->queryProp("@prefix"));
             if (nullptr == relativePath)
-                throw makeStringExceptionV(-1,"Invalid DropZone directory %s.",dir);
+                throw makeStringExceptionV(DFUERR_InvalidDropzoneDirectoryS, "Invalid DropZone directory %s.",dir);
 
             perm = queryDistributedFileDirectory().getDropZoneScopePermissions(planeName,relativePath,user,auditflags);
             if (((!write&&!HASREADPERMISSION(perm))||(write&&!HASWRITEPERMISSION(perm))))
@@ -730,10 +731,10 @@ public:
             Owned<IEnvironmentFactory> factory = getEnvironmentFactory(true);
             Owned<IConstEnvironment> env = factory->openEnvironment();
             if (env->isDropZoneRestrictionEnabled())
-                throw makeStringException(-1,"Empty plane name.");
+                throw makeStringException(DFUERR_EmptyPlaneName, "Empty plane name.");
             perm = SecAccess_Full; //Not able to check DropZone permissions without a plane name
 #else
-            throw makeStringException(-1,"Unexpected empty plane name."); // should never be the case in containerized setups
+            throw makeStringException(DFUERR_UnexpectedEmptyPlaneName, "Unexpected empty plane name."); // should never be the case in containerized setups
 #endif
         }
     }
@@ -864,7 +865,7 @@ public:
             if (fdesc->numParts()!=1) {
                 OERRLOG("MONITOR: monitor file incorrectly specified");
                 if (raiseexception)
-                    throw MakeStringException(-1,"MONITOR: monitor file incorrectly specified");
+                    throw MakeStringException(DFUERR_MonitorMonitorFileIncorrectlySpecified, "MONITOR: monitor file incorrectly specified");
                 return true;
             }
             fdesc->getFilename(0,0,rfn);
@@ -876,7 +877,7 @@ public:
             if (!dirf||(dirf->isDirectory()!=fileBool::foundYes)) {
                 OERRLOG("MONITOR: %s is not a directory in DFU WUID %s",dir.str(),wu->queryId());
                 if (raiseexception)
-                    throw MakeStringException(-1,"MONITOR: %s is not a directory in DFU WUID %s",dir.str(),wu->queryId());
+                    throw MakeStringException(DFUERR_MonitorSIsNotADirectoryIn, "MONITOR: %s is not a directory in DFU WUID %s",dir.str(),wu->queryId());
                 return true;
             }
             Owned<IDirectoryIterator> iter =  dirf->directoryFiles(filemask,sub);
@@ -954,7 +955,7 @@ public:
     {
         dlfn.set(dstlfn);
         if (dlfn.isForeign())  // trying to confuse me again!
-            throw MakeStringException(-1,"Destination cannot be foreign file");
+            throw MakeStringException(DFUERR_DestinationCannotBeForeignFile, "Destination cannot be foreign file");
         if (dest->getRoxiePrefix(roxieprefix).length()) {
             StringBuffer tmp;
             dstlfn = dlfn.get();
@@ -1085,7 +1086,7 @@ public:
         if (!file.get())
         {
             StringBuffer s;
-            throw makeStringExceptionV(-1, "Source file %s could not be found in Dali %s", slfn.get(true), isForeign?foreignEp.getEndpointHostText(s).str():"(local)");
+            throw makeStringExceptionV(DFUERR_SourceFileSCouldNotBeFound, "Source file %s could not be found in Dali %s", slfn.get(true), isForeign?foreignEp.getEndpointHostText(s).str():"(local)");
         }
         // now we can create name
         StringBuffer newroxieprefix;
@@ -1106,7 +1107,7 @@ public:
         if (dfile)
         {
             if (!ctx.superoptions->getOverwrite())
-                throw MakeStringException(-1,"Destination file %s already exists",dlfn.get());
+                throw MakeStringException(DFUERR_DestinationFileSAlreadyExists, "Destination file %s already exists",dlfn.get());
             if (!dfile->querySuperFile())
             {
                 if (ctx.superoptions->getIfModified()&&
@@ -1133,7 +1134,7 @@ public:
                 srcdali.setown(createINode(foreignEp));
             // note  dstlfn doesn't have roxie prefix
             if (!doSubFileCopy(ctx,dstlfn,srcdali,slfn.get(true),wuid,iskey,newroxieprefix.str()))
-                throw MakeStringException(-1,"File %s could not be copied - see %s",dstlfn,wuid.isEmpty()?"unknown":wuid.get());
+                throw MakeStringException(DFUERR_FileSCouldNotBeCopiedSee, "File %s could not be copied - see %s",dstlfn,wuid.isEmpty()?"unknown":wuid.get());
         }
         else
         {
@@ -1157,7 +1158,7 @@ public:
             // now construct the superfile
             Owned<IDistributedSuperFile> sfile = queryDistributedFileDirectory().createSuperFile(dlfn.get(),ctx.user,true,false);
             if (!sfile)
-                throw MakeStringException(-1,"SuperFile %s could not be created",dlfn.get());
+                throw MakeStringException(DFUERR_SuperfileSCouldNotBeCreated, "SuperFile %s could not be created",dlfn.get());
             ForEachItemIn(i,subfiles)
                 sfile->addSubFile(subfiles.item(i));
             if (newroxieprefix.length())
@@ -1190,7 +1191,7 @@ public:
         StringBuffer srcname;
         source->getLogicalName(srcname);
         if (!srcname.length())
-            throw MakeStringException(-1,"Source file not specified");
+            throw MakeStringException(DFUERR_SourceFileNotSpecified, "Source file not specified");
         // Normalize srclfn: ensure it carries foreign prefix if it's truly foreign
         CDfsLogicalFileName srclfn;
         srclfn.set(srcname);
@@ -1211,7 +1212,7 @@ public:
         StringBuffer dstname;
         destination->getLogicalName(dstname);
         if (!dstname.length())
-            throw MakeStringException(-1,"Destination not specified");
+            throw MakeStringException(DFUERR_DestinationNotSpecified, "Destination not specified");
         sSuperCopyContext ctx;
         ctx.wufactory = wufactory;
         ctx.srcuser = foreignuserdesc;
@@ -1376,7 +1377,7 @@ public:
                     SocketEndpoint foreigndali;
                     if (srclfn.isSet()&&dstlfn.isSet()&&(strcmp(srclfn.get(),dstlfn.get())==0)&&(!source->getForeignDali(foreigndali))) {
                         if (!diffNameSrc.isEmpty()||!diffNameDst.isEmpty())
-                            throw MakeStringException(-1,"Cannot add to multi-cluster file using keypatch");
+                            throw MakeStringException(DFUERR_CannotAddToMultiClusterFileUsing, "Cannot add to multi-cluster file using keypatch");
                         multiclusterinsert = true;
                     }
                     break;
@@ -1395,7 +1396,7 @@ public:
                 {
                     source->getLogicalName(tmp.clear());
                     if (!tmp.length())
-                        throw MakeStringException(-1,"Source file not specified");
+                        throw MakeStringException(DFUERR_SourceFileNotSpecified, "Source file not specified");
                     foreigncopy = false;
                     if ((cmd==DFUcmd_copy)||multiclustermerge)
                     {
@@ -1424,7 +1425,7 @@ public:
                             false,false,nullptr,true, INFINITE));
 
                     if (!srcFile)
-                        throw MakeStringException(-1,"Source file %s could not be found",tmp.str());
+                        throw MakeStringException(DFUERR_SourceFileSCouldNotBeFound, "Source file %s could not be found",tmp.str());
 
                     srcName.set(tmp);
                     srcFdesc.setown(srcFile->getFileDescriptor());
@@ -1487,7 +1488,7 @@ public:
                         if (numOverrideParts)
                         {
                             if (srcFile->numParts() != numOverrideParts)
-                                throw makeStringExceptionV(-1, "Destination NumPartsOverride is provided but %s", (iskey&&(cmd==DFUcmd_copy))?"not supported when copying a key":"getWrap is true");
+                                throw makeStringExceptionV(DFUERR_DestinationNumpartsoverrideIsProvidedButS, "Destination NumPartsOverride is provided but %s", (iskey&&(cmd==DFUcmd_copy))?"not supported when copying a key":"getWrap is true");
                         }
                         dst->setNumParts(srcFile->numParts());
                     }
@@ -1584,19 +1585,19 @@ public:
                             if (multiclusterinsert)
                             {
                                 if (foreigncopy)
-                                    throw MakeStringException(-1,"Cannot create multi cluster file in foreign file");
+                                    throw MakeStringException(DFUERR_CannotCreateMultiClusterFileInForeign, "Cannot create multi cluster file in foreign file");
                                 StringBuffer err;
                                 if (!srcFile->checkClusterCompatible(*fdesc,err))
-                                    throw MakeStringException(-1,"Incompatible file for multicluster add - %s",err.str());
+                                    throw MakeStringException(DFUERR_IncompatibleFileForMulticlusterAddS, "Incompatible file for multicluster add - %s",err.str());
                             }
                             else if (multiclustermerge)
                             {
                                 dstFile.setown(wsdfs::lookup(tmp.str(),userdesc,AccessMode::tbdWrite,false,false,nullptr,defaultPrivilegedUser,INFINITE));
                                 if (!dstFile)
-                                    throw MakeStringException(-1,"Destination for merge %s does not exist",tmp.str());
+                                    throw MakeStringException(DFUERR_DestinationForMergeSDoesNotExist, "Destination for merge %s does not exist",tmp.str());
                                 StringBuffer err;
                                 if (!dstFile->checkClusterCompatible(*fdesc,err))
-                                    throw MakeStringException(-1,"Incompatible file for multicluster merge - %s",err.str());
+                                    throw MakeStringException(DFUERR_IncompatibleFileForMulticlusterMergeS, "Incompatible file for multicluster merge - %s",err.str());
                             }
                             else
                             {
@@ -1615,11 +1616,11 @@ public:
                                     bool canRemove = oldfile->canRemove(reason);
                                     oldfile.clear();
                                     if (!canRemove)
-                                        throw MakeStringException(-1,"%s",reason.str());
+                                        throw MakeStringException(DFUERR_S, "%s",reason.str());
                                     if (!options->getOverwrite())
-                                        throw MakeStringException(-1,"Destination file %s already exists and overwrite not specified",tmp.str());
+                                        throw MakeStringException(DFUERR_DestinationFileSAlreadyExistsAndOverwrite, "Destination file %s already exists and overwrite not specified",tmp.str());
                                     if (!fdir.removeEntry(tmp.str(),userdesc))
-                                        throw MakeStringException(-1,"Internal error in attempt to remove file %s",tmp.str());
+                                        throw MakeStringException(DFUERR_InternalErrorInAttemptToRemoveFile, "Internal error in attempt to remove file %s",tmp.str());
                                 }
                             }
                             StringBuffer jobname;
@@ -1646,7 +1647,7 @@ public:
                     }
                     if (!dstFile&&!multiclusterinsert)
                     {
-                        throw MakeStringException(-1,"Destination file %s could not be created",tmp.str());
+                        throw MakeStringException(DFUERR_DestinationFileSCouldNotBeCreated, "Destination file %s could not be created",tmp.str());
                     }
                 }
                 break;
@@ -1672,13 +1673,13 @@ public:
                             if (!oldf.get())
                             {
                                 StringBuffer s;
-                                throw MakeStringException(-1,"Old key file %s could not be found in source",diffNameSrc.get());
+                                throw MakeStringException(DFUERR_OldKeyFileSCouldNotBe, "Old key file %s could not be found in source",diffNameSrc.get());
                             }
                             olddstf.setown(queryDistributedFileDirectory().getFileDescriptor(diffNameDst,AccessMode::writeSequential,userdesc,NULL));
                             if (!olddstf.get())
                             {
                                 StringBuffer s;
-                                throw MakeStringException(-1,"Old key file %s could not be found in destination",diffNameDst.get());
+                                throw MakeStringException(DFUERR_OldKeyFileSCouldNotBe, "Old key file %s could not be found in destination",diffNameDst.get());
                             }
                             patchf.setown(createFileDescriptor());
                             doKeyDiff(oldf,srcFdesc,patchf);
@@ -1708,10 +1709,10 @@ public:
                             StringBuffer gname;
                             destination->getGroupName(0,gname);
                             if (!gname.length())
-                                throw MakeStringException(-1,"No cluster specified for destination");
+                                throw MakeStringException(DFUERR_NoClusterSpecifiedForDestination, "No cluster specified for destination");
                             Owned<IGroup> grp = queryNamedGroupStore().lookup(gname.str());
                             if (!grp)
-                                throw MakeStringException(-1,"Destination cluster %s not found",gname.str());
+                                throw MakeStringException(DFUERR_DestinationClusterSNotFound, "Destination cluster %s not found",gname.str());
                             StringBuffer lname;
                             destination->getLogicalName(lname);
                             lname.append(".__patch__");
@@ -1815,7 +1816,7 @@ public:
                         runningconn.clear();
                     }
                     else {
-                        throw MakeStringException(-1,"No target name specified for remove");
+                        throw MakeStringException(DFUERR_NoTargetNameSpecifiedForRemove, "No target name specified for remove");
                     }
                 }
                 break;
@@ -1843,7 +1844,7 @@ public:
                             CDfsLogicalFileName dstlfn;
                             dstlfn.set(toname.str());
                             if (dstlfn.getCluster(tmp).length()==0)
-                                throw MakeStringException(-1,"Target %s already exists",toname.str());
+                                throw MakeStringException(DFUERR_TargetSAlreadyExists, "Target %s already exists",toname.str());
                         }
                         newfile.clear();
                         StringBuffer fromname(srcName);
@@ -1856,7 +1857,7 @@ public:
                         Audit("RENAME",userdesc,fromname.str(),toname.str());
                     }
                     else {
-                        throw MakeStringException(-1,"No target name specified for rename");
+                        throw MakeStringException(DFUERR_NoTargetNameSpecifiedForRename, "No target name specified for rename");
                     }
                 }
                 break;
@@ -1906,7 +1907,7 @@ public:
 #if !defined(_DEBUG) &&  !defined(_CONTAINERIZED)
                             StringBuffer gname;
                             if (!destination->getRemoteGroupOverride()&&!testLocalCluster(destination->getGroupName(0,gname).str())) {
-                                throw MakeStringException(-1,"IMPORT cluster %s is not recognized locally",gname.str());
+                                throw MakeStringException(DFUERR_ImportClusterSIsNotRecognizedLocally, "IMPORT cluster %s is not recognized locally",gname.str());
                             }
 #endif
                         }
@@ -1981,7 +1982,7 @@ public:
                 runSuperCopy(wu,source,destination,options,progress,userdesc,feedback);
                 break;
             default:
-                throw MakeStringException(-1,"DFURUN: Unsupported command (%d)",(int)cmd);
+                throw MakeStringException(DFUERR_DfurunUnsupportedCommandD, "DFURUN: Unsupported command (%d)",(int)cmd);
             }
             if (replicating) {
                 switch (cmd) {
@@ -2055,7 +2056,7 @@ void stopDFUserver(const char *qname)
 {
     Owned<IJobQueue> queue = createJobQueue(qname);
     if (!queue.get()) {
-        throw MakeStringException(-1, "Cound not create queue");
+        throw MakeStringException(DFUERR_CoundNotCreateQueue, "Cound not create queue");
     }
     IJobQueueItem *item = createJobQueueItem("!STOP");
     item->setEndpoint(queryMyNode()->endpoint());

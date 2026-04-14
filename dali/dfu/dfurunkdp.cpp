@@ -27,6 +27,7 @@
 #include "dafdesc.hpp"
 #include "rmtssh.hpp"
 #include "rmtspawn.hpp"
+#include "dfuerr.hpp"
 
 #define FULL_TRACE
 
@@ -110,7 +111,7 @@ public:
                 SSHexeprefix);
 
         if (SSHusername.isEmpty()) 
-            throw MakeStringException(-1,"No SSH user configured");
+            throw MakeStringException(DFUERR_NoSshUserConfigured, "No SSH user configured");
         Owned<IFRunSSH> runssh = createFRunSSH();
         StringBuffer cmd(path);
         cmd.append(' ').append(cmdline);
@@ -160,7 +161,7 @@ public:
                     if (sz) {
                         StringBuffer s;
                         fio->read(0,sz,s.reserve(sz));
-                        throw MakeStringException(-1, "%s", s.str());
+                        throw MakeStringException(DFUERR_S, "%s", s.str());
                     }
                     try {
                         fio.clear();
@@ -215,7 +216,7 @@ static void runKDPNodes(const char *title,CIArrayOf<CDKDPitem> &nodes)
                         StringBuffer err;
                         err.append(title).append(" failed to start on node ");
                         it.queryEP().getEndpointHostText(err);
-                        throw MakeStringException(-1, "%s", err.str());
+                        throw MakeStringException(DFUERR_S, "%s", err.str());
                     }
                     Sleep(5000); // no point in rushing when some left
                 }
@@ -236,7 +237,7 @@ static void runKDPNodes(const char *title,CIArrayOf<CDKDPitem> &nodes)
                         StringBuffer err;
                         err.append(title).append(" failed to finish on node ");
                         it.queryEP().getEndpointHostText(err);
-                        throw MakeStringException(-1, "%s", err.str());
+                        throw MakeStringException(DFUERR_S, "%s", err.str());
                     }
                     Sleep(5000); // no point in rushing when some left
                 }
@@ -249,7 +250,7 @@ void doKeyDiff(IFileDescriptor *oldf,IFileDescriptor *newf,IFileDescriptor *patc
 {
     unsigned n = newf->numParts();
     if (oldf->numParts()!=n)
-        throw MakeStringException(-1,"KeyDiff - old and new files do not have the same size");
+        throw MakeStringException(DFUERR_KeydiffOldAndNewFilesDoNot, "KeyDiff - old and new files do not have the same size");
     CIArrayOf<CDKDPitem> nodes;
     for (unsigned i1=0;i1<n;i1++) {
         RemoteFilename rfnold;
@@ -274,7 +275,7 @@ void doKeyPatch(IFileDescriptor *oldf,IFileDescriptor *newf,IFileDescriptor *pat
 {
     unsigned n = patchf->numParts();
     if (oldf->numParts()!=n)
-        throw MakeStringException(-1,"KeyPatch - old and patch files do not have the same size");
+        throw MakeStringException(DFUERR_KeypatchOldAndPatchFilesDoNot, "KeyPatch - old and patch files do not have the same size");
     CIArrayOf<CDKDPitem> nodes;
     for (unsigned i1=0;i1<n;i1++) {
         RemoteFilename rfnold;

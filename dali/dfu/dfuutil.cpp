@@ -34,6 +34,7 @@
 #include "dfuutil.hpp"
 
 #include "ws_dfsclient.hpp"
+#include "dfuerr.hpp"
 
 // savemap
 // superkey functions
@@ -122,7 +123,7 @@ static bool getFileInfo(RemoteFilename &fn, Owned<IFile> &f, offset_t &size,CDat
     if (ret&&isdir) {
         StringBuffer fs;
         fn.getRemotePath(fs);
-        throw MakeStringException(-1,"%s is a directory",fs.str());
+        throw MakeStringException(DFUERR_SIsADirectory, "%s is a directory",fs.str());
     }
     return ret;
 }
@@ -209,7 +210,7 @@ public:
                 if (!got) {
                     OERRLOG("copyLogicalFile: part %d missing any copies",pn+1);
                     if (!exc.get())
-                        exc.setown(MakeStringException(-1,"copyLogicalFile: part %d missing any copies",pn+1));
+                        exc.setown(MakeStringException(DFUERR_CopylogicalfilePartDMissingAnyCopies, "copyLogicalFile: part %d missing any copies",pn+1));
                     return;
                 }
 
@@ -354,7 +355,7 @@ public:
                 if (cpy>=nc) {
                     OERRLOG("replicateLogicalFile: %s part %d missing any copies",filename,pn+1);
                     if (!exc.get())
-                        exc.setown(MakeStringException(-1,"replicateLogicalFile: %s part %d missing any copies",filename,pn+1));
+                        exc.setown(MakeStringException(DFUERR_ReplicatelogicalfileSPartDMissingAnyCopies, "replicateLogicalFile: %s part %d missing any copies",filename,pn+1));
                     return;
                 }
                 for (unsigned dstcpy = 0; dstcpy<part.numCopies(); dstcpy++)
@@ -497,7 +498,7 @@ public:
 
         CDfsLogicalFileName dstlfn;
         if (!dstlfn.setValidate(destfilename,true))
-            throw MakeStringException(-1,"cloneSubFile: Logical name %s invalid",destfilename);
+            throw MakeStringException(DFUERR_ClonesubfileLogicalNameSInvalid, "cloneSubFile: Logical name %s invalid",destfilename);
 
         ClusterPartDiskMapSpec spec = spec1;
         if (iskey&&repeattlk)
@@ -565,7 +566,7 @@ public:
     {
         CDfsLogicalFileName dstlfn;
         if (!dstlfn.setValidate(destfilename,true))
-            throw MakeStringException(-1,"Logical name %s invalid",destfilename);
+            throw MakeStringException(DFUERR_LogicalNameSInvalid, "Logical name %s invalid",destfilename);
         Owned<IDistributedFile> dfile = fdir->lookup(dstlfn,userdesc,AccessMode::tbdWrite,false,false,nullptr,defaultPrivilegedUser);
         if (dfile) {
             ClusterPartDiskMapSpec spec = spec1;
@@ -587,7 +588,7 @@ public:
     {
         CDfsLogicalFileName dstlfn;
         if (!dstlfn.setValidate(destfilename,true))
-            throw MakeStringException(-1,"Logical name %s invalid",destfilename);
+            throw MakeStringException(DFUERR_LogicalNameSInvalid, "Logical name %s invalid",destfilename);
         Owned<IDistributedFile> dfile = fdir->lookup(dstlfn,userdesc,AccessMode::tbdWrite,false,false,nullptr,defaultPrivilegedUser);
         if (dfile) {
             ClusterPartDiskMapSpec spec = spec1;
@@ -656,7 +657,7 @@ public:
         GroupType groupType;
         grp1.setown(queryNamedGroupStore().lookup(_cluster1, defdir1, groupType));
         if (!grp1)
-            throw MakeStringException(-1,"Cannot find cluster %s",_cluster1);
+            throw MakeStringException(DFUERR_CannotFindClusterS, "Cannot find cluster %s",_cluster1);
         if (defdir1.length())
             spec1.setDefaultBaseDir(defdir1.str());
         if (_cluster2&&*_cluster2) {
@@ -665,7 +666,7 @@ public:
             StringBuffer defdir2;
             grp2.setown(queryNamedGroupStore().lookup(_cluster2, defdir2, groupType));
             if (!grp2)
-                throw MakeStringException(-1,"Cannot find cluster %s",_cluster2);
+                throw MakeStringException(DFUERR_CannotFindClusterS, "Cannot find cluster %s",_cluster2);
             spec2.setRepeatedCopies(CPDMSRP_lastRepeated,true); // only TLK on cluster2
             if (defdir2.length())
                 spec2.setDefaultBaseDir(defdir2.str());
@@ -688,7 +689,7 @@ public:
         Owned<IPropertyTree> ftree = fdir->getFileTree(slfn.get(), foreignuserdesc, mode, srcdali, FOREIGN_DALI_TIMEOUT, GetFileTreeOpts::appendForeign);
         if (!ftree.get()) {
             StringBuffer s;
-            throw MakeStringException(-1,"Source file %s could not be found in Dali %s",slfn.get(),srcdali?srcdali->endpoint().getEndpointHostText(s).str():"(local)");
+            throw MakeStringException(DFUERR_SourceFileSCouldNotBeFound, "Source file %s could not be found in Dali %s",slfn.get(),srcdali?srcdali->endpoint().getEndpointHostText(s).str():"(local)");
         }
 
         const char *dstlfn = slfn.get();
@@ -720,7 +721,7 @@ public:
                     }
                 }
                 else
-                    throw MakeStringException(-1,"Cannot clone %s to itself",dlfn.get());
+                    throw MakeStringException(DFUERR_CannotCloneSToItself, "Cannot clone %s to itself",dlfn.get());
             }
             level--;
             return;
@@ -730,7 +731,7 @@ public:
         Owned<IDistributedFile> dfile = fdir->lookup(dlfn,userdesc,AccessMode::tbdWrite,false,false,nullptr,defaultPrivilegedUser);
         if (dfile) {
             if (!checkOverwrite(DALI_UPDATEF_REPLACE_FILE))
-                throw MakeStringException(-1,"Destination file %s already exists",dlfn.get());
+                throw MakeStringException(DFUERR_DestinationFileSAlreadyExists, "Destination file %s already exists",dlfn.get());
             dfile->detach();
             dfile.clear();
         }
@@ -748,7 +749,7 @@ public:
             // now construct the superfile
             Owned<IDistributedSuperFile> sfile = fdir->createSuperFile(dlfn.get(),userdesc,true,false);
             if (!sfile)
-                throw MakeStringException(-1,"SuperFile %s could not be created",dlfn.get());
+                throw MakeStringException(DFUERR_SuperfileSCouldNotBeCreated, "SuperFile %s could not be created",dlfn.get());
             ForEachItemIn(i,subfiles) {
                 sfile->addSubFile(subfiles.item(i));
             }
@@ -759,7 +760,7 @@ public:
         }
         else {
             StringBuffer s;
-            throw MakeStringException(-1,"Source file %s in Dali %s is not a file or superfile",filename,srcdali?srcdali->endpoint().getEndpointHostText(s).str():"(local)");
+            throw MakeStringException(DFUERR_SourceFileSInDaliSIs, "Source file %s in Dali %s is not a file or superfile",filename,srcdali?srcdali->endpoint().getEndpointHostText(s).str():"(local)");
         }
         level--;
     }
@@ -781,18 +782,18 @@ public:
         Owned<IPropertyTree> ftree = fdir->getFileTree(slfn.get(), foreignuserdesc, mode, srcdali, FOREIGN_DALI_TIMEOUT, GetFileTreeOpts::appendForeign);
         if (!ftree.get()) {
             StringBuffer s;
-            throw MakeStringException(-1,"Source file %s could not be found in Dali %s",slfn.get(),srcdali?srcdali->endpoint().getEndpointHostText(s).str():"(local)");
+            throw MakeStringException(DFUERR_SourceFileSCouldNotBeFound, "Source file %s could not be found in Dali %s",slfn.get(),srcdali?srcdali->endpoint().getEndpointHostText(s).str():"(local)");
         }
         IPropertyTree *attsrc = ftree->queryPropTree("Attr");
         if (!attsrc) {
             StringBuffer s;
-            throw MakeStringException(-1,"Attributes for source file %s could not be found in Dali %s",slfn.get(),srcdali?srcdali->endpoint().getEndpointHostText(s).str():"(local)");
+            throw MakeStringException(DFUERR_AttributesForSourceFileSCouldNot, "Attributes for source file %s could not be found in Dali %s",slfn.get(),srcdali?srcdali->endpoint().getEndpointHostText(s).str():"(local)");
         }
         CDfsLogicalFileName dlfn;
         dlfn.set(destfilename);
         if (strcmp(ftree->queryName(),queryDfsXmlBranchName(DXB_File))!=0) {
             StringBuffer s;
-            throw MakeStringException(-1,"Source file %s in Dali %s is not a simple file",filename,srcdali?srcdali->endpoint().getEndpointHostText(s).str():"(local)");
+            throw MakeStringException(DFUERR_SourceFileSInDaliSIs, "Source file %s in Dali %s is not a simple file",filename,srcdali?srcdali->endpoint().getEndpointHostText(s).str():"(local)");
         }
         if (!srcdali.get()||queryCoven().inCoven(srcdali)) {
             // if dali is local and filenames same
@@ -807,7 +808,7 @@ public:
         Owned<IDistributedFile> dfile = fdir->lookup(dlfn,userdesc,AccessMode::tbdWrite,false,false,nullptr,defaultPrivilegedUser);
         if (dfile) {
             if (!checkOverwrite(DALI_UPDATEF_REPLACE_FILE))
-                throw MakeStringException(-1,"Destination file %s already exists",dlfn.get());
+                throw MakeStringException(DFUERR_DestinationFileSAlreadyExists, "Destination file %s already exists",dlfn.get());
 
             IPropertyTree &attloc = dfile->queryAttributes();
             if (dfile->numParts() == (unsigned)ftree->getPropInt("@numparts") &&
@@ -948,7 +949,7 @@ public:
 
             Owned<wsdfs::IDFSFile> dfsFile = wsdfs::lookupDFSFile(remoteLFN.str(), AccessMode::readSequential, INFINITE, wsdfs::keepAliveExpiryFrequency, foreignuserdesc);
             if (!dfsFile)
-                throw makeStringExceptionV(-1,"Source file %s could not be found in Remote Storage", remoteLFN.str()); //remote scope already included in remoteLFN
+                throw makeStringExceptionV(DFUERR_SourceFileSCouldNotBeFound, "Source file %s could not be found in Remote Storage", remoteLFN.str()); //remote scope already included in remoteLFN
             ftree.setown(dfsFile->queryFileMeta()->getPropTree("File"));
         }
         else
@@ -956,16 +957,16 @@ public:
             AccessMode mode = copyphysical ? AccessMode::read : AccessMode::readMeta;
             ftree.setown(fdir->getFileTree(srcLFN.get(), foreignuserdesc, mode, srcdali, FOREIGN_DALI_TIMEOUT, GetFileTreeOpts::appendForeign));
             if (!ftree.get())
-                throw MakeStringException(-1,"Source file %s could not be found in Dali %s",srcLFN.get(), getDaliEndPointStr(srcdali, s));
+                throw MakeStringException(DFUERR_SourceFileSCouldNotBeFound, "Source file %s could not be found in Dali %s",srcLFN.get(), getDaliEndPointStr(srcdali, s));
             attsrc = ftree->queryPropTree("Attr");
             if (!attsrc)
-                throw MakeStringException(-1,"Attributes for source file %s could not be found in Dali %s",srcLFN.get(), getDaliEndPointStr(srcdali, s));
+                throw MakeStringException(DFUERR_AttributesForSourceFileSCouldNot, "Attributes for source file %s could not be found in Dali %s",srcLFN.get(), getDaliEndPointStr(srcdali, s));
         }
 
         CDfsLogicalFileName dlfn;
         dlfn.set(destfilename);
         if (!streq(ftree->queryName(),queryDfsXmlBranchName(DXB_File)))
-            throw MakeStringException(-1,"Source file %s in Dali %s is not a simple file",filename, getDaliEndPointStr(srcdali, s));
+            throw MakeStringException(DFUERR_SourceFileSInDaliSIs, "Source file %s in Dali %s is not a simple file",filename, getDaliEndPointStr(srcdali, s));
 
         if (!remoteStorage.length() && (!srcdali.get() || queryCoven().inCoven(srcdali)))
         {
@@ -982,7 +983,7 @@ public:
         if (dfile)
         {
             if (!checkOverwrite(DALI_UPDATEF_SUBFILE_MASK))
-                throw MakeStringException(-1, "Destination file %s already exists", dlfn.get());
+                throw MakeStringException(DFUERR_DestinationFileSAlreadyExists, "Destination file %s already exists", dlfn.get());
 
             if (checkOverwrite(DALI_UPDATEF_REPLACE_FILE) && checkFileChanged(dfile, ftree, attsrc)) //complete overwrite
             {
@@ -1147,7 +1148,7 @@ public:
         IDistributedFileDirectory &dfd = queryDistributedFileDirectory();
 
         if (dfd.exists(lfn, user))
-            throw MakeStringException(-1, "Destination file '%s' already exists!", lfn);
+            throw MakeStringException(DFUERR_DestinationFileSAlreadyExists, "Destination file '%s' already exists!", lfn);
 
         // Check if this XML is a superfile map
         Owned<IDistributedFile> file;
@@ -1195,7 +1196,7 @@ public:
             file.setown(dfd.createNew(fdesc));
         }
         else
-            throw MakeStringException(-1, "Unrecognised file XML root tag detected: '%s'", nodeName);
+            throw MakeStringException(DFUERR_UnrecognisedFileXmlRootTagDetectedS, "Unrecognised file XML root tag detected: '%s'", nodeName);
 
         file->validate();
         PROGLOG("Adding %s file %s.", file->querySuperFile()?"super":"logical", lfn);
@@ -1211,7 +1212,7 @@ public:
         Owned<IFileDescriptor> fdesc = queryDistributedFileDirectory().getFileDescriptor(srclfn, AccessMode::tbdRead, srcuser, node);
         if (!fdesc) {
             StringBuffer s;
-            throw MakeStringException(-1,"Source file %s could not be found in Dali %s",srclfn,daliep.getEndpointHostText(s).str());
+            throw MakeStringException(DFUERR_SourceFileSCouldNotBeFound, "Source file %s could not be found in Dali %s",srclfn,daliep.getEndpointHostText(s).str());
         }
         Owned<IDistributedFile> file = queryDistributedFileDirectory().createNew(fdesc);
         if (file)
@@ -1247,14 +1248,14 @@ public:
         if (!ftree.get())
         {
             StringBuffer s;
-            throw MakeStringException(-1,"Source file %s could not be found in Dali %s",srclfn,daliep.getEndpointHostText(s).str());
+            throw MakeStringException(DFUERR_SourceFileSCouldNotBeFound, "Source file %s could not be found in Dali %s",srclfn,daliep.getEndpointHostText(s).str());
         }
         // first see if target exists (and remove if does and overwrite specified)
         Owned<IDistributedFile> dfile = queryDistributedFileDirectory().lookup(lfn,user,AccessMode::tbdWrite,false,false,nullptr,defaultPrivilegedUser);
         if (dfile)
         {
             if (!overwrite)
-                throw MakeStringException(-1,"Destination file %s already exists",lfn);
+                throw MakeStringException(DFUERR_DestinationFileSAlreadyExists, "Destination file %s already exists",lfn);
             if (!dfile->querySuperFile())
             {
                 if (ftree->hasProp("Attr/@fileCrc")&&ftree->getPropInt64("Attr/@size")&&
@@ -1272,7 +1273,7 @@ public:
         {
             assertex(copier);
             if (!copier->copyFile(lfn,daliep,srclfn,srcuser,user))
-                throw MakeStringException(-1,"File %s could not be copied",lfn);
+                throw MakeStringException(DFUERR_FileSCouldNotBeCopied, "File %s could not be copied",lfn);
 
         }
         else if (strcmp(ftree->queryName(),queryDfsXmlBranchName(DXB_SuperFile))==0)
@@ -1293,14 +1294,14 @@ public:
             // now construct the superfile
             Owned<IDistributedSuperFile> sfile = queryDistributedFileDirectory().createSuperFile(lfn,user,true,false);
             if (!sfile)
-                throw MakeStringException(-1,"SuperFile %s could not be created",lfn);
+                throw MakeStringException(DFUERR_SuperfileSCouldNotBeCreated, "SuperFile %s could not be created",lfn);
             ForEachItemIn(i,subfiles)
                 sfile->addSubFile(subfiles.item(i));
         }
         else
         {
             StringBuffer s;
-            throw MakeStringException(-1,"Source file %s in Dali %s is not a file or superfile",srclfn,daliep.getEndpointHostText(s).str());
+            throw MakeStringException(DFUERR_SourceFileSInDaliSIs, "Source file %s in Dali %s is not a file or superfile",srclfn,daliep.getEndpointHostText(s).str());
         }
     }
 
@@ -1392,7 +1393,7 @@ public:
         // not a quick routine! (n^2)
         unsigned n = srcfns.ordinality();
         if (n!=dstfns.ordinality())
-            throw MakeStringException(-1,"cloneFileRelationships - src and destination arrays not same size");
+            throw MakeStringException(DFUERR_ClonefilerelationshipsSrcAndDestinationArraysNotSame, "cloneFileRelationships - src and destination arrays not same size");
         // first find which of dstfns exist
         MemoryAttr ma;
         bool *ex = (bool *)ma.allocate(dstfns.ordinality()*sizeof(bool));

@@ -17,6 +17,7 @@
 #include "environment.hpp"
 #include "sautil.hpp"
 #include "workunitservices.ipp"
+#include "daerr.hpp"
 
 
 #define DEFAULT_INTERVAL                6       // hours
@@ -584,7 +585,7 @@ void WUiterate(ISashaCommand *cmd, const char *mask)
         void getOnlineWUs()
         {
             if (cmd->getAction()==SCA_WORKUNIT_SERVICES_GET)
-                throw MakeStringException(-1,"SCA_WORKUNIT_SERVICES_GET not implemented for online workunits!");
+                throw MakeStringException(DALIERR_ScaWorkunitServicesGetNotImplementedFor, "SCA_WORKUNIT_SERVICES_GET not implemented for online workunits!");
 
             Owned<IRemoteConnection> conn = getSDSConnection(isWild ? nullptr : mask.str());
             if (!conn)

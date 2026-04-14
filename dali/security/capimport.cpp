@@ -24,6 +24,7 @@
 #include "daclient.hpp"
 #include "dasds.hpp"
 #include "dacaplib.hpp"
+#include "daerr.hpp"
 
 
 void usage(const char *exe)
@@ -76,9 +77,9 @@ int main(int argc, char* argv[])
         MemoryBuffer mb;
         size32_t sz = ifile->size();
         if (sz > FIXED_HT_SIZE*FIXED_KEY_SIZE)
-            throw MakeStringException(0, "Capabilities binary is too large");
+            throw MakeStringException(DALIERR_CapabilitiesBinaryIsTooLarge, "Capabilities binary is too large");
         if (sz % FIXED_KEY_SIZE != 0)
-            throw MakeStringException(0, "Capabilities binary wrong format");
+            throw MakeStringException(DALIERR_CapabilitiesBinaryWrongFormat, "Capabilities binary wrong format");
         ifileio->read(0, sz, mb.reserveTruncate(sz));
         querySessionManager().importCapabilities(mb);
         PROGLOG("Capabilities imported");

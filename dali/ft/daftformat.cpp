@@ -1179,7 +1179,7 @@ size32_t CCsvPartitioner::deduceStartNextLine(const byte * start, unsigned maxTo
     if (maxToRead <= format.maxRecordSize)
         return end-start;
 
-    throw makeStringException(0, "Could not deduce the end of the record - pathological ");
+    throw makeStringException(DALIERR_CouldNotDeduceTheEndOfThe, "Could not deduce the end of the record - pathological ");
 }
 
 //---------------------------------------------------------------------------------------------------------------------
@@ -2663,6 +2663,7 @@ IFormatPartitioner * createFormatPartitioner(FileSprayer &sprayer, const SocketE
 #ifdef _USE_CPPUNIT
 
 #include "unittests.hpp"
+#include "daerr.hpp"
 
 class CsvDeduceLineTest : public CppUnit::TestFixture
 {

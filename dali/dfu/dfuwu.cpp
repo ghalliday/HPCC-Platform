@@ -37,6 +37,7 @@
 #include "ws_dfsclient.hpp"
 
 #include "dfuwu.hpp"
+#include "dfuerr.hpp"
 
 #define COPY_WAIT_SECONDS 30
 
@@ -402,20 +403,20 @@ static bool prepareToResubmitFailedPublisherTasks(const char *publisherWuid, Str
 {
     //make sure wuid is a publisher, but not a child task of a publisher
     if (!publisherWuid || 'P'!=*publisherWuid || strchr(publisherWuid, 'T')!=nullptr)
-       throw MakeStringException(-1,"DFUWU: Attempt to resubmit publisher workunit with non publisher wuid %s", publisherWuid);
+       throw MakeStringException(DFUERR_DfuwuAttemptToResubmitPublisherWorkunitWith, "DFUWU: Attempt to resubmit publisher workunit with non publisher wuid %s", publisherWuid);
     StringBuffer publisherRoot;
     getXPath(publisherRoot, publisherWuid);
 
     Owned<IRemoteConnection> conn = querySDS().connect(publisherRoot.str(), myProcessSession(), RTM_LOCK_WRITE, NOTE_SUBTASK_SDS_LOCK_TIMEOUT);
     if (!conn)
-       throw MakeStringException(-1,"DFUWU: Could not connect to publisher workunit %s", publisherWuid);
+       throw MakeStringException(DFUERR_DfuwuCouldNotConnectToPublisherWorkunit, "DFUWU: Could not connect to publisher workunit %s", publisherWuid);
     IPropertyTree *root = conn->queryRoot();
     IPropertyTree *progress = root->queryPropTree("Progress");
     if (!progress)
-       throw MakeStringException(-1,"DFUWU: Could not open progress section of publisher workunit %s", publisherWuid);
+       throw MakeStringException(DFUERR_DfuwuCouldNotOpenProgressSectionOf, "DFUWU: Could not open progress section of publisher workunit %s", publisherWuid);
     DFUstate state = decodeDFUstate(progress->queryProp("@state"));
     if (state!=DFUstate_aborted && state!=DFUstate_failed && state!=DFUstate_unknown)
-       throw MakeStringException(-1,"DFUWU: Can only resubmit publisher workunits that are in a failed, unknown, or aborted state %s", publisherWuid);
+       throw MakeStringException(DFUERR_DfuwuCanOnlyResubmitPublisherWorkunitsThat, "DFUWU: Can only resubmit publisher workunits that are in a failed, unknown, or aborted state %s", publisherWuid);
 
     unsigned taskCount = 0;
     unsigned tasksFinished = 0;
@@ -985,9 +986,9 @@ public:
             if ((getGroupName(0,s).length()!=0)&&!getForeignDali(ep) ) {
                 Owned<IGroup> grp = queryNamedGroupStore().lookup(s.str());
                 if (!grp)
-                    throw MakeStringException(-1,"CDFUfileSpec: Cluster %s not found",s.str());
+                    throw MakeStringException(DFUERR_CdfufilespecClusterSNotFound, "CDFUfileSpec: Cluster %s not found",s.str());
             }
-            throw MakeStringException(-1,"CDFUfileSpec: No parts found for file!");
+            throw MakeStringException(DFUERR_CdfufilespecNoPartsFoundForFile, "CDFUfileSpec: No parts found for file!");
         }
         IPropertyTree *p = createPTreeFromIPT(queryProperties());
         if (iskey) {
@@ -1049,7 +1050,7 @@ public:
                 break;
             }
             else
-                throw MakeStringException(-1,"CDFUfileSpec: getFileDescriptor: Could not find group for cluster %d", clustnum);
+                throw MakeStringException(DFUERR_CdfufilespecGetfiledescriptorCouldNotFindGroupFor, "CDFUfileSpec: getFileDescriptor: Could not find group for cluster %d", clustnum);
         }
         return ret.getClear();
     }
@@ -1074,7 +1075,7 @@ public:
             if (getLogicalName(tmp).length()>tmpl) {
                 CDfsLogicalFileName lfn;
                 if (!lfn.setValidate(tmp.str(),true)) {
-                    throw MakeStringException(-1,"DFUWU: Logical name %s invalid(2)",tmp.str());
+                    throw MakeStringException(DFUERR_DfuwuLogicalNameSInvalid2, "DFUWU: Logical name %s invalid(2)",tmp.str());
                 }
                 StringBuffer baseoverride;
                 getClusterPartDefaultBaseDir(NULL,baseoverride);
@@ -1098,7 +1099,7 @@ public:
             if (tmp.length()) {
                 CDfsLogicalFileName lfn;
                 if (!lfn.setValidate(tmp.str()))
-                    throw MakeStringException(-1,"DFUWU: Logical name %s invalid",tmp.str());
+                    throw MakeStringException(DFUERR_DfuwuLogicalNameSInvalid, "DFUWU: Logical name %s invalid",tmp.str());
                 lfn.getTail(str);
                 str.append("._$P$_of_$N$");
             }
@@ -1167,7 +1168,7 @@ public:
         if (getGroupName(clustnum,gs).length()) {
             Owned<IGroup> grp = queryNamedGroupStore().lookup(gs.str());
             if (!grp)
-                throw MakeStringException(-1,"DFUWU: Logical group %s not found",gs.str());
+                throw MakeStringException(DFUERR_DfuwuLogicalGroupSNotFound, "DFUWU: Logical group %s not found",gs.str());
             return grp.getClear();
         }
         return NULL;
@@ -1238,10 +1239,10 @@ public:
         mspec.calcPartLocation(partidx,np,0,grp.get()?grp->ordinality():np,nn,dn);
         // now we should have tail name and possibly ep and dir
         if (!fn||!*fn)
-            throw MakeStringException(-1,"DFUWU: cannot construct part file name");
+            throw MakeStringException(DFUERR_DfuwuCannotConstructPartFileName, "DFUWU: cannot construct part file name");
         if (ep.isNull()) {
             if (!grp)
-                throw MakeStringException(-1,"DFUWU: cannot determine endpoint for part file");
+                throw MakeStringException(DFUERR_DfuwuCannotDetermineEndpointForPartFile, "DFUWU: cannot determine endpoint for part file");
             ep = grp->queryNode(nn).endpoint();
         }
         StringBuffer tmpout;
@@ -1260,7 +1261,7 @@ public:
                     if (!dir.length())
                         getDirectory(dir);
                     if ((dir.length()==0)&&(prevdir.length()==0))
-                        throw MakeStringException(-1,"DFUWU: cannot determine file part directory for %s",subfn);
+                        throw MakeStringException(DFUERR_DfuwuCannotDetermineFilePartDirectoryFor, "DFUWU: cannot determine file part directory for %s",subfn);
                     if (prevdir.length())
                         tmpout.append(prevdir);
                     else
@@ -1277,7 +1278,7 @@ public:
             if (!dir.length())
                 getDirectory(dir);
             if (dir.length()==0)
-                throw MakeStringException(-1,"DFUWU: cannot determine file part directory for %s",fn);
+                throw MakeStringException(DFUERR_DfuwuCannotDetermineFilePartDirectoryFor, "DFUWU: cannot determine file part directory for %s",fn);
             fn = addPathSepChar(dir).append(fn).str();
         }
         StringBuffer filename;
@@ -2893,7 +2894,7 @@ public:
     void cleanupAndDelete()
     {
         if (isProtected())
-            throw MakeStringException(-1, "DFU Workunit is protected");
+            throw MakeStringException(DFUERR_DfuWorkunitIsProtected, "DFU Workunit is protected");
         switch (progress.getState()) {
         case DFUstate_unknown:
         case DFUstate_aborted:
@@ -2901,7 +2902,7 @@ public:
         case DFUstate_finished:
             break;
         default:
-            throw MakeStringException(-1, "DFU Workunit is active");
+            throw MakeStringException(DFUERR_DfuWorkunitIsActive, "DFU Workunit is active");
             break;
         }
         if (checkconn()) {
@@ -3551,7 +3552,7 @@ IDfuFileCopier *createRemoteFileCopier(const char *qname,const char *clustername
                 const char *wuid = wuids.item(i);
                 Owned<IConstDFUWorkUnit> dfuwu = factory->openWorkUnit(wuid,false);
                 if (!dfuwu)
-                    throw MakeStringException(-1,"DFUWU %s could not be found",wuid);
+                    throw MakeStringException(DFUERR_DfuwuSCouldNotBeFound, "DFUWU %s could not be found",wuid);
                 IConstDFUprogress *progress = dfuwu->queryProgress();
                 PROGLOG("Waiting for %s",wuid);
                 DFUstate state = dfuwu->waitForCompletion(1000*60*60*24*4); // big timeout
@@ -3585,11 +3586,11 @@ extern dfuwu_decl void submitDFUWorkUnit(IDFUWorkUnit *workunit)
     Owned<IDFUWorkUnit> wu(workunit);
     StringBuffer qname;
     if (wu->getQueue(qname).length()==0) {
-        throw MakeStringException(-1, "DFU no queue name specified");
+        throw MakeStringException(DFUERR_DfuNoQueueNameSpecified, "DFU no queue name specified");
     }
     Owned<IJobQueue> queue = createJobQueue(qname.str());
     if (!queue.get()) {
-        throw MakeStringException(-1, "Cound not create queue");
+        throw MakeStringException(DFUERR_CoundNotCreateQueue, "Cound not create queue");
     }
     StringBuffer user;
     wu->getUser(user);
@@ -3624,6 +3625,6 @@ extern dfuwu_decl void submitDFUWorkUnit(const char *wuid)
     Owned<IDFUWorkUnitFactory> factory = getDFUWorkUnitFactory();
     Owned<IDFUWorkUnit> wu = factory->updateWorkUnit(wuid);
     if(!wu)
-        throw MakeStringException(-1, "DFU workunit %s could not be opened for update", wuid);
+        throw MakeStringException(DFUERR_DfuWorkunitSCouldNotBeOpened, "DFU workunit %s could not be opened for update", wuid);
     submitDFUWorkUnit(wu.getClear());
 }

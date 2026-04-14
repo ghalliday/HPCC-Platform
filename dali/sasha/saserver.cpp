@@ -45,6 +45,7 @@
 #include "sacoalescer.hpp"
 #include "saglobalmsg.hpp"
 #include "sacmd.hpp"
+#include "daerr.hpp"
 
 extern void LDStest();
 
@@ -436,7 +437,7 @@ int main(int argc, const char* argv[])
 #ifdef _CONTAINERIZED
                 service = serverConfig->queryProp("@service");
                 if (isEmptyString(service))
-                    throw makeStringException(0, "'service' undefined");
+                    throw makeStringException(DALIERR_ServiceUndefined, "'service' undefined");
 
                 /*
                  * NB: for the time being both wu-archiver and dfuwu-archive can handle
@@ -465,7 +466,7 @@ int main(int argc, const char* argv[])
                 else if (strieq(service, "global-message-housekeeping"))
                    servers.append(*createSashaGlobalMessageServer());
                 else
-                    throw makeStringExceptionV(0, "Unrecognised 'service': %s", service);
+                    throw makeStringExceptionV(DALIERR_UnrecognisedServiceS, "Unrecognised 'service': %s", service);
 #else
                 startPerformanceMonitor(serverConfig->getPropInt("@perfReportDelay", DEFAULT_PERF_REPORT_DELAY)*1000);
                 AddServers();
