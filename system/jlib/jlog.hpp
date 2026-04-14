@@ -1694,7 +1694,7 @@ typedef enum
 inline LogAccessLogFormat logAccessFormatFromName(const char * name)
 {
     if (isEmptyString(name))
-        throw makeStringException(-1, "Encountered empty Log Access Format name");
+        throw makeStringException(JLIBERR_UtilEncounteredEmptyLogAccessFormatName, "Encountered empty Log Access Format name");
 
     if(strieq(name, "xml"))
         return LOGACCESS_LOGFORMAT_xml;
@@ -1703,7 +1703,7 @@ inline LogAccessLogFormat logAccessFormatFromName(const char * name)
     else if(strieq(name, "csv"))
         return LOGACCESS_LOGFORMAT_csv;
     else
-        throw makeStringExceptionV(-1, "Encountered unknown Log Access Format name: '%s'", name);
+        throw makeStringExceptionV(JLIBERR_UtilEncounteredUnknownLogAccessFormatNameS, "Encountered unknown Log Access Format name: '%s'", name);
 }
 
 interface IRemoteLogAccessStream : extends IInterface

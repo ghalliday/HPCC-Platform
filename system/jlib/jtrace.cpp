@@ -1864,7 +1864,7 @@ CTraceManager::CTraceManager(const char * componentName, const IPropertyTree * c
 
 CTraceManager::CTraceManager()
 {
-    throw makeStringExceptionV(-1, "TraceManager must be intialized!");
+    throw makeStringExceptionV(JLIBERR_UtilTracemanagerMustBeIntialized, "TraceManager must be intialized!");
 }
 
 ISpan * CTraceManager::createServerSpan(const char * name, StringArray & httpHeaders, SpanFlags flags) const

@@ -693,7 +693,7 @@ public:
             xml = wrapper.appendf("<Exceptions>%s</Exceptions>", xml).str();
         Owned<IPropertyTree> pTree = createPTreeFromXMLString(xml);
         if (!pTree)
-            throw makeStringException(-1, "Failed to deserialize IMultiException!");
+            throw makeStringException(JLIBERR_UtilFailedToDeserializeImultiexception, "Failed to deserialize IMultiException!");
         Owned<IPropertyTreeIterator> i = pTree->getElements("Exception");
         
         if (pTree->hasProp("Source"))
@@ -797,31 +797,31 @@ const char *sanitizeSourceFile(const char *file)
 void throwUnexpectedException(const char * function, const char * file, unsigned line)
 {
     printStackReport();
-    throw makeStringExceptionV(9999, "Internal Error in %s() at %s(%d)", function, sanitizeSourceFile(file), line);
+    throw makeStringExceptionV(JLIBERR_UtilInternalErrorInSAtSD, "Internal Error in %s() at %s(%d)", function, sanitizeSourceFile(file), line);
 }
 
 void throwUnexpectedException(const char * what, const char * function, const char * file, unsigned line)
 {
     printStackReport();
-    throw makeStringExceptionV(9999, "Internal Error '%s' in %s() at %s(%d)", what, function, sanitizeSourceFile(file), line);
+    throw makeStringExceptionV(JLIBERR_UtilInternalErrorSInSAtSD, "Internal Error '%s' in %s() at %s(%d)", what, function, sanitizeSourceFile(file), line);
 }
 
 void jlib_decl throwUnimplementedException(const char * function, const char * file, unsigned line)
 {
     printStackReport();
-    throw makeStringExceptionV(9999, "UNIMPLEMENTED feature in function %s() at %s(%d)", function, sanitizeSourceFile(file), line);
+    throw makeStringExceptionV(JLIBERR_UtilUnimplementedFeatureInFunctionSAtSD, "UNIMPLEMENTED feature in function %s() at %s(%d)", function, sanitizeSourceFile(file), line);
 }
 
 void jlib_decl throwUnimplementedException(const char * what, const char * function, const char * file, unsigned line)
 {
     printStackReport();
-    throw makeStringExceptionV(-1, "UNIMPLEMENTED feature [%s] in function %s() at %s(%d)", what, function, sanitizeSourceFile(file), line);
+    throw makeStringExceptionV(JLIBERR_UtilUnimplementedFeatureSInFunctionSAt, "UNIMPLEMENTED feature [%s] in function %s() at %s(%d)", what, function, sanitizeSourceFile(file), line);
 }
 
 void jlib_decl throwUnimplementedException(const char * what, const char *what2, const char * function, const char * file, unsigned line)
 {
     printStackReport();
-    throw makeStringExceptionV(-1, "UNIMPLEMENTED feature [%s %s] in function %s() at %s(%d)", what, what2, function, sanitizeSourceFile(file), line);
+    throw makeStringExceptionV(JLIBERR_UtilUnimplementedFeatureSSInFunctionS, "UNIMPLEMENTED feature [%s %s] in function %s() at %s(%d)", what, what2, function, sanitizeSourceFile(file), line);
 }
 
 static bool backtraceOnAssert = true;

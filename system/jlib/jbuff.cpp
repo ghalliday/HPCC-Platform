@@ -1302,7 +1302,7 @@ MemoryBuffer &CLargeMemoryAllocator::serialize(MemoryBuffer &mb)
     memsize_t al = allocated();
     size32_t sz = (size32_t)al;
     if (sz!=al)
-        throw MakeStringException(-1,"CLargeMemoryAllocator::serialize overflow");
+        throw MakeStringException(JLIBERR_UtilClargememoryallocatorSerializeOverflow,"CLargeMemoryAllocator::serialize overflow");
     byte *d = (byte *)mb.reserveTruncate(sz)+sz;
     Chunk *p = &chunk;
     while (sz&&p) {

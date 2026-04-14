@@ -464,7 +464,7 @@ void md5_filesum(const char* filename, StringBuffer& outstring)
     Owned<IFileIO> io = file->openShared(IFOread, IFSHread);
 
     if (!io)
-        throw MakeStringException(1, "File %s could not be opened", file->queryFilename());
+        throw MakeStringException(JLIBERR_UtilFileSCouldNotBeOpened, "File %s could not be opened", file->queryFilename());
 
     offset_t size = io->size();
     offset_t readPos = 0;
@@ -474,7 +474,7 @@ void md5_filesum(const char* filename, StringBuffer& outstring)
         offset_t sizeRead = io->read(readPos, CHUNKSIZE, contents);
 
         if (0 == sizeRead)
-            throw MakeStringException(1, "File %s only read %llu of %llu bytes", file->queryFilename(), size-readPos, size);
+            throw MakeStringException(JLIBERR_UtilFileSOnlyReadLluOfLlu, "File %s only read %llu of %llu bytes", file->queryFilename(), size-readPos, size);
 
         readPos += sizeRead;
         md5_append(&context, (const unsigned char *)contents, (int)sizeRead);

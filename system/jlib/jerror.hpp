@@ -243,12 +243,104 @@
 #define JLIBERR_SystemSecretSSNotFound_1                   6259
 #define JLIBERR_SystemMonthShouldBetween1And12             6260
 #define JLIBERR_SystemBadCronSpecS                         6261
+#define JLIBERR_UtilLoadsharedobjectSIsNotALocalFile       6260
+#define JLIBERR_UtilErrorLoadingSDS                        6261
+#define JLIBERR_UtilErrorLoadingSS                         6262
+#define JLIBERR_UtilPluginInformationMissingPluginNameOrEntrypoint 6263
+#define JLIBERR_UtilFailedToLoadPluginS                    6264
+#define JLIBERR_UtilFunctionSNotFoundInPluginS             6265
+#define JLIBERR_UtilFactoryFunctionSReturnedNullInPlugin   6266
+#define JLIBERR_UtilNoDefaultDirectoryAvailableForPlaneS   6267
+#define JLIBERR_UtilNoDefaultDirectoryAvailableForPlaneS_1 6268
+#define JLIBERR_UtilUnexpectedCategorySRequestedInContainerizedMode 6269
+#define JLIBERR_UtilUnrecognisedConfigurationCategoryS     6270
+#define JLIBERR_UtilParsecommandlineTooManyArguments       6271
+#define JLIBERR_UtilUnableToCreateTempDirectory            6272
+#define JLIBERR_UtilUnableToCreateTempDirectory_1          6273
+#define JLIBERR_UtilInvalidSizeSuffixS                     6274
+#define JLIBERR_UtilInvalidSizeSuffixS_1                   6275
+#define JLIBERR_UtilInvalidCpuStringS                      6276
+#define JLIBERR_UtilAtomicwritefileCouldNotCreateOutputFileS 6277
+#define JLIBERR_UtilAtomicwritefileCouldNotCreateOutputFileFor 6278
+#define JLIBERR_UtilAtomicwritefileCouldNotCreateOutputFileS_1 6279
+#define JLIBERR_UtilGeneratedPasswordsMustBeAtLeast8       6280
+#define JLIBERR_UtilErrorLoadingResourceFromJfrogSNS       6281
+#define JLIBERR_UtilMd5MismatchOnFileSInManifest           6282
+#define JLIBERR_UtilInvalidFormatReaddigitsS               6283
+#define JLIBERR_UtilStringbufferValistAppendf              6284
+#define JLIBERR_UtilStringbufferValistAppendf_1            6285
+#define JLIBERR_UtilStringbufferReallocFailedToReallocNewmaxZu 6286
+#define JLIBERR_UtilStringbufferReallocFailedToReallocNewmaxZu_1 6287
+#define JLIBERR_UtilStringSubstitutionVariableSNotSet      6288
+#define JLIBERR_UtilInvalidJsonUEscapedSequence            6289
+#define JLIBERR_UtilInvalidJsonEscapedSequence             6290
+#define JLIBERR_UtilInvalidEscapedSequence                 6291
+#define JLIBERR_UtilInvalidEscapedSequence_1               6292
+#define JLIBERR_UtilUnrecognisedCharacterEscapeSequenceC   6293
+#define JLIBERR_UtilNoStatsMappingFoundForScopeS           6294
+#define JLIBERR_UtilCannotFilterByIdAndScopeIn             6295
+#define JLIBERR_UtilCannotFilterByIdAndScopeIn_1           6296
+#define JLIBERR_UtilDepthParametersInWrongOrderUU          6297
+#define JLIBERR_UtilDepthParametersInWrongOrderUU_1        6298
+#define JLIBERR_UtilUnknownStatsFilterSExpectedCreatorCreatortypeDepthKindMeasureScopeScopetype 6299
+#define JLIBERR_UtilMissingCloseBracketInS                 6300
+#define JLIBERR_UtilAStatsCategorySSIsAlready              6301
+#define JLIBERR_UtilStatisticUInTheWrongOrder              6302
+#define JLIBERR_UtilJobSCompletedWithUnknownStatusCondition 6303
+#define JLIBERR_UtilFailedToRunSPodNot                     6304
+#define JLIBERR_UtilWaitJobTimeoutUSecsExpiredWhilst       6305
+#define JLIBERR_UtilNoWorkerNodesFoundForSelectorS         6306
+#define JLIBERR_UtilGetpodnodesMissingNodeNameSInOutput    6307
+#define JLIBERR_UtilGetpodnodesMissingPodNameSInOutput     6308
+#define JLIBERR_UtilFailedToRunSErrorUS                    6309
+#define JLIBERR_UtilAesEncryptionErrorDIsNotA              6310
+#define JLIBERR_UtilAesEncryptionErrorDS                   6311
+#define JLIBERR_UtilAesDecryptionErrorDS                   6312
+#define JLIBERR_UtilAesEncryptionErrorInsufficientSpaceInInput 6313
+#define JLIBERR_UtilAesEncryptionErrorDS_1                 6314
+#define JLIBERR_UtilAesDecryptionErrorDS_1                 6315
+#define JLIBERR_UtilOpensslAesencryptUnexpectedFailureInSS 6316
+#define JLIBERR_UtilOpensslAesdecryptUnexpectedFailureInSS 6317
+#define JLIBERR_UtilNoContainerProvidedPathS               6318
+#define JLIBERR_UtilCouldNotMapFilenameToStoragePlane      6319
+#define JLIBERR_UtilUnknownStoragePlaneS                   6320
+#define JLIBERR_UtilNoEntryFoundForHostgroupS              6321
+#define JLIBERR_UtilUnknownStoragePlaneS_1                 6322
+#define JLIBERR_UtilGetplanehostIndexUOutOfRange1U         6323
+#define JLIBERR_UtilStoragePlaneSDoesNotMatchRequest       6324
+#define JLIBERR_UtilFailedToDeserializeImultiexception     6325
+#define JLIBERR_UtilInternalErrorInSAtSD                   6326
+#define JLIBERR_UtilInternalErrorSInSAtSD                  6327
+#define JLIBERR_UtilUnimplementedFeatureInFunctionSAtSD    6328
+#define JLIBERR_UtilUnimplementedFeatureSInFunctionSAt     6329
+#define JLIBERR_UtilUnimplementedFeatureSSInFunctionS      6330
+#define JLIBERR_UtilCfcmpstreamFileCorrupt1                6331
+#define JLIBERR_UtilCfcmpstreamFileCorrupt2                6332
+#define JLIBERR_UtilCfcmpstreamSeekNotSupported            6333
+#define JLIBERR_UtilCfcmpstreamReadToStreamBeingWritten    6334
+#define JLIBERR_UtilCfcmpstreamWriteToStreamBeingRead      6335
+#define JLIBERR_UtilFileSCouldNotBeOpened                  6336
+#define JLIBERR_UtilFileSOnlyReadLluOfLlu                  6337
+#define JLIBERR_UtilHashtableExpandedBeyond232Items        6338
+#define JLIBERR_UtilHashtableExpandedBeyond232Items_1      6339
+#define JLIBERR_UtilError                                  6340
+#define JLIBERR_UtilGetlogaccessfilterfromptreeInputTreeCannotBeNull 6341
+#define JLIBERR_UtilInvalidIndexToDefaulttimereporter      6342
+#define JLIBERR_UtilInvalidNumberOfResourcesCpusS          6343
+#define JLIBERR_UtilEncounteredEmptyLogAccessFormatName    6344
+#define JLIBERR_UtilEncounteredUnknownLogAccessFormatNameS 6345
+#define JLIBERR_UtilClargememoryallocatorSerializeOverflow 6346
+#define JLIBERR_UtilTracemanagerMustBeIntialized           6347
+#define JLIBERR_UtilPrecompiledHeaderGenerationOnlySupportedForG 6348
+#define JLIBERR_UtilCbitsetWithFixedMemCannotExpand        6349
+#define JLIBERR_UtilInternalErrorInSAtSD_1                 6350
 //---- Text for all errors (make it easy to internationalise) ---------------------------
 
 #define JLIBERR_BadlyFormedDateTime_Text        "Badly formatted date/time '%s'"
 #define JLIBERR_BadUtf8InArguments_Text         "The utf separators/terminators aren't valid utf-8"
 
 #endif
+
 
 
 

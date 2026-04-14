@@ -288,7 +288,7 @@ void SuperHashTable::ensure(unsigned mincount)
             newsize += newsize+1;
 #endif
         if (newsize < tablesize)
-            throw MakeStringException(0, "HashTable expanded beyond 2^32 items");
+            throw MakeStringException(JLIBERR_UtilHashtableExpandedBeyond232Items, "HashTable expanded beyond 2^32 items");
         if (mincount <= getTableLimit(newsize))
             break;
     }
@@ -312,7 +312,7 @@ void SuperHashTable::expand()
 void SuperHashTable::expand(unsigned newsize)
 {
     if (newsize < tablesize)
-        throw MakeStringException(0, "HashTable expanded beyond 2^32 items");
+        throw MakeStringException(JLIBERR_UtilHashtableExpandedBeyond232Items_1, "HashTable expanded beyond 2^32 items");
     void * *newtable = (void * *) checked_malloc(newsize*sizeof(void *),-603);
     memset(newtable,0,newsize*sizeof(void *));
     void * *oldtable = table;

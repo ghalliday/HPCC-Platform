@@ -60,7 +60,7 @@ protected:
     inline void addBitSet(bits_t m)
     {
         if (fixedMemory)
-            throw MakeStringException(-1, "CBitSet with fixed mem cannot expand");
+            throw MakeStringException(JLIBERR_UtilCbitsetWithFixedMemCannotExpand, "CBitSet with fixed mem cannot expand");
         mb.append(m);
         mem = (bits_t *)mb.bufferBase();
         ++bitSetUnits;

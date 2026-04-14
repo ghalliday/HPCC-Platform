@@ -285,11 +285,11 @@ public:
         MemoryAttr cmpma;
         byte *cmpbuf = (byte *)cmpma.allocate(sz[1]);
         if (baseio->read(cmpOffset,sz[1],cmpbuf)!=sz[1])
-            throw MakeStringException(-1,"CFcmpStream: file corrupt.1");
+            throw MakeStringException(JLIBERR_UtilCfcmpstreamFileCorrupt1,"CFcmpStream: file corrupt.1");
         memcpy(ma.bufferBase(), cmpbuf, sz[1]);
         size32_t amnt = sz[1];
         if (amnt!=bufsize)
-            throw MakeStringException(-1,"CFcmpStream: file corrupt.2");
+            throw MakeStringException(JLIBERR_UtilCfcmpstreamFileCorrupt2,"CFcmpStream: file corrupt.2");
         cmpOffset += sz[1];
         return true;
     }
@@ -345,7 +345,7 @@ public:
         if ((origin==IFScurrent)&&(pos==0))
             return;
         if ((origin==IFSbegin)||(pos!=0))
-            throw MakeStringException(-1,"CFcmpStream seek not supported");
+            throw MakeStringException(JLIBERR_UtilCfcmpstreamSeekNotSupported,"CFcmpStream seek not supported");
         expOffset = 0;
         bufpos = 0;
         bufsize = 0;
@@ -364,7 +364,7 @@ public:
     virtual size32_t read(size32_t len, void * data)
     {
         if (!reading)
-            throw MakeStringException(-1,"CFcmpStream read to stream being written");
+            throw MakeStringException(JLIBERR_UtilCfcmpstreamReadToStreamBeingWritten,"CFcmpStream read to stream being written");
         size32_t ret=0;
         while (len)
         {
@@ -389,7 +389,7 @@ public:
     virtual size32_t write(size32_t len, const void * data)
     {
         if (reading)
-            throw MakeStringException(-1,"CFcmpStream write to stream being read");
+            throw MakeStringException(JLIBERR_UtilCfcmpstreamWriteToStreamBeingRead,"CFcmpStream write to stream being read");
         size32_t ret = len;
         while (len+bufsize>FCMP_BUFFER_SIZE)
         {
