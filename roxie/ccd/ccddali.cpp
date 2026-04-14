@@ -33,6 +33,7 @@
 #include "workflow.hpp"
 #include "mpcomm.hpp"
 #include "ws_dfsclient.hpp"
+#include "roxieerr.hpp"
 
 #ifndef _CONTAINERIZED
 #define ROXIE_DALI_CACHE
@@ -345,7 +346,7 @@ private:
             }
         }
         if (oneShotRoxie)
-            throw makeStringException(-1, "Error - dali not connected");
+            throw makeStringException(ROXIEERR_ErrorDaliNotConnected, "Error - dali not connected");
         DBGLOG("LoadDaliTree(%s) - not connected - read from cache", xpath.str());
         localTree.setown(readCache(xpath));
         return localTree.getClear();
@@ -365,7 +366,7 @@ private:
 
         CDfsLogicalFileName dstlfn;
         if (!dstlfn.setValidate(destfilename,true))
-            throw MakeStringException(-1,"Logical name %s invalid",destfilename);
+            throw MakeStringException(ROXIEERR_LogicalNameSInvalid, "Logical name %s invalid",destfilename);
 
         StringBuffer dstpartmask;
         unsigned np = srcfdesc->numParts();

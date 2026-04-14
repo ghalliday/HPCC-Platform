@@ -2950,7 +2950,7 @@ public:
             if (subFiles.length())
             {
                 if (subFiles.length()!=1)
-                    throw MakeStringException(0, "Roxie does not support FETCH or KEYED JOIN to superkey with multiple parts");
+                    throw MakeStringException(ROXIEERR_RoxieDoesNotSupportFetchOrKeyed, "Roxie does not support FETCH or KEYED JOIN to superkey with multiple parts");
                 fileMap.setown(createFilePartMap(lfn, *subFiles.item(0)));
             }
         }
@@ -3137,7 +3137,7 @@ public:
                             if (!translator || !translator->canTranslate())
                                 throw MakeStringException(ROXIE_MISMATCH, "Untranslatable record layout mismatch detected for file %s", subname);
                             else if (mode == RecordTranslationMode::PayloadRemoveOnly && translator->hasNewFields())
-                                throw MakeStringException(0, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", subname);
+                                throw MakeStringException(ROXIEERR_TranslatableFileLayoutMismatchReadingFileS, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", subname);
                             else if (translator->needsTranslate())
                             {
                                 if (fileMode==FileFormatMode::index && translator->keyedTranslated())
@@ -3926,7 +3926,7 @@ private:
     {
         Owned<IGroup> group = queryNamedGroupStore().lookup(cluster);
         if (!group)
-            throw MakeStringException(0, "Unknown cluster %s while writing file %s",
+            throw MakeStringException(ROXIEERR_UnknownClusterSWhileWritingFileS, "Unknown cluster %s while writing file %s",
                     cluster, dFile->queryLogicalName());
 #ifdef _CONTAINERIZED // NB: really is-off-nodestorage
         localCluster.setown(group.getClear());
@@ -3936,7 +3936,7 @@ private:
         if (RANK_NULL != r)
         {
             if (localCluster)
-                throw MakeStringException(0, "Cluster %s occupies node already specified while writing file %s",
+                throw MakeStringException(ROXIEERR_ClusterSOccupiesNodeAlreadySpecifiedWhile, "Cluster %s occupies node already specified while writing file %s",
                         cluster, dFile->queryLogicalName());
             SocketEndpointArray eps;
             SocketEndpoint me(0, myNode.getIpAddress());
@@ -3953,7 +3953,7 @@ private:
             {
                 Owned<INode> other = remoteNodes.item(idx).getNode(0);
                 if (group->isMember(other))
-                    throw MakeStringException(0, "Cluster %s occupies node already specified while writing file %s",
+                    throw MakeStringException(ROXIEERR_ClusterSOccupiesNodeAlreadySpecifiedWhile, "Cluster %s occupies node already specified while writing file %s",
                             cluster, dFile->queryLogicalName());
             }
             remoteNodes.append(*group.getClear());
@@ -3976,6 +3976,7 @@ extern IRoxieWriteHandler *createRoxieWriteHandler(IRoxieDaliHelper *_daliHelper
 
 #ifdef _USE_CPPUNIT
 #include "unittests.hpp"
+#include "roxieerr.hpp"
 
 class CcdFileTest : public CppUnit::TestFixture
 {

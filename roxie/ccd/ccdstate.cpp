@@ -741,7 +741,7 @@ public:
             if (resolved->exists())
             {
                 if (!overwrite)
-                    throw MakeStringException(99, "Cannot write %s, file already exists (missing OVERWRITE attribute?)", resolved->queryFileName());
+                    throw MakeStringException(ROXIEERR_CannotWriteSFileAlreadyExistsMissing, "Cannot write %s, file already exists (missing OVERWRITE attribute?)", resolved->queryFileName());
                 if (extend)
                     UNIMPLEMENTED; // How does extend fit in with the clusterwritemanager stuff? They can't specify cluster and extend together...
                 resolved->setCache(NULL);
@@ -3564,6 +3564,7 @@ void mergeQueries(IPropertyTree *dest, IPropertyTree *src)
 
 #ifdef _USE_CPPUNIT
 #include <cppunit/extensions/HelperMacros.h>
+#include "roxieerr.hpp"
 
 static const char *g1 =
         "<Stats>"

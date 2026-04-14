@@ -225,7 +225,7 @@ public:
             IPropertyTree &field = fields->query();
             const char *fieldname = field.queryProp("@name");
             if (!fieldname || !*fieldname)
-                throw MakeStringException(0, "Invalid MemIndex specification - missing field name");
+                throw MakeStringException(ROXIEERR_InvalidMemindexSpecificationMissingFieldName, "Invalid MemIndex specification - missing field name");
             unsigned fieldNum = recInfo.getFieldNum(fieldname);
             if (fieldNum == (unsigned) -1)
             {
@@ -234,7 +234,7 @@ public:
                     s.append(',').append(recInfo.queryName(idx));
                 if (!s.length())
                     s.append(",<no fields found>");
-                throw MakeStringException(0, "Invalid MemIndex specification - field name %s not found (fields are %s)", fieldname, s.str()+1);
+                throw MakeStringException(ROXIEERR_InvalidMemindexSpecificationFieldNameSNot, "Invalid MemIndex specification - field name %s not found (fields are %s)", fieldname, s.str()+1);
             }
             append(fieldNum);
         }
@@ -585,7 +585,7 @@ public:
     {
         offset_t remaining = memsize - pos;
         if (len > remaining)
-            throw MakeStringException(-1, "InMemoryDirectReader::get: requested %u bytes, only %u available", len, (unsigned) remaining);
+            throw MakeStringException(ROXIEERR_InmemorydirectreaderGetRequestedUBytesOnlyU, "InMemoryDirectReader::get: requested %u bytes, only %u available", len, (unsigned) remaining);
         memcpy(ptr, start+pos, len);
         pos += len;
     }
@@ -763,7 +763,7 @@ public:
         if (curStream)
             curStream->get(len, ptr);
         else
-            throw MakeStringException(-1, "BufferedDirectReader::get: requested %u bytes at eof", len);
+            throw MakeStringException(ROXIEERR_BuffereddirectreaderGetRequestedUBytesAtEof, "BufferedDirectReader::get: requested %u bytes at eof", len);
     }
     virtual bool eos() override
     {
@@ -782,7 +782,7 @@ public:
         if (curStream)
             curStream->skip(len);
         else
-            throw MakeStringException(-1, "BufferedDirectReader::skip: tried to skip %u bytes at eof", len);
+            throw MakeStringException(ROXIEERR_BuffereddirectreaderSkipTriedToSkipUBytes, "BufferedDirectReader::skip: tried to skip %u bytes at eof", len);
     }
     virtual offset_t tell() const override
     {
@@ -1301,6 +1301,7 @@ extern IInMemoryIndexManager *createInMemoryIndexManager(const RtlRecord &recInf
 
 #ifdef _USE_CPPUNIT
 #include "unittests.hpp"
+#include "roxieerr.hpp"
 
 class InMemoryIndexTest : public CppUnit::TestFixture  
 {

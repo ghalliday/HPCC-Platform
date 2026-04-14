@@ -44,6 +44,7 @@
 #include "thorcommon.ipp"
 #include "thorstrand.hpp"
 #include "jstats.h"
+#include "roxieerr.hpp"
 
 using roxiemem::OwnedRoxieRow;
 using roxiemem::OwnedConstRoxieRow;
@@ -3922,7 +3923,7 @@ public:
             if (csvSplitter.splitLine(avail, (const byte *)peek) < rowSize || avail < rowSize)
                 break;
             if (rowSize == maxRowSize)
-                throw MakeStringException(0, "File contained a line of length greater than %d bytes.", maxRowSize);
+                throw MakeStringException(ROXIEERR_FileContainedALineOfLengthGreater, "File contained a line of length greater than %d bytes.", maxRowSize);
             if (rowSize >= maxRowSize/2)
                 rowSize = maxRowSize;
             else

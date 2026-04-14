@@ -36,6 +36,7 @@
 #include "ccdqueue.ipp"
 #include "ccdsnmp.hpp"
 #include "ccdstate.hpp"
+#include "roxieerr.hpp"
 
 //======================================================================================================================
 
@@ -2091,16 +2092,16 @@ IHpccProtocolPlugin *ensureProtocolPlugin(IHpccProtocolPluginContext &protocolCt
     }
     Owned<SharedObject> so = new SharedObject();
     if (!so->load(soname, true, true))
-        throw MakeStringException(-1, "Failed to load protocol library %s", soname);
+        throw MakeStringException(ROXIEERR_FailedToLoadProtocolLibraryS, "Failed to load protocol library %s", soname);
 
     protocolDlls.setValue(soname, so.getLink());
 
     HpccProtocolInstallFunction *protocolInstall = (HpccProtocolInstallFunction *) GetSharedProcedure(so->getInstanceHandle(), "loadHpccProtocolPlugin");
     if (!protocolInstall)
-        throw MakeStringException(-1, "Failed to load protocol library %s loadHpccProtocolPlugin function", soname);
+        throw MakeStringException(ROXIEERR_FailedToLoadProtocolLibrarySLoadhpccprotocolplugin, "Failed to load protocol library %s loadHpccProtocolPlugin function", soname);
     Owned<IHpccProtocolPlugin> protocolPlugin = protocolInstall(&protocolCtx, ensureLimiterFactory());
     if (!protocolPlugin)
-        throw MakeStringException(-1, "Protocol library %s loadHpccProtocolPlugin function failed", soname);
+        throw MakeStringException(ROXIEERR_ProtocolLibrarySLoadhpccprotocolpluginFunctionFailed, "Protocol library %s loadHpccProtocolPlugin function failed", soname);
     protocolPlugins.setValue(soname, protocolPlugin.getLink());
     return protocolPlugin.getClear();
 }

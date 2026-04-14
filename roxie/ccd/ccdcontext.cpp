@@ -45,6 +45,7 @@
 #include <list>
 #include <string>
 #include <algorithm>
+#include "roxieerr.hpp"
 
 using roxiemem::IRowManager;
 
@@ -340,7 +341,7 @@ protected:
     {
         if (!workunit)
         {
-            throw MakeStringException(0, "PERSIST not supported when running predeployed queries");
+            throw MakeStringException(ROXIEERR_PersistNotSupportedWhenRunningPredeployedQueries, "PERSIST not supported when running predeployed queries");
         }
         unsigned wfid = item.queryWfid();
         // Old persist model requires dependencies to be executed BEFORE checking if the persist is up to date
@@ -359,14 +360,14 @@ protected:
         {
             StringBuffer errmsg;
             errmsg.append("Internal error in generated code: for wfid ").append(wfid).append(", persist CRC wfid ").append(item.queryPersistWfid()).append(" did not call returnPersistVersion");
-            throw MakeStringExceptionDirect(0, errmsg.str());
+            throw MakeStringExceptionDirect(ROXIEERR_ErrmsgStr, errmsg.str());
         }
         Owned<PersistVersion> thisPersist = persist.getClear();
         if (strcmp(logicalName, thisPersist->logicalName.get()) != 0)
         {
             StringBuffer errmsg;
             errmsg.append("Failed workflow/persist consistency check: wfid ").append(wfid).append(", WU persist name ").append(logicalName).append(", runtime persist name ").append(thisPersist->logicalName.get());
-            throw MakeStringExceptionDirect(0, errmsg.str());
+            throw MakeStringExceptionDirect(ROXIEERR_ErrmsgStr, errmsg.str());
         }
         if (workunit->getDebugValueInt("freezepersists", 0) != 0)
         {
@@ -401,7 +402,7 @@ protected:
     virtual void doExecuteCriticalItem(IRuntimeWorkflowItem & item)
     {
         if (!workunit)
-            throw MakeStringException(0, "CRITICAL not supported when running predeployed queries");
+            throw MakeStringException(ROXIEERR_CriticalNotSupportedWhenRunningPredeployedQueries, "CRITICAL not supported when running predeployed queries");
 
         unsigned wfid = item.queryWfid();
 
@@ -410,7 +411,7 @@ protected:
 
         Owned<IRemoteConnection> rlock = obtainCriticalLock(criticalName);
         if (!rlock.get())
-            throw MakeStringException(0, "Cannot obtain Critical section lock");
+            throw MakeStringException(ROXIEERR_CannotObtainCriticalSectionLock, "Cannot obtain Critical section lock");
 
         doExecuteItemDependencies(item, wfid);
         doExecuteItem(item, wfid);
@@ -540,7 +541,7 @@ private:
         StringBuffer lfn;
         expandLogicalFilename(lfn, logicalName, workunit, false, false);
         if (!lfn.length())
-            throw MakeStringException(0, "Invalid persist name used : '%s'", logicalName);
+            throw MakeStringException(ROXIEERR_InvalidPersistNameUsedS, "Invalid persist name used : '%s'", logicalName);
 
         const char * name = lfn;
 
@@ -677,7 +678,7 @@ private:
     {
         if (!workunit)
         {
-            throw MakeStringException(0, "PERSIST not supported when running predeployed queries");
+            throw MakeStringException(ROXIEERR_PersistNotSupportedWhenRunningPredeployedQueries, "PERSIST not supported when running predeployed queries");
         }
     }
     virtual bool isPersistAlreadyLocked(const char * logicalName)
@@ -3641,7 +3642,7 @@ public:
             }
             else
             {
-                throw MakeStringException(0, "Missing or invalid workunit name %s in getExternalResult()", nullText(wuid));
+                throw MakeStringException(ROXIEERR_MissingOrInvalidWorkunitNameSIn, "Missing or invalid workunit name %s in getExternalResult()", nullText(wuid));
             }
         }
         else
@@ -3652,7 +3653,7 @@ public:
     {
         Owned<IConstWUResult> r = getExternalResult(wuid, name, sequence);
         if (!r)
-            throw MakeStringException(0, "Failed to retrieve hash value %s from workunit %s", name, wuid);
+            throw MakeStringException(ROXIEERR_FailedToRetrieveHashValueSFrom, "Failed to retrieve hash value %s from workunit %s", name, wuid);
         return r->getResultHash();
     }
 
@@ -3733,7 +3734,7 @@ public:
             const char * cluster = clusterNames.tos();
             Owned<IConstWUClusterInfo> clusterInfo = getTargetClusterInfo(cluster);
             if (!clusterInfo)
-                throw MakeStringException(-1, "Unknown cluster '%s'", cluster);
+                throw MakeStringException(ROXIEERR_UnknownClusterS, "Unknown cluster '%s'", cluster);
             const StringArray &thors = clusterInfo->getThorProcesses();
             if (thors.length())
             {
@@ -3750,7 +3751,7 @@ public:
                             if (groupName.length())
                             {
                                 if (!strieq(groupName, envGroup))
-                                    throw MakeStringException(-1, "getGroupName(): ambiguous groups %s, %s", groupName.str(), envGroup);
+                                    throw MakeStringException(ROXIEERR_GetgroupnameAmbiguousGroupsSS, "getGroupName(): ambiguous groups %s, %s", groupName.str(), envGroup);
                             }
                             else
                                 groupName.append(envGroup);
@@ -3810,7 +3811,7 @@ public:
             const char * cluster = clusterNames.tos();
             Owned<IConstWUClusterInfo> clusterInfo = getTargetClusterInfo(cluster);
             if (!clusterInfo)
-                throw MakeStringException(-1, "Unknown Cluster '%s'", cluster);
+                throw MakeStringException(ROXIEERR_UnknownClusterS, "Unknown Cluster '%s'", cluster);
             return strdup(clusterTypeString(clusterInfo->getPlatform(), false));
         }
         else
@@ -3928,7 +3929,7 @@ public:
                 const char * cluster = clusterNames.tos();
                 Owned<IConstWUClusterInfo> clusterInfo = getTargetClusterInfo(cluster);
                 if (!clusterInfo)
-                    throw MakeStringException(-1, "Unknown cluster '%s'", cluster);
+                    throw MakeStringException(ROXIEERR_UnknownClusterS, "Unknown cluster '%s'", cluster);
                 if (clusterInfo->getPlatform() == RoxieCluster)
                     clusterWidth = numChannels;  // We assume it's the current roxie - that's ok so long as roxie's don't call other roxies.
                 else
@@ -3972,7 +3973,7 @@ public:
             if (targetClusterType==RoxieCluster)
             {
                 if (!streq(oldCluster, newCluster))
-                    throw MakeStringException(-1, "Error - cannot switch cluster if targeting roxie");
+                    throw MakeStringException(ROXIEERR_ErrorCannotSwitchClusterIfTargetingRoxie, "Error - cannot switch cluster if targeting roxie");
             }
             clusterNames.append(oldCluster);
             WorkunitUpdate wu = updateWorkUnit();

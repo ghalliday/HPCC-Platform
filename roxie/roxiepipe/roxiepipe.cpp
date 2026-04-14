@@ -25,6 +25,7 @@
 #include "jmisc.hpp"
 #include "jqueue.tpp"
 #include "roxie.hpp"
+#include "roxieerr.hpp"
 #ifdef _USE_OPENSSL
 # include "securesocket.hpp"
 #endif
@@ -304,7 +305,7 @@ public:
                     {
                         if ((len - (payload-obuf)) % out_width != 0)
                         {
-                            throw MakeStringException(-1,"Fatal error: received %u bytes of data, not a multiple of -ow %u",len-(size32_t)(payload-obuf),out_width);
+                            throw MakeStringException(ROXIEERR_FatalErrorReceivedUBytesOfData, "Fatal error: received %u bytes of data, not a multiple of -ow %u",len-(size32_t)(payload-obuf),out_width);
                         }
                         
                         outputQ.enqueue(x);

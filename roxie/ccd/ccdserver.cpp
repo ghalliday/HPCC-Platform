@@ -1235,7 +1235,7 @@ public:
     {
         const IResolvedFile *ret = resolveLFN(filename, isOpt, isPrivilegedUser);
         if (ret && !ret->isKey())
-            throw MakeStringException(0, "Attempting to read flat file as an index: %s", filename);
+            throw MakeStringException(ROXIEERR_AttemptingToReadFlatFileAsAn, "Attempting to read flat file as an index: %s", filename);
         return ret;
     }
 
@@ -1243,7 +1243,7 @@ public:
     {
         const IResolvedFile *ret = resolveLFN(filename, isOpt, isPrivilegedUser);
         if (ret && ret->isKey())
-            throw MakeStringException(0, "Attempting to read index as a flat file: %s", filename);
+            throw MakeStringException(ROXIEERR_AttemptingToReadIndexAsAFlat, "Attempting to read index as a flat file: %s", filename);
         return ret;
     }
 
@@ -12179,7 +12179,7 @@ protected:
         if (clusters.length())
         {
             if (extend)
-                throw MakeStringException(0, "Cannot combine EXTEND and CLUSTER flags on disk write of file %s", rawLogicalName.get());
+                throw MakeStringException(ROXIEERR_CannotCombineExtendAndClusterFlagsOn, "Cannot combine EXTEND and CLUSTER flags on disk write of file %s", rawLogicalName.get());
         }
         else
         {
@@ -12731,7 +12731,7 @@ class CRoxieServerIndexWriteActivity : public CRoxieServerInternalSinkActivity, 
                 writer->queryFile()->remove();
             }
             else
-                throw MakeStringException(99, "Cannot write index file %s, file already exists (missing OVERWRITE attribute?)", filename.str());
+                throw MakeStringException(ROXIEERR_CannotWriteIndexFileSFileAlready, "Cannot write index file %s, file already exists (missing OVERWRITE attribute?)", filename.str());
         }
     }
 
@@ -12779,7 +12779,7 @@ public:
             maxDiskRecordSize = helper.queryDiskRecordSize()->getFixedSize()-fileposSize;
 
         if (maxDiskRecordSize > KEYBUILD_MAXLENGTH)
-            throw MakeStringException(99, "Index maximum record length (%d) exceeds 32k internal limit", maxDiskRecordSize);
+            throw MakeStringException(ROXIEERR_IndexMaximumRecordLengthDExceeds32k, "Index maximum record length (%d) exceeds 32k internal limit", maxDiskRecordSize);
 
         OwnedMalloc<char> rowBuffer(maxDiskRecordSize, true);
 
@@ -22055,7 +22055,7 @@ public:
             assertex(storedName);
             Owned<IConstWUResult> queryRes =  workunit->getQueryResultByName(storedName);
             if (!queryRes)
-                throw makeStringExceptionV(0, "Library cannot write to result %s that does not exist in calling query", storedName);
+                throw makeStringExceptionV(ROXIEERR_LibraryCannotWriteToResultSThat, "Library cannot write to result %s that does not exist in calling query", storedName);
             Owned<IConstWUResult> libraryRes =  factory->queryQueryFactory().queryWorkUnit()->getResultBySequence(sequence);
             if (libraryRes) // Should always be present, but rather than assert, just ignore if not
             {
@@ -22067,7 +22067,7 @@ public:
                 {
                     DBGLOG("Query format: %s", queryFormat.str());
                     DBGLOG("Library format: %s", libraryFormat.str());
-                    throw makeStringExceptionV(0, "Library cannot write to result %s: result type in query does not match", storedName);
+                    throw makeStringExceptionV(ROXIEERR_LibraryCannotWriteToResultSResult, "Library cannot write to result %s: result type in query does not match", storedName);
                 }
             }
             sequence = queryRes->getResultSequence();
@@ -22112,7 +22112,7 @@ public:
                 outputLimit = workunit->getDebugValueInt(OPT_OUTPUTLIMIT, workunit->getDebugValueInt(OPT_OUTPUTLIMIT_LEGACY, defaultDaliResultLimit));
             }
             if (outputLimit>daliResultOutputMax)
-                throw MakeStringException(0, "Dali result outputs are restricted to a maximum of %d MB, the current limit is %d MB. A huge dali result usually indicates the ECL needs altering.", daliResultOutputMax, defaultDaliResultLimit);
+                throw MakeStringException(ROXIEERR_DaliResultOutputsAreRestrictedToA, "Dali result outputs are restricted to a maximum of %d MB, the current limit is %d MB. A huge dali result usually indicates the ECL needs altering.", daliResultOutputMax, defaultDaliResultLimit);
             assertex(outputLimit<=0x1000); // 32bit limit because MemoryBuffer/CMessageBuffers involved etc.
             outputLimitBytes = outputLimit * 0x100000;
         }
@@ -22200,7 +22200,7 @@ public:
                 else
                     errMsg.append("sequence=").append(helper.getSequence());
                 errMsg.append(")");
-                throw MakeStringExceptionDirect(0, errMsg.str());
+                throw MakeStringExceptionDirect(ROXIEERR_ErrmsgStr, errMsg.str());
             }
         }
         if (xmlwriter)
@@ -29030,6 +29030,7 @@ IActivityGraph *createActivityGraph(IRoxieAgentContext *ctx, const char *_graphN
 
 #ifdef _USE_CPPUNIT
 #include "unittests.hpp"
+#include "roxieerr.hpp"
 
 // There is a bug in VC6 implemetation of protected which prevents nested classes from accessing owner's data. It can be tricky to work around - hence...
 #if _MSC_VER==1200

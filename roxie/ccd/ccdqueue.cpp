@@ -39,6 +39,7 @@
 
 #ifdef _USE_CPPUNIT
 #include <cppunit/extensions/HelperMacros.h>
+#include "roxieerr.hpp"
 #endif
 
 using roxiemem::OwnedRoxieRow;
@@ -534,7 +535,7 @@ static bool channelWrite(RoxiePacketHeader &buf, bool includeSelf)
         Owned<const ITopologyServer> topo = getTopology();
         const SocketEndpointArray &eps = topo->queryAgents(buf.channel);
         if (!eps.ordinality())
-            throw makeStringExceptionV(0, "No agents available for channel %d", buf.channel);
+            throw makeStringExceptionV(ROXIEERR_NoAgentsAvailableForChannelD, "No agents available for channel %d", buf.channel);
         if (buf.channel==0)
         {
             // Note that we expand any writes on channel 0 here, since we need to capture the server's view of what agents are on each channel
@@ -1919,7 +1920,7 @@ public:
     {
         // MORE - make sure we call this for whole query abort as well as for callback abort
         if (aborted)
-            ready.interrupt(MakeStringException(0, "Interrupted"));
+            ready.interrupt(MakeStringException(ROXIEERR_Interrupted, "Interrupted"));
         else if (!gotData)
         {
             gotData = true;
@@ -3522,7 +3523,7 @@ public:
         if (memLimitExceeded)
         {
             DBGLOG("LocalCollator: CLocalMessageCollator::getNextResult() throwing memory limit exceeded exception");
-            throw MakeStringException(0, "memory limit exceeded");
+            throw MakeStringException(ROXIEERR_MemoryLimitExceeded, "memory limit exceeded");
         }
         anyActivity = false;
         if (!sem.wait(time_out))
@@ -3558,7 +3559,7 @@ public:
             if (!dataBuffer.get()->attachToRowMgr(rowManager))
             {
                 memLimitExceeded = true;
-                interrupt(MakeStringException(0, "memory limit exceeded"));
+                interrupt(MakeStringException(ROXIEERR_MemoryLimitExceeded, "memory limit exceeded"));
                 return(false);
             }
         }

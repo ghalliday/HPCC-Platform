@@ -1454,7 +1454,7 @@ public:
         if (name.isEmpty())
         {
             const char *fmt = mlFmt==MarkupFmt_XML ? "XML" : "JSON";
-            IException *E = MakeStringException(-1, "ERROR: Invalid %s queryName not found - received from %s:%d - %s", fmt, peer, port, msg);
+            IException *E = MakeStringException(ROXIEERR_ErrorInvalidSQuerynameNotFoundReceived, "ERROR: Invalid %s queryName not found - received from %s:%d - %s", fmt, peer, port, msg);
             logctx.logOperatorException(E, __FILE__, __LINE__, "Invalid query %s", fmt);
             throw E;
         }
@@ -2333,6 +2333,7 @@ extern void unloadHpccProtocolPlugin()
 
 #if defined(_DEBUG) && defined(_USE_CPPUNIT)
 #include "unittests.hpp"
+#include "roxieerr.hpp"
 
 class CcdProtocolUnitTests : public CppUnit::TestFixture
 {

@@ -38,6 +38,7 @@
 #include "roxiemem.hpp"
 #include "roxie.hpp"
 #include "ccd.hpp"
+#include "roxieerr.hpp"
 
 using roxiemem::DataBuffer;
 using roxiemem::IRowManager;
@@ -602,12 +603,12 @@ IMessageResult *CMessageCollator::getNextResult(unsigned time_out, bool &anyActi
     if (memLimitExceeded)
     {
         DBGLOG("UdpCollator: CMessageCollator::getNextResult() throwing memory limit exceeded exception - rowMgr=%p this=%p", (void*) rowMgr, this);
-        throw MakeStringException(0, "memory limit exceeded");
+        throw MakeStringException(ROXIEERR_MemoryLimitExceeded, "memory limit exceeded");
     }
     else if (roxiemem::memPoolExhausted())
     {
         DBGLOG("UdpCollator: CMessageCollator::getNextResult() throwing memory pool exhausted exception - rowMgr=%p this=%p", (void*)rowMgr, this);
-        throw MakeStringException(0, "memory pool exhausted");
+        throw MakeStringException(ROXIEERR_MemoryPoolExhausted, "memory pool exhausted");
     }
     if (sem.wait(time_out))
     {

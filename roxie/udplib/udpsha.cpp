@@ -557,6 +557,7 @@ void sanityCheckUdpSettings(unsigned receiveQueueSize, unsigned sendQueueSize, u
 //---------------------------------------------------------------------------------------------------------------------
 #ifdef _USE_CPPUNIT
 #include "unittests.hpp"
+#include "roxieerr.hpp"
 
 class PacketTrackerTest : public CppUnit::TestFixture
 {
@@ -1044,7 +1045,7 @@ CSimulatedUdpReadSocket::CSimulatedUdpReadSocket(const SocketEndpoint &_me)
 {
     port = getMappedSocketPort(_me);
     if (connected[port-basePort].exchange(true))
-        throw makeStringException(0, "Two ip/ports mapped to the same port - improve the hash (or change maxPorts)!");
+        throw makeStringException(ROXIEERR_TwoIpPortsMappedToTheSame, "Two ip/ports mapped to the same port - improve the hash (or change maxPorts)!");
     realSocket.setown(ISocket::udp_create(port));
 }
 
