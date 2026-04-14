@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "rtlerr.hpp"
 #include <math.h>
 #include <stdio.h>
 #include "jmisc.hpp"
@@ -611,7 +612,7 @@ public:
             byte format;
             buf.read(format);
             if (format != RTLTYPEINFO_FORMAT_1)
-                throw MakeStringException(0, "Invalid type info (%d) in CRtlFieldTypeDeserializer::deserialize", format);
+                throw MakeStringException(RTLERR_InvalidTypeInfoDInCrtlfieldtypedeserializer, "Invalid type info (%d) in CRtlFieldTypeDeserializer::deserialize", format);
             hash64_t hash;
             buf.read(hash);
             size32_t size;
@@ -619,7 +620,7 @@ public:
 #ifdef VALIDATE_TYPEINFO_HASHES
             hash64_t expected = rtlHash64Data(size, buf.readDirect(0), 0);
             if (expected != hash)
-                throw MakeStringException(0, "Invalid type info hash in CRtlFieldTypeDeserializer::deserialize");
+                throw MakeStringException(RTLERR_InvalidTypeInfoHashInCrtlfieldtypedeserializer, "Invalid type info hash in CRtlFieldTypeDeserializer::deserialize");
 #endif
             size32_t endpos = buf.getPos() + size;
             while (buf.getPos() < endpos)
@@ -632,7 +633,7 @@ public:
                 base = deserializeType(buf);
             }
             if (buf.getPos()!=endpos)
-                throw MakeStringException(0, "Invalid type info (incorrect size data) in CRtlFieldTypeDeserializer::deserialize");
+                throw MakeStringException(RTLERR_InvalidTypeInfoIncorrectSizeData, "Invalid type info (incorrect size data) in CRtlFieldTypeDeserializer::deserialize");
             buf.setEndian(oldEndian);
             return base;
         }
@@ -726,7 +727,7 @@ private:
         const RtlTypeInfo ** found = types.getValue(key);
         if (found)
             return *found;
-        throw makeStringException(-1, "Invalid serialized type information");
+        throw makeStringException(RTLERR_InvalidSerializedTypeInformation, "Invalid serialized type information");
     }
     void addType(const RtlTypeInfo *type, unsigned idx)
     {
@@ -2106,8 +2107,8 @@ extern ECLRTL_API void throwTranslationError(const RtlRecord & destRecInfo, cons
     translator->describe();
 #endif
     if (!translator->canTranslate())
-        throw MakeStringException(0, "Untranslatable record layout mismatch detected for: %s", filename);
-    throw MakeStringException(0, "Translatable key layout mismatch reading file %s but translation disabled", filename);
+        throw MakeStringException(RTLERR_UntranslatableRecordLayoutMismatchDetectedFor, "Untranslatable record layout mismatch detected for: %s", filename);
+    throw MakeStringException(RTLERR_TranslatableKeyLayoutMismatchReadingFile, "Translatable key layout mismatch reading file %s but translation disabled", filename);
 }
 
 class TranslatedRowStream : public CInterfaceOf<IRowStream>
@@ -2231,8 +2232,8 @@ public:
                     mapNeeded = true;
                     switch (mappedFieldNum)
                     {
-                    case (unsigned) -1: throw makeStringExceptionV(0, "Cannot translate keyed filter on field %u - no matching field", idx);
-                    case (unsigned) -2: throw makeStringExceptionV(0, "Cannot translate keyed filter on field %u - incompatible matching field type", idx);
+                    case (unsigned) -1: throw makeStringExceptionV(RTLERR_CannotTranslateKeyedFilterOnField, "Cannot translate keyed filter on field %u - no matching field", idx);
+                    case (unsigned) -2: throw makeStringExceptionV(RTLERR_CannotTranslateKeyedFilterOnField_1, "Cannot translate keyed filter on field %u - incompatible matching field type", idx);
                     default:
                         filters.remapField(idx, mappedFieldNum);
                         break;
@@ -2259,8 +2260,8 @@ public:
                     mapNeeded = true;
                     switch (mappedFieldNum)
                     {
-                    case (unsigned) -1: throw makeStringExceptionV(0, "Cannot translate keyed filter on field %u - no matching field", idx);
-                    case (unsigned) -2: throw makeStringExceptionV(0, "Cannot translate keyed filter on field %u - incompatible matching field type", idx);
+                    case (unsigned) -1: throw makeStringExceptionV(RTLERR_CannotTranslateKeyedFilterOnField, "Cannot translate keyed filter on field %u - no matching field", idx);
+                    case (unsigned) -2: throw makeStringExceptionV(RTLERR_CannotTranslateKeyedFilterOnField_1, "Cannot translate keyed filter on field %u - incompatible matching field type", idx);
                     default:
                         filter.addFilter(*in.item(idx).remap(mappedFieldNum));
                         break;

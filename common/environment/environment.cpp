@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jlib.hpp"
+#include "commonerr.hpp"
 #include "environment.hpp"
 #include "jptree.hpp"
 #include "jexcept.hpp"
@@ -420,7 +421,7 @@ public:
                 if (environmentTraceLevel > 0)
                     IERRLOG("Failed to create locked environment %s", newName.str());
 
-                throw MakeStringException(-1, "Failed to get a lock on environment /%s", newName.str());
+                throw MakeStringException(COMMONERR_FailedToGetALockOn, "Failed to get a lock on environment /%s", newName.str());
             }
 
             //save the locked environment
@@ -435,7 +436,7 @@ public:
                 if (environmentTraceLevel > 0)
                     IERRLOG("Failed to lock environment %s", constEnv->getPath());
 
-                throw MakeStringException(-1, "Failed to get a lock on environment /%s", constEnv->getPath());
+                throw MakeStringException(COMMONERR_FailedToGetALockOn, "Failed to get a lock on environment /%s", constEnv->getPath());
             }
 
             //copy const environment to our member environment
@@ -532,7 +533,7 @@ void CLockedEnvironment::commit()
             if (environmentTraceLevel > 0)
                 IERRLOG("Failed to lock environment %s", constEnv->getPath());
 
-            throw MakeStringException(-1, "Failed to get a lock on environment /%s", constEnv->getPath());
+            throw MakeStringException(COMMONERR_FailedToGetALockOn, "Failed to get a lock on environment /%s", constEnv->getPath());
         }
 
         //copy locked environment to const environment
@@ -569,7 +570,7 @@ void CLockedEnvironment::rollback()
             if (environmentTraceLevel > 0)
                 IERRLOG("Failed to lock environment %s", constEnv->getPath());
 
-            throw MakeStringException(-1, "Failed to get a lock on environment /%s", constEnv->getPath());
+            throw MakeStringException(COMMONERR_FailedToGetALockOn, "Failed to get a lock on environment /%s", constEnv->getPath());
         }
 
         //copy const environment to locked environment (as it stands now) again losing any changes we made
@@ -689,7 +690,7 @@ public:
                 cache.setown(new CLocalEnvironment(conn));
         }
         if (!cache)
-            throw MakeStringException(0, "Failed to get environment information");
+            throw MakeStringException(COMMONERR_FailedToGetEnvironmentInformation, "Failed to get environment information");
         return cache.getLink();
     }
 
@@ -901,7 +902,7 @@ static EnvMachineOS getEnum(IPropertyTree *p, const char *propname, mapOsEnums *
                 return map->val;
             map++;
         }
-        throw MakeStringException(0, "Unknown operating system: \"%s\"", v);
+        throw MakeStringException(COMMONERR_UnknownOperatingSystem, "Unknown operating system: \"%s\"", v);
     }
     return MachineOsUnknown;
 }
@@ -3099,7 +3100,7 @@ static void getTargetClusterProcesses(const IPropertyTree *environment, const IP
     {
         const char *processName = processItr->query().queryProp("@process");
         if (isEmptyString(processName))
-            throw MakeStringException(-1, "Empty %s/@process for %s", processType, clustName);
+            throw MakeStringException(COMMONERR_EmptySProcessForS, "Empty %s/@process for %s", processType, clustName);
 
         xpath.setf("Software/%s[@name=\"%s\"]", processType, processName);
         if (environment->hasProp(xpath))

@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "rtlerr.hpp"
 #include "jliball.hpp"
 #include "eclrtl.hpp"
 #include "eclhelper.hpp"
@@ -34,7 +35,7 @@ unsigned getNextSize(unsigned max, unsigned required)
     {
         unsigned nextMax = (required + DOUBLE_LIMIT) & ~(DOUBLE_LIMIT-1);
         if (required >= nextMax)
-            throw MakeStringException(-1, "Request to create an embedded dataset exceeded 4Gb.  [Old size = %u]", max);
+            throw MakeStringException(RTLERR_RequestToCreateAnEmbeddedDataset, "Request to create an embedded dataset exceeded 4Gb.  [Old size = %u]", max);
         max = nextMax;
     }
     else
@@ -69,7 +70,7 @@ void RtlDatasetBuilder::ensure(size32_t required)
         maxSize = getNextSize(maxSize, required);
         byte * newbuffer = (byte *)realloc(buffer, maxSize);
         if (!newbuffer)
-            throw MakeStringException(-1, "Failed to allocate temporary dataset (requesting %d bytes)", maxSize);
+            throw MakeStringException(RTLERR_FailedToAllocateTemporaryDatasetRequesting, "Failed to allocate temporary dataset (requesting %d bytes)", maxSize);
         buffer = newbuffer;
     }
     self = buffer + totalSize;
@@ -79,7 +80,7 @@ byte * RtlDatasetBuilder::ensureCapacity(size32_t required, const char * fieldNa
 {
     //Check if the required memory wraps within a size32_t type
     if (totalSize + required < totalSize)
-        throw MakeStringException(-1, "Request to create an embedded dataset >= 4Gb.  [Old size = %u, extra = %u]", totalSize, required);
+        throw MakeStringException(RTLERR_RequestToCreateAnEmbeddedDataset_1, "Request to create an embedded dataset >= 4Gb.  [Old size = %u, extra = %u]", totalSize, required);
 
     ensure(totalSize + required);
     return self; // self is updated by ensure()

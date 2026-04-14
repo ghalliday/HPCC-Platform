@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "eclplus.hpp"
+#include "hqlerr2.hpp"
 #include "formattypes.ipp"
 #include "ListHelper.ipp"
 #include "DeleteHelper.ipp"
@@ -30,7 +31,7 @@ IClientWsWorkunits * createWorkunitsClient(IProperties * _globals)
     
     const char* eclwatch = _globals->queryProp("server");
     if(eclwatch == NULL)
-        throw MakeStringException(0, "Server url not defined");
+        throw MakeStringException(ECLERR_ServerUrlNotDefined, "Server url not defined");
     
     StringBuffer url;
     if(Utils::strncasecmp(eclwatch, "http://", 7) != 0 && Utils::strncasecmp(eclwatch, "https://", 8) != 0)
@@ -86,7 +87,7 @@ IFormatType * createFormatter(IProperties * globals)
         }
         else
         {
-            throw MakeStringException(-1, "format %s not supported", fmt);
+            throw MakeStringException(ECLERR_FormatSNotSupported, "format %s not supported", fmt);
         }
     }
     else
@@ -144,7 +145,7 @@ IEclPlusHelper * createEclPlusHelper(IProperties * globals)
         else
         {
             ::Release(format);
-            throw MakeStringException(-1, "unknown action '%s'", action);
+            throw MakeStringException(ECLERR_UnknownActionS, "unknown action '%s'", action);
         }
     }
     else

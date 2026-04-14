@@ -18,6 +18,7 @@
 #pragma once
 
 #include "jevent.hpp"
+#include "commonerr.hpp"
 
 enum NodeKind : unsigned
 {
@@ -43,7 +44,7 @@ inline const char* mapNodeKind(NodeKind kind)
 {
     if (isNodeKind(kind))
         return nodeKindText[kind];
-    throw makeStringExceptionV(0, "unknown node kind %u", kind);
+    throw makeStringExceptionV(COMMONERR_UnknownNodeKindU, "unknown node kind %u", kind);
 }
 
 inline NodeKind mapNodeKind(const char* kindText)
@@ -59,7 +60,7 @@ inline NodeKind mapNodeKind(const char* kindText)
                 return (NodeKind)i;
         }
     }
-    throw makeStringExceptionV(0, "unknown node kind '%s'", (kindText ? kindText : "<null>"));
+    throw makeStringExceptionV(COMMONERR_UnknownNodeKindS, "unknown node kind '%s'", (kindText ? kindText : "<null>"));
 }
 
 // Determine the logical NodeKind value for the given event. Applies only to events of the
@@ -71,10 +72,10 @@ inline NodeKind queryIndexNodeKind(const CEvent& evt)
     {
         __uint64 nodeKind = evt.queryNumericValue(EvAttrNodeKind);
         if (!isNodeKind(nodeKind))
-            throw makeStringExceptionV(0, "unknown node kind %llu", nodeKind);
+            throw makeStringExceptionV(COMMONERR_UnknownNodeKindLlu, "unknown node kind %llu", nodeKind);
         return static_cast<NodeKind>(nodeKind);
     }
     if (queryEventContext(evt.queryType()) == EventCtxIndex)
         return LeafNode;
-    throw makeStringExceptionV(0, "event %s does not use NodeKind", queryEventName(evt.queryType()));
+    throw makeStringExceptionV(COMMONERR_EventSDoesNotUseNodekind, "event %s does not use NodeKind", queryEventName(evt.queryType()));
 }

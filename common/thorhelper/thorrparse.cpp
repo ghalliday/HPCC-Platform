@@ -19,6 +19,7 @@
 #define U_OVERRIDE_CXX_ALLOCATION 0 // Enabling this forces all allocation of ICU objects to ICU's heap, but is incompatible with jmemleak
 #endif
 #include "jliball.hpp"
+#include "commonerr.hpp"
 #include "junicode.hpp"
 #include "thorrparse.ipp"
 #include "thorregex.hpp"
@@ -834,7 +835,7 @@ RegexMatchAction RegexRecursivePattern::match(RegexState & state)
         return ret;
     }
     else
-        throw MakeStringException(0, "Grammar is left recursive - cannot yet process!");
+        throw MakeStringException(COMMONERR_GrammarIsLeftRecursiveCannotYet, "Grammar is left recursive - cannot yet process!");
     return RegexMatchBacktrack;
 }
 

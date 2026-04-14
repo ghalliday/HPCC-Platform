@@ -14,6 +14,7 @@
 ############################################################################## */
 
 #include <initializer_list>
+#include "rtlerr.hpp"
 #include <algorithm>
 
 #include "jlib.hpp"
@@ -43,7 +44,7 @@ static void readString(StringBuffer &out, const char * &in)
     {
         char c = *in++;
         if (!c)
-            throw MakeStringException(0, "Invalid filter - missing closing '");
+            throw MakeStringException(RTLERR_InvalidFilterMissingClosing, "Invalid filter - missing closing '");
         if (c=='\'')
             break;
         if (c=='\\')
@@ -52,7 +53,7 @@ static void readString(StringBuffer &out, const char * &in)
     StringBuffer errmsg;
     unsigned errpos;
     if (!checkUnicodeLiteral(start, in-start-1, errpos, errmsg))
-        throw makeStringExceptionV(0, "Invalid filter - %s", errmsg.str());
+        throw makeStringExceptionV(RTLERR_InvalidFilterS, "Invalid filter - %s", errmsg.str());
     rtlDataAttr temp;
     size32_t newlen = 0;  // NOTE - this will be in codepoints, not bytes
     rtlCodepageToUtf8XUnescape(newlen, temp.refstr(), in-start-1, start, "UTF-8");
@@ -72,7 +73,7 @@ static void readUntilTerminator(StringBuffer & out, const char * & in, const cha
     const char * start = in;
     const char * pbrk = strpbrk(start, terminators);
     if (!pbrk)
-        throw makeStringExceptionV(0, "Invalid filter - expected terminator '%s'", terminators);
+        throw makeStringExceptionV(RTLERR_InvalidFilterExpectedTerminatorS, "Invalid filter - expected terminator '%s'", terminators);
     out.append(pbrk - start, start);
     in = pbrk;
 }
@@ -103,7 +104,7 @@ void deserializeSet(ISetCreator & creator, const char * filter)
     {
         char startRange = *filter++;
         if (startRange != '(' && startRange != '[')
-            throw MakeStringException(0, "Invalid filter string: expected [ or ( at start of range");
+            throw MakeStringException(RTLERR_InvalidFilterStringExpectedOrAt, "Invalid filter string: expected [ or ( at start of range");
 
         StringBuffer upperString, lowerString;
         size32_t lowerSubLength = MatchFullString;
@@ -137,11 +138,11 @@ void deserializeSet(ISetCreator & creator, const char * filter)
 
         char endRange = *filter++;
         if (endRange != ')' && endRange != ']')
-            throw MakeStringException(0, "Invalid filter string: expected ] or ) at end of range");
+            throw MakeStringException(RTLERR_InvalidFilterStringExpectedOrAt_1, "Invalid filter string: expected ] or ) at end of range");
         if (*filter==',')
             filter++;
         else if (*filter)
-            throw MakeStringException(0, "Invalid filter string: expected , between ranges");
+            throw MakeStringException(RTLERR_InvalidFilterStringExpectedBetweenRanges, "Invalid filter string: expected , between ranges");
 
         TransitionMask lowerMask = (startRange == '(') ? CMPgt : CMPge;
         TransitionMask upperMask = (endRange == ')') ? CMPlt : CMPle;
@@ -2161,7 +2162,7 @@ const IFieldFilter & RowFilter::addFilter(const RtlRecord & record, const char *
 {
     IFieldFilter * filter = deserializeFieldFilter(record, filterText);
     if (!filter)
-        throw makeStringExceptionV(0, "Could not process filter %s", filterText);
+        throw makeStringExceptionV(RTLERR_CouldNotProcessFilterS, "Could not process filter %s", filterText);
     filters.append(*filter);
     unsigned fieldNum = filter->queryFieldIndex();
     if (fieldNum >= numFieldsRequired)

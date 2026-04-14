@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jlib.hpp"
+#include "commonerr.hpp"
 #include "workunit.hpp"
 #include "jptree.hpp"
 #include "jlog.hpp"
@@ -1564,7 +1565,7 @@ void WorkflowMachine::doExecutePersistActivator(CCloneWorkflowItem & item)
             {
                 StringBuffer errmsg;
                 errmsg.append("Internal error in generated code: for wfid ").append(wfid).append(", persist CRC wfid ").append(item.queryPersistWfid()).append(" did not call returnPersistVersion");
-                throw MakeStringExceptionDirect(0, errmsg.str());
+                throw MakeStringExceptionDirect(COMMONERR_ErrmsgStr_1, errmsg.str());
             }
             thisPersist.setown(persist.getClear());
         }
@@ -1572,7 +1573,7 @@ void WorkflowMachine::doExecutePersistActivator(CCloneWorkflowItem & item)
         {
             StringBuffer errmsg;
             errmsg.append("Failed workflow/persist consistency check: wfid ").append(wfid).append(", WU persist name ").append(logicalName).append(", runtime persist name ").append(thisPersist->logicalName.get());
-            throw MakeStringExceptionDirect(0, errmsg.str());
+            throw MakeStringExceptionDirect(COMMONERR_ErrmsgStr_1, errmsg.str());
         }
         if (!checkFreezePersists(logicalName, thisPersist->eclCRC))
         {

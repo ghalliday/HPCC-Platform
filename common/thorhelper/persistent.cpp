@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "persistent.hpp"
+#include "commonerr.hpp"
 #include "jthread.hpp"
 #include "jdebug.hpp"
 #include "jlog.hpp"
@@ -40,7 +41,7 @@ static inline StringBuffer& addKeySuffix(PersistentProtocol proto, StringBuffer&
             keystr.append('~');
             break;
         default:
-            throw makeStringException(-1, "New suffix should be defined");
+            throw makeStringException(COMMONERR_NewSuffixShouldBeDefined, "New suffix should be defined");
     }
     return keystr;
 }

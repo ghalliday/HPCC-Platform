@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jliball.hpp"
+#include "commonerr.hpp"
 
 #include "platform.h"
 #include "portlist.h"
@@ -144,7 +145,7 @@ ISocket *spawnRemoteChild(SpawnKind kind, const char * exe, const SocketEndpoint
 #ifdef _CONTAINERIZED
     DWORD runcode;
     if (!invoke_program(cmd.str(), runcode, false, nullptr, localProcessHandle))
-        throw makeStringExceptionV(-1,"Error spawning %s", exe);
+        throw makeStringExceptionV(COMMONERR_ErrorSpawningS, "Error spawning %s", exe);
 #else
     //Run the program directly if it is being run on the local machine - so ssh doesn't need to be running...
     //Change once we have solved the problems with ssh etc. on windows?
@@ -152,12 +153,12 @@ ISocket *spawnRemoteChild(SpawnKind kind, const char * exe, const SocketEndpoint
     {
         DWORD runcode;
         if (!invoke_program(cmd.str(), runcode, false, nullptr, localProcessHandle))
-            throw makeStringExceptionV(-1,"Error spawning %s", exe);
+            throw makeStringExceptionV(COMMONERR_ErrorSpawningS, "Error spawning %s", exe);
     }
     else
     {
         if (SSHusername.isEmpty())
-            throw MakeStringException(-1,"SSH user not specified");
+            throw MakeStringException(COMMONERR_SshUserNotSpecified, "SSH user not specified");
         
         Owned<IFRunSSH> runssh = createFRunSSH();
         runssh->init(cmd.str(),SSHidentfilename,SSHusername,SSHpasswordenc,SSHtimeout,SSHretries);

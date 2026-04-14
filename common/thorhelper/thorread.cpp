@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "jliball.hpp"
+#include "commonerr.hpp"
 
 #include "jstream.hpp"
 #include "thorfile.hpp"
@@ -281,10 +282,10 @@ void DiskReadMapping::ensureTranslators() const
         translator->describe();
 
         if (!translator->canTranslate())
-            throw MakeStringException(0, "Untranslatable record layout mismatch detected for file %s", filename);
+            throw MakeStringException(COMMONERR_UntranslatableRecordLayoutMismatchDetectedFor, "Untranslatable record layout mismatch detected for file %s", filename);
 
         if (mode == RecordTranslationMode::PayloadRemoveOnly && translator->hasNewFields())
-            throw MakeStringException(0, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", filename);
+            throw MakeStringException(COMMONERR_TranslatableFileLayoutMismatchReadingFile, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", filename);
 
         if (translator->needsTranslate())
         {
@@ -850,7 +851,7 @@ BinaryDiskRowReader::BinaryDiskRowReader(IRowReadFormatMapping * _mapping, const
             if (grouped)
                 fixedDiskRecordSize++;
             if (!((dfsRecordSize == fixedDiskRecordSize) || (grouped && (dfsRecordSize+1 == fixedDiskRecordSize)))) //last for backwards compatibility, as hthor used to publish @recordSize not including the grouping byte
-                throw MakeStringException(0, "Published record size %d for file %s does not match coded record size %d", dfsRecordSize, logicalFilename.str(), fixedDiskRecordSize);
+                throw MakeStringException(COMMONERR_PublishedRecordSizeDForFile, "Published record size %d for file %s does not match coded record size %d", dfsRecordSize, logicalFilename.str(), fixedDiskRecordSize);
 
             if (!compressed && forceCompressed && (fixedDiskRecordSize >= MIN_ROWCOMPRESS_RECSIZE))
             {
@@ -2041,7 +2042,7 @@ bool ParquetDiskRowReader::setInputFile(const char * localFilename, const char *
     parquetFileReader = new parquetembed::ParquetReader("read", localFilename, 50000, nullptr, parquetActivityCtx, mapping->queryExpectedMeta()->queryTypeInfo());
     auto st = parquetFileReader->processReadFile();
     if (!st.ok())
-        throw MakeStringException(0, "%s: %s.", st.CodeAsString().c_str(), st.message().c_str());
+        throw MakeStringException(COMMONERR_SS, "%s: %s.", st.CodeAsString().c_str(), st.message().c_str());
     return true;
 }
 

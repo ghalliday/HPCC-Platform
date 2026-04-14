@@ -18,6 +18,7 @@
 #pragma once
 
 #include <cmath>
+#include "commonerr.hpp"
 #include <limits>
 
 // Flags for strToBytes behavior control
@@ -46,14 +47,14 @@ inline bool operator&(StrToBytesFlags a, StrToBytesFlags b)
 #define handleError(message) \
     { \
         if (throwOnError) \
-            throw makeStringException(0, message); \
+            throw makeStringException(COMMONERR_Message, message); \
         return errorValue; \
     }
 
 #define handleErrorV(format, arg) \
     { \
         if (throwOnError) \
-            throw makeStringExceptionV(0, format, arg); \
+            throw makeStringExceptionV(COMMONERR_Format, format, arg); \
         return errorValue; \
     }
 
@@ -119,7 +120,7 @@ SizeType strToBytes(const char* str, StrToBytesFlags flags = StrToBytesFlags::De
         while (*ptr && isspace(*ptr)) ptr++;
         if (*ptr != '\0') {
             if (throwOnError)
-                throw makeStringExceptionV(0, "Unknown size unit: %s", endPtr);
+                throw makeStringExceptionV(COMMONERR_UnknownSizeUnitS, "Unknown size unit: %s", endPtr);
             return false;
         }
         return true;

@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <stdio.h>
+#include "hqlerr2.hpp"
 #include "jlog.hpp"
 #include "jfile.hpp"
 #include "jargv.hpp"
@@ -134,7 +135,7 @@ static const char *queryPlatformVersion()
         RegExpr re("_[0-9]+[.][0-9]+[.][0-9]+");
         const char *found = re.find(output);
         if (!found)
-            throw MakeStringException(0, "Unexpected response from eclcc\n");
+            throw MakeStringException(ECLERR_UnexpectedResponseFromEclccN, "Unexpected response from eclcc\n");
         platformVersion.append(re.findlen()-1, found+1);  // Skip the leading _
     }
     return platformVersion.str();
@@ -167,7 +168,7 @@ static void extractValueFromEnvOutput(StringBuffer &path, const char *specs, con
     {
         found = getenv(name);
         if (!found)
-            throw MakeStringException(0, "%s could not be located", name);
+            throw MakeStringException(ECLERR_SCouldNotBeLocated, "%s could not be located", name);
         path.append(found);
     }
 }
@@ -384,7 +385,7 @@ public:
                 }
             }
             else
-                throw MakeStringException(0, "File not found");
+                throw MakeStringException(ECLERR_FileNotFound, "File not found");
             eclOpts.append(includeOpt);
             VStringBuffer bundleCmd("IMPORT %s.Bundle as B;"
                                     " [ (UTF8) B.name, (UTF8) B.version, B.description, B.license, B.copyright ] +"
@@ -395,17 +396,17 @@ public:
             {
                 if (optVerbose)
                     printf("eclcc reported:\n%s", output.str());
-                throw MakeStringException(0, "%s cannot be parsed as a bundle\n", suppliedname);
+                throw MakeStringException(ECLERR_SCannotBeParsedAsA, "%s cannot be parsed as a bundle\n", suppliedname);
             }
             // output should contain [ 'name', 'version', etc ... ]
             if (optVerbose)
                 printf("Bundle info from ECL compiler: %s\n", output.str());
             if (!output.length())
-                throw MakeStringException(0, "%s cannot be parsed as a bundle\n", suppliedname);
+                throw MakeStringException(ECLERR_SCannotBeParsedAsA, "%s cannot be parsed as a bundle\n", suppliedname);
             RegExpr re("'{[^'\r\n\\\\]|\\\\[^\r\n]}*'");
             extractAttr(re, name, output.str());
             if (!strieq(name, bundleName))
-                throw MakeStringException(0, "Bundle name %s does not match file name %s", name.get(), bundleName.str());
+                throw MakeStringException(ECLERR_BundleNameSDoesNotMatch, "Bundle name %s does not match file name %s", name.get(), bundleName.str());
             extractAttr(re, version);
             extractAttr(re, description);
             extractAttr(re, license);
@@ -416,7 +417,7 @@ public:
             // version must contain nothing but alphanumeric + . (no underscores, as they can clash with the ones we put in for .)
             RegExpr validVersions("^[A-Za-z0-9.]*$");
             if (!validVersions.find(version))
-                throw MakeStringException(0, "Illegal character in version string %s in bundle %s", version.get(), bundleName.str());
+                throw MakeStringException(ECLERR_IllegalCharacterInVersionStringS, "Illegal character in version string %s in bundle %s", version.get(), bundleName.str());
             cleanVersion.append(version).replace('.', '_');
             if (isdigit(cleanVersion.charAt(0)))
                 cleanVersion.insert(0, "V");
@@ -608,7 +609,7 @@ private:
     {
         const char *found = re.find(searchIn);
         if (!found)
-            throw MakeStringException(0, "Unexpected response from eclcc\n");
+            throw MakeStringException(ECLERR_UnexpectedResponseFromEclccN, "Unexpected response from eclcc\n");
         StringBuffer cleaned;
         found++;  // skip the '
         unsigned foundLen = re.findlen()-2; // and the trailing ''
@@ -718,7 +719,7 @@ public:
         checkLoaded();
         unsigned idx = findVersion(version);
         if (idx==NotFound)
-            throw MakeStringException(0, "No version %s found for bundle %s", version, name.str());
+            throw MakeStringException(ECLERR_NoVersionSFoundForBundle, "No version %s found for bundle %s", version, name.str());
         deleteBundle(idx, isDryRun);
     }
     virtual void deleteAllVersions(bool isDryRun)
@@ -769,7 +770,7 @@ public:
         {
             unsigned newidx = findVersion(version);
             if (newidx==NotFound)
-                throw MakeStringException(0, "No version %s found for bundle %s", version, name.str());
+                throw MakeStringException(ECLERR_NoVersionSFoundForBundle, "No version %s found for bundle %s", version, name.str());
             IBundleInfo *newActive = &bundles.item(newidx);
             if (active && (newidx==0))
                 printf("%s version %s is already active\n", newActive->queryBundleName(), version);
@@ -879,7 +880,7 @@ public:
         if (bundleDir->exists())
         {
             if (bundleDir->isDirectory()!=fileBool::foundYes)
-                throw MakeStringException(0, "Bundle path %s does not specify a directory", bundlePath.get());
+                throw MakeStringException(ECLERR_BundlePathSDoesNotSpecify, "Bundle path %s does not specify a directory", bundlePath.get());
             StringBuffer versionsPath(bundlePath);
             addPathSepChar(versionsPath).append(VERSION_SUBDIR);
             Owned<IFile> versionsDir = createIFile(versionsPath);
@@ -1024,7 +1025,7 @@ protected:
         StringBuffer output;
         unsigned retCode = doPipeCommand(output, queryEclccPath(optVerbose), "--nologfile -showpaths", NULL);
         if (retCode == START_FAILURE)
-            throw makeStringExceptionV(0, "FATAL: Could not locate eclcc command");
+            throw makeStringExceptionV(ECLERR_FatalCouldNotLocateEclccCommand, "FATAL: Could not locate eclcc command");
         if (optVerbose)
             printf("eclcc output:\n%s\n", output.str());
         extractValueFromEnvOutput(bundlePath, output, ECLCC_ECLBUNDLE_PATH);
@@ -1037,7 +1038,7 @@ protected:
         else
             getSystemTempDir(dir);
         if (!dir.length() || !checkDirExists(dir))
-            throw makeStringExceptionV(0, "FATAL: Invalid temporary directory '%s' - try --tmpdir option", dir.str());
+            throw makeStringExceptionV(ECLERR_FatalInvalidTemporaryDirectorySTry, "FATAL: Invalid temporary directory '%s' - try --tmpdir option", dir.str());
         return dir;
     }
 
@@ -1066,7 +1067,7 @@ protected:
                 }
             }
             if (!found)
-                throw makeStringExceptionV(0, "Could not find a remote bundle called %s", optBundle.str());
+                throw makeStringExceptionV(ECLERR_CouldNotFindARemoteBundle, "Could not find a remote bundle called %s", optBundle.str());
         }
         // If the bundle name looks like a url, fetch it somewhere temporary first...
         if (isUrl(url))
@@ -1076,7 +1077,7 @@ protected:
             tmp.append(PATHSEPCHAR).append("tmp.XXXXXX");
             if (!mkdtemp((char *) tmp.str()))
             {
-                throw makeStringExceptionV(0, "Failed to create temporary directory %s (error %d)", tmp.str(), errno);
+                throw makeStringExceptionV(ECLERR_FailedToCreateTemporaryDirectoryS, "Failed to create temporary directory %s (error %d)", tmp.str(), errno);
             }
             deleteOnCloseDown.append(tmp);
             if (optVerbose)
@@ -1095,7 +1096,7 @@ protected:
                 if (optVerbose)
                     printf("%s", output.str());
                 if (retCode == START_FAILURE)
-                    throw makeStringExceptionV(0, "Could not retrieve repository %s: git executable missing?", url);
+                    throw makeStringExceptionV(ECLERR_CouldNotRetrieveRepositorySGit, "Could not retrieve repository %s: git executable missing?", url);
             }
             else
             {
@@ -1108,7 +1109,7 @@ protected:
                 if (optVerbose)
                     printf("%s", output.str());
                 if (retCode == START_FAILURE)
-                    throw makeStringExceptionV(0, "Could not retrieve url %s: curl executable missing?", url);
+                    throw makeStringExceptionV(ECLERR_CouldNotRetrieveUrlSCurl, "Could not retrieve url %s: curl executable missing?", url);
             }
         }
         else
@@ -1170,7 +1171,7 @@ protected:
         if (isFromFile())
         {
             if (!fileOk)
-                throw MakeStringException(0, "Please specify the name of an installed bundle (not a file)");
+                throw MakeStringException(ECLERR_PleaseSpecifyTheNameOfAn, "Please specify the name of an installed bundle (not a file)");
             bundle.setown(new CBundleInfo(optBundle));
         }
         else
@@ -1178,9 +1179,9 @@ protected:
         if (!bundle || !bundle->isValid())
         {
             if (optVersion.length())
-                throw MakeStringException(0, "Bundle %s version %s could not be loaded", optBundle.get(), optVersion.get());
+                throw MakeStringException(ECLERR_BundleSVersionSCouldNot, "Bundle %s version %s could not be loaded", optBundle.get(), optVersion.get());
             else
-                throw MakeStringException(0, "Bundle %s could not be loaded", optBundle.get());
+                throw MakeStringException(ECLERR_BundleSCouldNotBeLoaded, "Bundle %s could not be loaded", optBundle.get());
         }
         return bundle.getClear();
     }
@@ -1224,7 +1225,7 @@ private:
     bool printDependency(const IBundleCollection &allBundles, const IBundleInfo *bundle, int level, ConstPointerArray &active)
     {
         if (active.find(bundle) != NotFound)
-            throw MakeStringException(0, "Circular dependency detected");
+            throw MakeStringException(ECLERR_CircularDependencyDetected, "Circular dependency detected");
         bool ok = true;
         active.append(bundle);
         unsigned numDependencies = bundle->numDependencies();
@@ -1400,20 +1401,20 @@ public:
                 bundleSet->deleteVersion(version, optDryRun);  // if reinstalling a currently installed version, you want to delete old copy
 
             if (!optDryRun && !recursiveCreateDirectory(bundlePath))
-                throw MakeStringException(0, "Cannot create bundle directory %s", bundlePath.str());
+                throw MakeStringException(ECLERR_CannotCreateBundleDirectoryS, "Cannot create bundle directory %s", bundlePath.str());
 
             // Copy the bundle contents
             StringBuffer versionPath(thisBundlePath);
             versionPath.append(PATHSEPCHAR).append(bundle->queryCleanVersion());
             if (!optDryRun && !recursiveCreateDirectory(versionPath))
-                throw MakeStringException(0, "Cannot create bundle version directory %s", versionPath.str());
+                throw MakeStringException(ECLERR_CannotCreateBundleVersionDirectoryS, "Cannot create bundle version directory %s", versionPath.str());
             if (bundleFile->isDirectory() == fileBool::foundYes) // could also be an archive, acting as a directory
             {
                 if (directoryContainsBundleFile(bundleFile))
                 {
                     versionPath.append(PATHSEPCHAR).append(bundle->queryCleanName());
                     if (!optDryRun && !recursiveCreateDirectory(versionPath))
-                        throw MakeStringException(0, "Cannot create bundle version directory %s", versionPath.str());
+                        throw MakeStringException(ECLERR_CannotCreateBundleVersionDirectoryS, "Cannot create bundle version directory %s", versionPath.str());
                 }
                 copyDirectory(bundleFile, versionPath);
             }
@@ -1428,7 +1429,7 @@ public:
                 if (!optDryRun)
                 {
                     if (targetFile->exists())
-                        throw MakeStringException(0, "A bundle file %s is already installed", versionPath.str());
+                        throw MakeStringException(ECLERR_ABundleFileSIsAlready, "A bundle file %s is already installed", versionPath.str());
                     doCopyFile(targetFile, bundleFile, 1024 * 1024, NULL, NULL, false);
                 }
             }
@@ -1441,7 +1442,7 @@ public:
             }
         }
         else
-            throw MakeStringException(0, "%s cannot be resolved as a bundle\n", optBundle.get());
+            throw MakeStringException(ECLERR_SCannotBeResolvedAsA, "%s cannot be resolved as a bundle\n", optBundle.get());
         return 0;
     }
 

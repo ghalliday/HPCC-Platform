@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jexcept.hpp"
+#include "commonerr.hpp"
 #include "jcrc.hpp"
 
 #include "thorcommon.ipp" // for CachedOutputMetaData
@@ -50,7 +51,7 @@ public:
         byte * ptr = static_cast<byte *>(_ptr);
         memsize_t capacity = RoxieRowCapacity(ptr);
         if (capacity < size + extraSize)
-            throw MakeStringException(0, "Data was written past the end of the row - allocated %d, written %d", (size32_t)(capacity - extraSize), size);
+            throw MakeStringException(COMMONERR_DataWasWrittenPastTheEnd, "Data was written past the end of the row - allocated %d, written %d", (size32_t)(capacity - extraSize), size);
         memset(ptr+size, 0, capacity - size - extraSize);
         unsigned short * check = reinterpret_cast<unsigned short *>(ptr + capacity - extraSize);
         *check = crc16(ptr, capacity-extraSize, 0);
@@ -81,7 +82,7 @@ public:
         byte * ptr = static_cast<byte *>(_ptr);
         memsize_t capacity = RoxieRowCapacity(ptr);
         if (capacity < size + extraSize)
-            throw MakeStringException(0, "Data was written past the end of the row - allocated %d, written %d", (size32_t)(capacity - extraSize), size);
+            throw MakeStringException(COMMONERR_DataWasWrittenPastTheEnd, "Data was written past the end of the row - allocated %d, written %d", (size32_t)(capacity - extraSize), size);
         memset(ptr+size, 0, capacity - size - extraSize);
         unsigned short * check = reinterpret_cast<unsigned short *>(ptr + capacity - extraSize);
         *check = chksum16(ptr, capacity-extraSize);
@@ -570,7 +571,7 @@ public:
         }
         if (!RoxieRowCheckValid(cacheId, row))
         {
-            throw MakeStringException(0, "ERROR: crc check failure destroying row!");
+            throw MakeStringException(COMMONERR_ErrorCrcCheckFailureDestroyingRow, "ERROR: crc check failure destroying row!");
         }
         allocator->queryOutputMeta()->destruct((byte *) row);
     }
@@ -590,7 +591,7 @@ public:
         }
         if (!RoxieRowCheckValid(cacheId, row))
         {
-            throw MakeStringException(0, "ERROR: crc check failure cloning row!");
+            throw MakeStringException(COMMONERR_ErrorCrcCheckFailureCloningRow, "ERROR: crc check failure cloning row!");
         }
         //This should only be called if the destructor needs to be called - so don't bother checking
         ChildRowLinkerWalker walker;
@@ -600,7 +601,7 @@ public:
     {
         if (!RoxieRowCheckValid(cacheId, row))
         {
-            throw MakeStringException(0, "ERROR: crc check failure checking row!");
+            throw MakeStringException(COMMONERR_ErrorCrcCheckFailureCheckingRow, "ERROR: crc check failure checking row!");
         }
     }
 };

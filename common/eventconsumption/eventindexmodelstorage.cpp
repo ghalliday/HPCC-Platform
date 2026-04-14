@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "eventindexmodel.hpp"
+#include "commonerr.hpp"
 #include "jexcept.hpp"
 
 bool operator < (const Storage::Plane& left, const Storage::Plane& right) { return strcmp(left.name.str(), right.name.str()) < 0; }
@@ -115,15 +116,15 @@ void Storage::configurePlanes(const IPropertyTree& config)
         plane.name.set(it->query().queryProp("@name"));
         plane.readTime = it->query().getPropInt("@readTime", plane.readTime);
         if (plane.name.isEmpty() || !plane.readTime)
-            throw makeStringException(-1, "invalid storage plane configuration - both @name and @readTime are required");
+            throw makeStringException(COMMONERR_InvalidStoragePlaneConfigurationBothName, "invalid storage plane configuration - both @name and @readTime are required");
         auto[ planeIt, inserted ] = planes.insert(plane);
         if (!inserted)
-            throw makeStringExceptionV(-1, "duplicate storage plane name '%s'", plane.name.str());
+            throw makeStringExceptionV(COMMONERR_DuplicateStoragePlaneNameS, "duplicate storage plane name '%s'", plane.name.str());
         else if (!defaultPlane)
             defaultPlane = &*planeIt;
     }
     if (planes.empty())
-        throw makeStringException(-1, "missing storage plane configurations");
+        throw makeStringException(COMMONERR_MissingStoragePlaneConfigurations, "missing storage plane configurations");
 }
 
 const Storage::Plane& Storage::lookupPlane(const char* name, const char* forFile) const
@@ -134,8 +135,8 @@ const Storage::Plane& Storage::lookupPlane(const char* name, const char* forFile
         if (planeIt != planes.end())
             return *planeIt;
         if (isEmptyString(forFile))
-            throw makeStringExceptionV(-1, "unrecognized storage plane name '%s' in default storage file configuration", name);
-        throw makeStringExceptionV(-1, "unrecognized storage plane name '%s' in storage file configuration '%s'", name, forFile);
+            throw makeStringExceptionV(COMMONERR_UnrecognizedStoragePlaneNameSIn, "unrecognized storage plane name '%s' in default storage file configuration", name);
+        throw makeStringExceptionV(COMMONERR_UnrecognizedStoragePlaneNameSIn_1, "unrecognized storage plane name '%s' in storage file configuration '%s'", name, forFile);
     }
     assertex(defaultPlane);
     return *defaultPlane;
@@ -181,7 +182,7 @@ void Storage::configureFiles(const IPropertyTree& config)
         else if (!file.planes[BlobNode])
             file.planes[BlobNode] = defaultPlane;
         if (!configuredFiles.insert(file).second)
-            throw makeStringExceptionV(-1, "duplicate file path '%s'", file.path.str());
+            throw makeStringExceptionV(COMMONERR_DuplicateFilePathS, "duplicate file path '%s'", file.path.str());
         if (isEmptyString(file.path.get()))
             haveDefault = true;
     }

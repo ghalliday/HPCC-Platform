@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "commonerr.hpp"
 
 #ifdef _WIN32
 #define S_ISDIR(m) (((m)&_S_IFDIR)!=0)
@@ -78,13 +79,13 @@ static void splitArchivedFileName(const char *fullName, StringAttr &container, S
         tail++;
         const char *end = strchr(tail, '}');
         if (!end)
-            throw MakeStringException(0, "Invalid archive-embedded filename - no matching } found");
+            throw MakeStringException(COMMONERR_InvalidArchiveEmbeddedFilenameNoMatching, "Invalid archive-embedded filename - no matching } found");
         option.set(tail, end - tail);
         tail = end+1;
         if (*tail==PATHSEPCHAR)
             tail++;
         else if (*tail != 0)
-            throw MakeStringException(0, "Invalid archive-embedded filename - " PATHSEPSTR " expected after }");
+            throw MakeStringException(COMMONERR_InvalidArchiveEmbeddedFilename, "Invalid archive-embedded filename - " PATHSEPSTR " expected after }");
     }
     else
         option.clear();
@@ -226,7 +227,7 @@ public:
     {
         // NOTE - we don't support multithreaded access (the sequential-only restriction would make that tricky anyway)
         if (pos < lastPos)
-            throw MakeStringException(0, "Only sequential access to contained file %s supported", fullName.get());
+            throw MakeStringException(COMMONERR_OnlySequentialAccessToContainedFile, "Only sequential access to contained file %s supported", fullName.get());
         byte *data = (byte *) _data;
         size32_t lenRequested = len;
         while (len > 0 && pos < fileSize)
@@ -239,7 +240,7 @@ public:
                     if (ret == ARCHIVE_EOF)
                         break;  // This shouldn't happen if the quoted fileSize was accurate...
                     else
-                        throw MakeStringException(0, "Read error reading contained file %s", fullName.get());
+                        throw MakeStringException(COMMONERR_ReadErrorReadingContainedFileS, "Read error reading contained file %s", fullName.get());
                 }
             }
             else

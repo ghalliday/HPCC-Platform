@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jlib.hpp"
+#include "hqlerr2.hpp"
 #include "jcontainerized.hpp"
 #include "jmisc.hpp"
 #include "jdebug.hpp"
@@ -297,7 +298,7 @@ public:
                 {
                     queryXML.setown(queryXML->getPropTree("Body/*"));
                     if (!queryXML)
-                        throw MakeStringException(0, "Malformed SOAP request (missing Body)");
+                        throw MakeStringException(ECLERR_MalformedSoapRequestMissingBody, "Malformed SOAP request (missing Body)");
                     String reqName(queryXML->queryName());
                     queryXML->removeProp("@xmlns:m");
 
@@ -321,7 +322,7 @@ public:
                     queryXML->renameProp("/", queryName.get());  // reset the name of the tree
                 }
                 else
-                    throw MakeStringException(0, "Malformed SOAP request");
+                    throw MakeStringException(ECLERR_MalformedSoapRequest, "Malformed SOAP request");
             }
             bool isBlind = queryXML->getPropBool("@blind", false) || queryXML->getPropBool("_blind", false);
 
@@ -333,7 +334,7 @@ public:
             return isBlind;
         }
         else
-            throw MakeStringException(0, "Malformed request");
+            throw MakeStringException(ECLERR_MalformedRequest, "Malformed request");
     }
 
     virtual void threadmain() override
@@ -871,9 +872,9 @@ unsigned EclAgent::getExternalResultHash(const char * wuid, const char * name, u
     } \
     catch (IException * e) { \
         StringBuffer s, text; e->errorMessage(text); e->Release(); \
-        throw MakeStringException(0, "result %s in workunit contains an invalid " KINDTEXT " value [%s]", getResultText(s, STEPNAME, SEQUENCE), text.str()); \
+        throw MakeStringException(ECLERR_ResultSInWorkunitContainsAn, "result %s in workunit contains an invalid " KINDTEXT " value [%s]", getResultText(s, STEPNAME, SEQUENCE), text.str()); \
     } \
-    catch (...) { StringBuffer s; throw MakeStringException(0, "value %s in workunit contains an invalid " KINDTEXT " value", getResultText(s, STEPNAME, SEQUENCE)); }
+    catch (...) { StringBuffer s; throw MakeStringException(ECLERR_ValueSInWorkunitContainsAn, "value %s in workunit contains an invalid " KINDTEXT " value", getResultText(s, STEPNAME, SEQUENCE)); }
 
 
 __int64 EclAgent::getResultInt(const char * stepname, unsigned sequence)
@@ -1404,7 +1405,7 @@ ILocalOrDistributedFile *EclAgent::resolveLFN(const char *fname, const char *err
                 if (optional) return NULL;
                 if (!errorTxt) return NULL;
                 StringBuffer errorMsg(errorTxt);
-                throw MakeStringExceptionDirect(0, errorMsg.append(": Superkey '").append(lfn).append("' is empty").str());
+                throw MakeStringExceptionDirect(ECLERR_ErrormsgAppendSuperkey, errorMsg.append(": Superkey '").append(lfn).append("' is empty").str());
             }
 
             if (noteRead)
@@ -1419,7 +1420,7 @@ ILocalOrDistributedFile *EclAgent::resolveLFN(const char *fname, const char *err
         if (optional) return NULL;
         if (!errorTxt) return NULL;
         StringBuffer errorMsg(errorTxt);
-        throw MakeStringExceptionDirect(0, errorMsg.append(": Logical file name '").append(lfn).append("' could not be resolved").str());
+        throw MakeStringExceptionDirect(ECLERR_ErrormsgAppendLogicalFileName, errorMsg.append(": Logical file name '").append(lfn).append("' could not be resolved").str());
     }
     return ldFile.getClear();
 }
@@ -1549,7 +1550,7 @@ char *EclAgent::getPlatform()
         const char * cluster = clusterNames.tos();
         Owned<IConstWUClusterInfo> clusterInfo = getTargetClusterInfo(cluster);
         if (!clusterInfo)
-            throw MakeStringException(-1, "Unknown Cluster '%s'", cluster);
+            throw MakeStringException(ECLERR_UnknownClusterS, "Unknown Cluster '%s'", cluster);
         return strdup(clusterTypeString(clusterInfo->getPlatform(), false));
 #endif
     }
@@ -1573,12 +1574,12 @@ void EclAgent::selectCluster(const char *newCluster)
     {
         // If the current cluster is an hthor cluster and cluster hopping is not enabled, it's an error to change clusters...
         if (!streq(oldCluster, newCluster) && !wuRead->getDebugValueBool("usingClusterHopping", false))
-            throw MakeStringException(-1, "Error - cannot switch cluster in hthor jobs");
+            throw MakeStringException(ECLERR_ErrorCannotSwitchClusterInHthor, "Error - cannot switch cluster in hthor jobs");
     }
     else if (getClusterType(clusterType) == RoxieCluster)
     {
         if (!streq(oldCluster, newCluster))
-            throw MakeStringException(-1, "Error - cannot switch cluster in roxie jobs");
+            throw MakeStringException(ECLERR_ErrorCannotSwitchClusterInRoxie, "Error - cannot switch cluster in roxie jobs");
     }
     if (!streq(oldCluster, newCluster))
     {
@@ -1625,7 +1626,7 @@ unsigned EclAgent::getNodes()//retrieve node count for current cluster
             const char * cluster = clusterNames.tos();
             Owned<IConstWUClusterInfo> clusterInfo = getTargetClusterInfo(cluster);
             if (!clusterInfo)
-                throw MakeStringException(-1, "Unknown cluster '%s'", cluster);
+                throw MakeStringException(ECLERR_UnknownClusterS_1, "Unknown cluster '%s'", cluster);
             clusterWidth = clusterInfo->getSize();
             assertex(clusterWidth != 0);
 #endif
@@ -1726,18 +1727,18 @@ IConstWorkUnit * EclAgent::resolveLibrary(const char * libraryName, unsigned exp
     Owned<IPropertyTree> queryRegistry = getQueryRegistry(cluster, false);
     Owned<IPropertyTree> resolved = queryRegistry ? resolveQueryAlias(queryRegistry, libraryName) : NULL;
     if (!resolved)
-        throw MakeStringException(0, "No current implementation of library %s", libraryName);
+        throw MakeStringException(ECLERR_NoCurrentImplementationOfLibraryS, "No current implementation of library %s", libraryName);
 
     const char * libraryWuid = resolved->queryProp("@wuid");
 
     Owned<IWorkUnitFactory> factory = getWorkUnitFactory();
     Owned<IConstWorkUnit> wu = factory->openWorkUnit(libraryWuid);
     if (!wu)
-        throw MakeStringException(0, "Could not open workunit %s implementing library %s", libraryWuid, libraryName);
+        throw MakeStringException(ECLERR_CouldNotOpenWorkunitSImplementing, "Could not open workunit %s implementing library %s", libraryWuid, libraryName);
 
     unsigned interfaceHash = wu->getApplicationValueInt("LibraryModule", "interfaceHash", 0);
     if (interfaceHash != expectedInterfaceHash)
-        throw MakeStringException(0, "Library Query %s[%s] did not match expected interface (%u,%u)", libraryName, libraryWuid, expectedInterfaceHash, interfaceHash);
+        throw MakeStringException(ECLERR_LibraryQuerySSDidNot, "Library Query %s[%s] did not match expected interface (%u,%u)", libraryName, libraryWuid, expectedInterfaceHash, interfaceHash);
     return wu.getClear();
 }
 
@@ -1867,7 +1868,7 @@ void EclAgent::doProcess()
 
             eclccCodeVersion = w->getCodeVersion();
             if (eclccCodeVersion == 0)
-                throw makeStringException(0, "Attempting to execute a workunit that hasn't been compiled");
+                throw makeStringException(ECLERR_AttemptingToExecuteAWorkunitThat, "Attempting to execute a workunit that hasn't been compiled");
             if (checkVersion && ((eclccCodeVersion > ACTIVITY_INTERFACE_VERSION) || (eclccCodeVersion < MIN_ACTIVITY_INTERFACE_VERSION)))
                 failv(0, "Workunit was compiled for eclagent interface version %d, this eclagent requires version %d..%d", eclccCodeVersion, MIN_ACTIVITY_INTERFACE_VERSION, ACTIVITY_INTERFACE_VERSION);
             if (checkVersion && eclccCodeVersion == 652)
@@ -1888,7 +1889,7 @@ void EclAgent::doProcess()
                 }
             }
             if(noRetry && (w->getState() == WUStateFailed))
-                throw MakeStringException(0, "Ecl agent started in 'no retry' mode for failed workunit, so failing");
+                throw MakeStringException(ECLERR_EclAgentStartedInNoRetry, "Ecl agent started in 'no retry' mode for failed workunit, so failing");
             w->setState(WUStateRunning);
             addTimeStamp(w, SSTglobal, NULL, StWhenStarted);
             if (isRemoteWorkunit)
@@ -2315,7 +2316,7 @@ void EclAgentWorkflowMachine::checkPersistSupported()
 {
     if (agent.isStandAloneExe)
     {
-        throw MakeStringException(0, "PERSIST not supported when running standalone");
+        throw MakeStringException(ECLERR_PersistNotSupportedWhenRunningStandalone, "PERSIST not supported when running standalone");
     }
 }
 
@@ -2496,7 +2497,7 @@ void EclAgentWorkflowMachine::doExecutePersistItem(IRuntimeWorkflowItem & item)
 {
     if (agent.isStandAloneExe)
     {
-        throw MakeStringException(0, "PERSIST not supported when running standalone");
+        throw MakeStringException(ECLERR_PersistNotSupportedWhenRunningStandalone, "PERSIST not supported when running standalone");
     }
 
     SCMStringBuffer name;
@@ -2528,14 +2529,14 @@ void EclAgentWorkflowMachine::doExecutePersistItem(IRuntimeWorkflowItem & item)
     {
         StringBuffer errmsg;
         errmsg.append("Internal error in generated code: for wfid ").append(wfid).append(", persist CRC wfid ").append(item.queryPersistWfid()).append(" did not call returnPersistVersion");
-        throw MakeStringExceptionDirect(0, errmsg.str());
+        throw MakeStringExceptionDirect(ECLERR_ErrmsgStr, errmsg.str());
     }
     Owned<PersistVersion> thisPersist = persist.getClear();
     if(strcmp(logicalName, thisPersist->logicalName.get()) != 0)
     {
         StringBuffer errmsg;
         errmsg.append("Failed workflow/persist consistency check: wfid ").append(wfid).append(", WU persist name ").append(logicalName).append(", runtime persist name ").append(thisPersist->logicalName.get());
-        throw MakeStringExceptionDirect(0, errmsg.str());
+        throw MakeStringExceptionDirect(ECLERR_ErrmsgStr, errmsg.str());
     }
     if(agent.arePersistsFrozen())
     {
@@ -2557,7 +2558,7 @@ void EclAgentWorkflowMachine::doExecutePersistItem(IRuntimeWorkflowItem & item)
 void EclAgentWorkflowMachine::doExecuteCriticalItem(IRuntimeWorkflowItem & item)
 {
     if (agent.isStandAloneExe)
-        throw MakeStringException(0, "CRITICAL not supported when running standalone");
+        throw MakeStringException(ECLERR_CriticalNotSupportedWhenRunningStandalone, "CRITICAL not supported when running standalone");
 
     SCMStringBuffer name;
     const char *criticalName = item.getCriticalName(name).str();
@@ -2566,7 +2567,7 @@ void EclAgentWorkflowMachine::doExecuteCriticalItem(IRuntimeWorkflowItem & item)
 
     Owned<IRemoteConnection> rlock = obtainCriticalLock(criticalName);
     if (!rlock)
-        throw MakeStringException(0, "Cannot obtain Critical section lock");
+        throw MakeStringException(ECLERR_CannotObtainCriticalSectionLock, "Cannot obtain Critical section lock");
 
     doExecuteItemDependencies(item, wfid);
     doExecuteItem(item, wfid);
@@ -2812,7 +2813,7 @@ IRemoteConnection *EclAgent::getPersistReadLock(const char * logicalName)
     StringBuffer lfn;
     expandLogicalName(lfn, logicalName);
     if (!lfn.length())
-        throw MakeStringException(0, "Invalid persist name used : '%s'", logicalName);
+        throw MakeStringException(ECLERR_InvalidPersistNameUsedS, "Invalid persist name used : '%s'", logicalName);
 
     const char * name = lfn;
 
@@ -3089,7 +3090,7 @@ char * EclAgent::getGroupName()
         const char * cluster = clusterNames.tos();
         Owned<IConstWUClusterInfo> clusterInfo = getTargetClusterInfo(cluster);
         if (!clusterInfo)
-            throw MakeStringException(-1, "Unknown cluster '%s'", cluster);
+            throw MakeStringException(ECLERR_UnknownClusterS_1, "Unknown cluster '%s'", cluster);
         const StringArray &thors = clusterInfo->getThorProcesses();
         if (thors.length())
         {
@@ -3106,7 +3107,7 @@ char * EclAgent::getGroupName()
                         if (groupName.length())
                         {
                             if (!strieq(groupName, envGroup))
-                                throw MakeStringException(-1, "getGroupName(): ambiguous groups %s, %s", groupName.str(), envGroup);
+                                throw MakeStringException(ECLERR_GetgroupnameAmbiguousGroupsSS, "getGroupName(): ambiguous groups %s, %s", groupName.str(), envGroup);
                         }
                         else
                             groupName.append(envGroup);
@@ -3603,7 +3604,7 @@ extern int HTHOR_API eclagent_main(int argc, const char *argv[], Owned<ILocalWor
         StringBuffer msg;
         E->errorMessage(msg);
         E->Release();
-        throw MakeStringException(0, "Invalid xml: %s", msg.str());
+        throw MakeStringException(ECLERR_InvalidXmlS, "Invalid xml: %s", msg.str());
     }
 
     StringBuffer wuid;
@@ -3736,7 +3737,7 @@ extern int HTHOR_API eclagent_main(int argc, const char *argv[], Owned<ILocalWor
         {
             agentTopology->getProp("@workunit", wuid);
             if (!wuid.length())
-                throw MakeStringException(0, "workunit not specified");
+                throw MakeStringException(ECLERR_WorkunitNotSpecified, "workunit not specified");
         }
         else
         {
@@ -3909,7 +3910,7 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         Owned<ILoadedDllEntry> exeEntry = createExeDllEntry(argv[0]);
         Owned<ILocalWorkUnit> localWu = createLocalWorkUnit(exeEntry);
         if (!localWu)
-            throw MakeStringException(0, "Could not locate workunit resource");
+            throw MakeStringException(ECLERR_CouldNotLocateWorkunitResource, "Could not locate workunit resource");
 
         ret = eclagent_main(argc, argv, localWu, true);
     }

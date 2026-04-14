@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "eventiterator.h"
+#include "commonerr.hpp"
 #include "eventindex.hpp"
 #include <list>
 #include <map>
@@ -58,12 +59,12 @@ bool CPropertyTreeEvents::nextEvent(CEvent& event)
         node = &eventsIt->query();
         typeStr = node->queryProp("@type");
         if (isEmptyString(typeStr))
-            throw makeStringException(-1, "missing event type");
+            throw makeStringException(COMMONERR_MissingEventType, "missing event type");
         type = queryEventType(typeStr);
         if (type != EventNone)
             break;
         if (!(flags & PTEFlenientParsing))
-            throw makeStringExceptionV(-1, "unknown event type: %s", typeStr);
+            throw makeStringExceptionV(COMMONERR_UnknownEventTypeS, "unknown event type: %s", typeStr);
         firstEvent = false;
         (void)eventsIt->next();
     }
@@ -78,14 +79,14 @@ bool CPropertyTreeEvents::nextEvent(CEvent& event)
             {
                 __uint64 channelId = node->getPropInt64("@ChannelId");
                 if (channelId > UINT8_MAX)
-                    throw makeStringExceptionV(0, "ChannelId value %llu exceeds maximum allowed value %u", channelId, UINT8_MAX);
+                    throw makeStringExceptionV(COMMONERR_ChannelidValueLluExceedsMaximumAllowed, "ChannelId value %llu exceeds maximum allowed value %u", channelId, UINT8_MAX);
                 properties.channelId = static_cast<byte>(channelId);
             }
             if (node->hasProp("@ReplicaId"))
             {
                 __uint64 replicaId = node->getPropInt64("@ReplicaId");
                 if (replicaId > UINT8_MAX)
-                    throw makeStringExceptionV(0, "ReplicaId value %llu exceeds maximum allowed value %u", replicaId, UINT8_MAX);
+                    throw makeStringExceptionV(COMMONERR_ReplicaidValueLluExceedsMaximumAllowed, "ReplicaId value %llu exceeds maximum allowed value %u", replicaId, UINT8_MAX);
                 properties.replicaId = static_cast<byte>(replicaId);
             }
             if (node->hasProp("@InstanceId"))
@@ -107,14 +108,14 @@ bool CPropertyTreeEvents::nextEvent(CEvent& event)
             // Non-literal parsing requires at most one RecordingSource event at the start of the
             // stream. Strict parsing is not required for enforcement.
             if (!(flags & PTEFliteralParsing))
-                throw makeStringException(-1, "multiple RecordingSource events encountered");
+                throw makeStringException(COMMONERR_MultipleRecordingsourceEventsEncountered, "multiple RecordingSource events encountered");
         }
         else if (!firstEvent)
         {
             // Non-literal parsing requires the RecordingSource event to be the first event in the
             // stream. Strict parsing is not required for enforcement.
             if (!(flags & PTEFliteralParsing))
-                throw makeStringException(-1, "RecordingSource event must be the first event in the stream");
+                throw makeStringException(COMMONERR_RecordingsourceEventMustBeTheFirst, "RecordingSource event must be the first event in the stream");
         }
         firstRecordingSource = false;
     }
@@ -133,13 +134,13 @@ bool CPropertyTreeEvents::nextEvent(CEvent& event)
         if (EvAttrNone == attrId)
         {
             if (!(flags & PTEFlenientParsing))
-                throw makeStringExceptionV(-1, "unknown attribute: %s", name);
+                throw makeStringExceptionV(COMMONERR_UnknownAttributeS, "unknown attribute: %s", name);
             continue;
         }
         if (!event.isAttribute(attrId))
         {
             if (!(flags & PTEFlenientParsing))
-                throw makeStringExceptionV(-1, "unused attribute %s/%s", typeStr, name);
+                throw makeStringExceptionV(COMMONERR_UnusedAttributeSS, "unused attribute %s/%s", typeStr, name);
             continue;
         }
         const char* valueStr = attrIt->queryValue();
@@ -163,14 +164,14 @@ bool CPropertyTreeEvents::nextEvent(CEvent& event)
             break;
         default:
             if (!(flags & PTEFlenientParsing))
-                throw makeStringExceptionV(-1, "unknown attribute type class %u for %s/%s", attr.queryTypeClass(), typeStr, name);
+                throw makeStringExceptionV(COMMONERR_UnknownAttributeTypeClassUFor, "unknown attribute type class %u for %s/%s", attr.queryTypeClass(), typeStr, name);
             break;
         }
     }
     if (!(flags & PTEFliteralParsing))
         event.fixup(properties);
     if (!(flags & PTEFlenientParsing) && !event.isComplete())
-        throw makeStringExceptionV(-1, "incomplete event %s", typeStr);
+        throw makeStringExceptionV(COMMONERR_IncompleteEventS, "incomplete event %s", typeStr);
 
     // advance to the next matching node
     (void)eventsIt->next();
@@ -289,11 +290,11 @@ CEventMultiplexer::CEventMultiplexer(CMetaInfoState& _metaState)
 void CEventMultiplexer::addSource(IEventIterator& source)
 {
     if (!acceptSources)
-        throw makeStringException(0, "event multiplexer cannot add a source after event consumption has started");
+        throw makeStringException(COMMONERR_EventMultiplexerCannotAddASource, "event multiplexer cannot add a source after event consumption has started");
     if (this == &source)
-        throw makeStringException(0, "event multiplexer cannot add itself as source");
+        throw makeStringException(COMMONERR_EventMultiplexerCannotAddItselfAs, "event multiplexer cannot add itself as source");
     if (hasSource(source))
-        throw makeStringException(0, "event multiplexer cannot add a source already in use");
+        throw makeStringException(COMMONERR_EventMultiplexerCannotAddASource_1, "event multiplexer cannot add a source already in use");
     CEvent next;
     if (!source.nextEvent(next))
         return;
@@ -315,7 +316,7 @@ void CEventMultiplexer::addSource(IEventIterator& source)
         const char* actual = sourceProps.processDescriptor.str();
         const char* expected = properties.processDescriptor.str();
         if (!streq(expected, actual))
-            throw makeStringExceptionV(0, "file source mismatch - needed ProcessDescriptor '%s' but found '%s'", expected, actual);
+            throw makeStringExceptionV(COMMONERR_FileSourceMismatchNeededProcessdescriptorS, "file source mismatch - needed ProcessDescriptor '%s' but found '%s'", expected, actual);
         for (const Sources::value_type& entry : sources)
         {
             if (&source == entry.first.get())

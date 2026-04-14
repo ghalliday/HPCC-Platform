@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include <stdio.h>
+#include "hqlerr2.hpp"
 #include "jcomp.hpp"
 #include "jfile.hpp"
 #include "jlzw.hpp"
@@ -2044,7 +2045,7 @@ void EclCC::generateOutput(EclCompileInstance & instance)
 void EclCC::processReference(EclCompileInstance & instance, const char * queryAttributePath, const char * queryAttributePackage)
 {
     if (isEmptyString(queryAttributePath))
-        throw makeStringException(0, "Blank main attribute supplied - no query to compile");
+        throw makeStringException(ECLERR_BlankMainAttributeSuppliedNoQuery, "Blank main attribute supplied - no query to compile");
 
     instance.wu.setown(createLocalWorkUnit());
     if (optArchive || optGenerateDepend || optSaveQueryArchive)

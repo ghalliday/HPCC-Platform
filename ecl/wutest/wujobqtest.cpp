@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "jlib.hpp"
+#include "hqlerr2.hpp"
 #include "jfile.hpp"
 #include "jprop.hpp"
 #include "jsocket.hpp"
@@ -241,15 +242,15 @@ void testEnqueue(unsigned nthreads,const char *qname)
     pollthread.join();
     if (!got) {
         if (pollthread.timedout)
-            throw MakeStringException(0, "Query %s failed to start within specified timelimit (%d)", wuid.str(), timelimit);
-        throw MakeStringException(0, "Query %s cancelled (1)",wuid.str());
+            throw MakeStringException(ECLERR_QuerySFailedToStartWithin, "Query %s failed to start within specified timelimit (%d)", wuid.str(), timelimit);
+        throw MakeStringException(ECLERR_QuerySCancelled1, "Query %s cancelled (1)",wuid.str());
     }
     // get the thor ep from whoever picked up
 
     SocketEndpoint thorMaster;
     MemoryBuffer msg;
     if (!conversation->recv(msg,1000*60)) {
-        throw MakeStringException(0, "Query %s cancelled (2)",wuid.str());
+        throw MakeStringException(ECLERR_QuerySCancelled2, "Query %s cancelled (2)",wuid.str());
     }
     thorMaster.deserialize(msg);
     msg.clear().append(graphName);
@@ -259,7 +260,7 @@ void testEnqueue(unsigned nthreads,const char *qname)
     if (!conversation->send(msg)) {
         StringBuffer s("Failed to send query to Thor on ");
         thorMaster.getEndpointHostText(s);
-        throw MakeStringException(-1, s.str()); // maybe retry?
+        throw MakeStringException(ECLERR_SStr, s.str()); // maybe retry?
     }
 
 #endif

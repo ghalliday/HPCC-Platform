@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "commonerr.hpp"
 #include "portlist.h"
 
 #include "jlib.hpp"
@@ -142,7 +143,7 @@ class CFRunSSH: public CInterface, implements IFRunSSH
                     return;
                 }
             }
-            throw MakeStringException(-1, "Failed to open slaves file %s", slavesfile.get());
+            throw MakeStringException(COMMONERR_FailedToOpenSlavesFileS, "Failed to open slaves file %s", slavesfile.get());
         }
         char inbuf[1000];
         StringAttr slave;
@@ -259,7 +260,7 @@ public:
                         }
                         [[fallthrough]];
                     default:
-                        throw MakeStringException(-1,"Unknown option %s",argv[i]);
+                        throw MakeStringException(COMMONERR_UnknownOptionS, "Unknown option %s",argv[i]);
                 }
             }
             else {
@@ -270,13 +271,13 @@ public:
                 else if (cmd.isEmpty())
                     cmd.set(argv[i]);
                 else
-                    throw MakeStringException(-1,"Unknown parameter %s",argv[i]);
+                    throw MakeStringException(COMMONERR_UnknownParameterS, "Unknown parameter %s",argv[i]);
             }
         }
         if (dryrun||(numthreads<=0))
             numthreads=1;
         if (!identityfile.isEmpty()&&!checkFileExists(identityfile.get()))
-            throw MakeStringException(-1,"Cannot find identity file: %s",identityfile.get());
+            throw MakeStringException(COMMONERR_CannotFindIdentityFileS, "Cannot find identity file: %s",identityfile.get());
         if (!password.isEmpty()&&!identityfile.isEmpty()) {
             WARNLOG("SSH identity file specified, ignoring password");
             password.clear();

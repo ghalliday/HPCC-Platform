@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jfile.hpp"
+#include "hqlerr2.hpp"
 #include "jcontainerized.hpp"
 #include "daclient.hpp"
 #include "wujobq.hpp"
@@ -365,10 +366,10 @@ public:
                 Owned<IPipeProcess> pipe = createPipeProcess();
                 pipe->setenv("SENTINEL", nullptr);
                 if (!pipe->run(apptype.str(), exec.str(), ".", false, true, false, 0, false))
-                    throw makeStringExceptionV(0, "Failed to run \"%s\"", exec.str());
+                    throw makeStringExceptionV(ECLERR_FailedToRun, "Failed to run \"%s\"", exec.str());
                 unsigned retCode = pipe->wait();
                 if (retCode)
-                    throw makeStringExceptionV(0, "Failed to run \"%s\": process exited with error: %u", exec.str(), retCode);
+                    throw makeStringExceptionV(ECLERR_FailedToRun, "Failed to run \"%s\": process exited with error: %u", exec.str(), retCode);
             }
         }
         catch (IException *e)

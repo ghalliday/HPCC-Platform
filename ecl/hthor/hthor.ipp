@@ -26,6 +26,7 @@
  */
 
 #include "jliball.hpp"
+#include "hqlerr2.hpp"
 #include "hthor.hpp"
 #include "dadfs.hpp"
 #include "csvsplitter.hpp"
@@ -163,7 +164,7 @@ static bool verifyFormatCrc(unsigned helperCrc, IDistributedFile * df, char cons
             if(super)
                 msg.append(" (in super").append(isIndex ? "index" : "file").append(" ").append(super).append(")");
             if(fail)
-                throw MakeStringException(0, "%s", msg.str());
+                throw MakeStringException(ECLERR_S, "%s", msg.str());
             if (logMismatch)
                 UWARNLOG("%s", msg.str());
             //MORE: Should we add a warning, similar to the following:

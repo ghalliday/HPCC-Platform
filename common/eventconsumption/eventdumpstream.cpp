@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "eventdump.hpp"
+#include "commonerr.hpp"
 #include <set>
 
 // Abstract extension of CDumpEventVisitor that writes visited data to an output stream. Subclasses
@@ -480,7 +481,7 @@ public:
                     doVisitAttribute(attr.queryId(), attr.queryBooleanValue());
                     break;
                 default:
-                    throw makeStringExceptionV(-1, "unsupported attribute type class %u", attr.queryTypeClass());
+                    throw makeStringExceptionV(COMMONERR_UnsupportedAttributeTypeClassU, "unsupported attribute type class %u", attr.queryTypeClass());
                 }
             }
         }

@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "eventfilter.h"
+#include "commonerr.hpp"
 #include "eventindex.hpp"
 #include "eventmetaparser.hpp"
 #include "jregexp.hpp"
@@ -329,7 +330,7 @@ protected:
         bool matches(const CEvent& event, const CEventAttribute& attribute) const override
         {
             if (attribute.queryId() != EvAttrEventTraceId)
-                throw makeStringExceptionV(0, "TraceIdFilterTerm can only evaluate EventTraceId attributes, but received attribute ID: %u", unsigned(attribute.queryId()));
+                throw makeStringExceptionV(COMMONERR_TraceidfiltertermCanOnlyEvaluateEventtraceidAttributes, "TraceIdFilterTerm can only evaluate EventTraceId attributes, but received attribute ID: %u", unsigned(attribute.queryId()));
             std::string traceId = attribute.queryTextValue();
             auto knownIt = knownValues.find(traceId);
             bool match;
@@ -479,13 +480,13 @@ public: // IEventFilter
                 EventAttr id = queryEventAttribute(termNode.queryProp("@id"));
                 const char* values = termNode.queryProp("@values");
                 if (EvAttrNone == id && isEmptyString(values))
-                    throw makeStringException(-1, "missing event attribute filter id and values");
+                    throw makeStringException(COMMONERR_MissingEventAttributeFilterIdAnd, "missing event attribute filter id and values");
                 if (EvAttrNone == id)
-                    throw makeStringExceptionV(-1, "missing event attribute filter id for values '%s'", values);
+                    throw makeStringExceptionV(COMMONERR_MissingEventAttributeFilterIdFor, "missing event attribute filter id for values '%s'", values);
                 if (isEmptyString(values))
-                    throw makeStringExceptionV(-1, "missing event attribute filter values for id %s", queryEventAttributeName(id));
+                    throw makeStringExceptionV(COMMONERR_MissingEventAttributeFilterValuesFor, "missing event attribute filter values for id %s", queryEventAttributeName(id));
                 if (!acceptAttribute(id, values))
-                    throw makeStringExceptionV(-1, "event filter attribute %s term '%s' not accepted", queryEventAttributeName(id), values);
+                    throw makeStringExceptionV(COMMONERR_EventFilterAttributeSTermS, "event filter attribute %s term '%s' not accepted", queryEventAttributeName(id), values);
             }
             else if (streq(termName, "event"))
             {
@@ -493,7 +494,7 @@ public: // IEventFilter
                 {
                     const char* token = termNode.queryProp("@list");
                     if (!acceptEvents(token))
-                        throw makeStringExceptionV(-1, "event list term '%s' not accepted", token);
+                        throw makeStringExceptionV(COMMONERR_EventListTermSNotAccepted, "event list term '%s' not accepted", token);
                 }
                 else if (termNode.hasProp("@type"))
                 {
@@ -501,9 +502,9 @@ public: // IEventFilter
                     FilterTermComparison comp = extractComparison(token);
                     EventType type = queryEventType(token);
                     if (EventNone == type)
-                        throw makeStringExceptionV(-1, "event filter event term has unknown type name '%s'", token);
+                        throw makeStringExceptionV(COMMONERR_EventFilterEventTermHasUnknown, "event filter event term has unknown type name '%s'", token);
                     if (!IEventFilter::acceptEvent(type))
-                        throw makeStringExceptionV(-1, "event type term '%s' not accepted", token);
+                        throw makeStringExceptionV(COMMONERR_EventTypeTermSNotAccepted, "event type term '%s' not accepted", token);
                 }
                 else if (termNode.hasProp("@context"))
                 {
@@ -511,9 +512,9 @@ public: // IEventFilter
                     FilterTermComparison comp = extractComparison(token);
                     EventContext context = queryEventContext(token);
                     if (EventCtxOther == context)
-                        throw makeStringExceptionV(-1, "event filter context term has unknown context name '%s'", token);
+                        throw makeStringExceptionV(COMMONERR_EventFilterContextTermHasUnknown, "event filter context term has unknown context name '%s'", token);
                     if (!IEventFilter::acceptEvents(context))
-                        throw makeStringExceptionV(-1, "event context term '%s' not accepted", token);
+                        throw makeStringExceptionV(COMMONERR_EventContextTermSNotAccepted, "event context term '%s' not accepted", token);
                 }
             }
         }
@@ -605,7 +606,7 @@ public: // IEventFilter
             if (!terms[EvAttrPath])
                 terms[EvAttrPath].set(term);
             else if (terms[EvAttrPath] != term)
-                throw makeStringException(-1, "event attribute EvAttrPath has a conflicting filter term for EvAttrFileId");
+                throw makeStringException(COMMONERR_EventAttributeEvattrpathHasAConflicting, "event attribute EvAttrPath has a conflicting filter term for EvAttrFileId");
             return term->accept(values);
         }
         else if (EvAttrEventTraceId == id)
@@ -630,9 +631,9 @@ public: // IEventFilter
                 return ensureTerm<TimestampFilterTerm>(id)->accept(values);
             case EATnone:
             case EATmax:
-                throw makeStringExceptionV(-1, "event attribute id %d has an invalid type %d", int(id), int(queryEventAttributeType(id)));
+                throw makeStringExceptionV(COMMONERR_EventAttributeIdDHasAn, "event attribute id %d has an invalid type %d", int(id), int(queryEventAttributeType(id)));
             default:
-                throw makeStringExceptionV(-1, "event attribute id %d has an unknown type %d", int(id), int(queryEventAttributeType(id)));
+                throw makeStringExceptionV(COMMONERR_EventAttributeIdDHasAn_1, "event attribute id %d has an unknown type %d", int(id), int(queryEventAttributeType(id)));
             }
         }
     }
@@ -642,12 +643,12 @@ protected:
     FilterTerm* ensureTerm(EventAttr id)
     {
         if (id <= EvAttrNone || id >= EvAttrMax)
-            throw makeStringExceptionV(-1, "event attribute id %d out of range", int(id));
+            throw makeStringExceptionV(COMMONERR_EventAttributeIdDOutOf, "event attribute id %d out of range", int(id));
         if (!terms[id])
             terms[id].setown(new term_type_t(metaState));
 #if defined(_DEBUG)
         else if (dynamic_cast<term_type_t*>(terms[id].get()) == nullptr)
-            throw makeStringExceptionV(-1, "event attribute id %d has a different type of filter term", int(id));
+            throw makeStringExceptionV(COMMONERR_EventAttributeIdDHasA, "event attribute id %d has a different type of filter term", int(id));
 #endif
         return terms[id].get();
     }
@@ -667,14 +668,14 @@ protected:
         skipSpaces(token);
         const char* close = strchr(token + 1, ']');
         if (!close)
-            throw makeStringExceptionV(-1, "invalid filter term syntax - '%s' incomplete comparison selector", token);
+            throw makeStringExceptionV(COMMONERR_InvalidFilterTermSyntaxSIncomplete, "invalid filter term syntax - '%s' incomplete comparison selector", token);
         StringBuffer compStr(close - token - 1, token + 1);
         compStr.trim();
         if (compStr.isEmpty())
             return FilterTermComparison::Default;
         std::map<std::string, FilterTermComparison>::const_iterator it = comparisonMap.find(compStr.str());
         if (comparisonMap.end() == it)
-            throw makeStringExceptionV(-1, "invalid filter term syntax - '%s' has unknown comparison selector", token);
+            throw makeStringExceptionV(COMMONERR_InvalidFilterTermSyntaxSHas, "invalid filter term syntax - '%s' has unknown comparison selector", token);
         token = close + 1;
         skipSpaces(token);
         return it->second;

@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "eventdump.hpp"
+#include "commonerr.hpp"
 
 void CDumpEventsOp::setFormat(OutputFormat _format)
 {
@@ -56,7 +57,7 @@ bool CDumpEventsOp::doOp()
             return false;
         }
     default:
-        throw makeStringExceptionV(-1, "unsupported output format: %d", (int)format);
+        throw makeStringExceptionV(COMMONERR_UnsupportedOutputFormatD, "unsupported output format: %d", (int)format);
     }
     return traverseEvents(*visitor);
 }

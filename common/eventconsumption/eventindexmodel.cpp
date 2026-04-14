@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "eventindexmodel.hpp"
+#include "commonerr.hpp"
 #include "eventutility.hpp"
 #include "eventoperation.h"
 #include <vector>
@@ -70,12 +71,12 @@ void IndexMRUCache::reserve(__uint64 needed, IndexMRUCacheReporter &reporter)
     if (!capacity)
         return;
     if (capacity < needed)
-        throw makeStringExceptionV(-1, "%s capacity %llu less than reserved page request %llu", description(), capacity, needed);
+        throw makeStringExceptionV(COMMONERR_SCapacityLluLessThanReserved, "%s capacity %llu less than reserved page request %llu", description(), capacity, needed);
     while ((capacity - used) < needed)
     {
         Value *dead = mru.dequeueTail();
         if (!dead)
-            throw makeStringExceptionV(-1, "%s MRU unexpectedly empty", description());
+            throw makeStringExceptionV(COMMONERR_SMruUnexpectedlyEmpty, "%s MRU unexpectedly empty", description());
         __uint64 released = size(dead->key);
         reporter.reportDropped(dead->key, released);
         used -= released;
@@ -95,7 +96,7 @@ public: // IEventVisitationLink
     {
         const IPropertyTree* node = config.queryBranch("storage");
         if (!node)
-            throw makeStringException(-1, "index event model configuration missing required <storage> element");
+            throw makeStringException(COMMONERR_IndexEventModelConfigurationMissingRequired, "index event model configuration missing required <storage> element");
         storage.configure(*node);
         const char* dynamicCacheCapacityStr = node->queryProp("@dynamicCacheCapacity");
         node = config.queryBranch("memory");

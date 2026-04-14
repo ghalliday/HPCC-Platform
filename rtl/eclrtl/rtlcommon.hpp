@@ -3,6 +3,7 @@
 
 
 #include "jiface.hpp"
+#include "rtlerr.hpp"
 #include "jfile.hpp"
 #include "jexcept.hpp"
 #include "eclrtl.hpp"
@@ -136,7 +137,7 @@ private:
         {
             peekBytesDirect(required);
             if (unlikely(required > maxAvailable()))
-                throw makeStringExceptionV(0, "Required %u bytes, but only %u available (row offset %u file offset %llu)", required, (unsigned)maxAvailable(), readOffset, tell() + readOffset);
+                throw makeStringExceptionV(RTLERR_RequiredUBytesButOnlyU, "Required %u bytes, but only %u available (row offset %u file offset %llu)", required, (unsigned)maxAvailable(), readOffset, tell() + readOffset);
         }
     }
 

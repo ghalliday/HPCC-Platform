@@ -19,6 +19,7 @@
 #define WUPACKAGE_IMPL_HPP
 
 #include "platform.h"
+#include "commonerr.hpp"
 #include "jprop.hpp"
 #include "jptree.hpp"
 #include "jregexp.hpp"
@@ -214,7 +215,7 @@ public:
         if (baseResolution==basesResolved)
             return;
         if (baseResolution==basesResolving)
-            throw MakeStringExceptionDirect(0, "PACKAGE_ERROR: circular or invalid base package definition");
+            throw MakeStringExceptionDirect(COMMONERR_PackageErrorCircularOrInvalidBase, "PACKAGE_ERROR: circular or invalid base package definition");
         TYPE::loadEnvironment();
         if (packages)
         {

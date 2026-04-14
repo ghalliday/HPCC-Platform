@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "commonerr.hpp"
 #include "azureapiutils.hpp"
 #include "jlib.hpp"
 #include "jexcept.hpp"
@@ -99,7 +100,7 @@ std::shared_ptr<Azure::Storage::StorageSharedKeyCredential> getAzureSharedKeyCre
     }
     catch (const Azure::Core::RequestFailedException& e)
     {
-        IException * error = makeStringExceptionV(-1, "Azure access: %s (%d)", e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode));
+        IException * error = makeStringExceptionV(COMMONERR_AzureAccessSD, "Azure access: %s (%d)", e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode));
         throw error;
     }
 }
@@ -130,7 +131,7 @@ std::shared_ptr<Azure::Core::Credentials::TokenCredential> getAzureManagedIdenti
         }
         catch (const Azure::Core::RequestFailedException& e)
         {
-            throw makeStringExceptionV(-1, "Azure authentication failed: %s (%d)",
+            throw makeStringExceptionV(COMMONERR_AzureAuthenticationFailedSD, "Azure authentication failed: %s (%d)",
                 e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode));
         }
     }
@@ -154,7 +155,7 @@ std::shared_ptr<Azure::Core::Credentials::TokenCredential> getAzureManagedIdenti
     }
     catch (const Azure::Core::RequestFailedException& e)
     {
-        throw makeStringExceptionV(-1, "Azure Managed Identity authentication failed: %s (%d)",
+        throw makeStringExceptionV(COMMONERR_AzureManagedIdentityAuthenticationFailedS, "Azure Managed Identity authentication failed: %s (%d)",
             e.ReasonPhrase.c_str(), static_cast<int>(e.StatusCode));
     }
 }

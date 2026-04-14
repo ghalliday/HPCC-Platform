@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <aws/core/Aws.h>
+#include "commonerr.hpp"
 #include <aws/core/auth/AWSCredentialsProviderChain.h>
 #include <aws/core/client/ClientConfiguration.h>
 #include <aws/core/client/DefaultRetryStrategy.h>
@@ -257,7 +258,7 @@ static void handleRequestBackoff(const char* message, unsigned attempt, unsigned
     OWARNLOG("%s", message);
 
     if (attempt >= maxRetries)
-        throw makeStringException(-1, message);
+        throw makeStringException(COMMONERR_Message, message);
 
     // Exponential backoff with jitter
     unsigned backoffMs = (1U << attempt) * 100 + (rand() % 100);
@@ -761,7 +762,7 @@ void S3FileWriteIO::beforeDispose()
 size32_t S3FileWriteIO::write(offset_t pos, size32_t len, const void* data)
 {
     if (closed)
-        throw makeStringException(-1, "Attempt to write to closed S3 file");
+        throw makeStringException(COMMONERR_AttemptToWriteToClosedS3, "Attempt to write to closed S3 file");
 
     if (len == 0)
         return 0;
@@ -770,7 +771,7 @@ size32_t S3FileWriteIO::write(offset_t pos, size32_t len, const void* data)
 
     // For simplicity, require sequential writes
     if (pos != currentPos)
-        throw makeStringException(-1, "S3 file writer only supports sequential writes");
+        throw makeStringException(COMMONERR_S3FileWriterOnlySupportsSequential, "S3 file writer only supports sequential writes");
 
     file->invalidateMeta();
 
@@ -781,11 +782,11 @@ size32_t S3FileWriteIO::write(offset_t pos, size32_t len, const void* data)
     {
         multipartUpload = std::make_unique<S3MultipartUpload>(file->planeName.str(), file->device, file->bucketName.str(), file->keyName.str());
         if (!multipartUpload->initiate())
-            throw makeStringException(-1, "Failed to initiate multipart upload");
+            throw makeStringException(COMMONERR_FailedToInitiateMultipartUpload, "Failed to initiate multipart upload");
     }
 
     if (!multipartUpload->uploadPart(data, len))
-        throw makeStringException(-1, "Failed to upload part to S3");
+        throw makeStringException(COMMONERR_FailedToUploadPartToS3, "Failed to upload part to S3");
 
     currentPos += len;
     stats.ioWrites++;
@@ -811,7 +812,7 @@ void S3FileWriteIO::close()
     if (multipartUpload)
     {
         if (!multipartUpload->complete())
-            throw makeStringException(-1, "Failed to complete multipart upload");
+            throw makeStringException(COMMONERR_FailedToCompleteMultipartUpload, "Failed to complete multipart upload");
         multipartUpload.reset();
     }
 
@@ -940,7 +941,7 @@ IFileIO* S3File::open(IFOmode mode, IFEflags extraFlags)
         case IFOwrite:
             return new S3FileWriteIO(this);
         default:
-            throw makeStringException(-1, "Unsupported file open mode for S3 file");
+            throw makeStringException(COMMONERR_UnsupportedFileOpenModeForS3, "Unsupported file open mode for S3 file");
     }
 }
 

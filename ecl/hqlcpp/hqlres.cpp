@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "jliball.hpp"
+#include "hqlerr2.hpp"
 #include "hql.hpp"
 
 #include "jlib.hpp"
@@ -98,7 +99,7 @@ static void loadResource(const char *filepath, MemoryBuffer &content)
     Owned <IFile> f = createIFile(filepath);
     Owned <IFileIO> fio = f->open(IFOread);
     if (!fio)
-        throw makeStringExceptionV(0, "Failed to open resource file %s", filepath);
+        throw makeStringExceptionV(ECLERR_FailedToOpenResourceFileS, "Failed to open resource file %s", filepath);
     read(fio, 0, (size32_t) f->size(), content);
 }
 
@@ -120,7 +121,7 @@ static void ensureManifestTempDir(StringBuffer &tempDir, IHqlCppInstance &cppIns
     getTempFilePath(tempDir, "eclcc", nullptr);
     tempDir.append(PATHSEPCHAR).append("tmp.XXXXXX");
     if (!mkdtemp((char *) tempDir.str()))
-        throw makeStringExceptionV(0, "Failed to create temporary directory %s (error %d)", tempDir.str(), errno);
+        throw makeStringExceptionV(ECLERR_FailedToCreateTemporaryDirectoryS, "Failed to create temporary directory %s (error %d)", tempDir.str(), errno);
     cppInstance.addTemporaryDir(tempDir.str());
     cppInstance.addIncludeDirectory(tempDir.str());
 }
@@ -134,11 +135,11 @@ static void appendRelativeResourcePath(StringBuffer &target, const char *tempDir
     {
         const char *tail = pathTail(fallbackName);
         if (!tail || !*tail)
-            throw makeStringExceptionV(0, "Failed to resolve resource filename for %s", fallbackName);
+            throw makeStringExceptionV(ECLERR_FailedToResolveResourceFilenameFor, "Failed to resolve resource filename for %s", fallbackName);
         target.append(tail);
     }
     else
-        throw makeStringException(0, "Failed to determine resource filename");
+        throw makeStringException(ECLERR_FailedToDetermineResourceFilename, "Failed to determine resource filename");
 }
 
 bool ResourceManager::getDuplicateResourceId(const char *srctype, const char *respath, const char *filepath, int &id)
@@ -295,10 +296,10 @@ void ResourceManager::addManifestFile(const char *filename, ICodegenContextCallb
                 StringBuffer calculated;
                 md5_filesum(resourceFilename, calculated);
                 if (!strieq(calculated, md5))
-                    throw makeStringExceptionV(0, "MD5 mismatch on file %s in manifest %s", item.queryProp("@filename"), filename);
+                    throw makeStringExceptionV(ECLERR_Md5MismatchOnFileSIn, "MD5 mismatch on file %s in manifest %s", item.queryProp("@filename"), filename);
             }
             else if (isSigned)
-                throw makeStringExceptionV(0, "MD5 must be supplied for file %s in signed manifest %s", item.queryProp("@filename"), filename);
+                throw makeStringExceptionV(ECLERR_Md5MustBeSuppliedForFile, "MD5 must be supplied for file %s in signed manifest %s", item.queryProp("@filename"), filename);
 
             if (!item.hasProp("@type"))
                 item.setProp("@type", "UNKNOWN");
@@ -317,12 +318,12 @@ void ResourceManager::addManifestFile(const char *filename, ICodegenContextCallb
                 if (isSource || isHeader)
                 {
                     if (!ctxCallback->allowAccess("cpp", isSigned))
-                        throw makeStringExceptionV(0, "Embedded code via manifest file not allowed");
+                        throw makeStringExceptionV(ECLERR_EmbeddedCodeViaManifestFileNot, "Embedded code via manifest file not allowed");
                     ensureManifestTempDir(manifestTempDir, cppInstance);
                     StringBuffer tempFileName;
                     appendRelativeResourcePath(tempFileName, manifestTempDir.str(), item.queryProp("@filename"), resourceFilename);
                     if (!recursiveCreateDirectoryForFile(tempFileName))
-                        throw makeStringExceptionV(0, "Failed to create temporary file %s (error %d)", tempFileName.str(), errno);
+                        throw makeStringExceptionV(ECLERR_FailedToCreateTemporaryFileS, "Failed to create temporary file %s (error %d)", tempFileName.str(), errno);
                     try
                     {
                         copyFile(tempFileName.str(), resourceFilename);
@@ -332,7 +333,7 @@ void ResourceManager::addManifestFile(const char *filename, ICodegenContextCallb
                         StringBuffer msg;
                         e->errorMessage(msg);
                         e->Release();
-                        throw makeStringExceptionV(0, "Failed to copy manifest resource %s to %s: %s", resourceFilename, tempFileName.str(), msg.str());
+                        throw makeStringExceptionV(ECLERR_FailedToCopyManifestResourceS, "Failed to copy manifest resource %s to %s: %s", resourceFilename, tempFileName.str(), msg.str());
                     }
                     if (isSource)
                     {
@@ -342,7 +343,7 @@ void ResourceManager::addManifestFile(const char *filename, ICodegenContextCallb
                 else
                 {
                     if ((strieq(type, "jar") || strieq(type, "pyzip")) && !ctxCallback->allowAccess(type, isSigned))
-                        throw makeStringExceptionV(0, "Embedded %s files via manifest file not allowed", type);
+                        throw makeStringExceptionV(ECLERR_EmbeddedSFilesViaManifestFile, "Embedded %s files via manifest file not allowed", type);
                     MemoryBuffer content;
                     loadResource(resourceFilename, content);
                     addCompress(type, content.length(), content.toByteArray(), &item); // MORE - probably should not recompress files known to be compressed, like jar
@@ -397,7 +398,7 @@ void ResourceManager::addManifestsFromArchive(IPropertyTree *archive, ICodegenCo
                 StringBuffer signer;
                 isSigned = queryCodeSigner().verifySignature(manifestContents, signer);
                 if (!isSigned)
-                    throw makeStringExceptionV(0, "Code sign verify: signature not verified");
+                    throw makeStringExceptionV(ECLERR_CodeSignVerifySignatureNotVerified, "Code sign verify: signature not verified");
                 xml = queryCodeSigner().stripSignature(manifestContents, strippedManifestContents).str();
             }
             catch (IException *E)
@@ -457,7 +458,7 @@ void ResourceManager::addManifestsFromArchive(IPropertyTree *archive, ICodegenCo
                         else
                             xpath.clear().appendf("AdditionalFiles/Resource[@originalFilename=\"%s\"]", filename);
                         if (!archive->hasProp(xpath.str()))
-                            throw makeStringExceptionV(0, "Failed to locate resource for %s in archive", filename);
+                            throw makeStringExceptionV(ECLERR_FailedToLocateResourceForS, "Failed to locate resource for %s in archive", filename);
                     }
                     archive->getPropBin(xpath.str(), content);
                     if (md5)
@@ -465,7 +466,7 @@ void ResourceManager::addManifestsFromArchive(IPropertyTree *archive, ICodegenCo
                         StringBuffer calculated;
                         md5_data(content, calculated);
                         if (!strieq(calculated, md5))
-                            throw makeStringExceptionV(0, "MD5 mismatch %s in archive", filename);
+                            throw makeStringExceptionV(ECLERR_Md5MismatchSInArchive, "MD5 mismatch %s in archive", filename);
                     }
                     const char *type = item.queryProp("@type");
                     bool isSource = isSourceResource(type);
@@ -473,12 +474,12 @@ void ResourceManager::addManifestsFromArchive(IPropertyTree *archive, ICodegenCo
                     if (isSource || isHeader)
                     {
                         if (!ctxCallback->allowAccess("cpp", isSigned))
-                            throw makeStringExceptionV(0, "Embedded code via manifest file not allowed");
+                            throw makeStringExceptionV(ECLERR_EmbeddedCodeViaManifestFileNot, "Embedded code via manifest file not allowed");
                         ensureManifestTempDir(tempDir, cppInstance);
                         StringBuffer tempFileName;
                         appendRelativeResourcePath(tempFileName, tempDir.str(), item.queryProp("@filename"), filename);
                         if (!recursiveCreateDirectoryForFile(tempFileName))
-                            throw makeStringExceptionV(0, "Failed to create temporary file %s (error %d)", tempFileName.str(), errno);
+                            throw makeStringExceptionV(ECLERR_FailedToCreateTemporaryFileS, "Failed to create temporary file %s (error %d)", tempFileName.str(), errno);
                         Owned<IFile> tempFile = createIFile(tempFileName.str());
                         Owned<IFileIO> io = tempFile->open(IFOcreate);
                         if (!io)
@@ -492,7 +493,7 @@ void ResourceManager::addManifestsFromArchive(IPropertyTree *archive, ICodegenCo
                     else
                     {
                         if ((strieq(type, "jar") || strieq(type, "pyzip")) && !ctxCallback->allowAccess(type, isSigned))
-                            throw makeStringExceptionV(0, "Embedded %s files via manifest file not allowed", type);
+                            throw makeStringExceptionV(ECLERR_EmbeddedSFilesViaManifestFile, "Embedded %s files via manifest file not allowed", type);
                         addCompress(type, content.length(), content.toByteArray(), &item); // MORE - probably should not recompress files known to be compressed, like jar
                     }
                 }

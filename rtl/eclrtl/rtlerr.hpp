@@ -1,0 +1,25 @@
+#ifndef RTLERR_HPP
+#define RTLERR_HPP
+
+#define RTLERR_InvalidRawData 6600
+#define RTLERR_RequestToCreateAnEmbeddedDataset 6601
+#define RTLERR_FailedToAllocateTemporaryDatasetRequesting 6602
+#define RTLERR_RequestToCreateAnEmbeddedDataset_1 6603
+#define RTLERR_InvalidTypeInfoDInCrtlfieldtypedeserializer 6604
+#define RTLERR_InvalidTypeInfoHashInCrtlfieldtypedeserializer 6605
+#define RTLERR_InvalidTypeInfoIncorrectSizeData 6606
+#define RTLERR_InvalidSerializedTypeInformation 6607
+#define RTLERR_UntranslatableRecordLayoutMismatchDetectedFor 6608
+#define RTLERR_TranslatableKeyLayoutMismatchReadingFile 6609
+#define RTLERR_CannotTranslateKeyedFilterOnField 6610
+#define RTLERR_CannotTranslateKeyedFilterOnField_1 6611
+#define RTLERR_InvalidFilterMissingClosing 6612
+#define RTLERR_InvalidFilterS 6613
+#define RTLERR_InvalidFilterExpectedTerminatorS 6614
+#define RTLERR_InvalidFilterStringExpectedOrAt 6615
+#define RTLERR_InvalidFilterStringExpectedOrAt_1 6616
+#define RTLERR_InvalidFilterStringExpectedBetweenRanges 6617
+#define RTLERR_CouldNotProcessFilterS 6618
+#define RTLERR_RequiredUBytesButOnlyU 6619
+
+#endif // RTLERR_HPP

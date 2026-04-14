@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "commonerr.hpp"
 #include <algorithm>
 
 #include "jlib.hpp"
@@ -807,7 +808,7 @@ public:
         if (path && '/'==*path)
         {
             if ('/' == *(path+1))
-                throw MakeStringException(0, "// unsupported here");
+                throw MakeStringException(COMMONERR_UnsupportedHere, "// unsupported here");
             path++;
         }
         for (;;)
@@ -844,7 +845,7 @@ public:
                 const char *c = node.get();
                 while (*c) { if ('*' != *c) wildRemoved.append(*c); c++; }
                 if (wildRemoved.length() && !validateXMLTag(wildRemoved.str()))
-                    throw MakeStringException(0, "Invalid node syntax %s in path %s", node.get(), path);
+                    throw MakeStringException(COMMONERR_InvalidNodeSyntaxSInPath, "Invalid node syntax %s in path %s", node.get(), path);
                 nodes.append(node);
                 qualifierStack.append(""); // no qualifier for this segment.
                 simpleQualifier.append(true); // not used
@@ -923,7 +924,7 @@ public:
                 else if (!isdigit(*q)) { numeric = false; break; }
                 else q++;
             }
-            if (numeric) throw MakeStringException(0, "Unsupported index qualifier: %s", qualifier);
+            if (numeric) throw MakeStringException(COMMONERR_UnsupportedIndexQualifierS, "Unsupported index qualifier: %s", qualifier);
             Owned<IPropertyTreeIterator> matchIter = tree.getElements(qualifier);
             if (!matchIter->first())
                 return false;
@@ -996,7 +997,7 @@ public:
         assertex(!marking);
         marking = true;
         if (offset >= bufLen)
-            throw MakeStringException(0, "start offset past end of input string");
+            throw MakeStringException(COMMONERR_StartOffsetPastEndOfInput, "start offset past end of input string");
         startOffset = offset;
     }
     virtual void getMarkTo(offset_t offset, MemoryBuffer &mb)
@@ -1004,9 +1005,9 @@ public:
         assertex(marking);
         marking = true;
         if (offset < startOffset)
-            throw MakeStringException(0, "end offset proceeds start offset");
+            throw MakeStringException(COMMONERR_EndOffsetProceedsStartOffset, "end offset proceeds start offset");
         if (offset > bufLen)
-            throw MakeStringException(0, "end offset past end of input string");
+            throw MakeStringException(COMMONERR_EndOffsetPastEndOfInput, "end offset past end of input string");
         mb.append((size32_t)(offset-startOffset), ((char*)buffer)+startOffset);
         marking = false;
     }
@@ -1058,10 +1059,10 @@ public:
         if (offset < from)
         {
             if (!bufOther)
-                throw MakeStringException(0, "Not enough buffered to mark!");
+                throw MakeStringException(COMMONERR_NotEnoughBufferedToMark, "Not enough buffered to mark!");
             from -= bufSize;
             if (offset < from)
-                throw MakeStringException(0, "Not enough buffered to mark!");
+                throw MakeStringException(COMMONERR_NotEnoughBufferedToMark, "Not enough buffered to mark!");
             size32_t a = (size32_t)(offset-from);
             markBuffer.append(bufSize-a, bufOther+a);
         }
@@ -1245,7 +1246,7 @@ class CColumnProvider : implements IColumnProvider, public CInterface
             else
                 appendDataAsHex(errMsg, length, data);
             errMsg.append("'");
-            throw MakeStringExceptionDirect(0, errMsg.str());
+            throw MakeStringExceptionDirect(COMMONERR_ErrmsgStr, errMsg.str());
         } else if (length > rl)
             mb.setLength(rl);
     }
@@ -1276,7 +1277,7 @@ public:
             if (subPath.length())
             {
                 if ('/' == *path && '/' != *(path+1))
-                    throw MakeStringException(0, "Cannot extract xml text from absolute path specification: %s", path);
+                    throw MakeStringException(COMMONERR_CannotExtractXmlTextFromAbsolute, "Cannot extract xml text from absolute path specification: %s", path);
                 CPTreeWithOffsets *subTree = (CPTreeWithOffsets *)node->queryPropTree(subPath.str());
                 if (subTree)
                 {
@@ -1490,7 +1491,7 @@ public:
         size32_t offset = 0;
         size32_t length = 0;
         if (contentRequest(path, offset, length))
-            throw MakeStringException(0, "Attempting to extract xml content text as boolean");
+            throw MakeStringException(COMMONERR_AttemptingToExtractXmlContentText, "Attempting to extract xml content text as boolean");
 
         const char *str = queryProp(path);
         if (!str) return _default;
@@ -1501,7 +1502,7 @@ public:
         size32_t offset = 0;
         size32_t length = 0;
         if (contentRequest(path, offset, length))
-            throw MakeStringException(0, "Attempting to extract xml content text as integer");
+            throw MakeStringException(COMMONERR_AttemptingToExtractXmlContentText_1, "Attempting to extract xml content text as integer");
 
         const char *str = queryProp(path);
         if (!str) return _default;
@@ -1512,7 +1513,7 @@ public:
         size32_t offset = 0;
         size32_t length = 0;
         if (contentRequest(path, offset, length))
-            throw MakeStringException(0, "Attempting to extract xml content text as integer");
+            throw MakeStringException(COMMONERR_AttemptingToExtractXmlContentText_1, "Attempting to extract xml content text as integer");
 
         const char *str = queryProp(path);
         if (!str) return _default;
@@ -1716,7 +1717,7 @@ class CXMLParse : implements IXMLParse, public CInterface
             bool f;
             utf8Translator = rtlOpenCodepageConverter("utf-8", "latin1", f);
             if (f)
-                throw MakeStringException(0, "Failed to initialize unicode utf-8 translator");
+                throw MakeStringException(COMMONERR_FailedToInitializeUnicodeUtf8, "Failed to initialize unicode utf-8 translator");
         }
         void setMarkingStream(CMarkReadBase &_marking) { marking.set(&_marking); }
         CXPath &queryXPath() { return xpath; }
@@ -2074,7 +2075,7 @@ public:
     {
         OwnedIFileIO ifileio = file.open(IFOread);
         if (!ifileio)
-            throw MakeStringException(0, "Failed to open: %s", file.queryFilename());
+            throw MakeStringException(COMMONERR_FailedToOpenS, "Failed to open: %s", file.queryFilename());
         go(*ifileio);
     }
     void go(IFileIO &fileio)

@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "jthread.hpp"
+#include "hqlerr2.hpp"
 #include "jregexp.hpp"
 #include "jtime.hpp"
 #include "dasds.hpp"
@@ -34,7 +35,7 @@ public:
 
     virtual unsigned push(char const * name, char const * text, const char * target)
     {
-        if(strcmp(name, "CRON")==0) throw MakeStringException(0, "Schedule event pusher: Illegally attempted to push CRON event");
+        if(strcmp(name, "CRON")==0) throw MakeStringException(ECLERR_ScheduleEventPusherIllegallyAttemptedTo, "Schedule event pusher: Illegally attempted to push CRON event");
         Owned<IRemoteConnection> conn = querySDS().connect("Schedulers", myProcessSession(), RTM_LOCK_READ, connectionTimeout);
         if(!conn) return 0;
         MemoryBuffer buff;

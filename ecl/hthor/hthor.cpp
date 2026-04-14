@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include <algorithm>
+#include "hqlerr2.hpp"
 #include "hthor.ipp"
 #include "jexcept.hpp"
 #include "jmisc.hpp"
@@ -86,7 +87,7 @@ IRowManager * queryRowManager()
 
 void throwOOMException(size_t size, char const * label)
 {
-    throw MakeStringException(0, "Out of Memory in hthor: trying to allocate %" I64F "u bytes for %s", (unsigned __int64) size, label);
+    throw MakeStringException(ECLERR_OutOfMemoryInHthorTrying, "Out of Memory in hthor: trying to allocate %" I64F "u bytes for %s", (unsigned __int64) size, label);
 }
 
 void * checked_malloc(size_t size, char const * label)
@@ -175,7 +176,7 @@ ILocalOrDistributedFile *resolveLFNFlat(IAgentContext &agent, const char *logica
         return nullptr;
     IDistributedFile *dFile = ldFile->queryDistributedFile();
     if (dFile && isFileKey(dFile))
-        throw MakeStringException(0, "Attempting to read index as a flat file: %s", logicalName);
+        throw MakeStringException(ECLERR_AttemptingToReadIndexAsA, "Attempting to read index as a flat file: %s", logicalName);
     return ldFile.getClear();
 }
 
@@ -929,7 +930,7 @@ void CHThorDiskWriteActivity::checkSizeLimit()
     {
         StringBuffer msg;
         msg.append("Exceeded disk write size limit of ").append(sizeLimit).append(" while writing file ").append(mangledHelperFileName.str());
-        throw MakeStringExceptionDirect(0, msg.str());
+        throw MakeStringExceptionDirect(ECLERR_MsgStr, msg.str());
     }
 }
 
@@ -1334,7 +1335,7 @@ void CHThorIndexWriteActivity::execute()
                 StringBuffer msg;
                 OwnedRoxieString fname(helper.getFileName());
                 msg.append("Exceeded disk write size limit of ").append(sizeLimit).append(" while writing index ").append(fname);
-                throw MakeStringExceptionDirect(0, msg.str());
+                throw MakeStringExceptionDirect(ECLERR_MsgStr, msg.str());
             }
             reccount++;
         }
@@ -4295,7 +4296,7 @@ void CHThorGroupSortActivity::getSorted()
             if (!sorter->addRow(next))
             {
                 ReleaseRoxieRow(next);
-                throw MakeStringException(0, "Insufficient memory to append sort row");
+                throw MakeStringException(ECLERR_InsufficientMemoryToAppendSortRow, "Insufficient memory to append sort row");
             }
         }
     }
@@ -4440,7 +4441,7 @@ bool CStableSorter::addRow(const void * next)
         {
             killSorted();
             ReleaseRoxieRow(next);
-            throw MakeStringException(0, "Insufficient memory to allocate StableQuickSorter index");
+            throw MakeStringException(ECLERR_InsufficientMemoryToAllocateStablequicksorterIndex, "Insufficient memory to allocate StableQuickSorter index");
         }
     }
     return CSimpleSorterBase::addRow(next);
@@ -5101,7 +5102,7 @@ void CHThorJoinActivity::failLimit()
     {
         input->queryOutputMeta()->toXML((byte *)left.get(), xmlwrite);
     }
-    throw MakeStringException(0, "More than %d match candidates in join for row %s", abortLimit, xmlwrite.str());
+    throw MakeStringException(ECLERR_MoreThanDMatchCandidatesIn, "More than %d match candidates in join for row %s", abortLimit, xmlwrite.str());
 }
 
 const void *CHThorJoinActivity::nextRow()
@@ -5766,7 +5767,7 @@ void CHThorSelfJoinActivity::failLimit(const void * next)
     {
         input->queryOutputMeta()->toXML((byte *) next, xmlwrite);
     }
-    throw MakeStringException(0, "More than %d match candidates in self-join for row %s", abortLimit, xmlwrite.str());
+    throw MakeStringException(ECLERR_MoreThanDMatchCandidatesIn_1, "More than %d match candidates in self-join for row %s", abortLimit, xmlwrite.str());
 }
 
 bool CHThorSelfJoinActivity::isGrouped()
@@ -5834,7 +5835,7 @@ void CHThorLookupJoinActivity::LookupTable::advance() const
     if(findex==size)
         findex = 0;
     if(findex==fstart)
-        throw MakeStringException(0, "Internal error hthor lookup join activity (hash table full on lookup)");
+        throw MakeStringException(ECLERR_InternalErrorHthorLookupJoinActivity, "Internal error hthor lookup join activity (hash table full on lookup)");
 }
 
 const void * CHThorLookupJoinActivity::LookupTable::doFind(const void * left) const
@@ -6244,7 +6245,7 @@ void CHThorLookupJoinActivity::failLimit()
     {
         input->queryOutputMeta()->toXML(static_cast<const unsigned char *>(left.get()), xmlwrite);
     }
-    throw MakeStringException(0, "More than %u match candidates in join for row %s", limitLimit, xmlwrite.str());
+    throw MakeStringException(ECLERR_MoreThanUMatchCandidatesIn, "More than %u match candidates in join for row %s", limitLimit, xmlwrite.str());
 }
 
 stat_type CHThorLookupJoinActivity::queryLocalCycles() const
@@ -6589,7 +6590,7 @@ static void throwWuResultTooLarge(size32_t outputLimit, IHThorWorkUnitWriteArg &
     else
         errMsg.append("sequence=").append(helper.getSequence());
     errMsg.append(")");
-    throw MakeStringExceptionDirect(0, errMsg.str());
+    throw MakeStringExceptionDirect(ECLERR_ErrmsgStr_1, errMsg.str());
 }
 
 void CHThorWorkUnitWriteActivity::execute()
@@ -6602,7 +6603,7 @@ void CHThorWorkUnitWriteActivity::execute()
     if (flags & POFmaxsize)
         outputLimit = helper.getMaxSize();
     if (outputLimit>daliResultOutputMax)
-        throw MakeStringException(0, "Dali result outputs are restricted to a maximum of %d MB, the current limit is %d MB. A huge dali result usually indicates the ECL needs altering.", daliResultOutputMax, defaultDaliResultLimit);
+        throw MakeStringException(ECLERR_DaliResultOutputsAreRestrictedTo, "Dali result outputs are restricted to a maximum of %d MB, the current limit is %d MB. A huge dali result usually indicates the ECL needs altering.", daliResultOutputMax, defaultDaliResultLimit);
     assertex(outputLimit<=0x1000); // 32bit limit because MemoryBuffer/CMessageBuffers involved etc.
     outputLimit *= 0x100000;
     MemoryBuffer rowdata;
@@ -6755,7 +6756,7 @@ void CHThorDictionaryWorkUnitWriteActivity::execute()
         else
             errMsg.append("sequence=").append(helper.getSequence());
         errMsg.append(")");
-        throw MakeStringExceptionDirect(0, errMsg.str());
+        throw MakeStringExceptionDirect(ECLERR_ErrmsgStr_1, errMsg.str());
     }
 
     WorkunitUpdate w = agent.updateWorkUnit();
@@ -7723,7 +7724,7 @@ bool CHThorTopNActivity::abortEarly()
 
         //This only checks the lowest element - we could check all elements inserted, but it would increase the number of compares
         if (compare < 0)
-            throw MakeStringException(0, "TOPN: row found that exceeds the best value");
+            throw MakeStringException(ECLERR_TopnRowFoundThatExceedsThe, "TOPN: row found that exceeds the best value");
     }
     return false;
 }
@@ -8936,7 +8937,7 @@ bool CHThorDiskReadBaseActivity::openNext()
                         {
                             offset_t expectedSize, actualSize;
                             if (!doesPhysicalMatchMeta(*curPart, *inputfile, expectedSize, actualSize))
-                                throw makeStringExceptionV(0, "File size mismatch: file %s was supposed to be %" I64F "d bytes but appears to be %" I64F "d bytes", inputfile->queryFilename(), expectedSize, actualSize);
+                                throw makeStringExceptionV(ECLERR_FileSizeMismatchFileSWas, "File size mismatch: file %s was supposed to be %" I64F "d bytes but appears to be %" I64F "d bytes", inputfile->queryFilename(), expectedSize, actualSize);
                         }
 
                         if (compressed)
@@ -9550,7 +9551,7 @@ const void *CHThorDiskCountActivity::nextRow()
             {
                 unsigned __int64 size = ldFile->getFileSize();
                 if (size % fixedDiskRecordSize)
-                    throw MakeStringException(0, "Physical file %s has size %" I64F "d which is not a multiple of record size %d", ldFile->queryLogicalName(), size, fixedDiskRecordSize);
+                    throw MakeStringException(ECLERR_PhysicalFileSHasSize, "Physical file %s has size %" I64F "d which is not a multiple of record size %d", ldFile->queryLogicalName(), size, fixedDiskRecordSize);
                 totalCount = size / fixedDiskRecordSize;
             }
             catch (IException * e)
@@ -10210,7 +10211,7 @@ const void * CHThorLoopActivity::nextRow()
             //note: any outputs which didn't go around the loop again, would return the record, reinitializing emptyIterations
             emptyIterations++;
             if (emptyIterations > EMPTY_LOOP_LIMIT)
-                throw MakeStringException(0, "Executed LOOP with empty input and output %u times", emptyIterations);
+                throw MakeStringException(ECLERR_ExecutedLoopWithEmptyInputAnd, "Executed LOOP with empty input and output %u times", emptyIterations);
             if (emptyIterations % 32 == 0)
                 DBGLOG("Executing LOOP with empty input and output %u times", emptyIterations);
         }

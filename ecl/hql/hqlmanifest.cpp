@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "jliball.hpp"
+#include "hqlerr2.hpp"
 #include "hql.hpp"
 #include "hqlutil.hpp"
 #include "hqlmanifest.hpp"
@@ -234,7 +235,7 @@ void ResourceManifest::addToArchive(IPropertyTree *archive)
                     }
                 }
                 else
-                    throw makeStringExceptionV(0, "Signed manifest %s must provide MD5 values for referenced resource %s", absFilename.str(), filename);
+                    throw makeStringExceptionV(ECLERR_SignedManifestSMustProvideMd5, "Signed manifest %s must provide MD5 values for referenced resource %s", absFilename.str(), filename);
             }
             else
             {
@@ -255,7 +256,7 @@ void ResourceManifest::addToArchive(IPropertyTree *archive)
                 StringBuffer calculated;
                 md5_data(content, calculated);
                 if (!strieq(calculated, md5))
-                    throw makeStringExceptionV(0, "MD5 mismatch on file %s in manifest %s", filename, absFilename.str());
+                    throw makeStringExceptionV(ECLERR_Md5MismatchOnFileSIn, "MD5 mismatch on file %s in manifest %s", filename, absFilename.str());
             }
         }
     }

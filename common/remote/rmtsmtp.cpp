@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "commonerr.hpp"
 
 #include "jlib.hpp"
 #include "jlog.hpp"
@@ -282,7 +283,7 @@ private:
 
     [[noreturn]] void fail(char const * msg)
     {
-        throw MakeStringException(0, "bad %s (%s at character %u): %s", label, msg, (unsigned) (finger-value), value);
+        throw MakeStringException(COMMONERR_BadSSAtCharacterU, "bad %s (%s at character %u): %s", label, msg, (unsigned) (finger-value), value);
     }
 
     bool badAtomChar(char c)
@@ -490,7 +491,7 @@ public:
         warnings = _warnings;
         CSMTPValidator validator;
         if(strlen(senderHeader) + sender.length() > 998)
-            throw MakeStringException(0, "email sender address too long: %" I64F "u characters",  static_cast<__uint64>(sender.length()));
+            throw MakeStringException(COMMONERR_EmailSenderAddressTooLong, "email sender address too long: %" I64F "u characters",  static_cast<__uint64>(sender.length()));
         validator.validateAddress(sender.get(), "email sender address");
 
         getRecipients(validator, _to, to);
@@ -502,7 +503,7 @@ public:
             getRecipients(validator, _bcc, bcc);
 
         if(strlen(subjectHeader) + subject.length() > 998)
-            throw MakeStringException(0, "Email subject too long: %" I64F "u characters",  static_cast<__uint64>(subject.length()));
+            throw MakeStringException(COMMONERR_EmailSubjectTooLong, "Email subject too long: %" I64F "u characters",  static_cast<__uint64>(subject.length()));
         validator.validateValue(subject.get(), "email subject");
     }
 
@@ -766,7 +767,7 @@ public:
     CMailPart(char const * mimeType, char const * filename)
     {
         if(strlen(mimeTypeHeader) + strlen(mimeType) > 998)
-            throw MakeStringException(0, "Email attachment mime type too long: %u characters", (unsigned) strlen(mimeType));
+            throw MakeStringException(COMMONERR_EmailAttachmentMimeTypeTooLong, "Email attachment mime type too long: %u characters", (unsigned) strlen(mimeType));
         CSMTPValidator validator;
         validator.validateValue(mimeType, "email attachment mime type");
         mime.append(mimeType);
@@ -776,7 +777,7 @@ public:
             StringBuffer qfilename;
             validator.escapeQuoted(filename, qfilename, "email attachment filename");
             if(strlen(dispositionHeader) + strlen("attachment; filename=\"\"") + qfilename.length() > 998)
-                throw MakeStringException(0, "Email attachment filename too long: %u characters", (unsigned) strlen(filename));
+                throw MakeStringException(COMMONERR_EmailAttachmentFilenameTooLongU, "Email attachment filename too long: %u characters", (unsigned) strlen(filename));
             disposition.append("attachment; filename=\"").append(qfilename.str()).append("\"");
         }
         else

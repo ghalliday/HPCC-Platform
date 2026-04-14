@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jexcept.hpp"
+#include "commonerr.hpp"
 #include "jmisc.hpp"
 #include "jthread.hpp"
 #include "jsocket.hpp"
@@ -1642,7 +1643,7 @@ ILogicalRowWriter *createRowWriter(IFileIO *iFileIO, IRowInterfaces *rowIf, unsi
 ILogicalRowWriter *createRowWriter(IFileIOStream *strm, IRowInterfaces *rowIf, unsigned flags)
 {
     if (0 != (flags & (rw_extend|rw_buffered|COMP_MASK)))
-        throw MakeStringException(0, "Unsupported createRowWriter flags");
+        throw MakeStringException(COMMONERR_UnsupportedCreaterowwriterFlags, "Unsupported createRowWriter flags");
     EmptyRowSemantics emptyRowSemantics = extractESRFromRWFlags(flags);
     Owned<CRowStreamWriter> writer = new CRowStreamWriter(strm, rowIf->queryRowSerializer(), rowIf->queryRowAllocator(), emptyRowSemantics, TestRwFlag(flags, rw_autoflush));
     return writer.getClear();
@@ -2110,10 +2111,10 @@ static bool getTranslators(Owned<const IDynamicTransform> &translator, Owned<con
             }
 
             if (!translator->canTranslate())
-                throw MakeStringException(0, "Untranslatable record layout mismatch detected for file %s", tracing);
+                throw MakeStringException(COMMONERR_UntranslatableRecordLayoutMismatchDetectedFor, "Untranslatable record layout mismatch detected for file %s", tracing);
 
             if (mode == RecordTranslationMode::PayloadRemoveOnly && translator->hasNewFields())
-                throw MakeStringException(0, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", tracing);
+                throw MakeStringException(COMMONERR_TranslatableFileLayoutMismatchReadingFile, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", tracing);
 
             if (translator->needsTranslate())
             {

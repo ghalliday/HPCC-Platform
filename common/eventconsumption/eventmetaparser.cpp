@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "eventmetaparser.hpp"
+#include "commonerr.hpp"
 #include "jevent.hpp"
 
 bool operator < (const CMetaInfoState::IndexFileProperties& left, const CMetaInfoState::IndexFileProperties& right)
@@ -190,6 +191,6 @@ uint32_t CMetaInfoState::generateSourceFileId(const CEvent& event)
 uint32_t CMetaInfoState::generateRuntimeFileId(const CEvent& event)
 {
     if (indexFiles.size() == UINT32_MAX)
-        throw makeStringExceptionV(-1, "Exceeded maximum number of index files (=%u) supported in event meta parser", UINT32_MAX);
+        throw makeStringExceptionV(COMMONERR_ExceededMaximumNumberOfIndexFiles, "Exceeded maximum number of index files (=%u) supported in event meta parser", UINT32_MAX);
     return static_cast<uint32_t>(indexFiles.size() + 1);
 }

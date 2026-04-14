@@ -102,6 +102,15 @@
 #define REMOTE_ERROR_START      8000    // dafilesrv etc - see common/remote/remoteerr.hpp
 #define REMOTE_ERROR_END        8099
 
+#define COMMON_ERROR_START      8100
+#define COMMON_ERROR_END        8399
+
+#define ECLERR_START            8400
+#define ECLERR_END              8599
+
+#define FSERR_START             8600
+#define FSERR_END               8699
+
 #define JHTREE_ERROR_START      8500
 #define JHTREE_ERROR_END        8699
 

@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include <algorithm>
+#include "hqlerr2.hpp"
 #include "jlib.hpp"
 #include "jmisc.hpp"
 #include "QueryHelper.ipp"
@@ -111,7 +112,7 @@ bool QueryHelper::doit(FILE * fp)
             else if(key[0] == '/')
             {
                 if (xmlSeen)
-                    throw MakeStringException(0, "query option must not be used with stored or /, and cannot appear more than once");
+                    throw MakeStringException(ECLERR_QueryOptionMustNotBeUsed, "query option must not be used with stored or /, and cannot appear more than once");
                 // The / form is expected to be used for scalars, so xmlEncode is appropriate.
                 // To pass sets or datasets, use the xml= version
                 xmlParams.appendf("<%s>", &key[1]);
@@ -121,7 +122,7 @@ bool QueryHelper::doit(FILE * fp)
             else if(stricmp(key, "stored")==0)
             {
                 if (xmlSeen)
-                    throw MakeStringException(0, "query option must not be used with stored or /, and cannot appear more than once");
+                    throw MakeStringException(ECLERR_QueryOptionMustNotBeUsed, "query option must not be used with stored or /, and cannot appear more than once");
                 const char *xml = globals->queryProp(key);
                 try
                 {
@@ -132,18 +133,18 @@ bool QueryHelper::doit(FILE * fp)
                     StringBuffer msg;
                     E->errorMessage(msg);
                     E->Release();
-                    throw MakeStringException(0, "Invalid xml: %s", msg.str());
+                    throw MakeStringException(ECLERR_InvalidXmlS, "Invalid xml: %s", msg.str());
                 }
                 xmlParams.append(xml);
             }
             else if(stricmp(key, "query")==0)
             {
                 if (xmlSeen || xmlParams.length())
-                    throw MakeStringException(0, "query option must not be used with stored or /, and cannot appear more than once");
+                    throw MakeStringException(ECLERR_QueryOptionMustNotBeUsed, "query option must not be used with stored or /, and cannot appear more than once");
                 xmlSeen = true;
                 StringBuffer xml;
                 if (!globals->getProp(key, xml))
-                    throw MakeStringException(0, "Invalid value for query= parameter");
+                    throw MakeStringException(ECLERR_InvalidValueForQueryParameter, "Invalid value for query= parameter");
                 if (xml.length() && xml.charAt(0)=='@')
                 {
                     StringBuffer filename(xml.str()+1);
@@ -158,7 +159,7 @@ bool QueryHelper::doit(FILE * fp)
                     StringBuffer msg;
                     E->errorMessage(msg);
                     E->Release();
-                    throw MakeStringException(0, "Invalid xml: %s", msg.str());
+                    throw MakeStringException(ECLERR_InvalidXmlS, "Invalid xml: %s", msg.str());
                 }
                 xmlParams.append(xml);
             }

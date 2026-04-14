@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jlib.hpp"
+#include "commonerr.hpp"
 #include "jexcept.hpp"
 #include "jmisc.hpp"
 
@@ -1898,7 +1899,7 @@ IValue *createIntValue(__int64 val, unsigned size, bool isSigned)
 {
 #ifdef _DEBUG
     if (!isInRange(val, isSigned, size))
-        throw MakeStringException(0, "Out of range value");
+        throw MakeStringException(COMMONERR_OutOfRangeValue, "Out of range value");
 #endif
     ITypeInfo * type = makeIntType(size, isSigned);
     return new IntValue(val, type);

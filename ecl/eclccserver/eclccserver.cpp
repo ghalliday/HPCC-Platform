@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jlib.hpp"
+#include "hqlerr2.hpp"
 #include "jcontainerized.hpp"
 #include "jmisc.hpp"
 #include "jisem.hpp"
@@ -394,7 +395,7 @@ class EclccCompiler : implements IErrorReporter
             if (stricmp(optName, "hook") == 0)
             {
                 if (isLocal)
-                    throw MakeStringException(0, "eclcc-hook option can not be set per-workunit");  // for security reasons
+                    throw MakeStringException(ECLERR_EclccHookOptionCanNotBe, "eclcc-hook option can not be set per-workunit");  // for security reasons
                 eclccProgName.set(value);
             }
             else if (stricmp(optName, "compileOption") == 0)
@@ -408,7 +409,7 @@ class EclccCompiler : implements IErrorReporter
             else if (strnicmp(optName, "-allow", 6)==0)
             {
                 if (isLocal)
-                    throw MakeStringException(0, "eclcc-allow option can not be set per-workunit");  // for security reasons
+                    throw MakeStringException(ECLERR_EclccAllowOptionCanNotBe, "eclcc-allow option can not be set per-workunit");  // for security reasons
                 eclccCmd.appendf(" -%s=%s", optName.get(), value);
             }
             else if (*optName == 'd')
@@ -972,7 +973,7 @@ public:
                 Owned<IWorkUnitFactory> factory = getWorkUnitFactory();
                 Owned<IWorkUnit> wu = factory->updateWorkUnit(wuid);
                 if (!wu)
-                    throw makeStringExceptionV(0, "Workunit %s no longer exists", wuid);
+                    throw makeStringExceptionV(ECLERR_WorkunitSNoLongerExists, "Workunit %s no longer exists", wuid);
                 wu->getDebugValue("platformVersion", optPlatformVersion);
                 addTimeStamp(wu, SSToperation, ">compile", StWhenDequeued, 0);
                 addTimeStamp(wu, SSToperation, ">compile", StWhenK8sLaunched, 0);
@@ -1299,7 +1300,7 @@ static void generatePrecompiledHeader()
             unsigned retcode = pipe->wait();
             errorReader->join();
             if (retcode != 0 || errorReader->errCount() != 0)
-                throw MakeStringException(0, "eclcc -pch failed");
+                throw MakeStringException(ECLERR_EclccPchFailed, "eclcc -pch failed");
             DBGLOG("Created precompiled header");
         }
     }
@@ -1621,7 +1622,7 @@ int main(int argc, const char *argv[])
             StringBuffer queueNames;
             getQueues(queueNames, false);
             if (!queueNames.length())
-                throw MakeStringException(0, "No queues found to listen on");
+                throw MakeStringException(ECLERR_NoQueuesFoundToListenOn, "No queues found to listen on");
 
 #ifdef _CONTAINERIZED
             queryCodeSigner().initForContainer();

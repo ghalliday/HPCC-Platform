@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "jlib.hpp"
+#include "hqlerr2.hpp"
 #include "jmisc.hpp"
 #include "jisem.hpp"
 #include "jdebug.hpp"
@@ -333,7 +334,7 @@ static IHThorActivity * createActivity(IAgentContext & agent, unsigned activityI
     case TAKstreamediterator:
         return createStreamedIteratorActivity(agent, activityId, subgraphId, (IHThorStreamedIteratorArg &)arg, kind, graph);
     }
-    throw MakeStringException(-1, "UNIMPLEMENTED activity '%s'(kind=%d) at %s(%d)", activityKindStr(kind), kind, sanitizeSourceFile(__FILE__), __LINE__);
+    throw MakeStringException(ECLERR_UnimplementedActivitySKindDAt, "UNIMPLEMENTED activity '%s'(kind=%d) at %s(%d)", activityKindStr(kind), kind, sanitizeSourceFile(__FILE__), __LINE__);
 }
 
 //---------------------------------------------------------------------------
@@ -1633,7 +1634,7 @@ void EclAgent::executeGraph(const char * graphName, bool realThor, size32_t pare
     if (realThor)
     {
         if (isStandAloneExe)
-            throw MakeStringException(0, "Cannot execute Thor Graph in standalone mode");
+            throw MakeStringException(ECLERR_CannotExecuteThorGraphInStandalone, "Cannot execute Thor Graph in standalone mode");
         Owned<IConstWUGraph> graph = wuRead->getGraph(graphName);
         unsigned wfid = graph ? graph->getWfid() : 0;
         graph.clear();
@@ -1668,7 +1669,7 @@ void EclAgent::executeGraph(const char * graphName, bool realThor, size32_t pare
             StringBuffer jobTempDir;
             getTempfileBase(jobTempDir);
             if (!recursiveCreateDirectory(jobTempDir))
-                throw MakeStringException(0, "Failed to create temporary directory: %s", jobTempDir.str());
+                throw MakeStringException(ECLERR_FailedToCreateTemporaryDirectoryS_1, "Failed to create temporary directory: %s", jobTempDir.str());
             activeGraph->execute(NULL);
             updateWULogfile(nullptr);//Update workunit logfile name in case of rollover
             if (guillotineTimeout)

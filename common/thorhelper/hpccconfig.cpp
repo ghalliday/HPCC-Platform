@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <string>
+#include "commonerr.hpp"
 #include <unordered_map>
 
 #include "jlog.hpp"
@@ -36,7 +37,7 @@ bool getService(StringBuffer &serviceAddress, const char *serviceName, bool fail
         }
     }
     if (failIfNotFound)
-        throw makeStringExceptionV(-1, "Service '%s' not found", serviceName);
+        throw makeStringExceptionV(COMMONERR_ServiceSNotFound, "Service '%s' not found", serviceName);
     return false;
 }
 
@@ -71,7 +72,7 @@ void getMemorySpecifications(std::unordered_map<std::string, __uint64> &memorySp
     }
     offset_t maxBytes = ((offset_t)maxMB) * 0x100000;
     if (totalRequirements > maxBytes)
-        throw makeStringExceptionV(0, "The total memory requirements of the query (%u MB) in '%s' exceed the memory limit (%u MB)", (unsigned)(totalRequirements / 0x100000), context, maxMB);
+        throw makeStringExceptionV(COMMONERR_TheTotalMemoryRequirementsOfThe, "The total memory requirements of the query (%u MB) in '%s' exceed the memory limit (%u MB)", (unsigned)(totalRequirements / 0x100000), context, maxMB);
     memorySpecifications["total"] = totalRequirements;
 
     float maxPercentage = 100.0;

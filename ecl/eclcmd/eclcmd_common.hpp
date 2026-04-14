@@ -19,6 +19,7 @@
 #define ECLCMD_COMMON_HPP
 
 #include "ws_workunits.hpp"
+#include "hqlerr2.hpp"
 #include "ws_fs.hpp"
 #include "eclcc.hpp"
 #include "workunit.hpp"
@@ -595,7 +596,7 @@ public:
 template <class Iface> Iface *intClient(Iface *client, EclCmdCommon &cmd, const char *service, const char *urlTail)
 {
     if(cmd.optServer.isEmpty())
-        throw MakeStringException(-1, "Server address not specified");
+        throw MakeStringException(ECLERR_ServerAddressNotSpecified, "Server address not specified");
 
     EclCmdURL url(service, cmd.optServer, cmd.optPort, cmd.optSSL, urlTail);
     client->addServiceUrl(url.str());

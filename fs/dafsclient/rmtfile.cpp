@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <string>
+#include "fserr.hpp"
 #include <unordered_map>
 
 #include "platform.h"
@@ -162,7 +163,7 @@ public:
         CDaliServixFilter(dir, sourceRange, trace)
     {
         if (!ipSubNet.set(subnet, mask))
-            throw MakeStringException(0, "Invalid sub net definition: %s, %s", subnet, mask);
+            throw MakeStringException(FSERR_InvalidSubNetDefinitionSS, "Invalid sub net definition: %s, %s", subnet, mask);
     }
     virtual bool testEp(const SocketEndpoint &ep) const
     {
@@ -218,7 +219,7 @@ CDaliServixFilter *createDaliServixFilter(IPropertyTree &filterProps)
     else if (filterProps.hasProp("@range"))
         filter = new CDaliServixRangeFilter(filterProps.queryProp("@range"), dir, sourceRange, trace);
     else
-        throw MakeStringException(0, "Unknown DaliServix filter definition");
+        throw MakeStringException(FSERR_UnknownDaliservixFilterDefinition, "Unknown DaliServix filter definition");
     return filter;
 }
 
@@ -2059,7 +2060,7 @@ public:
                         if ((rd!=sz)||(memcmp(buf,ds.str(),sz)!=0)) {
                             StringBuffer s;
                             ep.getHostText(s);
-                            throw MakeStringException(-1,"Data discrepancy on disk read of %s of %s",path.str(),s.str());
+                            throw MakeStringException(FSERR_DataDiscrepancyOnDiskReadOf, "Data discrepancy on disk read of %s of %s",path.str(),s.str());
                         }
                     }
                     catch (IException *e) {

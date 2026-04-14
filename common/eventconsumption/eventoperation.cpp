@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "eventoperation.h"
+#include "commonerr.hpp"
 #include "eventfilter.h"
 #include "eventiterator.h"
 #include "eventmodeling.h"
@@ -74,11 +75,11 @@ const EventFileProperties& CEventConsumingOp::queryIteratorProperties()
         switch (inputPaths.size())
         {
         case 0:
-            throw makeStringExceptionV(0, "No input files specified");
+            throw makeStringExceptionV(COMMONERR_NoInputFilesSpecified, "No input files specified");
         case 1:
             cachedSource.setown(createEventFileIterator(inputPaths.begin()->c_str()));
             if (!cachedSource)
-                throw makeStringExceptionV(0, "Failed to open event file: %s", inputPaths.begin()->c_str());
+                throw makeStringExceptionV(COMMONERR_FailedToOpenEventFileS, "Failed to open event file: %s", inputPaths.begin()->c_str());
             break;
         default:
             {
@@ -88,7 +89,7 @@ const EventFileProperties& CEventConsumingOp::queryIteratorProperties()
                 {
                     Owned<IEventIterator> input = createEventFileIterator(path.c_str());
                     if (!input)
-                        throw makeStringExceptionV(0, "Failed to open event file: %s", path.c_str());
+                        throw makeStringExceptionV(COMMONERR_FailedToOpenEventFileS, "Failed to open event file: %s", path.c_str());
                     multiplexer->addSource(*input);
                 }
             }

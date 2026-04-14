@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "limits.h"
+#include "rtlerr.hpp"
 #include "platform.h"
 #include <math.h>
 #include <stdio.h>
@@ -5650,7 +5651,7 @@ ECLRTL_API unsigned rtlCountRows(size32_t len, const void * data, IRecordSize * 
         size32_t thisLen = rs->getRecordSize(data);
         data = (byte *)data + thisLen;
         if (thisLen > len)
-            throw MakeStringException(0, "Invalid raw data");
+            throw MakeStringException(RTLERR_InvalidRawData, "Invalid raw data");
         len -= thisLen;
         count++;
     }

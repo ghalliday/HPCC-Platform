@@ -18,6 +18,7 @@
 #pragma once
 
 #include "eventdump.h"
+#include "commonerr.hpp"
 
 // Event data may be expressed in multiple structured formats, such as XML, JSON, or YAML. Each of
 // these can be represented as in an IPropertyTree. All such representations should share a common
@@ -73,7 +74,7 @@ public: // IEventVisitor
                 doVisitAttribute(attr.queryId(), attr.queryBooleanValue());
                 break;
             default:
-                throw makeStringExceptionV(-1, "unsupported attribute type class %u", attr.queryTypeClass());
+                throw makeStringExceptionV(COMMONERR_UnsupportedAttributeTypeClassU, "unsupported attribute type class %u", attr.queryTypeClass());
             }
         }
         departEvent();

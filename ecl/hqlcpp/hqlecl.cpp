@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jliball.hpp"
+#include "hqlerr2.hpp"
 #include "jmisc.hpp"
 #include "jstream.hpp"
 
@@ -473,7 +474,7 @@ bool HqlDllGenerator::generateFullFieldUsageStatistics(HqlCppTranslator & transl
         savedQuery.set(savedQuery->queryChild(1));
 
     if (savedQuery->getOperator() != no_output)
-        throw MakeStringException(0, "#option('GenerateFullFieldUsage') requires the query to be a single OUTPUT()");
+        throw MakeStringException(ECLERR_OptionGeneratefullfieldusageRequiresTheQueryTo, "#option('GenerateFullFieldUsage') requires the query to be a single OUTPUT()");
 
     Owned<IPropertyTree> allFields = createPTree("usage");
     IHqlExpression * dataset = savedQuery->queryChild(0);

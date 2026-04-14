@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "commonerr.hpp"
 #include "jliball.hpp"
 #include "rtlbcd.hpp"
 #include "rtlformat.hpp"
@@ -2343,7 +2344,7 @@ extern FILEVIEW_API unsigned writeResultCursorXml(IXmlWriterExt & writer, IResul
             writer.flushContent(false);
 
         if (maxSize && (writer.length() > maxSize))
-            throw makeStringExceptionV(-1, "writeResultCursorXml exceeded max size (%u MB)", (unsigned)(maxSize / 0x100000));
+            throw makeStringExceptionV(COMMONERR_WriteresultcursorxmlExceededMaxSizeUMb, "writeResultCursorXml exceeded max size (%u MB)", (unsigned)(maxSize / 0x100000));
 
         c++;
         if(count && c>=count)
@@ -2376,7 +2377,7 @@ extern FILEVIEW_API unsigned getResultCursorBin(MemoryBuffer & ret, IResultSetCu
         c++;
 
         if (maxSize && (ret.length()-startSize > maxSize))
-            throw makeStringExceptionV(-1, "getResultCursorBin exceeded max size (%u MB)", (unsigned)(maxSize / 0x100000));
+            throw makeStringExceptionV(COMMONERR_GetresultcursorbinExceededMaxSizeUMb, "getResultCursorBin exceeded max size (%u MB)", (unsigned)(maxSize / 0x100000));
 
         if(count && c>=count)
             break;

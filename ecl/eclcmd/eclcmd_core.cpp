@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <stdio.h>
+#include "hqlerr2.hpp"
 #include "jlog.hpp"
 #include "jfile.hpp"
 #include "jsecrets.hpp"
@@ -32,7 +33,7 @@
 size32_t getMaxRequestEntityLength(EclCmdCommon &cmd)
 {
     if(cmd.optServer.isEmpty())
-        throw MakeStringException(-1, "Server IP not specified");
+        throw MakeStringException(ECLERR_ServerIpNotSpecified, "Server IP not specified");
 
     EclCmdURL url("?config_", cmd.optServer, cmd.optPort, cmd.optSSL);
     Owned<IHttpClientContext> httpCtx = getHttpClientContext();
@@ -46,7 +47,7 @@ size32_t getMaxRequestEntityLength(EclCmdCommon &cmd)
     if (cmd.optPassword.length())
          httpclient->setPassword(cmd.optPassword);
      if (0 > httpclient->sendRequest("GET", NULL, request, response, status) || !response.length() || strncmp("200", status, 3))
-         throw MakeStringException(-1, "Error checking ESP configuration: %s:%s %s", cmd.optServer.str(), cmd.optPort.str(), status.str());
+         throw MakeStringException(ECLERR_ErrorCheckingEspConfigurationSS, "Error checking ESP configuration: %s:%s %s", cmd.optServer.str(), cmd.optPort.str(), status.str());
 
     Owned<IPropertyTree> config = createPTreeFromXMLString(response);
     return config->getPropInt("Software[1]/EspProcess[1]/EspProtocol[@type='http_protocol'][1]/@maxRequestEntityLength");

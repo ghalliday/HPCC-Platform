@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jliball.hpp"
+#include "commonerr.hpp"
 
 #include "workunit.hpp"
 #include "anacommon.hpp"
@@ -123,7 +124,7 @@ public:
                 wuOptions[opt] = (stat_type) val;
                 break;
             default:
-                throw MakeStringException(-1, "WuAnalyserOptions::setOptionValue - unknown wuOptionsDefaults[%d].type=%d", (int) opt, (int) wuOptionsDefaults[opt].type);
+                throw MakeStringException(COMMONERR_WuanalyseroptionsSetoptionvalueUnknownWuoptionsdefaultsDType, "WuAnalyserOptions::setOptionValue - unknown wuOptionsDefaults[%d].type=%d", (int) opt, (int) wuOptionsDefaults[opt].type);
         }
     }
 
@@ -1389,7 +1390,7 @@ WuScope * WorkunitAnalyserBase::resolveActivity(const char * name)
 {
     WuScope * activity = root->resolve(name, false);
     if (!activity)
-        throw MakeStringException(0, "Could not find activity %s", name);
+        throw MakeStringException(COMMONERR_CouldNotFindActivityS, "Could not find activity %s", name);
     return activity;
 }
 
@@ -1862,7 +1863,7 @@ void WorkunitStatsAnalyser::spotCommonPath(const StringArray & args)
             continue;
         WuScope * resolved = root->resolve(arg, false);
         if (!resolved)
-            throw MakeStringException(0, "Could not find activity %s", arg);
+            throw MakeStringException(COMMONERR_CouldNotFindActivityS, "Could not find activity %s", arg);
 
         WaActivityPath & info = * new WaActivityPath(arg, resolved);
         extracted.append(info);
@@ -1977,7 +1978,7 @@ void WorkunitStatsAnalyser::findHotspotsOld(const StringArray & args)
 
         WuScope * resolved = root->resolve(activity, false);
         if (!resolved)
-            throw MakeStringException(0, "Could not find activity %s", activity.str());
+            throw MakeStringException(COMMONERR_CouldNotFindActivityS, "Could not find activity %s", activity.str());
 
         PointerArrayOf<WuScope> activities;
         resolved->gatherSelfAndInputs(activities);
@@ -2061,7 +2062,7 @@ void WorkunitStatsAnalyser::reportActivity(const StringArray & args)
     //Note the activities that are reported in this, often don't overlap with the critical path - if the critical path
     //is a direct input to the root activity.
     if (minTime >= maxTime)
-        throw MakeStringException(0, "Invalid time range %llu..%llu", minTime, maxTime);
+        throw MakeStringException(COMMONERR_InvalidTimeRangeLluLlu, "Invalid time range %llu..%llu", minTime, maxTime);
 
     stat_type totalTime = (maxTime - minTime);
     stat_type interesting = (stat_type)(totalTime * opts.thresholdPercent / 100.0);
@@ -2102,7 +2103,7 @@ void WorkunitStatsAnalyser::findHotspots(const char * rootScope, stat_type & tot
     {
         activity = resolveActivity(rootScope);
         if (!activity)
-            throw MakeStringException(0, "Could not find activity %s", rootScope);
+            throw MakeStringException(COMMONERR_CouldNotFindActivityS, "Could not find activity %s", rootScope);
     }
 
     if (!activity)

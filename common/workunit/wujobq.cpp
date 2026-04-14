@@ -17,6 +17,7 @@
 
 
 #include "platform.h"
+#include "commonerr.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include "limits.h"
@@ -263,7 +264,7 @@ IJobQueueIterator *CJobQueueContents::getIterator()
 IJobQueueItem *createJobQueueItem(const char *wuid)
 {
     if (!wuid||!*wuid)
-        throw MakeStringException(-1,"createJobQueueItem empty WUID");
+        throw MakeStringException(COMMONERR_CreatejobqueueitemEmptyWuid, "createJobQueueItem empty WUID");
     return new CJobQueueItem(wuid);;
 }
 
@@ -772,7 +773,7 @@ public:
     CJobQueueConst(const char *_qname, IPropertyTree* _jobQueueSnapshot) : CJobQueueBase(_qname)
     {
         if (!_jobQueueSnapshot)
-            throw MakeStringException(-1, "No job queue snapshot");
+            throw MakeStringException(COMMONERR_NoJobQueueSnapshot, "No job queue snapshot");
 
         jobQueueSnapshot.setown(_jobQueueSnapshot);
         ForEachQueue(qd)
@@ -780,7 +781,7 @@ public:
             VStringBuffer path("Queue[@name=\"%s\"]", qd->qname.get());
             qd->root = jobQueueSnapshot->queryPropTree(path.str());
             if (!qd->root)
-                throw MakeStringException(-1, "No job queue found for %s", qd->qname.get());
+                throw MakeStringException(COMMONERR_NoJobQueueFoundForS, "No job queue found for %s", qd->qname.get());
         }
     };
 };
@@ -883,7 +884,7 @@ public:
                         try {
                             pconn.setown(querySDS().connect("/JobQueues",myProcessSession(),RTM_LOCK_WRITE|RTM_CREATE_QUERY,wait));
                             if (!pconn)
-                                throw MakeStringException(-1,"CJobQueue could not create JobQueues");
+                                throw MakeStringException(COMMONERR_CjobqueueCouldNotCreateJobqueues, "CJobQueue could not create JobQueues");
                             IPropertyTree *proot = pconn->queryRoot();
                             StringBuffer cpath;
                             cpath.appendf("Queue[@name=\"%s\"]",qd->qname.get());
@@ -1211,7 +1212,7 @@ public:
         //priority 50 is queued.  If the minimum priority of 100 is woken twice nothing will be dequeued.
         //Similar problems occur when the clientPriority is mixed.
         if (isProcessingDequeue.exchange(true))
-            throw MakeStringException(0, "Multiple concurrent dequeue not supported");
+            throw MakeStringException(COMMONERR_MultipleConcurrentDequeueNotSupported, "Multiple concurrent dequeue not supported");
 
         bool hasminprio=(minprio!=INT_MIN);
         if (timedout)
@@ -2025,7 +2026,7 @@ public:
             }
         }
         if (name)
-            throw MakeStringException (-1,"queue %s not found",name);
+            throw MakeStringException(COMMONERR_QueueSNotFound, "queue %s not found",name);
     }
 
     const char *nextQueueName(const char *last)
@@ -2128,7 +2129,7 @@ public:
     {
         Owned<IRemoteConnection> connJobQueues = querySDS().connect("/JobQueues", myProcessSession(), RTM_LOCK_READ, 30000);
         if (!connJobQueues)
-            throw MakeStringException(-1, "CJQSnapshot::CJQSnapshot: /JobQueues not found");
+            throw MakeStringException(COMMONERR_CjqsnapshotCjqsnapshotJobqueuesNotFound, "CJQSnapshot::CJQSnapshot: /JobQueues not found");
 
         jobQueueInfo.setown(createPTreeFromIPT(connJobQueues->queryRoot()));
     }
@@ -2149,7 +2150,7 @@ IJQSnapshot *createJQSnapshot()
 IJobQueue *createJobQueue(const char *name)
 {
     if (!name||!*name)
-        throw MakeStringException(-1,"createJobQueue empty name");
+        throw MakeStringException(COMMONERR_CreatejobqueueEmptyName, "createJobQueue empty name");
     return new CJobQueue(name);
 }
 
@@ -2171,7 +2172,7 @@ extern bool WORKUNIT_API runWorkUnit(const char *wuid, const char *queueName)
 
     Owned<IJobQueue> queue = createJobQueue(agentQueue.str());
     if (!queue.get()) 
-        throw MakeStringException(-1, "Could not create workunit queue");
+        throw MakeStringException(COMMONERR_CouldNotCreateWorkunitQueue, "Could not create workunit queue");
 
     {
         Owned<IWorkUnitFactory> factory = getWorkUnitFactory();

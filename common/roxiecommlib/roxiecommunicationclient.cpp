@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include "jmisc.hpp"
+#include "commonerr.hpp"
 #include "portlist.h"
 #include "roxiecommlib.hpp"
 
@@ -319,7 +320,7 @@ public:
     {
         unsigned start = msTick();
         if (!sendRoxieControlLock(sock, allOrNothing, wait))
-            throw MakeStringException(-1, "Roxie is too busy (control:lock failed) - please try again later.");
+            throw MakeStringException(COMMONERR_RoxieIsTooBusyControlLock, "Roxie is too busy (control:lock failed) - please try again later.");
         return sendRoxieControlQuery(sock, msg, remainingMsWait(wait, start));
     }
 

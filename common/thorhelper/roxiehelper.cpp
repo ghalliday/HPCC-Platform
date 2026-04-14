@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jexcept.hpp"
+#include "commonerr.hpp"
 #include "thorsort.hpp"
 #include "roxiehelper.hpp"
 #include "roxielmj.hpp"
@@ -1888,7 +1889,7 @@ public:
             sock->write(mb.toByteArray(), mb.length());
             sent += mb.length();
 #else
-            throw MakeStringException(-1, "_USE_ZLIB is required for compressed output");
+            throw MakeStringException(COMMONERR_UseZlibIsRequiredForCompressed, "_USE_ZLIB is required for compressed output");
 #endif
         }
         return sent;
@@ -2293,7 +2294,7 @@ void FlushingStringBuffer::startDataset(const char *elementName, const char *res
 void FlushingStringBuffer::startScalar(const char *resultName, unsigned sequence, bool simpleTag, const char *simpleName)
 {
     if (s.length())
-        throw MakeStringException(0, "Attempt to output scalar ('%s',%d) multiple times", resultName ? resultName : "", (int)sequence);
+        throw MakeStringException(COMMONERR_AttemptToOutputScalarSD, "Attempt to output scalar ('%s',%d) multiple times", resultName ? resultName : "", (int)sequence);
 
     CriticalBlock b(crit);
     name.clear().append(resultName ? resultName : "Dataset");
@@ -2405,7 +2406,7 @@ void FlushingJsonBuffer::startDataset(const char *elementName, const char *resul
 void FlushingJsonBuffer::startScalar(const char *resultName, unsigned sequence, bool simpleTag, const char *simpleName)
 {
     if (s.length())
-        throw MakeStringException(0, "Attempt to output scalar ('%s',%d) multiple times", resultName ? resultName : "", (int)sequence);
+        throw MakeStringException(COMMONERR_AttemptToOutputScalarSD, "Attempt to output scalar ('%s',%d) multiple times", resultName ? resultName : "", (int)sequence);
 
     CriticalBlock b(crit);
     name.set(resultName ? resultName : "Dataset");
@@ -2469,14 +2470,14 @@ void ClusterWriteHandler::addCluster(char const * cluster)
 {
     Owned<IGroup> group = queryNamedGroupStore().lookup(cluster);
     if (!group)
-        throw MakeStringException(0, "Unknown cluster %s while writing file %s", cluster, logicalName.get());
+        throw MakeStringException(COMMONERR_UnknownClusterSWhileWritingFile, "Unknown cluster %s while writing file %s", cluster, logicalName.get());
 
 #ifdef _CONTAINERIZED
     //MORE: Allow multiple clutsers once the DFU information removes the full path from the file entry
     //When that is done, the local cluster test will ideally look at the pane information to see if it is a local mount.
     //Will require including some of the bare-metal code once bare-metal storage planes are supported
     if (localCluster)
-        throw MakeStringException(0, "Container mode does not yet support output to multiple clusters while writing file %s)",
+        throw MakeStringException(COMMONERR_ContainerModeDoesNotYetSupport, "Container mode does not yet support output to multiple clusters while writing file %s)",
                 logicalName.get());
     localClusterName.set(cluster);
     localCluster.set(group);
@@ -2484,7 +2485,7 @@ void ClusterWriteHandler::addCluster(char const * cluster)
     if (group->isMember())
     {
         if (localCluster)
-            throw MakeStringException(0, "Cluster %s occupies node already specified while writing file %s", cluster,
+            throw MakeStringException(COMMONERR_ClusterSOccupiesNodeAlreadySpecified, "Cluster %s occupies node already specified while writing file %s", cluster,
                     logicalName.get());
         localClusterName.set(cluster);
         localCluster.set(group);
@@ -2495,7 +2496,7 @@ void ClusterWriteHandler::addCluster(char const * cluster)
         {
             Owned<INode> other = remoteNodes.item(idx).getNode(0);
             if (group->isMember(other))
-                throw MakeStringException(0, "Cluster %s occupies node already specified while writing file %s",
+                throw MakeStringException(COMMONERR_ClusterSOccupiesNodeAlreadySpecified, "Cluster %s occupies node already specified while writing file %s",
                         cluster, logicalName.get());
         }
         remoteNodes.append(*group.getClear());
@@ -2578,7 +2579,7 @@ void ClusterWriteHandler::copyPhysical(IFile * source, bool noCopy) const
 void ClusterWriteHandler::setDescriptorParts(IFileDescriptor * desc, char const * basename, IPropertyTree * attrs) const
 {
     if(!localCluster.get()&&(remoteNodes.ordinality()==0))
-        throw MakeStringException(0, "Attempting to write file to no clusters");
+        throw MakeStringException(COMMONERR_AttemptingToWriteFileToNo, "Attempting to write file to no clusters");
     ClusterPartDiskMapSpec partmap; // will get this from group at some point
     desc->setNumParts(1);
     desc->setPartMask(basename);
@@ -2638,7 +2639,7 @@ class COrderedOutputSerializer : implements IOrderedOutputSerializer, public CIn
         size32_t printf(const char *format, va_list args)  __attribute__((format(printf,2,0)))
         {
             if (closed)
-                throw MakeStringException(0, "Attempting to append to previously closed result in COrderedResult::printf");
+                throw MakeStringException(COMMONERR_AttemptingToAppendToPreviouslyClosed, "Attempting to append to previously closed result in COrderedResult::printf");
             int prevLen = sb.length();
             sb.valist_appendf(format, args);
             return sb.length() - prevLen;
@@ -2646,7 +2647,7 @@ class COrderedOutputSerializer : implements IOrderedOutputSerializer, public CIn
         size32_t fwrite(const void * data, size32_t size, size32_t count)
         {
             if (closed)
-                throw MakeStringException(0, "Attempting to append to previously closed result in COrderedResult::fwrite");
+                throw MakeStringException(COMMONERR_AttemptingToAppendToPreviouslyClosed_1, "Attempting to append to previously closed result in COrderedResult::fwrite");
             size32_t len = size * count;
             sb.append(len, (const char *)data);
             return len;
@@ -2654,7 +2655,7 @@ class COrderedOutputSerializer : implements IOrderedOutputSerializer, public CIn
         void close(bool nl)
         {
             if (closed)
-                throw MakeStringException(0, "Attempting to reclose result in COrderedResult::close");
+                throw MakeStringException(COMMONERR_AttemptingToRecloseResultInCorderedresult, "Attempting to reclose result in COrderedResult::close");
             if (nl)
                 sb.append('\n');
             closed = true;

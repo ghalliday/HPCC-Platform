@@ -19,6 +19,7 @@
 
 
 #include "platform.h"
+#include "fserr.hpp"
 #include "limits.h"
 
 #include "jlib.hpp"
@@ -164,7 +165,7 @@ static ISecureSocket *createSecureSocket(ISocket *sock, const char *issuer)
             {
                 Owned<const ISyncedPropertyTree> info = getIssuerTlsSyncedConfig(issuer);
                 if (!info || !info->isValid())
-                    throw makeStringExceptionV(-1, "createSecureSocket() : missing MTLS configuration for issuer: %s", issuer);
+                    throw makeStringExceptionV(FSERR_CreatesecuresocketMissingMtlsConfigurationForIssuer, "createSecureSocket() : missing MTLS configuration for issuer: %s", issuer);
                 secureContext.setown(createSecureSocketContextSynced(info, ClientSocket));
                 secureCtxClientIssuerMap.emplace(issuer, secureContext.getLink());
             }

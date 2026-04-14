@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "commonerr.hpp"
 
 #include "jlib.hpp"
 #include "jio.hpp"
@@ -47,7 +48,7 @@ static void splitGitFileName(const char *fullName, StringAttr &gitDir, StringAtt
     tail++;
     const char *end = strchr(tail, '}');
     if (!end)
-        throw MakeStringException(0, "Invalid git repository filename '%s' - no matching } found", fullName);
+        throw MakeStringException(COMMONERR_InvalidGitRepositoryFilenameSNo, "Invalid git repository filename '%s' - no matching } found", fullName);
 
     //Allow <version>#<username> as an extension to allow authentication information to be passed through
     const char * extra = strchr(tail, '#');
@@ -62,7 +63,7 @@ static void splitGitFileName(const char *fullName, StringAttr &gitDir, StringAtt
     if (*tail==PATHSEPCHAR || *tail == '/')
         tail++;
     else if (*tail != 0)
-        throw MakeStringException(0, "Invalid git repository filename '%s' - " PATHSEPSTR " expected after }", fullName);
+        throw MakeStringException(COMMONERR_InvalidGitRepositoryFilenameS, "Invalid git repository filename '%s' - " PATHSEPSTR " expected after }", fullName);
     if (tail && *tail)
     {
         StringBuffer s(tail);
@@ -75,7 +76,7 @@ static void splitGitFileName(const char *fullName, StringAttr &gitDir, StringAtt
     StringBuffer configName(gitDir);
     configName.append("config");
     if (!checkFileExists(configName.str()))
-        throw MakeStringException(0, "Invalid git repository - config file %s not found", configName.str());
+        throw MakeStringException(COMMONERR_InvalidGitRepositoryConfigFileS, "Invalid git repository - config file %s not found", configName.str());
 }
 
 static StringBuffer & buildGitFileName(StringBuffer &fullname, const char *gitDir, const char *revision, const char *relPath, const char * gitUser)
@@ -180,7 +181,7 @@ public:
         git_blob *blob = nullptr;
         int error = git_blob_lookup(&blob, git_tree_owner(commitTree->queryTree()), oid);
         if (error)
-            throw MakeStringException(0, "git git_blob_lookup for '%s' returned exit status %d", filename, error);
+            throw MakeStringException(COMMONERR_GitGitBlobLookupForS, "git git_blob_lookup for '%s' returned exit status %d", filename, error);
 
         git_object_size_t blobsize = git_blob_rawsize(blob);
         const void * data = git_blob_rawcontent(blob);
@@ -283,7 +284,7 @@ protected:
         if (retcode)
         {
             buf.clear();  // Can't rely on destructor to clean this for me
-            throw MakeStringException(0, "git-lfs for '%s' (user %s) returned exit status %d", filename, gitUser ? gitUser : "", retcode);
+            throw MakeStringException(COMMONERR_GitLfsForSUserS, "git-lfs for '%s' (user %s) returned exit status %d", filename, gitUser ? gitUser : "", retcode);
         }
     }
 
@@ -354,7 +355,7 @@ public:
             git_blob *blob = nullptr;
             int error = git_blob_lookup(&blob, git_tree_owner(commitTree->queryTree()), &oid);
             if (error)
-                throw MakeStringException(0, "git git_blob_lookup returned exit status %d", error);
+                throw MakeStringException(COMMONERR_GitGitBlobLookupReturnedExit, "git git_blob_lookup returned exit status %d", error);
 
             fileSize = git_blob_rawsize(blob);
             if (fileSize >= MIN_LFS_POINTER_SIZE && fileSize <= MAX_LFS_POINTER_SIZE)

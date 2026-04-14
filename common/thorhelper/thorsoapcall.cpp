@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jliball.hpp"
+#include "commonerr.hpp"
 #include "jqueue.tpp"
 #include "jisem.hpp"
 #include "jsecrets.hpp"
@@ -228,7 +229,7 @@ public:
             urltext = p;
         }
         else
-            throw MakeStringException(-1, "Malformed URL");
+            throw MakeStringException(COMMONERR_MalformedUrl, "Malformed URL");
 
         if ((p = strchr(urltext, '@')) != NULL)
         {
@@ -263,7 +264,7 @@ public:
             else if (stricmp(method.str(), "http") == 0)
                 port = 80;
             else
-                throw MakeStringException(-1, "Unsupported access method");
+                throw MakeStringException(COMMONERR_UnsupportedAccessMethod, "Unsupported access method");
 
             if ((p = strchr(urltext, '/')) != NULL)
             {
@@ -283,7 +284,7 @@ public:
 #if 0
         IpAddress ipaddr(host);
         if ( ipaddr.isNull())
-            throw MakeStringException(-1, "Invalid IP address %s", host.str());
+            throw MakeStringException(COMMONERR_InvalidIpAddressS, "Invalid IP address %s", host.str());
 #endif
     }
 };
@@ -945,21 +946,21 @@ bool loadConnectSecret(const char *vaultId, const char *secretName, UrlArray &ur
     if (!secret)
     {
         if (required)
-            throw MakeStringException(0, "%s %s SECRET not found", getWsCallTypeName(wscType), secretName);
+            throw MakeStringException(COMMONERR_SSSecretNotFound, "%s %s SECRET not found", getWsCallTypeName(wscType), secretName);
         return false;
     }
 
     StringBuffer url;
     getSecretKeyValue(url, secret, "url");
     if (url.isEmpty())
-        throw MakeStringException(0, "%s %s HTTP SECRET must contain url", getWsCallTypeName(wscType), secretName);
+        throw MakeStringException(COMMONERR_SSHttpSecretMustContain, "%s %s HTTP SECRET must contain url", getWsCallTypeName(wscType), secretName);
     UrlListParser urlListParser(url);
     StringBuffer usernamePasswordPair;
     getSecretKeyValue(usernamePasswordPair, secret, "username");
     if (usernamePasswordPair.length())
     {
         if (strchr(usernamePasswordPair, ':'))
-            throw MakeStringException(0, "%s HTTP-CONNECT SECRET username contains illegal colon", getWsCallTypeName(wscType));
+            throw MakeStringException(COMMONERR_SHttpConnectSecretUsernameContains, "%s HTTP-CONNECT SECRET username contains illegal colon", getWsCallTypeName(wscType));
         StringBuffer password;
         getSecretKeyValue(password, secret, "password");
         if (password.length())
@@ -1101,18 +1102,18 @@ public:
         {
             soapaction.set(s.setown(helper->getSoapAction()));
             if(soapaction.get() && !isValidHttpValue(soapaction.get()))
-                throw MakeStringException(-1, "SOAPAction value contained illegal characters: %s", soapaction.get());
+                throw MakeStringException(COMMONERR_SoapactionValueContainedIllegalCharactersS, "SOAPAction value contained illegal characters: %s", soapaction.get());
 
             httpHeaderName.set(s.setown(helper->getHttpHeaderName()));
             if(httpHeaderName.get() && !isValidHttpValue(httpHeaderName.get()))
-                throw MakeStringException(-1, "HTTPHEADER name contained illegal characters: %s", httpHeaderName.get());
+                throw MakeStringException(COMMONERR_HttpheaderNameContainedIllegalCharactersS, "HTTPHEADER name contained illegal characters: %s", httpHeaderName.get());
 
             httpHeaderValue.set(s.setown(helper->getHttpHeaderValue()));
             if(httpHeaderValue.get() && !isValidHttpValue(httpHeaderValue.get()))
-                throw MakeStringException(-1, "HTTPHEADER value contained illegal characters: %s", httpHeaderValue.get());
+                throw MakeStringException(COMMONERR_HttpheaderValueContainedIllegalCharactersS, "HTTPHEADER value contained illegal characters: %s", httpHeaderValue.get());
 
             if ((flags & SOAPFliteral) && (flags & SOAPFencoding))
-                throw MakeStringException(0, "SOAPCALL 'LITERAL' and 'ENCODING' options are mutually exclusive");
+                throw MakeStringException(COMMONERR_SoapcallLiteralAndEncodingOptionsAre, "SOAPCALL 'LITERAL' and 'ENCODING' options are mutually exclusive");
 
             rowHeader.set(s.setown(helper->getHeader()));
             rowFooter.set(s.setown(helper->getFooter()));
@@ -1133,7 +1134,7 @@ public:
         {
             //Check for unsupported flags
             if ((flags & SOAPFliteral) || (flags & SOAPFencoding))
-                throw MakeStringException(0, "HTTPCALL 'LITERAL' and 'ENCODINGD' options not supported");
+                throw MakeStringException(COMMONERR_HttpcallLiteralAndEncodingdOptionsNot, "HTTPCALL 'LITERAL' and 'ENCODINGD' options not supported");
         }
 
         if (callHelper)
@@ -1154,7 +1155,7 @@ public:
         {
             service.toUpperCase();  //GET/PUT/POST
             if (strcmp(service.str(), "GET") != 0)
-                throw MakeStringException(0, "HTTPCALL Only 'GET' http method currently supported");
+                throw MakeStringException(COMMONERR_HttpcallOnlyGetHttpMethodCurrently, "HTTPCALL Only 'GET' http method currently supported");
             OwnedRoxieString acceptTypeSupplied(helper->getAcceptType()); // text/html, text/xml, etc
             acceptType.set(acceptTypeSupplied);
             acceptType.trim();
@@ -1173,7 +1174,7 @@ public:
         const char *hosts = hostsString.get();
 
         if (isEmptyString(hosts))
-            throw MakeStringException(0, "%s specified no URLs", getWsCallTypeName(wscType));
+            throw MakeStringException(COMMONERR_SSpecifiedNoUrls, "%s specified no URLs", getWsCallTypeName(wscType));
 
         activitySpanScope->setSpanAttribute("hosts", hosts);
 
@@ -1193,9 +1194,9 @@ public:
         {
             const char *finger = hosts+7;
             if (isEmptyString(finger))
-                throw MakeStringException(0, "%s HTTP-CONNECT SECRET specified with no name", getWsCallTypeName(wscType));
+                throw MakeStringException(COMMONERR_SHttpConnectSecretSpecifiedWith, "%s HTTP-CONNECT SECRET specified with no name", getWsCallTypeName(wscType));
             if (!proxyAddress.isEmpty())
-                throw MakeStringException(0, "%s PROXYADDRESS can't be used with HTTP-CONNECT secrets", getWsCallTypeName(wscType));
+                throw MakeStringException(COMMONERR_SProxyaddressCanTBeUsed, "%s PROXYADDRESS can't be used with HTTP-CONNECT secrets", getWsCallTypeName(wscType));
             StringAttr vaultId;
             const char *thumb = strchr(finger, ':');
             if (thumb)
@@ -1238,7 +1239,7 @@ public:
 
         numUrls = urlArray.ordinality();
         if (numUrls == 0)
-            throw MakeStringException(0, "%s specified no URLs", getWsCallTypeName(wscType));
+            throw MakeStringException(COMMONERR_SSpecifiedNoUrls, "%s specified no URLs", getWsCallTypeName(wscType));
 
         if (!persistentHandler)
             persistEnabled = false;
@@ -1247,7 +1248,7 @@ public:
         {
             UrlListParser proxyUrlListParser(proxyAddress);
             if (0 == proxyUrlListParser.getUrls(proxyUrlArray))
-                throw MakeStringException(0, "%s proxy address specified no URLs", getWsCallTypeName(wscType));
+                throw MakeStringException(COMMONERR_SProxyAddressSpecifiedNoUrls, "%s proxy address specified no URLs", getWsCallTypeName(wscType));
         }
 
         activitySpanScope->setSpanAttribute("proxy_urls", proxyAddress.str());
@@ -1932,7 +1933,7 @@ private:
             return false;
 
         if (!checkContentEncodingSupported(contentEncoding.str()))
-            throw MakeStringException(-1, "Content-Encoding:%s not supported", contentEncoding.str());
+            throw MakeStringException(COMMONERR_ContentEncodingSNotSupported, "Content-Encoding:%s not supported", contentEncoding.str());
         return true;
     }
 
@@ -1949,7 +1950,7 @@ private:
         if (soapTraceLevel > 6 || master->logXML)
             master->logctx.CTXLOG("Content decoded. Original " CONTENT_LENGTH " %d", contentLength);
 #else
-            throw MakeStringException(-1, "_USE_ZLIB is required for Content-Encoding:%s", contentEncodingType);
+            throw MakeStringException(COMMONERR_UseZlibIsRequiredForContent, "_USE_ZLIB is required for Content-Encoding:%s", contentEncodingType);
 #endif
     }
 
@@ -1963,7 +1964,7 @@ private:
             return false;
 
         if (!checkContentEncodingSupported(contentEncodingType.str()))
-            throw MakeStringException(-1, "Content-Encoding:%s not supported", contentEncodingType.str());
+            throw MakeStringException(COMMONERR_ContentEncodingSNotSupported, "Content-Encoding:%s not supported", contentEncodingType.str());
         return true;
     }
 
@@ -1984,7 +1985,7 @@ private:
         zlib_deflate(mb, xmlWriter.str(), xmlWriter.length(), GZ_BEST_SPEED, getEncodeFormat(contentEncodingType));
         PROGLOG("Content encoded from %d bytes to %d bytes", xmlWriter.length(), mb.length());
 #else
-        throw MakeStringException(-1, "_USE_ZLIB is required for Content-Encoding:%s", contentEncodingType);
+        throw MakeStringException(COMMONERR_UseZlibIsRequiredForContent, "_USE_ZLIB is required for Content-Encoding:%s", contentEncodingType);
 #endif
     }
 
@@ -2561,7 +2562,7 @@ public:
                     master->activitySpanScope->setSpanAttribute("SoapcallDNSTimeNs", dnsNs);
 
                     if (ep.isNull())
-                        throw MakeStringException(-1, "Failed to resolve host '%s'", nullText(connUrl.host.get()));
+                        throw MakeStringException(COMMONERR_FailedToResolveHostS, "Failed to resolve host '%s'", nullText(connUrl.host.get()));
 
                     checkTimeLimitExceeded(&remainingMS);  // after ep.set which might make a potentially long getaddrinfo lookup ...
                     if (strieq(url.method, "https"))
@@ -2622,7 +2623,7 @@ public:
                                 }
 
                                 if (tm.timedout(&proxyRemaining))
-                                    throw makeStringException(-1, "Timed out waiting for proxy response");
+                                    throw makeStringException(COMMONERR_TimedOutWaitingForProxyResponse, "Timed out waiting for proxy response");
 
                                 bool proxyTunnelOK = false;
                                 const char *okResp = strstr(proxyResponse, "HTTP/");
@@ -2632,7 +2633,7 @@ public:
                                         proxyTunnelOK = true;
                                 }
                                 if (!proxyTunnelOK)
-                                    throw makeStringException(-1, "Invalid response from proxy");
+                                    throw makeStringException(COMMONERR_InvalidResponseFromProxy, "Invalid response from proxy");
                             }
 
                             Owned<ISecureSocket> ssock = master->createSecureSocket(socket.getClear(), url.host);
@@ -2646,7 +2647,7 @@ public:
                                     err.append("Failure to establish secure connection to ");
                                     connUrl.getUrlString(err);
                                     err.append(": returned ").append(status);
-                                    throw makeStringException(0, err.str());
+                                    throw makeStringException(COMMONERR_ErrStr, err.str());
                                 }
                                 socket.setown(ssock.getClear());
                             }
@@ -2655,7 +2656,7 @@ public:
                             err.append("Failure to establish secure connection to ");
                             connUrl.getUrlString(err);
                             err.append(": OpenSSL disabled in build");
-                            throw makeStringException(0, err.str());
+                            throw makeStringException(COMMONERR_ErrStr, err.str());
 #endif
                         }
                         else if (useProxy && strieq(connUrl.method.str(), "http"))
@@ -2762,12 +2763,12 @@ public:
                     text.appendf("HTTP error (%d) in processQuery",rval);
                     rtlAddExceptionTag(text, "soapresponse", response.str());
                     requestSpan->recordError(SpanError(text.str(), -1, true, true));
-                    throw MakeStringExceptionDirect(-1, text.str());
+                    throw MakeStringExceptionDirect(COMMONERR_TextStr, text.str());
                 }
                 if (response.length() == 0)
                 {
                     requestSpan->recordError(SpanError("Zero length response in processQuery", -1, true, true));
-                    throw MakeStringException(-1, "Zero length response in processQuery");
+                    throw MakeStringException(COMMONERR_ZeroLengthResponseInProcessquery, "Zero length response in processQuery");
                 }
                 checkTimeLimitExceeded(&remainingMS);
                 ColumnProvider * meta = (ColumnProvider*)CreateColumnProvider((unsigned)nanoToMilli(timer.elapsedNs()), master->flags&SOAPFencoding?true:false);
@@ -2865,11 +2866,11 @@ public:
                 if(dynamic_cast<std::bad_alloc *>(&es))
                 {
                     master->activitySpanScope->recordError("std::exception: out of memory (std::bad_alloc) in CWSCAsyncFor processQuery");
-                    throw MakeStringException(-1, "std::exception: out of memory (std::bad_alloc) in CWSCAsyncFor processQuery");
+                    throw MakeStringException(COMMONERR_StdExceptionOutOfMemoryStd, "std::exception: out of memory (std::bad_alloc) in CWSCAsyncFor processQuery");
                 }
 
                 master->activitySpanScope->recordError(es.what());
-                throw MakeStringException(-1, "std::exception: standard library exception (%s) in CWSCAsyncFor processQuery",es.what());
+                throw MakeStringException(COMMONERR_StdExceptionStandardLibraryExceptionS, "std::exception: standard library exception (%s) in CWSCAsyncFor processQuery",es.what());
             }
             catch (...)
             {
@@ -2877,7 +2878,7 @@ public:
                     persistentHandler->doneUsing(socket, false);
 
                 master->activitySpanScope->recordError(SpanError("Unknown exception in processQuery", -1, true, true));
-                throw MakeStringException(-1, "Unknown exception in processQuery");
+                throw MakeStringException(COMMONERR_UnknownExceptionInProcessquery, "Unknown exception in processQuery");
             }
         }
     }

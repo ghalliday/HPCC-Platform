@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jexcept.hpp"
+#include "commonerr.hpp"
 #include "jmisc.hpp"
 #include "jthread.hpp"
 #include "jsocket.hpp"
@@ -372,14 +373,14 @@ HelperDll::~HelperDll()
 HINSTANCE HelperDll::getInstance() const
 {
     if (!so.loaded())
-        throw MakeStringException(0, "Dll %s only loaded for resources", name.str());
+        throw MakeStringException(COMMONERR_DllSOnlyLoadedForResources, "Dll %s only loaded for resources", name.str());
     return so.getInstanceHandle();
 }
 
 void * HelperDll::getEntry(const char * entry) const
 {
     if (!so.loaded())
-        throw MakeStringException(0, "Dll %s only loaded for resources", name.str());
+        throw MakeStringException(COMMONERR_DllSOnlyLoadedForResources, "Dll %s only loaded for resources", name.str());
     return so.getEntry(entry);
 }
 
@@ -642,7 +643,7 @@ extern DLLSERVER_API ILoadedDllEntry * createDllEntry(const char *path, bool isG
     else
         ok = result->loadResources();
     if (!ok)
-        throw MakeStringException(0, "Failed to create ILoadedDllEntry for dll %s", path);
+        throw MakeStringException(COMMONERR_FailedToCreateIloadeddllentryForDll, "Failed to create ILoadedDllEntry for dll %s", path);
     return result.getClear();
 }
 
@@ -650,7 +651,7 @@ extern DLLSERVER_API ILoadedDllEntry * createExeDllEntry(const char *path)
 {
     Owned<HelperDll> result = new HelperDll(path, NULL);
     if (!result->loadCurrentExecutable())
-        throw MakeStringException(0, "Failed to create ILoadedDllEntry for current executable");
+        throw MakeStringException(COMMONERR_FailedToCreateIloadeddllentryForCurrent, "Failed to create ILoadedDllEntry for current executable");
     return result.getClear();
 }
 
@@ -858,7 +859,7 @@ bool SafePluginMap::addPlugin(const char *path, const char *dllname)
             // Python3 and Python2 plugins at the same time as the export similar symbols
             // Loading with global=false should not cause any adverse issues
             if (!n->load(false, false) || !n->init(pluginCtx))
-                throw MakeStringException(0, "Failed to load plugin %s", path);
+                throw MakeStringException(COMMONERR_FailedToLoadPluginS, "Failed to load plugin %s", path);
             if (trace)
                 n->logLoaded();
             map.setValue(dllname, n);  // note: setValue links arg

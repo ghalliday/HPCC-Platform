@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "uri.hpp"
+#include "commonerr.hpp"
 #include "jexcept.hpp"
 
 URI::URI(const char* path)
@@ -23,7 +24,7 @@ URI::URI(const char* path)
     state.uri = &uri;
     try {
         if (uriParseUriA(&state, path) != URI_SUCCESS)
-            throw MakeStringException(-1, "Invalid URI '%s'", path);
+            throw MakeStringException(COMMONERR_InvalidUriS, "Invalid URI '%s'", path);
         populateFields(); // In a format we understand
     }
     // On parser failure, but also system exceptions (bad alloc, etc)

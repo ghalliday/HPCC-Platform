@@ -1,0 +1,17 @@
+#ifndef FSERR_HPP
+#define FSERR_HPP
+
+#define FSERR_CreatesecuresocketMissingMtlsConfigurationForIssuer 8600
+#define FSERR_InvalidSubNetDefinitionSS 8601
+#define FSERR_UnknownDaliservixFilterDefinition 8602
+#define FSERR_DataDiscrepancyOnDiskReadOf 8603
+#define FSERR_CreatesecuresocketMissingMtlsConfiguration 8604
+#define FSERR_AsyncJobIdMismatch 8605
+#define FSERR_RestorecursorNotSupportedInS 8606
+#define FSERR_ThrottlerSRejectingConfigureCommandLimit 8607
+#define FSERR_ThrottlerSTheMaxiumumNumberOf 8608
+#define FSERR_UnrecognisedStreamCommandS 8609
+#define FSERR_UnrecognisedOutputFormatS 8610
+#define FSERR_UnknownThrottleClassUAvailableClasses 8611
+
+#endif // FSERR_HPP

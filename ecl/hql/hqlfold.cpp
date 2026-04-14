@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "platform.h"
+#include "hqlerr2.hpp"
 #include "jlib.hpp"
 #include "jfile.hpp"
 #include "jexcept.hpp"
@@ -6781,7 +6782,7 @@ IHqlExpression * CExprFolderTransformer::createTransformed(IHqlExpression * expr
                     StringBuffer s;
                     expr->toString(s);
                     DBGLOG("%s", s.str());
-                    throw MakeStringException(0, "Internal error - expression is marked as constant but did not fold");
+                    throw MakeStringException(ECLERR_InternalErrorExpressionIsMarkedAs, "Internal error - expression is marked as constant but did not fold");
                 }
 #endif
             }

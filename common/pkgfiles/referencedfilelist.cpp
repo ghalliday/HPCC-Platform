@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "referencedfilelist.hpp"
+#include "commonerr.hpp"
 
 #include "jptree.hpp"
 #include "workunit.hpp"
@@ -131,7 +132,7 @@ void splitDerivedDfsLocationOrRemote(const char *address, StringBuffer &cluster,
                                     const char *currentRemoteStorage, StringBuffer& effectiveRemoteStorage, const char *baseRemoteStorage)
 {
     if (!isEmptyString(address) && !isEmptyString(currentRemoteStorage))
-        throw makeStringExceptionV(-1, "Cannot specify both a dfs location (%s) and a remote storage location (%s)", address, currentRemoteStorage);
+        throw makeStringExceptionV(COMMONERR_CannotSpecifyBothADfsLocation, "Cannot specify both a dfs location (%s) and a remote storage location (%s)", address, currentRemoteStorage);
     // Choose either a daliip (split from address) or a remote-storage location to
     // propagate to the next level of parsing as the effective method of resolving a file
     if (!isEmptyString(address))
@@ -689,13 +690,13 @@ static void getDefaultDFUName(StringBuffer &dfuQueueName)
 static void dfuCopy(IDFUWorkUnit *publisherWu, IUserDescriptor *user, const char *sourceLogicalName, const char *destLogicalName, const char *destPlane, const char *srcLocation, bool supercopy, bool overwrite, bool preserveCompression, bool nosplit, bool useRemoteStorage)
 {
     if(!publisherWu)
-        throw makeStringException(-1, "Failed to create Publisher DFU Workunit.");
+        throw makeStringException(COMMONERR_FailedToCreatePublisherDfuWorkunit, "Failed to create Publisher DFU Workunit.");
     if(isEmptyString(sourceLogicalName))
-        throw makeStringException(-1, "Source logical file not specified.");
+        throw makeStringException(COMMONERR_SourceLogicalFileNotSpecified, "Source logical file not specified.");
     if(isEmptyString(destLogicalName))
-        throw makeStringException(-1, "Destination logical file not specified.");
+        throw makeStringException(COMMONERR_DestinationLogicalFileNotSpecified, "Destination logical file not specified.");
     if(isEmptyString(destPlane))
-        throw makeStringException(-1, "Destination node group not specified.");
+        throw makeStringException(COMMONERR_DestinationNodeGroupNotSpecified, "Destination node group not specified.");
 
     PROGLOG("Copy from %s[%s]  %s to %s", (!isEmptyString(srcLocation) && useRemoteStorage) ? "remote" : "", isEmptyString(srcLocation) ? "local" : srcLocation, sourceLogicalName, destLogicalName);
 
@@ -724,14 +725,14 @@ static void dfuCopy(IDFUWorkUnit *publisherWu, IUserDescriptor *user, const char
         {
             SocketEndpoint ep(srcLocation);
             if (ep.isNull())
-                throw MakeStringException(-1, "ReferencedFile Copy %s: cannot resolve SourceDali network IP from %s.", sourceLogicalName, srcLocation);
+                throw MakeStringException(COMMONERR_ReferencedfileCopySCannotResolveSourcedali, "ReferencedFile Copy %s: cannot resolve SourceDali network IP from %s.", sourceLogicalName, srcLocation);
 
             logicalName.setForeign(ep,false);
         }
     }
     Owned<IDistributedFile> file = wsdfs::lookup(logicalName, user, AccessMode::tbdRead, false, false, nullptr, defaultPrivilegedUser, INFINITE);
     if (!file)
-        throw MakeStringException(-1, "ReferencedFile failed to find file: %s", logicalName.get());
+        throw MakeStringException(COMMONERR_ReferencedfileFailedToFindFileS, "ReferencedFile failed to find file: %s", logicalName.get());
 
     if (supercopy)
     {
@@ -932,7 +933,7 @@ void ReferencedFileList::ensureFile(const char *ln, unsigned flags, const char *
         return;
 
     if (!allowForeign && checkForeign(ln))
-        throw MakeStringException(-1, "Foreign file not allowed%s: %s", (flags & RefFileInPackage) ? " (declared in package)" : "", ln);
+        throw MakeStringException(COMMONERR_ForeignFileNotAllowedSS, "Foreign file not allowed%s: %s", (flags & RefFileInPackage) ? " (declared in package)" : "", ln);
 
     Owned<ReferencedFile> file = new ReferencedFile(ln, daliip, srcCluster, prefix, false, flags, pkgid, noDfsResolution, allowSizeCalc, remoteStorageName);
     if (!file->logicalName.length())
@@ -1136,7 +1137,7 @@ void ReferencedFileList::resolveSubFiles(StringArray &subfiles, const StringArra
     {
         const char *lfn = subfiles.item(i);
         if (!allowForeign && checkForeign(lfn))
-            throw MakeStringException(-1, "Foreign sub file not allowed: %s", lfn);
+            throw MakeStringException(COMMONERR_ForeignSubFileNotAllowedS, "Foreign sub file not allowed: %s", lfn);
 
         Owned<ReferencedFile> file = new ReferencedFile(lfn, NULL, NULL, NULL, true, 0, NULL, false, allowSizeCalc);
         if (file->logicalName.length() && !map.getValue(file->getLogicalName()))
@@ -1248,9 +1249,9 @@ void ReferencedFileList::cloneFileInfo(StringBuffer &publisherWuid, const char *
                 //Publisher WUIDs can be preallocated in order to provide them to the user early in the process, but only newly created publisher workunits can be used
                 publisher.setown(factory->updateWorkUnit(publisherWuid, true));
                 if(!publisher)
-                    throw makeStringException(-1, "Failed to open preallocated Publisher DFU Workunit.");
+                    throw makeStringException(COMMONERR_FailedToOpenPreallocatedPublisherDfu, "Failed to open preallocated Publisher DFU Workunit.");
                 if (publisher->queryProgress()->getState()!=DFUstate_unknown)
-                    throw makeStringException(-1, "Cannot clone files by reusing a previously used publisher workunit.");
+                    throw makeStringException(COMMONERR_CannotCloneFilesByReusingA, "Cannot clone files by reusing a previously used publisher workunit.");
             }
 
             publisher->setQueue(dfuQueueName);

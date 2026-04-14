@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "eventindexmodel.hpp"
+#include "commonerr.hpp"
 #include "eventindex.hpp"
 #include "jevent.hpp"
 
@@ -56,7 +57,7 @@ static void parseExpansionMode(const char* modeStr, ExpansionMode& expansionMode
     else if (strieq(modeStr, "dd"))
         expansionMode = ExpansionMode::OnDemand;
     else
-        throw makeStringExceptionV(-1, "invalid index model expansion mode '%s'", modeStr);
+        throw makeStringExceptionV(COMMONERR_InvalidIndexModelExpansionModeS, "invalid index model expansion mode '%s'", modeStr);
 }
 
 bool MemoryModel::isCacheEnabled() const
@@ -113,7 +114,7 @@ void MemoryModel::configure(const IPropertyTree& config)
         bool haveSizeFactor = node->hasProp("@sizeFactor");
         bool haveSizeToTimeFactor = node->hasProp("@sizeToTimeFactor");
         if (haveSizeFactor != haveSizeToTimeFactor)
-            throw makeStringExceptionV(-1, "index model expansion configuration for node kind %u is missing %s", idx, haveSizeFactor ? "sizeToTimeFactor" : "sizeFactor");
+            throw makeStringExceptionV(COMMONERR_IndexModelExpansionConfigurationForNode, "index model expansion configuration for node kind %u is missing %s", idx, haveSizeFactor ? "sizeToTimeFactor" : "sizeFactor");
         if (haveSizeFactor)
         {
             double sizeFactor = node->getPropReal("@sizeFactor");
@@ -139,7 +140,7 @@ void MemoryModel::configure(const IPropertyTree& config)
         estimating = true;
         break;
     default:
-        throw makeStringException(0, "index model expansion configuration requires estimation factors for all or no node kinds");
+        throw makeStringException(COMMONERR_IndexModelExpansionConfigurationRequiresEstimation, "index model expansion configuration requires estimation factors for all or no node kinds");
     }
 
     // Populate the cache(s) with canned observations
@@ -369,7 +370,7 @@ __uint64 MemoryModel::nodeEntrySize(const IndexHashKey& key, __uint64 kind) cons
     ActualHistory::const_iterator it = actualHistory.find(key);
     if (it != actualHistory.end())
         return it->second.size;
-    throw makeStringExceptionV(-1, "missing actual size for key (%llu:%llu)", key.fileId, key.offset);
+    throw makeStringExceptionV(COMMONERR_MissingActualSizeForKeyLlu, "missing actual size for key (%llu:%llu)", key.fileId, key.offset);
 }
 
 #ifdef _USE_CPPUNIT

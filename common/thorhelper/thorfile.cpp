@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jliball.hpp"
+#include "commonerr.hpp"
 
 #include "thorfile.hpp"
 
@@ -131,7 +132,7 @@ IKeyIndex *openKeyFile(IDistributedFilePart & keyFile, size32_t blockedIndexIOSi
                 Owned<IFile> iFile = createIFile(remotePath.str());
                 Owned<IFileIO> iFileIO = iFile->open(IFOread);
                 if (nullptr == iFileIO)
-                    throw makeStringExceptionV(0, "Failed to open index file %s", remotePath.str());
+                    throw makeStringExceptionV(COMMONERR_FailedToOpenIndexFileS, "Failed to open index file %s", remotePath.str());
                 return createKeyIndex(remotePath.str(), crc, *iFileIO, (unsigned) -1, false, blockedIndexIOSize);
             }
         }
@@ -389,12 +390,12 @@ void buildUserMetadata(Owned<IPropertyTree> & metadata, IHThorIndexWriteArg * he
             if(*name == '_' && !checkReservedMetadataName(name))
             {
                 roxiemem::OwnedRoxieString fname(helper->getFileName());
-                throw MakeStringException(0, "Invalid name %s in user metadata for index %s (names beginning with underscore are reserved)", name.str(), fname.get());
+                throw MakeStringException(COMMONERR_InvalidNameSInUserMetadata, "Invalid name %s in user metadata for index %s (names beginning with underscore are reserved)", name.str(), fname.get());
             }
             if(!validateXMLTag(name.str()))
             {
                 roxiemem::OwnedRoxieString fname(helper->getFileName());
-                throw MakeStringException(0, "Invalid name %s in user metadata for index %s (not legal XML element name)", name.str(), fname.get());
+                throw MakeStringException(COMMONERR_InvalidNameSInUserMetadata_1, "Invalid name %s in user metadata for index %s (not legal XML element name)", name.str(), fname.get());
             }
             metadata->setProp(name.str(), value.str());
         }

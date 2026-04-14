@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <string>
+#include "commonerr.hpp"
 #include <unordered_set>
 
 #include "jlib.hpp"
@@ -2427,7 +2428,7 @@ protected:
             const char * curScope = iters.item(input).queryScope();
             int compare = compareScopeName(prevScope, curScope);
             if (compare >= 0)
-                throw MakeStringException(0, "Out of order (%u) scopes %s,%s = %d", input, prevScope, curScope, compare);
+                throw MakeStringException(COMMONERR_OutOfOrderUScopesS, "Out of order (%u) scopes %s,%s = %d", input, prevScope, curScope, compare);
         }
     }
 
@@ -2759,7 +2760,7 @@ static bool extractOption(const char * & finger, StringBuffer & option, StringBu
             if (braDepth == 0)
             {
                 if (bra)
-                    throw makeStringExceptionV(0, "Multiple [ in filter : %s", bra);
+                    throw makeStringExceptionV(COMMONERR_MultipleInFilterS, "Multiple [ in filter : %s", bra);
                 bra = cur;
             }
             braDepth++;
@@ -2780,13 +2781,13 @@ static bool extractOption(const char * & finger, StringBuffer & option, StringBu
     }
 
     if (braDepth != 0)
-        throw makeStringExceptionV(0, "Mismatched ] in filter : %s", start);
+        throw makeStringExceptionV(COMMONERR_MismatchedInFilterS, "Mismatched ] in filter : %s", start);
 
     option.clear();
     if (bra)
     {
         if (cur != end+1)
-            throw makeStringExceptionV(0, "Text follows closing bracket: %s", end);
+            throw makeStringExceptionV(COMMONERR_TextFollowsClosingBracketS, "Text follows closing bracket: %s", end);
         option.append(bra-start, start);
     }
     else
@@ -2806,19 +2807,19 @@ static unsigned readOptValue(const char * start, const char * end, unsigned dft,
     char * next;
     unsigned value = (unsigned)strtoll(start, &next, 10);
     if (next != end)
-        throw makeStringExceptionV(0, "Unexpected characters in %s option '%s'", type, next);
+        throw makeStringExceptionV(COMMONERR_UnexpectedCharactersInSOptionS, "Unexpected characters in %s option '%s'", type, next);
     return value;
 }
 
 static unsigned readValue(const char * start, const char * type)
 {
     if (*start == '\0')
-        throw makeStringExceptionV(0, "Expected a value for the %s option", type);
+        throw makeStringExceptionV(COMMONERR_ExpectedAValueForTheS, "Expected a value for the %s option", type);
 
     char * next;
     unsigned value = (unsigned)strtoll(start, &next, 10);
     if (*next != '\0')
-        throw makeStringExceptionV(0, "Unexpected characters in %s option '%s'", type, next);
+        throw makeStringExceptionV(COMMONERR_UnexpectedCharactersInSOptionS, "Unexpected characters in %s option '%s'", type, next);
     return value;
 }
 
@@ -2947,7 +2948,7 @@ WuScopeFilter & WuScopeFilter::addFilter(const char * filter)
             else if (isdigit(*arg))
                 setIncludeNesting(atoi(arg));
             else
-                throw makeStringExceptionV(0, "Expected a value for the nesting depth: %s", arg.str());
+                throw makeStringExceptionV(COMMONERR_ExpectedAValueForTheNesting, "Expected a value for the nesting depth: %s", arg.str());
             break;
         case FOinclude:
             setIncludeScopeType(arg);
@@ -2956,7 +2957,7 @@ WuScopeFilter & WuScopeFilter::addFilter(const char * filter)
         {
             WuPropertyTypes prop = (WuPropertyTypes)getEnum(arg, propertyMappings, PTunknown);
             if (prop == PTunknown)
-                throw makeStringExceptionV(0, "Unexpected properties '%s'", arg.str());
+                throw makeStringExceptionV(COMMONERR_UnexpectedPropertiesS, "Unexpected properties '%s'", arg.str());
             addOutputProperties(prop);
             break;
         }
@@ -2979,10 +2980,10 @@ WuScopeFilter & WuScopeFilter::addFilter(const char * filter)
             if (isdigit(*arg))
                 minVersion = atoi64(arg);
             else
-                throw makeStringExceptionV(0, "Expected a value for the version: %s", arg.str());
+                throw makeStringExceptionV(COMMONERR_ExpectedAValueForTheVersion, "Expected a value for the version: %s", arg.str());
             break;
         default:
-            throw makeStringExceptionV(0, "Unrecognised filter option: %s", option.str());
+            throw makeStringExceptionV(COMMONERR_UnrecognisedFilterOptionS, "Unrecognised filter option: %s", option.str());
         }
     }
     return *this;
@@ -3013,7 +3014,7 @@ WuScopeFilter & WuScopeFilter::addScopeType(const char * scopeType)
     {
         StatisticScopeType sst = queryScopeType(scopeType, SSTmax);
         if (sst == SSTmax)
-            throw makeStringExceptionV(0, "Unrecognised scope type '%s'", scopeType);
+            throw makeStringExceptionV(COMMONERR_UnrecognisedScopeTypeS, "Unrecognised scope type '%s'", scopeType);
 
         scopeFilter.addScopeType(sst);
     }
@@ -3055,7 +3056,7 @@ WuScopeFilter & WuScopeFilter::addOutputStatistic(const char * prop)
 
     StatisticKind kind = queryStatisticKind(prop, StMax);
     if (kind == StMax)
-        throw makeStringExceptionV(0, "Unrecognised statistic '%s'", prop);
+        throw makeStringExceptionV(COMMONERR_UnrecognisedStatisticS, "Unrecognised statistic '%s'", prop);
 
     return addOutputStatistic(kind);
 }
@@ -3084,7 +3085,7 @@ WuScopeFilter & WuScopeFilter::addOutputAttribute(const char * prop)
 
     WuAttr attr = queryWuAttribute(prop, WaMax);
     if (attr == WaMax)
-        throw makeStringExceptionV(0, "Unrecognised attribute '%s'", prop);
+        throw makeStringExceptionV(COMMONERR_UnrecognisedAttributeS, "Unrecognised attribute '%s'", prop);
 
     return addOutputAttribute(attr);
 }
@@ -3146,7 +3147,7 @@ WuScopeFilter & WuScopeFilter::setIncludeScopeType(const char * scopeType)
     {
         StatisticScopeType sst = queryScopeType(scopeType, SSTmax);
         if (sst == SSTmax)
-            throw makeStringExceptionV(0, "Unrecognised scope type '%s'", scopeType);
+            throw makeStringExceptionV(COMMONERR_UnrecognisedScopeTypeS, "Unrecognised scope type '%s'", scopeType);
 
         include.scopeTypes.append(sst);
     }
@@ -3160,7 +3161,7 @@ WuScopeFilter & WuScopeFilter::setMeasure(const char * measure)
     {
         desiredMeasure = queryMeasure(measure, SMeasureNone);
         if (desiredMeasure == SMeasureNone)
-            throw makeStringExceptionV(0, "Unrecognised measure '%s'", measure);
+            throw makeStringExceptionV(COMMONERR_UnrecognisedMeasureS, "Unrecognised measure '%s'", measure);
         properties |= PTstatistics;
     }
     return *this;
@@ -3220,14 +3221,14 @@ void WuScopeFilter::addRequiredStat(const char * filter)
     {
         WuAttr attr = queryWuAttribute(statisticName, WaNone);
         if (attr == WaNone)
-            throw makeStringExceptionV(0, "Unknown property name '%s'", statisticName.str());
+            throw makeStringExceptionV(COMMONERR_UnknownPropertyNameS, "Unknown property name '%s'", statisticName.str());
 
         if (*cur == '=')
             requiredAttrs.emplace_back(attr, cur+1);
         else if (*cur == '\0')
             requiredAttrs.emplace_back(attr, nullptr);
         else
-            throw makeStringExceptionV(0, "Unknown attribute comparison '%s'", cur);
+            throw makeStringExceptionV(COMMONERR_UnknownAttributeComparisonS, "Unknown attribute comparison '%s'", cur);
         return;
     }
 
@@ -3248,7 +3249,7 @@ void WuScopeFilter::addRequiredStat(const char * filter)
     case '\0':
         break;
     default:
-        throw makeStringExceptionV(0, "Unknown comparison '%s'", op);
+        throw makeStringExceptionV(COMMONERR_UnknownComparisonS, "Unknown comparison '%s'", op);
     }
 
     const char * next;
@@ -3296,7 +3297,7 @@ void WuScopeFilter::addRequiredStat(const char * filter)
     }
 
     if (*next)
-        throw makeStringExceptionV(0, "Trailing characters in where '%s'", next);
+        throw makeStringExceptionV(COMMONERR_TrailingCharactersInWhereS, "Trailing characters in where '%s'", next);
 
     requiredStats.emplace_back(statKind, lowValue, highValue);
 }
@@ -3306,7 +3307,7 @@ WuScopeFilter & WuScopeFilter::addSource(const char * source)
     checkModifiable();
     WuScopeSourceFlags mask = querySource(source);
     if (mask == SSFunknown)
-        throw makeStringExceptionV(0, "Unexpected source '%s'", source);
+        throw makeStringExceptionV(COMMONERR_UnexpectedSourceS, "Unexpected source '%s'", source);
     if (!mask)
         sourceFlags = mask;
     else
@@ -4140,7 +4141,7 @@ public:
         VStringBuffer xpath("/GraphProgress/%s", queryWuid());
         Owned<IRemoteConnection> progressConn = querySDS().connect(xpath, myProcessSession(), RTM_LOCK_WRITE|RTM_CREATE, SDS_LOCK_TIMEOUT);
         if (!progressConn)
-            throw MakeStringException(0, "Failed to access %s.", xpath.str());
+            throw MakeStringException(COMMONERR_FailedToAccessS, "Failed to access %s.", xpath.str());
 
         progressConn->queryRoot()->setPropTree(nullptr, LINK(graphProgressTree));
     }
@@ -12589,7 +12590,7 @@ extern WORKUNIT_API void exportWorkUnitToXMLFile(const IConstWorkUnit *wu, const
         saveXML(filename, p, 0, XML_Format|XML_SortTags|extraXmlFlags);
     }
     else
-        throw makeStringException(0, "Unrecognized workunit format");
+        throw makeStringException(COMMONERR_UnrecognizedWorkunitFormat, "Unrecognized workunit format");
 }
 
 
@@ -14465,7 +14466,7 @@ void executeThorGraph(const char * graphName, IConstWorkUnit &workunit, const IP
     StringAttr wuid(workunit.queryWuid());
     IConstWUGraph *graph = workunit.getGraph(graphName);
     if (!graph)
-        throw makeStringExceptionV(0, "getGraph() returns nullptr for %s", graphName);
+        throw makeStringExceptionV(COMMONERR_GetgraphReturnsNullptrForS, "getGraph() returns nullptr for %s", graphName);
     unsigned wfid = graph->getWfid();
 
     StringAttr owner(workunit.queryUser());
@@ -14494,7 +14495,7 @@ void executeThorGraph(const char * graphName, IConstWorkUnit &workunit, const IP
             {
                 Owned<IStringIterator> thorTarget = config::getContainerTargets("thor", tgt);
                 if (!thorTarget->first())
-                    throw makeStringExceptionV(0, "Thor target not found: %s", tgt);
+                    throw makeStringExceptionV(COMMONERR_ThorTargetNotFoundS, "Thor target not found: %s", tgt);
                 thisThor = false;
                 queue = tgt;
             }
@@ -14536,12 +14537,12 @@ void executeThorGraph(const char * graphName, IConstWorkUnit &workunit, const IP
                 break;
             }
             else if ((INFINITE != timelimit) && (WUStateUnknown == state))
-                throw makeStringExceptionV(0, "Query %s failed to start within specified timelimit (%u) seconds", wuid.str(), timelimit);
+                throw makeStringExceptionV(COMMONERR_QuerySFailedToStartWithin, "Query %s failed to start within specified timelimit (%u) seconds", wuid.str(), timelimit);
             else
             {
                 auto it = std::find(expectedStates.begin(), expectedStates.end(), state);
                 if (it == expectedStates.end())
-                    throw makeStringExceptionV(0, "Query %s failed, state: %s", wuid.str(), getWorkunitStateStr(state));
+                    throw makeStringExceptionV(COMMONERR_QuerySFailedStateS, "Query %s failed, state: %s", wuid.str(), getWorkunitStateStr(state));
             }
             blockedTime = elapsedTimer.elapsedNs();
             timelimit = runningTimeLimit;
@@ -14597,9 +14598,9 @@ void executeThorGraph(const char * graphName, IConstWorkUnit &workunit, const IP
                 case WUStateAborting:
                     throw new WorkflowException(0, "Workunit abort requested", 0, WorkflowException::ABORT, MSGAUD_user);
                 case WUStateFailed:
-                    throw makeStringException(0, "Workunit failed");
+                    throw makeStringException(COMMONERR_WorkunitFailed, "Workunit failed");
                 default:
-                    throw makeStringExceptionV(0, "Workunit failed. Unexpected state: %s", getWorkunitStateStr(state));
+                    throw makeStringExceptionV(COMMONERR_WorkunitFailedUnexpectedStateS, "Workunit failed. Unexpected state: %s", getWorkunitStateStr(state));
             }
         }
         w->setState(WUStateRunning);
@@ -14609,7 +14610,7 @@ void executeThorGraph(const char * graphName, IConstWorkUnit &workunit, const IP
 
     Owned<IConstWUClusterInfo> c = getTargetClusterInfo(cluster);
     if (!c)
-        throw MakeStringException(0, "Invalid thor cluster %s", cluster.str());
+        throw MakeStringException(COMMONERR_InvalidThorClusterS, "Invalid thor cluster %s", cluster.str());
     SCMStringBuffer queueName;
     c->getThorQueue(queueName);
     Owned<IJobQueue> jq = createJobQueue(queueName.str());
@@ -14703,15 +14704,15 @@ void executeThorGraph(const char * graphName, IConstWorkUnit &workunit, const IP
         if (!got)
         {
             if (pollthread.timedout)
-                throw MakeStringException(0, "Query %s failed to start within specified timelimit (%u) seconds", jobName.str(), timelimit);
-            throw MakeStringException(0, "Query %s cancelled (1)", jobName.str());
+                throw MakeStringException(COMMONERR_QuerySFailedToStartWithin, "Query %s failed to start within specified timelimit (%u) seconds", jobName.str(), timelimit);
+            throw MakeStringException(COMMONERR_QuerySCancelled1, "Query %s cancelled (1)", jobName.str());
         }
         // get the thor ep from whoever picked up
 
         SocketEndpoint thorMaster;
         MemoryBuffer msg;
         if (!conversation->recv(msg,1000*60))
-            throw MakeStringException(0, "Query %s cancelled (2)", jobName.str());
+            throw MakeStringException(COMMONERR_QuerySCancelled2, "Query %s cancelled (2)", jobName.str());
         thorMaster.deserialize(msg);
         msg.clear();
         SocketEndpoint myep;
@@ -14720,7 +14721,7 @@ void executeThorGraph(const char * graphName, IConstWorkUnit &workunit, const IP
         if (!conversation->send(msg)) {
             StringBuffer s("Failed to send query to Thor on ");
             thorMaster.getEndpointHostText(s);
-            throw MakeStringExceptionDirect(-1, s.str()); // maybe retry?
+            throw MakeStringExceptionDirect(COMMONERR_SStr, s.str()); // maybe retry?
         }
         unsigned __int64 blockedTime = elapsedTimer.elapsedNs();
         {
@@ -14737,7 +14738,7 @@ void executeThorGraph(const char * graphName, IConstWorkUnit &workunit, const IP
             {
                 StringBuffer s("Failed to receive reply from thor ");
                 thorMaster.getEndpointHostText(s);
-                throw MakeStringExceptionDirect(-1, s.str());
+                throw MakeStringExceptionDirect(COMMONERR_SStr, s.str());
             }
         }
         catch (IException *e)
@@ -14747,7 +14748,7 @@ void executeThorGraph(const char * graphName, IConstWorkUnit &workunit, const IP
             s.append("; (").append(e->errorCode()).append(", ");
             e->errorMessage(s).append(")");
             e->Release();
-            throw MakeStringExceptionDirect(-1, s.str());
+            throw MakeStringExceptionDirect(COMMONERR_SStr, s.str());
         }
         unsigned replyCode;
         reply.read(replyCode);

@@ -18,6 +18,7 @@
 // todo look at IRemoteFileServer stop
 
 #include <vector>
+#include "fserr.hpp"
 
 #include "platform.h"
 #include "limits.h"
@@ -151,7 +152,7 @@ static ISecureSocket *createSecureSocket(ISocket *sock, bool disableClientCertVe
             const char *certScope = strsame("cluster", getComponentConfigSP()->queryProp("service/@visibility")) ? "local" : "public";
             Owned<const ISyncedPropertyTree> info = getIssuerTlsSyncedConfig(certScope, nullptr, disableClientCertVerification);
             if (!info || !info->isValid())
-                throw makeStringException(-1, "createSecureSocket() : missing MTLS configuration");
+                throw makeStringException(FSERR_CreatesecuresocketMissingMtlsConfiguration, "createSecureSocket() : missing MTLS configuration");
             secureContextServer.setown(createSecureSocketContextSynced(info, ServerSocket));
 #else
             Owned<IPropertyTree> cert = getComponentConfigSP()->getPropTree("cert");
@@ -631,7 +632,7 @@ public:
             if (cjob) {
                 job = QUERYINTERFACE(cjob.get(),CAsyncCopySection);
                 if (!job) {
-                    throw MakeStringException(-1,"Async job ID mismatch");
+                    throw MakeStringException(FSERR_AsyncJobIdMismatch, "Async job ID mismatch");
                 }
             }
             else {
@@ -1371,7 +1372,7 @@ public:
     }
     virtual void restoreCursor(MemoryBuffer &src) override
     {
-        throw makeStringExceptionV(0, "restoreCursor not supported in: %s", typeid(*this).name());
+        throw makeStringExceptionV(FSERR_RestorecursorNotSupportedInS, "restoreCursor not supported in: %s", typeid(*this).name());
         throwUnimplemented();
     }
     virtual void flushStatistics(CClientStats &stats) override
@@ -2554,7 +2555,7 @@ public:
     }
     virtual void restoreCursor(MemoryBuffer &src) override
     {
-        throw makeStringExceptionV(0, "restoreCursor not supported in: %s", typeid(*this).name());
+        throw makeStringExceptionV(FSERR_RestorecursorNotSupportedInS, "restoreCursor not supported in: %s", typeid(*this).name());
     }
     virtual StringBuffer &getInfoStr(StringBuffer &out) const override
     {
@@ -3367,7 +3368,7 @@ class CRemoteFileServer : implements IRemoteFileServer, public CInterface
         void configure(unsigned _limit, unsigned _delayMs, unsigned _cpuThreshold, unsigned _queueLimit)
         {
             if (_limit > THROTTLE_MAX_LIMIT || _delayMs > THROTTLE_MAX_DELAYMS || _cpuThreshold > THROTTLE_MAX_CPUTHRESHOLD || _queueLimit > THROTTLE_MAX_QUEUELIMIT)
-                throw MakeStringException(0, "Throttler(%s), rejecting configure command: limit=%u (max permitted=%u), delayMs=%u (max permitted=%u), cpuThreshold=%u (max permitted=%u), queueLimit=%u (max permitted=%u)",
+                throw MakeStringException(FSERR_ThrottlerSRejectingConfigureCommandLimit, "Throttler(%s), rejecting configure command: limit=%u (max permitted=%u), delayMs=%u (max permitted=%u), cpuThreshold=%u (max permitted=%u), queueLimit=%u (max permitted=%u)",
                                               title.str(), _limit, THROTTLE_MAX_LIMIT, _delayMs, THROTTLE_MAX_DELAYMS, _cpuThreshold,
                                               THROTTLE_MAX_CPUTHRESHOLD, _queueLimit, THROTTLE_MAX_QUEUELIMIT);
             CriticalBlock b(configureCrit);
@@ -3488,7 +3489,7 @@ class CRemoteFileServer : implements IRemoteFileServer, public CInterface
                     else
                     {
                         if (queueLimit && queue.ordinality()>=queueLimit)
-                            throw MakeStringException(0, "Throttler(%s), the maxiumum number of items are queued (%u), rejecting new command[%s]", title.str(), queue.ordinality(), getRFCText(cmd));
+                            throw MakeStringException(FSERR_ThrottlerSTheMaxiumumNumberOf, "Throttler(%s), the maxiumum number of items are queued (%u), rejecting new command[%s]", title.str(), queue.ordinality(), getRFCText(cmd));
                         queue.enqueue(new CThrottleQueueItem(cmd, msg, client)); // NB: takes over ownership of 'client' from running thread
                         PROGLOG("Throttler(%s): transaction delayed [cmd=%s], queuing (%u queueud), [client=%p, sock=%u]", title.get(), getRFCText(cmd), queue.ordinality(), client, client->socket->OShandle());
                         return;
@@ -5012,7 +5013,7 @@ public:
         {
             auto it = streamCmdMap.find(qCommand);
             if (it == streamCmdMap.end())
-                throw makeStringExceptionV(0, "Unrecognised stream command: %s", qCommand);
+                throw makeStringExceptionV(FSERR_UnrecognisedStreamCommandS, "Unrecognised stream command: %s", qCommand);
             cmd = it->second;
         }
 
@@ -5026,7 +5027,7 @@ public:
         else if (strieq("json", outputFmtStr))
             outputFormat = outFmt_Json;
         else
-            throw MakeStringException(0, "Unrecognised output format: %s", outputFmtStr);
+            throw MakeStringException(FSERR_UnrecognisedOutputFormatS, "Unrecognised output format: %s", outputFmtStr);
 
         switch (cmd)
         {
@@ -6030,7 +6031,7 @@ public:
                         availableClasses.append(", ");
                 }
                 availableClasses.append(" }");
-                throw MakeStringException(0, "Unknown throttle class: %u, available classes are: %s", (unsigned)throttleClass, availableClasses.str());
+                throw MakeStringException(FSERR_UnknownThrottleClassUAvailableClasses, "Unknown throttle class: %u, available classes are: %s", (unsigned)throttleClass, availableClasses.str());
             }
         }
     }

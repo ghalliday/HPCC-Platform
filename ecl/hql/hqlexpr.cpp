@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "platform.h"
+#include "hqlerr2.hpp"
 
 #include "jlib.hpp"
 #include "jmisc.hpp"
@@ -8071,7 +8072,7 @@ bool CFileContents::preloadFromFile()
     //Read std input now to prevent blocking or other weird effects.
     Owned<IFileIO> io = file->openShared(IFOread, IFSHread);
     if (!io)
-        throw MakeStringException(0, "Failed to open input '%s'", filename);
+        throw MakeStringException(ECLERR_FailedToOpenInputS, "Failed to open input '%s'", filename);
 
     MemoryBuffer mb;
     size32_t rd;
@@ -14800,7 +14801,7 @@ void TransformTrackingInfo::lock()
         maxNestedLocks = curTransformDepth+1;
 #endif
     if (unlikely(((curTransformDepth+1) & TRANSFORM_DEPTH_MASK) == 0))
-        throw makeStringExceptionV(0, "INTERNAL ERROR: Transformers nested more than %u deep", TRANSFORM_DEPTH_MASK);
+        throw makeStringExceptionV(ECLERR_InternalErrorTransformersNestedMoreThan, "INTERNAL ERROR: Transformers nested more than %u deep", TRANSFORM_DEPTH_MASK);
     curTransformDepth++;
     transformStackMark.append(transformStack.ordinality());
 }

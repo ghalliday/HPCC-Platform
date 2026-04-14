@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "eventindexplot.h"
+#include "commonerr.hpp"
 #include "eventutility.hpp"
 #include "jptree.hpp"
 #include "jexcept.hpp"
@@ -117,12 +118,12 @@ void CIndexPlotOp::setOpConfig(const IPropertyTree& _config)
     // Parse command section (required)
     IPropertyTree* command = _config.queryPropTree("command");
     if (!command)
-        throw makeStringException(0, "Missing required 'command' section in configuration");
+        throw makeStringException(COMMONERR_MissingRequiredCommandSectionInConfiguration, "Missing required 'command' section in configuration");
 
     // Validate command name
     const char* commandName = command->queryProp("@name");
     if (!commandName || !strieq(commandName, "index.plot"))
-        throw makeStringException(0, "Invalid or missing command name, expected 'index.plot'");
+        throw makeStringException(COMMONERR_InvalidOrMissingCommandNameExpected, "Invalid or missing command name, expected 'index.plot'");
 
     // Accept input path (conditional)
     Owned<IPropertyTreeIterator> inputIter = command->getElements("input");
@@ -149,7 +150,7 @@ void CIndexPlotOp::setOpConfig(const IPropertyTree& _config)
         links.emplace_back(id.str(), linkSpec);
     }
     if (links.empty())
-        throw makeStringException(0, "Missing required index-events 'link' section in plot configuration");
+        throw makeStringException(COMMONERR_MissingRequiredIndexEventsLinkSection, "Missing required index-events 'link' section in plot configuration");
 
     // Parse plot iterations (optional)
     parseIterations(command->getElements("plot"), plotIterations);
@@ -158,7 +159,7 @@ void CIndexPlotOp::setOpConfig(const IPropertyTree& _config)
     // Parse x-axis configuration (required)
     IPropertyTree* xAxisTree = command->queryPropTree("x-axis");
     if (!xAxisTree)
-        throw makeStringException(0, "Missing required 'x-axis' section in configuration");
+        throw makeStringException(COMMONERR_MissingRequiredXAxisSectionIn, "Missing required 'x-axis' section in configuration");
     configureAxis(xAxis, xAxisTree);
 
     // Parse y-axis configuration (optional)
@@ -168,7 +169,7 @@ void CIndexPlotOp::setOpConfig(const IPropertyTree& _config)
 
     valueSelector = parseValueSelector(command->queryProp("@valueSelector"));
     if (ValueSelector::Unknown == valueSelector)
-        throw makeStringExceptionV(0, "invalid (or missing) plot value selector '%s'", command->queryProp("valueSelector"));
+        throw makeStringExceptionV(COMMONERR_InvalidOrMissingPlotValueSelector, "invalid (or missing) plot value selector '%s'", command->queryProp("valueSelector"));
 }
 
 CIndexPlotOp::ValueSelector CIndexPlotOp::parseValueSelector(const char* selector)
@@ -214,16 +215,16 @@ void CIndexPlotOp::configureAxis(Iterations& axis, const IPropertyTree* config)
         const char* maxValueString = config->queryProp("@maxValue");
         const char* stepsString = config->queryProp("@steps");
         if (isEmptyString(xpath) && isEmptyString(minValueString) && isEmptyString(maxValueString) && isEmptyString(stepsString))
-            throw makeStringException(0, "Missing required 'iteration' or 'xpath' section in axis configuration");
+            throw makeStringException(COMMONERR_MissingRequiredIterationOrXpathSection, "Missing required 'iteration' or 'xpath' section in axis configuration");
 
         // MORE: generalize to not assume byte counts
         __uint64 minValue = strToBytes(minValueString, StrToBytesFlags::ThrowOnError);
         __uint64 maxValue = strToBytes(maxValueString, StrToBytesFlags::ThrowOnError);
         __uint64 steps = strtoull(stepsString, nullptr, 0);
         if (minValue > maxValue)
-            throw makeStringExceptionV(0, "Invalid axis range: %s to %s", minValueString, maxValueString);
+            throw makeStringExceptionV(COMMONERR_InvalidAxisRangeSToS, "Invalid axis range: %s to %s", minValueString, maxValueString);
         if (!steps)
-            throw makeStringExceptionV(0, "Invalid axis steps: %s", stepsString);
+            throw makeStringExceptionV(COMMONERR_InvalidAxisStepsS, "Invalid axis steps: %s", stepsString);
         __uint64 stepSize = (maxValue - minValue) / steps;
         for (__uint64 value = minValue; value <= maxValue; value += stepSize)
         {
@@ -251,7 +252,7 @@ void CIndexPlotOp::parseIterations(IPropertyTreeIterator* iterIter, Iterations& 
         ForEach(*deltaIter)
             deltas.emplace_back(deltaIter->query());
         if (deltas.empty())
-            throw makeStringExceptionV(0, "Iteration %s must have at least one delta", name);
+            throw makeStringExceptionV(COMMONERR_IterationSMustHaveAtLeast, "Iteration %s must have at least one delta", name);
         iterations.emplace_back(name, std::move(deltas));
     }
 }
@@ -262,11 +263,11 @@ void CIndexPlotOp::validateIterations(const Iterations& iterations, bool isAxis)
     {
         // Each iteration must have a non-empty name
         if (!isAxis && isEmptyString(iteration.name.get()))
-            throw makeStringException(0, "Plot iteration must have a non-empty name");
+            throw makeStringException(COMMONERR_PlotIterationMustHaveANon, "Plot iteration must have a non-empty name");
 
         // Each iteration must have at least one delta
         if (isAxis && iteration.deltas.empty())
-            throw makeStringExceptionV(0, "Axis iteration %s must have at least one delta", iteration.name.get());
+            throw makeStringExceptionV(COMMONERR_AxisIterationSMustHaveAt, "Axis iteration %s must have at least one delta", iteration.name.get());
 
         for (const Iteration::Delta& delta : iteration.deltas)
         {
@@ -275,11 +276,11 @@ void CIndexPlotOp::validateIterations(const Iterations& iterations, bool isAxis)
                 return compareLinkIds(l.id.get(), delta.linkId.get());
             });
             if (link == links.end())
-                throw makeStringExceptionV(0, "Invalid linkId referenced in delta: %s", delta.linkId.get());
+                throw makeStringExceptionV(COMMONERR_InvalidLinkidReferencedInDeltaS, "Invalid linkId referenced in delta: %s", delta.linkId.get());
 
             // Each delta must have a non-empty xpath
             if (isEmptyString(delta.xpath.get()))
-                throw makeStringException(0, "Delta must have a non-empty xpath");
+                throw makeStringException(COMMONERR_DeltaMustHaveANonEmpty, "Delta must have a non-empty xpath");
         }
     }
 }
@@ -435,7 +436,7 @@ void CIndexPlotOp::applyIteration(LinkChanges& linkChanges)
                 return compareLinkIds(link.id.get(), delta.linkId.get());
             });
             if (linkIt == links.end())
-                throw makeStringExceptionV(0, "Invalid link identifier '%s' referenced in iteration", delta.linkId.get());
+                throw makeStringExceptionV(COMMONERR_InvalidLinkIdentifierSReferencedIn, "Invalid link identifier '%s' referenced in iteration", delta.linkId.get());
             if (!linkIt->modified)
                 linkIt->modified.setown(createPTreeFromIPT(linkIt->original.get())); // clone before modifying
 

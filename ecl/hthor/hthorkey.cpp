@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "hthor.ipp"
+#include "hqlerr2.hpp"
 #include "rtlkey.hpp"
 #include "jhtree.hpp"
 #include "eclhelper.hpp"
@@ -78,7 +79,7 @@ static ILocalOrDistributedFile *resolveLFNIndex(IAgentContext &agent, const char
         return nullptr;
     IDistributedFile *dFile = ldFile->queryDistributedFile();
     if (dFile && !isFileKey(dFile))
-        throw MakeStringException(0, "Attempting to read flat file as an index: %s", logicalName);
+        throw MakeStringException(ECLERR_AttemptingToReadFlatFileAs, "Attempting to read flat file as an index: %s", logicalName);
     return ldFile.getClear();
 }
 
@@ -213,7 +214,7 @@ public:
 
     virtual void fail(char const * msg)
     {
-        throw MakeStringExceptionDirect(0, msg);
+        throw MakeStringExceptionDirect(ECLERR_Msg, msg);
     }
 
 protected:
@@ -682,14 +683,14 @@ const IDynamicTransform * CHThorIndexReadActivityBase::getLayoutTranslator(IDist
             IPropertyTree &props = f->queryAttributes();
             actualFormat.setown(getDaliLayoutInfo(props));
             if (!actualFormat)
-                throw MakeStringException(0, "Untranslatable key layout mismatch reading index %s - key layout information not found", f->queryLogicalName());
+                throw MakeStringException(ECLERR_UntranslatableKeyLayoutMismatchReadingIndex, "Untranslatable key layout mismatch reading index %s - key layout information not found", f->queryLogicalName());
 
             //MORE: We could introduce a more efficient way of checking this that does not create a translator
             Owned<const IDynamicTransform> actualTranslator = createRecordTranslator(expectedFormat->queryRecordAccessor(true), actualFormat->queryRecordAccessor(true));
             DBGLOG("Record layout translator created for %s", f->queryLogicalName());
             actualTranslator->describe();
             if (actualTranslator->keyedTranslated())
-                throw MakeStringException(0, "Untranslatable key layout mismatch reading index %s - keyed fields do not match", f->queryLogicalName());
+                throw MakeStringException(ECLERR_UntranslatableKeyLayoutMismatchReadingIndex_1, "Untranslatable key layout mismatch reading index %s - keyed fields do not match", f->queryLogicalName());
             if (actualTranslator->needsTranslate())
             {
                 VStringBuffer msg("Record layout translation required for %s", f->queryLogicalName());
@@ -707,9 +708,9 @@ const IDynamicTransform * CHThorIndexReadActivityBase::getLayoutTranslator(IDist
 
     Owned<const IDynamicTransform> payloadTranslator =  createRecordTranslator(projectedFormat->queryRecordAccessor(true), actualFormat->queryRecordAccessor(true));
     if (!payloadTranslator->canTranslate())
-        throw MakeStringException(0, "Untranslatable key layout mismatch reading index %s", f->queryLogicalName());
+        throw MakeStringException(ECLERR_UntranslatableKeyLayoutMismatchReadingIndex_2, "Untranslatable key layout mismatch reading index %s", f->queryLogicalName());
     if (getLayoutTranslationMode() == RecordTranslationMode::PayloadRemoveOnly && payloadTranslator->hasNewFields())
-        throw MakeStringException(0, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", f->queryLogicalName());
+        throw MakeStringException(ECLERR_TranslatableFileLayoutMismatchReadingFile, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", f->queryLogicalName());
     if (payloadTranslator->needsTranslate())
         return payloadTranslator.getClear();
     return nullptr;
@@ -724,9 +725,9 @@ void CHThorIndexReadActivityBase::verifyIndex(IKeyIndex * idx)
         if(layoutTrans)
         {
             if (!layoutTrans->canTranslate())
-                throw MakeStringException(0, "Untranslatable key layout mismatch reading index %s", df->queryLogicalName());
+                throw MakeStringException(ECLERR_UntranslatableKeyLayoutMismatchReadingIndex_2, "Untranslatable key layout mismatch reading index %s", df->queryLogicalName());
             if (getLayoutTranslationMode() == RecordTranslationMode::PayloadRemoveOnly && layoutTrans->hasNewFields())
-                throw MakeStringException(0, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", df->queryLogicalName());
+                throw MakeStringException(ECLERR_TranslatableFileLayoutMismatchReadingFile, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", df->queryLogicalName());
         }
         else
         {
@@ -734,7 +735,7 @@ void CHThorIndexReadActivityBase::verifyIndex(IKeyIndex * idx)
             //The index rows always have the filepositions appended, but the ecl may not include a field
             unsigned fileposSize = idx->hasSpecialFileposition() && !hasTrailingFileposition(eclKeySize.queryTypeInfo()) ? sizeof(offset_t) : 0;
             if ((keySize != eclKeySize.getFixedSize() + fileposSize) && !idx->isTopLevelKey())
-                throw MakeStringException(0, "Key size mismatch reading index %s: index indicates size %u, ECL indicates size %u", df->queryLogicalName(), keySize, eclKeySize.getFixedSize() + fileposSize);
+                throw MakeStringException(ECLERR_KeySizeMismatchReadingIndexS, "Key size mismatch reading index %s: index indicates size %u, ECL indicates size %u", df->queryLogicalName(), keySize, eclKeySize.getFixedSize() + fileposSize);
         }
     }
 }
@@ -1842,7 +1843,7 @@ public:
                     else
                         expectedSize = props.getPropInt64("@size", -1);
                     if(thissize != expectedSize && expectedSize != (unsigned __int64)-1)
-                        throw MakeStringException(0, "File size mismatch: file %s was supposed to be %" I64F "d bytes but appears to be %" I64F "d bytes", ifile->queryFilename(), expectedSize, thissize); 
+                        throw MakeStringException(ECLERR_FileSizeMismatchFileSWas, "File size mismatch: file %s was supposed to be %" I64F "d bytes but appears to be %" I64F "d bytes", ifile->queryFilename(), expectedSize, thissize); 
                     if(blockcompressed)
                         rawFile.setown(createCompressedFileReader(ifile, eexp, useDefaultIoBufferSize, false, IFEnone));
                     else
@@ -1908,7 +1909,7 @@ public:
         Owned<FetchRequest> fetch(_fetch);
         offset_t pos = translateFPos(fetch->pos);
         if(pos >= rawFile->size())
-            throw MakeStringException(0, "Attempted to fetch at invalid filepos");
+            throw MakeStringException(ECLERR_AttemptedToFetchAtInvalidFilepos, "Attempted to fetch at invalid filepos");
         owner.processFetch(fetch, pos, rawStream);
     }
 
@@ -1964,7 +1965,7 @@ protected:
             }
         }
         if (partsize == (offset_t)-1)
-            throw MakeStringException(0, "Unable to determine size of filepart"); 
+            throw MakeStringException(ECLERR_UnableToDetermineSizeOfFilepart, "Unable to determine size of filepart"); 
         return partsize;
     }
 
@@ -2070,7 +2071,7 @@ class CHThorThreadedActivityBase : public CHThorActivityBase, implements IThread
             }
             catch (...)
             {
-                parent->noteException(MakeStringException(0, "Unknown exception caught in Fetch::InputHandler"));
+                parent->noteException(MakeStringException(ECLERR_UnknownExceptionCaughtInFetchInputhandler, "Unknown exception caught in Fetch::InputHandler"));
             }
             return 0;
         }
@@ -2487,17 +2488,17 @@ protected:
                     if (translator->canTranslate())
                     {
                         if (getLayoutTranslationMode()==RecordTranslationMode::PayloadRemoveOnly && translator->hasNewFields())
-                            throw MakeStringException(0, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", f->queryLogicalName());
+                            throw MakeStringException(ECLERR_TranslatableFileLayoutMismatchReadingFile, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", f->queryLogicalName());
                         if (getLayoutTranslationMode()==RecordTranslationMode::None)
-                            throw MakeStringException(0, "Translatable file layout mismatch reading file %s but translation disabled", f->queryLogicalName());
+                            throw MakeStringException(ECLERR_TranslatableFileLayoutMismatchReadingFile_1, "Translatable file layout mismatch reading file %s but translation disabled", f->queryLogicalName());
                         VStringBuffer msg("Record layout translation required for %s", f->queryLogicalName());
                         agent.addWuExceptionEx(msg.str(), WRN_UseLayoutTranslation, SeverityInformation, MSGAUD_user, "hthor");
                     }
                     else
-                        throw MakeStringException(0, "Untranslatable file layout mismatch reading file %s", f->queryLogicalName());
+                        throw MakeStringException(ECLERR_UntranslatableFileLayoutMismatchReadingFile, "Untranslatable file layout mismatch reading file %s", f->queryLogicalName());
                 }
                 else
-                    throw MakeStringException(0, "Untranslatable file layout mismatch reading file %s - key layout information not found", f->queryLogicalName());
+                    throw MakeStringException(ECLERR_UntranslatableFileLayoutMismatchReadingFile_1, "Untranslatable file layout mismatch reading file %s - key layout information not found", f->queryLogicalName());
             }
         }
     }
@@ -2655,7 +2656,7 @@ public:
                 StringBuffer fname;
                 RemoteFilename rfn;
                 part->getFilename(rfn).getPath(fname);
-                throw MakeStringException(0, "Fetch fpos at EOF of %s", fname.str());
+                throw MakeStringException(ECLERR_FetchFposAtEofOfS, "Fetch fpos at EOF of %s", fname.str());
             }
         }
         owner.processFetched(fetch, lastMatch);
@@ -3106,7 +3107,7 @@ class DistributedKeyLookupHandler : public CInterface, implements IThreadedExcep
     void addFile(IDistributedFile &f)
     {
         if((f.numParts() == 1) || (f.queryAttributes().hasProp("@local")))
-            throw MakeStringException(0, "Superfile %s contained mixed monolithic/local/noroot and regular distributed keys --- not supported", file->queryLogicalName());
+            throw MakeStringException(ECLERR_SuperfileSContainedMixedMonolithicLocal, "Superfile %s contained mixed monolithic/local/noroot and regular distributed keys --- not supported", file->queryLogicalName());
         subSizes.append(parts.length());
         unsigned numParts = f.numParts()-1;
         for (unsigned idx = 0; idx < numParts; idx++)
@@ -3268,7 +3269,7 @@ public:
     void addFile(IDistributedFile &f)
     {
         if((f.numParts() != 1) && (!f.queryAttributes().hasProp("@local")))
-            throw MakeStringException(0, "Superfile %s contained mixed monolithic/local/noroot and regular distributed keys --- not supported", file->queryLogicalName());
+            throw MakeStringException(ECLERR_SuperfileSContainedMixedMonolithicLocal, "Superfile %s contained mixed monolithic/local/noroot and regular distributed keys --- not supported", file->queryLogicalName());
         keyFiles.append(OLINK(f));
     }
 
@@ -3389,7 +3390,7 @@ private:
         Owned<KeyedJoinFetchRequest> fetch(_fetch);
         offset_t pos = translateFPos(fetch->pos);
         if(pos >= rawFile->size())
-            throw MakeStringException(0, "Attempted to fetch at invalid filepos");
+            throw MakeStringException(ECLERR_AttemptedToFetchAtInvalidFilepos, "Attempted to fetch at invalid filepos");
         owner.processFetch(fetch, pos, rawStream);
     }
 
@@ -3739,7 +3740,7 @@ public:
         {
             input->queryOutputMeta()->toXML((byte *) left, xmlwrite);
         }
-        throw MakeStringException(0, "More than %d match candidates in keyed join for row %s", abortLimit, xmlwrite.str());
+        throw MakeStringException(ECLERR_MoreThanDMatchCandidatesIn_2, "More than %d match candidates in keyed join for row %s", abortLimit, xmlwrite.str());
     }
 
     unsigned doJoinGroup(CJoinGroup *jg)
@@ -3991,7 +3992,7 @@ public:
             if(super)
             {
                 if(super->numSubFiles()==0)
-                    throw MakeStringException(0, "Superkey %s empty", super->queryLogicalName());
+                    throw MakeStringException(ECLERR_SuperkeySEmpty, "Superkey %s empty", super->queryLogicalName());
                 mono = useMonolithic(super->querySubFile(0));
             }
             else
@@ -4130,18 +4131,18 @@ protected:
             DBGLOG("Record layout translator created for %s", f->queryLogicalName());
             payloadTranslator->describe();
             if (!payloadTranslator->canTranslate())
-                throw MakeStringException(0, "Untranslatable key layout mismatch reading index %s", f->queryLogicalName());
+                throw MakeStringException(ECLERR_UntranslatableKeyLayoutMismatchReadingIndex_2, "Untranslatable key layout mismatch reading index %s", f->queryLogicalName());
             if (payloadTranslator->keyedTranslated())
-                throw MakeStringException(0, "Untranslatable key layout mismatch reading index %s - keyed fields do not match", f->queryLogicalName());
+                throw MakeStringException(ECLERR_UntranslatableKeyLayoutMismatchReadingIndex_1, "Untranslatable key layout mismatch reading index %s - keyed fields do not match", f->queryLogicalName());
             if (getLayoutTranslationMode()==RecordTranslationMode::PayloadRemoveOnly && payloadTranslator->hasNewFields())
-                throw MakeStringException(0, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", f->queryLogicalName());
+                throw MakeStringException(ECLERR_TranslatableFileLayoutMismatchReadingFile, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", f->queryLogicalName());
             if (getLayoutTranslationMode()==RecordTranslationMode::None)
-                throw MakeStringException(0, "Translatable file layout mismatch reading file %s but translation disabled", f->queryLogicalName());
+                throw MakeStringException(ECLERR_TranslatableFileLayoutMismatchReadingFile_1, "Translatable file layout mismatch reading file %s but translation disabled", f->queryLogicalName());
             VStringBuffer msg("Record layout translation required for %s", f->queryLogicalName());
             agent.addWuExceptionEx(msg.str(), WRN_UseLayoutTranslation, SeverityInformation, MSGAUD_user, "hthor");
             return payloadTranslator.getClear();
         }
-        throw MakeStringException(0, "Untranslatable key layout mismatch reading index %s - key layout information not found", f->queryLogicalName());
+        throw MakeStringException(ECLERR_UntranslatableKeyLayoutMismatchReadingIndex, "Untranslatable key layout mismatch reading index %s - key layout information not found", f->queryLogicalName());
     }
 
     virtual void verifyIndex(IDistributedFile * f, IKeyIndex * idx, const IDynamicTransform * trans)
@@ -4151,9 +4152,9 @@ protected:
             if(trans)
             {
                 if (!trans->canTranslate())
-                    throw MakeStringException(0, "Untranslatable key layout mismatch reading index %s", f->queryLogicalName());
+                    throw MakeStringException(ECLERR_UntranslatableKeyLayoutMismatchReadingIndex_2, "Untranslatable key layout mismatch reading index %s", f->queryLogicalName());
                 if (getLayoutTranslationMode() == RecordTranslationMode::PayloadRemoveOnly && trans->hasNewFields())
-                    throw MakeStringException(0, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", f->queryLogicalName());
+                    throw MakeStringException(ECLERR_TranslatableFileLayoutMismatchReadingFile, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", f->queryLogicalName());
             }
             else
             {
@@ -4185,17 +4186,17 @@ protected:
                     if (translator->canTranslate())
                     {
                         if (getLayoutTranslationMode()==RecordTranslationMode::PayloadRemoveOnly && translator->hasNewFields())
-                            throw MakeStringException(0, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", f->queryLogicalName());
+                            throw MakeStringException(ECLERR_TranslatableFileLayoutMismatchReadingFile, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", f->queryLogicalName());
                         if (getLayoutTranslationMode()==RecordTranslationMode::None)
-                            throw MakeStringException(0, "Translatable file layout mismatch reading file %s but translation disabled", f->queryLogicalName());
+                            throw MakeStringException(ECLERR_TranslatableFileLayoutMismatchReadingFile_1, "Translatable file layout mismatch reading file %s but translation disabled", f->queryLogicalName());
                         VStringBuffer msg("Record layout translation required for %s", f->queryLogicalName());
                         agent.addWuExceptionEx(msg.str(), WRN_UseLayoutTranslation, SeverityInformation, MSGAUD_user, "hthor");
                     }
                     else
-                        throw MakeStringException(0, "Untranslatable file layout mismatch reading file %s", f->queryLogicalName());
+                        throw MakeStringException(ECLERR_UntranslatableFileLayoutMismatchReadingFile, "Untranslatable file layout mismatch reading file %s", f->queryLogicalName());
                 }
                 else
-                    throw MakeStringException(0, "Untranslatable file layout mismatch reading file %s - key layout information not found", f->queryLogicalName());
+                    throw MakeStringException(ECLERR_UntranslatableFileLayoutMismatchReadingFile_1, "Untranslatable file layout mismatch reading file %s - key layout information not found", f->queryLogicalName());
             }
         }
     }
@@ -4207,7 +4208,7 @@ protected:
 
     virtual void fail(char const * msg)
     {
-        throw MakeStringExceptionDirect(0, msg);
+        throw MakeStringExceptionDirect(ECLERR_Msg, msg);
     }
 };
 
