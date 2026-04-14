@@ -41,6 +41,10 @@
 #define JLIBERR_FeatureConfigNotFound          6013
 #define JLIBERR_FactoryReturnedNull            6014
 
+#define JLIBERR_MemoryAllocation               6015
+#define JLIBERR_FileIO                         6016
+#define JLIBERR_SocketError                    6017
+
 //---- Text for all errors (make it easy to internationalise) ---------------------------
 
 #define JLIBERR_BadlyFormedDateTime_Text        "Badly formatted date/time '%s'"
