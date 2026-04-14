@@ -28,6 +28,7 @@
 #include "daserver.hpp"
 #include "danqs.hpp"
 #include "jmetrics.hpp"
+#include "daerr.hpp"
 
 #ifdef _MSC_VER
 #pragma warning (disable : 4355)
@@ -81,7 +82,7 @@ public:
     {
         CHECKEDCRITICALBLOCK(sect,60000);
         if(transactionId)
-            throw MakeStringException(0, "Dali Named Queues: trying to start nested transaction frames");
+            throw MakeStringException(DALIERR_DaliNamedQueuesTryingToStartNested, "Dali Named Queues: trying to start nested transaction frames");
         transactionId = queryCoven().getUniqueId();
     }
 

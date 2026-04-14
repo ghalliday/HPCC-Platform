@@ -27,6 +27,7 @@
 #include "jptree.ipp"
 
 #include "dasds.ipp"
+#include "daerr.hpp"
 
 class CClientSDSManager;
 class CClientRemoteTree;
@@ -175,7 +176,7 @@ static void checkValidSubscriptionPath(const char *xpath)
         else if ('/' == next && !quote)
         {
             if (sep)
-                throw MakeStringException(0, "UNSUPPORTED: '//' syntax unsupported in subscriber xpath (path=\"%s\")", xpath); // JCSMORE - TBD?
+                throw MakeStringException(DALIERR_UnsupportedSyntaxUnsupportedInSubscriberXpathPath, "UNSUPPORTED: '//' syntax unsupported in subscriber xpath (path=\"%s\")", xpath); // JCSMORE - TBD?
             sep = true;
         }
         else

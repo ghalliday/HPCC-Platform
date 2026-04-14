@@ -44,6 +44,7 @@
 #include <unordered_map>
 #include <algorithm>
 #include <time.h>
+#include "daerr.hpp"
 
 #ifdef _DEBUG
 //#define EXTRA_LOGGING
@@ -1510,7 +1511,7 @@ bool checkLogicalName(CDfsLogicalFileName &dlfn,IUserDescriptor *user,bool readr
     bool ret = true;
     if (dlfn.isMulti()) { //is temporary superFile?
         if (specialnotallowedmsg)
-            throw MakeStringException(-1,"cannot %s a multi file name (%s)",specialnotallowedmsg,dlfn.get());
+            throw MakeStringException(DALIERR_CannotSAMultiFileNameS, "cannot %s a multi file name (%s)",specialnotallowedmsg,dlfn.get());
         if (!dlfn.isExpanded())
             dlfn.expand(user);//expand wildcards
         unsigned i = dlfn.multiOrdinality();
@@ -1523,10 +1524,10 @@ bool checkLogicalName(CDfsLogicalFileName &dlfn,IUserDescriptor *user,bool readr
                 if (dlfn.isQuery()&&allowquery)
                     ret = false;
                 else
-                    throw MakeStringException(-1,"cannot %s an external file name (%s)",specialnotallowedmsg,dlfn.get());
+                    throw MakeStringException(DALIERR_CannotSAnExternalFileNameS, "cannot %s an external file name (%s)",specialnotallowedmsg,dlfn.get());
             }
             if (dlfn.isForeign()) {
-                throw MakeStringException(-1,"cannot %s a foreign file name (%s)",specialnotallowedmsg,dlfn.get());
+                throw MakeStringException(DALIERR_CannotSAForeignFileNameS, "cannot %s a foreign file name (%s)",specialnotallowedmsg,dlfn.get());
             }
         }
         StringBuffer scopes;
@@ -1811,7 +1812,7 @@ public:
     virtual void start()
     {
         if (isactive)
-            throw MakeStringException(-1,"Transaction already started");
+            throw MakeStringException(DALIERR_TransactionAlreadyStarted, "Transaction already started");
         clearFiles();
         actions.kill();
         isactive = true;
@@ -2446,7 +2447,7 @@ struct SerializeFileAttrOptions
                     break;
                 case DFUQResultField::includeAll:
                     if (0 != i) // does not make sense to be anything but 1st specifier
-                        throw makeStringException(0, "SerializeFileAttrOptions::readFields 'includeAll' must be be leading specifier");
+                        throw makeStringException(DALIERR_SerializefileattroptionsReadfieldsIncludeallMustBeBeLeading, "SerializeFileAttrOptions::readFields 'includeAll' must be be leading specifier");
                     std::fill(fieldsList.begin(), fieldsList.end(), additive);
                     includeAll = additive;
                     break;
@@ -3215,7 +3216,7 @@ public:
             cur.setown(parent->lookupSuperFile(queryName(), udesc, AccessMode::tbdRead, NULL));
 
         if (!cur.get())
-            throw  MakeStringException(-1,"superFileIter: invalid super-file on query at %s", queryName());
+            throw  MakeStringException(DALIERR_SuperfileiterInvalidSuperFileOnQueryAt, "superFileIter: invalid super-file on query at %s", queryName());
 
         return *cur;
     }
@@ -3684,11 +3685,11 @@ public:
         bool subComp = ::isCompressed(subProp,&subBlocked);
         // FIXME: this may fail if an empty superfile added to a compressed superfile
         if (superComp != subComp)
-            throw MakeStringException(-1,"%s: %s's compression setting (%s) is different than %s's (%s)",
+            throw MakeStringException(DALIERR_SSSCompressionSettingSIs, "%s: %s's compression setting (%s) is different than %s's (%s)",
                     exprefix, sub->queryLogicalName(), (subComp?"compressed":"uncompressed"),
                     queryLogicalName(), (superComp?"compressed":"uncompressed"));
         if (superBlocked != subBlocked)
-            throw MakeStringException(-1,"%s: %s's blocked setting (%s) is different than %s's (%s)",
+            throw MakeStringException(DALIERR_SSSBlockedSettingSIs, "%s: %s's blocked setting (%s) is different than %s's (%s)",
                     exprefix, sub->queryLogicalName(), (subBlocked?"blocked":"unblocked"),
                     queryLogicalName(), (superBlocked?"blocked":"unblocked"));
 
@@ -3697,7 +3698,7 @@ public:
         bool subSoft = subProp.hasProp("_record_layout");
         bool superSoft = superProp.hasProp("_record_layout");
         if (superSoft != subSoft)
-            throw MakeStringException(-1,"%s: %s's record layout (%s) is different than %s's (%s)",
+            throw MakeStringException(DALIERR_SSSRecordLayoutSIs, "%s: %s's record layout (%s) is different than %s's (%s)",
                     exprefix, sub->queryLogicalName(), (subSoft?"dynamic":"fixed"),
                     queryLogicalName(), (superSoft?"dynamic":"fixed"));
         // If they don't, they must have the same size
@@ -3706,7 +3707,7 @@ public:
             unsigned subSize = subProp.getPropInt("@recordSize",0);
             // Variable length files (CSV, etc) have zero record size
             if (superSize && subSize && (superSize != subSize))
-                throw MakeStringException(-1,"%s: %s's record size (%d) is different than %s's (%d)",
+                throw MakeStringException(DALIERR_SSSRecordSizeDIs, "%s: %s's record size (%d) is different than %s's (%d)",
                         exprefix, sub->queryLogicalName(), subSize, queryLogicalName(), superSize);
         }
         StringBuffer superFmt;
@@ -3715,7 +3716,7 @@ public:
         bool subHasFmt = subProp.getProp("@format",subFmt);
         if (subHasFmt && superHasFmt)
             if (strcmp(normalizeFormat(superFmt).str(),normalizeFormat(subFmt).str()) != 0)
-                throw MakeStringException(-1,"%s: %s's format (%s) is different than %s's (%s)",
+                throw MakeStringException(DALIERR_SSSFormatSIsDifferent, "%s: %s's format (%s) is different than %s's (%s)",
                         exprefix, sub->queryLogicalName(), superFmt.str(),
                         queryLogicalName(), subFmt.str());
 #endif
@@ -3723,7 +3724,7 @@ public:
         bool subLocal = subProp.getPropBool("@local",false);
         if (subLocal != superLocal && sub->numParts()>1) // ignore if checking 1 part file, which can be flagged as local or non-local
         {
-            throw MakeStringException(-1,"%s: %s's local setting (%s) is different than %s's (%s)",
+            throw MakeStringException(DALIERR_SSSLocalSettingSIs, "%s: %s's local setting (%s) is different than %s's (%s)",
                     exprefix, sub->queryLogicalName(), (subLocal?"local":"global"),
                     queryLogicalName(), (superLocal?"local":"global"));
         }
@@ -3731,7 +3732,7 @@ public:
         int superRepO = superProp.getPropInt("@replicateOffset",1);
         int subRepO = subProp.getPropInt("@replicateOffset",1);
         if (subRepO != superRepO)
-            throw MakeStringException(-1,"%s: %s's replication offset (%d) is different than %s's (%d)",
+            throw MakeStringException(DALIERR_SSSReplicationOffsetDIs, "%s: %s's replication offset (%d) is different than %s's (%d)",
                     exprefix, sub->queryLogicalName(), subRepO,
                     queryLogicalName(), superRepO);
     }
@@ -4061,7 +4062,7 @@ protected:
                 // check can remove, e.g. cannot if this is a subfile of a super
                 StringBuffer reason;
                 if (!canRemove(reason))
-                    throw MakeStringException(-1,"detach: %s", reason.str());
+                    throw MakeStringException(DALIERR_DetachS, "detach: %s", reason.str());
             }
             // detach this IDistributeFile
 
@@ -4093,7 +4094,7 @@ protected:
                 return false;
         }
         if (logicalName.isForeign())
-            throw MakeStringException(-1,"cannot remove a foreign file (%s)",logicalName.get());
+            throw MakeStringException(DALIERR_CannotRemoveAForeignFileS, "cannot remove a foreign file (%s)",logicalName.get());
 
         return parent->removePhysicalPartFiles(logicalName.get(), fileDesc, mexcept, numParallelDeletes);
     }
@@ -4568,7 +4569,7 @@ public:
         unsigned i = findCluster(clustername);
         if (i!=NotFound) {
             if (clusters.ordinality()==1)
-                throw MakeStringException(-1,"CFileClusterOwner::removeCluster cannot remove sole cluster %s",clustername);
+                throw MakeStringException(DALIERR_CfileclusterownerRemoveclusterCannotRemoveSoleClusterS, "CFileClusterOwner::removeCluster cannot remove sole cluster %s",clustername);
             // If the cluster is the 'default' one we need to update the directory too
             StringBuffer oldBaseDir;
             char pathSepChar = getPathSepChar(directory.get());
@@ -5535,7 +5536,7 @@ public:
         if (!existsPhysicalPartFiles(0))
         {
             const char * logicalName = queryLogicalName();
-            throw MakeStringException(-1, "Some physical parts do not exists, for logical file : %s",(isEmptyString(logicalName) ? "[unattached]" : logicalName));
+            throw MakeStringException(DALIERR_SomePhysicalPartsDoNotExistsFor, "Some physical parts do not exists, for logical file : %s",(isEmptyString(logicalName) ? "[unattached]" : logicalName));
         }
     }
     virtual bool getSkewInfo(unsigned &maxSkew, unsigned &minSkew, unsigned &maxSkewPart, unsigned &minSkewPart, bool calculateIfMissing) override
@@ -5707,7 +5708,7 @@ class CDistributedSuperFile: public CDistributedFileBase<IDistributedSuperFile>
     void checkNotForeign()
     {
         if (!conn)
-            throw MakeStringException(-1,"Operation not allowed on foreign file");
+            throw MakeStringException(DALIERR_OperationNotAllowedOnForeignFile, "Operation not allowed on foreign file");
     }
 
     CDistributedFilePartArray partscache;
@@ -5734,14 +5735,14 @@ class CDistributedSuperFile: public CDistributedFileBase<IDistributedSuperFile>
         {
             parent.setown(transaction->lookupSuperFile(parentlname, AccessMode::tbdWrite));
             if (!parent)
-                throw MakeStringException(-1,"addSubFile: SuperFile %s cannot be found",parentlname.get());
+                throw MakeStringException(DALIERR_AddsubfileSuperfileSCannotBeFound, "addSubFile: SuperFile %s cannot be found",parentlname.get());
             if (!subfile.isEmpty())
             {
                 try
                 {
                     sub.setown(transaction->lookupFile(subfile, AccessMode::tbdWrite, SDS_SUB_LOCK_TIMEOUT));
                     if (!sub)
-                        throw MakeStringException(-1,"cAddSubFileAction: sub file %s not found", subfile.str());
+                        throw MakeStringException(DALIERR_CaddsubfileactionSubFileSNotFound, "cAddSubFileAction: sub file %s not found", subfile.str());
                     // Must validate before locking for update below, to check sub is not already in parent (and therefore locked already)
                     transaction->validateAddSubFile(parent, sub, subfile);
                 }
@@ -5753,7 +5754,7 @@ class CDistributedSuperFile: public CDistributedFileBase<IDistributedSuperFile>
                     return false;
                 }
                 if (!sub.get())
-                    throw MakeStringException(-1,"addSubFile: File %s cannot be found to add",subfile.get());
+                    throw MakeStringException(DALIERR_AddsubfileFileSCannotBeFoundTo, "addSubFile: File %s cannot be found to add",subfile.get());
             }
             // Try to lock all files
             addFileLock(parent);
@@ -5770,7 +5771,7 @@ class CDistributedSuperFile: public CDistributedFileBase<IDistributedSuperFile>
         virtual void run()
         {
             if (!sub)
-                throw MakeStringException(-1,"addSubFile(2): File %s cannot be found to add",subfile.get());
+                throw MakeStringException(DALIERR_Addsubfile2FileSCannotBeFound, "addSubFile(2): File %s cannot be found to add",subfile.get());
             CDistributedSuperFile *sf = QUERYINTERFACE(parent.get(),CDistributedSuperFile);
             if (sf)
                 sf->doAddSubFile(LINK(sub),before,other,transaction);
@@ -5810,7 +5811,7 @@ class CDistributedSuperFile: public CDistributedFileBase<IDistributedSuperFile>
         {
             parent.setown(transaction->lookupSuperFile(parentlname, AccessMode::tbdWrite));
             if (!parent)
-                throw MakeStringException(-1,"removeSubFile: SuperFile %s cannot be found",parentlname.get());
+                throw MakeStringException(DALIERR_RemovesubfileSuperfileSCannotBeFound, "removeSubFile: SuperFile %s cannot be found",parentlname.get());
             if (!subfile.isEmpty())
             {
                 try
@@ -5902,7 +5903,7 @@ class CDistributedSuperFile: public CDistributedFileBase<IDistributedSuperFile>
         {
             parent.setown(transaction->lookupSuperFile(parentlname, AccessMode::tbdWrite));
             if (!parent)
-                throw MakeStringException(-1,"removeOwnedSubFiles: SuperFile %s cannot be found", parentlname.get());
+                throw MakeStringException(DALIERR_RemoveownedsubfilesSuperfileSCannotBeFound, "removeOwnedSubFiles: SuperFile %s cannot be found", parentlname.get());
             // Try to lock all files
             addFileLock(parent);
             if (lock())
@@ -5985,12 +5986,12 @@ class CDistributedSuperFile: public CDistributedFileBase<IDistributedSuperFile>
         {
             super1.setown(transaction->lookupSuperFile(super1Name, AccessMode::writeMeta));
             if (!super1)
-                throw MakeStringException(-1,"swapSuperFile: SuperFile %s cannot be found", super1Name.get());
+                throw MakeStringException(DALIERR_SwapsuperfileSuperfileSCannotBeFound, "swapSuperFile: SuperFile %s cannot be found", super1Name.get());
             super2.setown(transaction->lookupSuperFile(super2Name, AccessMode::writeMeta));
             if (!super2)
             {
                 super1.clear();
-                throw MakeStringException(-1,"swapSuperFile: SuperFile %s cannot be found", super2Name.get());
+                throw MakeStringException(DALIERR_SwapsuperfileSuperfileSCannotBeFound, "swapSuperFile: SuperFile %s cannot be found", super2Name.get());
             }
             // Try to lock all files
             addFileLock(super1);
@@ -6062,7 +6063,7 @@ class CDistributedSuperFile: public CDistributedFileBase<IDistributedSuperFile>
             PROGLOG("CDistributedSuperFile::%s(canModify) %s",title,reason.str());
 #endif
             if (reason.length())
-                throw MakeStringException(-1,"CDistributedSuperFile::%s %s",title,reason.str());
+                throw MakeStringException(DALIERR_CdistributedsuperfileSS, "CDistributedSuperFile::%s %s",title,reason.str());
         }
     }
 
@@ -6104,7 +6105,7 @@ protected:
                                 ctx->addWuExceptionEx(s.str(), 0, SeverityWarning, MSGAUD_user, "DFS[clearSuperOwner]");
                             else
                             {
-                                Owned<IException> e = makeStringException(-1, s.str());
+                                Owned<IException> e = makeStringException(DALIERR_SStr, s.str());
                                 EXCLOG(e, "DFS[clearSuperOwner]");
                             }
                         }
@@ -6222,7 +6223,7 @@ protected:
         {
             sub = root->queryPropTree(getSubPath(path.clear(),i-1).str());
             if (!sub)
-                throw MakeStringException(-1,"C(2): Corrupt subfile file part %d cannot be found",i);
+                throw MakeStringException(DALIERR_C2CorruptSubfileFilePartD, "C(2): Corrupt subfile file part %d cannot be found",i);
             sub->setPropInt("@num",i+1);
         }
         sub = createPTree();
@@ -6245,14 +6246,14 @@ protected:
         StringBuffer path;
         IPropertyTree* sub = root->queryPropTree(getSubPath(path,pos).str());
         if (!sub)
-            throw MakeStringException(-1,"CDistributedSuperFile(3): Corrupt subfile file part %d cannot be found",pos+1);
+            throw MakeStringException(DALIERR_Cdistributedsuperfile3CorruptSubfileFilePartD, "CDistributedSuperFile(3): Corrupt subfile file part %d cannot be found",pos+1);
         root->removeTree(sub);
         // now renumber all above
         for (unsigned i=pos+1; i<subfiles.ordinality(); i++)
         {
             sub = root->queryPropTree(getSubPath(path.clear(),i).str());
             if (!sub)
-                throw MakeStringException(-1,"CDistributedSuperFile(2): Corrupt subfile file part %d cannot be found",i+1);
+                throw MakeStringException(DALIERR_Cdistributedsuperfile2CorruptSubfileFilePartD, "CDistributedSuperFile(2): Corrupt subfile file part %d cannot be found",i+1);
             sub->setPropInt("@num",i);
         }
         subfiles.remove(pos);
@@ -6761,7 +6762,7 @@ public:
         checkModify("CDistributedSuperFile::detach");
         StringBuffer reason;
         if (checkOwned(reason))
-            throw MakeStringException(-1, "detach: %s", reason.str());
+            throw MakeStringException(DALIERR_DetachS, "detach: %s", reason.str());
         subfiles.kill();
 
         // Remove from SDS
@@ -6796,7 +6797,7 @@ public:
 
     virtual bool renamePhysicalPartFiles(const char *newlfn,const char *cluster,IMultiException *mexcept,const char *newbasedir) override
     {
-        throw MakeStringException(-1,"renamePhysicalPartFiles not supported for SuperFiles");
+        throw MakeStringException(DALIERR_RenamephysicalpartfilesNotSupportedForSuperfiles, "renamePhysicalPartFiles not supported for SuperFiles");
         return false;
     }
 
@@ -6990,7 +6991,7 @@ public:
                 else if (subfilen--==0)
                     return f;
             }
-            throw makeStringExceptionV(-1,"CDistributedSuperFile::querySubFile(%u) for superfile %s - subfile doesn't exist ", idx, logicalName.get());
+            throw makeStringExceptionV(DALIERR_CdistributedsuperfileQuerysubfileUForSuperfileSSubfile, "CDistributedSuperFile::querySubFile(%u) for superfile %s - subfile doesn't exist ", idx, logicalName.get());
         }
         else
             return subfiles.item(idx);
@@ -7273,11 +7274,11 @@ public:
     void validateAddSubFile(IDistributedFile *sub)
     {
         if (strcmp(sub->queryLogicalName(),queryLogicalName())==0)
-            throw MakeStringException(-1,"addSubFile: Cannot add file %s to itself", queryLogicalName());
+            throw MakeStringException(DALIERR_AddsubfileCannotAddFileSToItself, "addSubFile: Cannot add file %s to itself", queryLogicalName());
         if (subfiles.ordinality())
             checkFormatAttr(sub,"addSubFile");
         if (NotFound!=findSubFile(sub->queryLogicalName()))
-            throw MakeStringException(-1,"addSubFile: File %s is already a subfile of %s", sub->queryLogicalName(),queryLogicalName());
+            throw MakeStringException(DALIERR_AddsubfileFileSIsAlreadyASubfile, "addSubFile: File %s is already a subfile of %s", sub->queryLogicalName(),queryLogicalName());
     }
 
     virtual void validate() override
@@ -7293,18 +7294,18 @@ public:
                 StringBuffer subfilename;
                 st.getProp("@name", subfilename);
                 if (!parent->exists(subfilename.str(), NULL))
-                    throw MakeStringException(-1, "Logical subfile '%s' doesn't exists!", subfilename.str());
+                    throw MakeStringException(DALIERR_LogicalSubfileSDoesnTExists, "Logical subfile '%s' doesn't exists!", subfilename.str());
 
                 if (!parent->isSuperFile(subfilename.str()))
                     if (!parent->existsPhysical(subfilename.str(), NULL))
                     {
                         const char * logicalName = queryLogicalName();
-                        throw MakeStringException(-1, "Some physical parts do not exists, for logical file : %s",(isEmptyString(logicalName) ? "[unattached]" : logicalName));
+                        throw MakeStringException(DALIERR_SomePhysicalPartsDoNotExistsFor, "Some physical parts do not exists, for logical file : %s",(isEmptyString(logicalName) ? "[unattached]" : logicalName));
                     }
                 subFileCount++;
             }
             if (numSubfiles != subFileCount)
-                throw MakeStringException(-1, "The value of @numsubfiles (%d) is not equal to the number of SubFile items (%d)!",numSubfiles, subFileCount);
+                throw MakeStringException(DALIERR_TheValueOfNumsubfilesDIsNot, "The value of @numsubfiles (%d) is not equal to the number of SubFile items (%d)!",numSubfiles, subFileCount);
         }
     }
     virtual bool isRestrictedAccess() override
@@ -7334,7 +7335,7 @@ private:
         else
             pos = before?0:subfiles.ordinality();
         if (pos > subfiles.ordinality())
-            throw MakeStringException(-1,"addSubFile: Insert position %d out of range for file %s in superfile %s", pos+1, sub->queryLogicalName(), queryLogicalName());
+            throw MakeStringException(DALIERR_AddsubfileInsertPositionDOutOfRange, "addSubFile: Insert position %d out of range for file %s in superfile %s", pos+1, sub->queryLogicalName(), queryLogicalName());
         addItem(pos,sub.getClear());     // remove if failure TBD?
         setModified();
         updateFileAttrs();
@@ -7806,13 +7807,13 @@ void CDistributedFileTransaction::validateAddSubFile(IDistributedSuperFile *supe
 
     const char *superName = trackedSuper->queryName();
     if (strcmp(subName, superName)==0)
-        throw MakeStringException(-1,"addSubFile: Cannot add file %s to itself", superName);
+        throw MakeStringException(DALIERR_AddsubfileCannotAddFileSToItself, "addSubFile: Cannot add file %s to itself", superName);
     if (trackedSuper->numSubFiles())
     {
         CDistributedSuperFile *sf = dynamic_cast<CDistributedSuperFile *>(super);
         sf->checkFormatAttr(sub, "addSubFile");
         if (trackedSuper->find(subName, false))
-            throw MakeStringException(-1,"addSubFile: File %s is already a subfile of %s", subName, superName);
+            throw MakeStringException(DALIERR_AddsubfileFileSIsAlreadyASubfile, "addSubFile: File %s is already a subfile of %s", subName, superName);
     }
 }
 
@@ -7903,7 +7904,7 @@ StringBuffer & CDistributedFilePart::getPartName(StringBuffer &partname)
     if (!mask||!*mask) {
         const char *err ="CDistributedFilePart::getPartName cannot determine part name (no mask)";
         IERRLOG("%s", err);
-        throw MakeStringExceptionDirect(-1, err);
+        throw MakeStringExceptionDirect(DALIERR_Err, err);
     }
     expandMask(partname,mask,partIndex,parent.numParts());
     return partname;
@@ -8305,7 +8306,7 @@ static unsigned loadGroup(const IPropertyTree *groupTree, SocketEndpointArray &e
         SocketEndpoint ep(host);
         if (ep.isNull())
         {
-            throw makeStringExceptionV(-1, "loadGroup: failed to resolve host '%s' in group '%s'", host, groupName);
+            throw makeStringExceptionV(DALIERR_LoadgroupFailedToResolveHostSIn, "loadGroup: failed to resolve host '%s' in group '%s'", host, groupName);
         }
         epa.append(ep);
     }
@@ -8524,7 +8525,7 @@ public:
                 } while (i!=end);
             }
             if (*s)
-                throw MakeStringException(-1,"Invalid group range %s",range.str());
+                throw MakeStringException(DALIERR_InvalidGroupRangeS, "Invalid group range %s",range.str());
             ret.setown(createIGroup(epar));
         }
         if (dirret)
@@ -8954,7 +8955,7 @@ IDistributedFile *CDistributedFileDirectory::dolookup(CDfsLogicalFileName &_logi
         // don't bother checking because the sub file creation will
         return new CDistributedSuperFile(this, *logicalname, accessMode, user, transaction); // temp superfile
     if (strchr(logicalname->get(), '*')) // '*' only wildcard supported. NB: This is a temporary fix (See: HPCC-12523)
-        throw MakeStringException(-1, "Invalid filename lookup: %s", logicalname->get());
+        throw MakeStringException(DALIERR_InvalidFilenameLookupS, "Invalid filename lookup: %s", logicalname->get());
     Owned<IDfsLogicalFileNameIterator> redmatch;
     for (;;)
     {
@@ -9423,9 +9424,9 @@ public:
         // Basic consistency checking
         toName.set(_newname);
         if (fromName.isExternal() || toName.isExternal())
-            throw MakeStringException(-1,"rename: cannot rename external files"); // JCSMORE perhaps you should be able to?
+            throw MakeStringException(DALIERR_RenameCannotRenameExternalFiles, "rename: cannot rename external files"); // JCSMORE perhaps you should be able to?
         if (fromName.isForeign() || toName.isForeign())
-            throw MakeStringException(-1,"rename: cannot rename foreign files");
+            throw MakeStringException(DALIERR_RenameCannotRenameForeignFiles, "rename: cannot rename foreign files");
         // Make sure files are not the same
         if (0 == strcmp(fromName.get(), toName.get()))
             ThrowStringException(-1, "rename: cannot rename file %s to itself", toName.get());
@@ -9626,7 +9627,7 @@ IDistributedSuperFile *CDistributedFileDirectory::createSuperFile(const char *_l
         if (ifdoesnotexist)
             return sfile.getClear();
         else
-            throw MakeStringException(-1,"createSuperFile: SuperFile %s already exists",logicalname.get());
+            throw MakeStringException(DALIERR_CreatesuperfileSuperfileSAlreadyExists, "createSuperFile: SuperFile %s already exists",logicalname.get());
     }
 
     Owned<CCreateSuperFileAction> action = new CCreateSuperFileAction(this,user,_logicalname,_interleaved);
@@ -9955,7 +9956,7 @@ public:
                     start = 0;
                 }
                 else if (pn == 0)
-                    throw makeStringExceptionV(0, "Invalid part filter: %s", filter);
+                    throw makeStringExceptionV(DALIERR_InvalidPartFilterS, "Invalid part filter: %s", filter);
                 else
                     partincluded[pn - 1] = true;
                 if (*s == 0)
@@ -10791,7 +10792,7 @@ class CInitGroups
     void addClusterGroup(const char *name, IPropertyTree *newClusterGroup, bool realCluster)
     {
         if (!writeLock)
-            throw makeStringException(0, "CInitGroups::addClusterGroup called in read-only mode");
+            throw makeStringException(DALIERR_CinitgroupsAddclustergroupCalledInReadOnlyMode, "CInitGroups::addClusterGroup called in read-only mode");
         VStringBuffer prop("Group[@name=\"%s\"]", name);
         IPropertyTree *root = groupsconnlock.conn->queryRoot();
         IPropertyTree *old = root->queryPropTree(prop.str());
@@ -11319,7 +11320,7 @@ public:
     void clearUnprotectedGroups()
     {
         if (!writeLock)
-            throw makeStringException(0, "CInitGroups::clearUnprotectedGroups called in read-only mode");
+            throw makeStringException(DALIERR_CinitgroupsClearunprotectedgroupsCalledInReadOnlyMode, "CInitGroups::clearUnprotectedGroups called in read-only mode");
 
         Owned<IPropertyTree> globalConfig = getGlobalConfig();
         IPropertyTree * storage = globalConfig->queryPropTree("storage");
@@ -11517,7 +11518,7 @@ public:
                 }
                 else if (plane.hasProp("hostGroup"))
                 {
-                    throw makeStringExceptionV(-1, "Use 'hosts' rather than 'hostGroup' for inline list of hosts for plane %s", gname.str());
+                    throw makeStringExceptionV(DALIERR_UseHostsRatherThanHostgroupForInline, "Use 'hosts' rather than 'hostGroup' for inline list of hosts for plane %s", gname.str());
                 }
                 else if (plane.hasProp("hosts"))
                 {
@@ -12290,7 +12291,7 @@ public:
                 }
                 case MDFS_ITERATE_FILTEREDFILES: // legacy, newer clients will send MDFS_ITERATE_FILTEREDFILES2/3
                 {
-                    throw makeStringExceptionV(0, "MDFS_ITERATE_FILTEREDFILES is no longer supported. Please upgrade.");
+                    throw makeStringExceptionV(DALIERR_MdfsIterateFilteredfilesIsNoLongerSupported, "MDFS_ITERATE_FILTEREDFILES is no longer supported. Please upgrade.");
                 }
                 case MDFS_ITERATE_FILTEREDFILES2:
                 {
@@ -12511,7 +12512,7 @@ void CDistributedFileDirectory::setFileAccessed(CDfsLogicalFileName &dlfn,IUserD
     const char *lname;
     if (dlfn.isForeign()) {
         if (!dlfn.getEp(ep))
-            throw MakeStringException(-1,"cannot resolve dali ip in foreign file name (%s)",dlfn.get());
+            throw MakeStringException(DALIERR_CannotResolveDaliIpInForeignFile, "cannot resolve dali ip in foreign file name (%s)",dlfn.get());
         fnode.setown(createINode(ep));
         foreigndali = fnode;
         lname = dlfn.get(true);
@@ -12553,7 +12554,7 @@ void CDistributedFileDirectory::setFileProtect(CDfsLogicalFileName &dlfn,IUserDe
     const char *lname;
     if (dlfn.isForeign()) {
         if (!dlfn.getEp(ep))
-            throw MakeStringException(-1,"cannot resolve dali ip in foreign file name (%s)",dlfn.get());
+            throw MakeStringException(DALIERR_CannotResolveDaliIpInForeignFile, "cannot resolve dali ip in foreign file name (%s)",dlfn.get());
         fnode.setown(createINode(ep));
         foreigndali = fnode;
         lname = dlfn.get(true);
@@ -12594,7 +12595,7 @@ IPropertyTree *CDistributedFileDirectory::getFileTree(const char *lname, IUserDe
     if (dlfn.isForeign())
     {
         if (!dlfn.getEp(ep))
-            throw MakeStringException(-1,"cannot resolve dali ip in foreign file name (%s)",lname);
+            throw MakeStringException(DALIERR_CannotResolveDaliIpInForeignFile, "cannot resolve dali ip in foreign file name (%s)",lname);
         fnode.setown(createINode(ep));
         foreigndali = fnode;
         lname = dlfn.get(true);
@@ -12722,7 +12723,7 @@ IPropertyTree *CDistributedFileDirectory::getFileTree(const char *lname, IUserDe
                     modified.deserialize(mb);
             }
             else
-                throw MakeStringException(-1,"Unknown GetFileTree serialization version %d",ver);
+                throw MakeStringException(DALIERR_UnknownGetfiletreeSerializationVersionD, "Unknown GetFileTree serialization version %d",ver);
             ret.setown(createPTree(queryDfsXmlBranchName(DXB_File)));
             fdesc->serializeTree(*ret,expandnodes?0:CPDMSF_packParts);
             if (!modified.isNull())
@@ -13477,7 +13478,7 @@ public:
         disconnect(false);
         CDfsLogicalFileName lfn;
         if (!lfn.setValidate(name))
-            throw MakeStringException(-1,"%s: Invalid superfile name '%s'",title,name);
+            throw MakeStringException(DALIERR_SInvalidSuperfileNameS, "%s: Invalid superfile name '%s'",title,name);
         if (lfn.isMulti()||lfn.isExternal()||lfn.isForeign())
             return false;
         unsigned mode = RTM_SUB | (readonly ? RTM_LOCK_READ : RTM_LOCK_WRITE);
@@ -13492,13 +13493,13 @@ public:
             parent->addEntry(lfn,root,true,false);
             mode = RTM_SUB | RTM_LOCK_WRITE;
             if (!lock.init(lfn, DXB_SuperFile, mode, timeout, title))
-                throw MakeStringException(-1,"%s: Cannot create superfile '%s'",title,name);
+                throw MakeStringException(DALIERR_SCannotCreateSuperfileS, "%s: Cannot create superfile '%s'",title,name);
             if (autocreate)
                 *autocreate = true;
         }
         StringBuffer reason;
         if (!readonly&&checkProtectAttr(name,lock.queryRoot(),reason))
-            throw MakeStringException(-1,"CDistributedSuperFile::%s %s",title,reason.str());
+            throw MakeStringException(DALIERR_CdistributedsuperfileSS, "CDistributedSuperFile::%s %s",title,reason.str());
         return true;
     }
 
@@ -13639,7 +13640,7 @@ void CDistributedFileDirectory::promoteSuperFiles(unsigned numsf,const char **sf
         assertex(dest.get());
         int common = hasCommonSubChildren(orig, dest);
         if (common != NotFound) {
-            throw MakeStringException(-1,"promoteSuperFiles: superfiles %s and %s share same subfile %s",
+            throw MakeStringException(DALIERR_PromotesuperfilesSuperfilesSAndSShareSame, "promoteSuperFiles: superfiles %s and %s share same subfile %s",
                     orig->queryLogicalName(), dest->queryLogicalName(), orig->querySubFile(common).queryLogicalName());
         }
         orig->swapSuperFile(dest, transaction);
@@ -13653,7 +13654,7 @@ void CDistributedFileDirectory::promoteSuperFiles(unsigned numsf,const char **sf
     ForEachItemIn(i,toadd) {
         CDfsLogicalFileName lfn;
         if (!lfn.setValidate(toadd.item(i)))
-            throw MakeStringException(-1,"promoteSuperFiles: invalid logical name to add: %s",toadd.item(i));
+            throw MakeStringException(DALIERR_PromotesuperfilesInvalidLogicalNameToAddS, "promoteSuperFiles: invalid logical name to add: %s",toadd.item(i));
         first->addSubFile(toadd.item(i),false,NULL,false,transaction);
     }
     first.clear();
@@ -13681,7 +13682,7 @@ bool CDistributedFileDirectory::getFileSuperOwners(const char *logicalname, Stri
     CFileLock lock;
     CDfsLogicalFileName lfn;
     if (!lfn.setValidate(logicalname))
-        throw MakeStringException(-1,"CDistributedFileDirectory::getFileSuperOwners: Invalid file name '%s'",logicalname);
+        throw MakeStringException(DALIERR_CdistributedfiledirectoryGetfilesuperownersInvalidFileNameS, "CDistributedFileDirectory::getFileSuperOwners: Invalid file name '%s'",logicalname);
     if (lfn.isMulti()||lfn.isExternal()||lfn.isForeign())
         return false;
     CTimeMon tm(defaultTimeout);
@@ -13906,7 +13907,7 @@ static const char *normLFN(const char *name,CDfsLogicalFileName &logicalname,con
     if (isWild(name,true))
         return name;
     if (!logicalname.setValidate(name))
-        throw MakeStringException(-1,"%s: invalid logical file name '%s'",title,name);
+        throw MakeStringException(DALIERR_SInvalidLogicalFileNameS, "%s: invalid logical file name '%s'",title,name);
     if (logicalname.isForeign()) {
         SocketEndpoint ep;
         Owned<INode> fd = createINode(ep);
@@ -13980,25 +13981,25 @@ void CDistributedFileDirectory::addFileRelationship(
         kind = S_LINK_RELATIONSHIP_KIND;
     Owned<IPropertyTree> pt = createPTree("Relationship");
     if (isWild(primary,true)||isWild(secondary,true)||isWild(primflds,false)||isWild(secflds,false)||isWild(cardinality,false))
-        throw MakeStringException(-1,"Wildcard not allowed in addFileRelation");
+        throw MakeStringException(DALIERR_WildcardNotAllowedInAddfilerelation, "Wildcard not allowed in addFileRelation");
     CDfsLogicalFileName pfn;
     if (!pfn.setValidate(primary))
-        throw MakeStringException(-1,"addFileRelationship invalid primary name '%s'",primary);
+        throw MakeStringException(DALIERR_AddfilerelationshipInvalidPrimaryNameS, "addFileRelationship invalid primary name '%s'",primary);
     if (pfn.isExternal()||pfn.isForeign()||pfn.isQuery())
-        throw MakeStringException(-1,"addFileRelationship primary %s not allowed",pfn.get());
+        throw MakeStringException(DALIERR_AddfilerelationshipPrimarySNotAllowed, "addFileRelationship primary %s not allowed",pfn.get());
     primary = pfn.get();
     if (!exists(primary,user))
-        throw MakeStringException(-1,"addFileRelationship primary %s does not exist",primary);
+        throw MakeStringException(DALIERR_AddfilerelationshipPrimarySDoesNotExist, "addFileRelationship primary %s does not exist",primary);
     CDfsLogicalFileName sfn;
     if (!sfn.setValidate(secondary))
-        throw MakeStringException(-1,"addFileRelationship invalid secondary name '%s'",secondary);
+        throw MakeStringException(DALIERR_AddfilerelationshipInvalidSecondaryNameS, "addFileRelationship invalid secondary name '%s'",secondary);
     if (sfn.isExternal()||sfn.isForeign()||sfn.isQuery())
-        throw MakeStringException(-1,"addFileRelationship secondary %s not allowed",sfn.get());
+        throw MakeStringException(DALIERR_AddfilerelationshipSecondarySNotAllowed, "addFileRelationship secondary %s not allowed",sfn.get());
     secondary = sfn.get();
     if (!exists(secondary,user))
-        throw MakeStringException(-1,"addFileRelationship secondary %s does not exist",secondary);
+        throw MakeStringException(DALIERR_AddfilerelationshipSecondarySDoesNotExist, "addFileRelationship secondary %s does not exist",secondary);
     if (cardinality&&*cardinality&&!strchr(cardinality,':'))
-        throw MakeStringException(-1,"addFileRelationship cardinality %s invalid",cardinality);
+        throw MakeStringException(DALIERR_AddfilerelationshipCardinalitySInvalid, "addFileRelationship cardinality %s invalid",cardinality);
 
     pt->setProp("@kind",kind);
     pt->setProp("@primary",primary);
@@ -14040,7 +14041,7 @@ void CDistributedFileDirectory::removeFileRelationships(
 {
     if ((!primary||!*primary||(strcmp(primary,"*")==0))&&
         (!secondary||!*secondary||(strcmp(secondary,"*")==0)))
-        throw MakeStringException(-1,"removeFileRelationships primary and secondary cannot both be wild");
+        throw MakeStringException(DALIERR_RemovefilerelationshipsPrimaryAndSecondaryCannotBothBe, "removeFileRelationships primary and secondary cannot both be wild");
 
     CConnectLock connlock("removeFileRelation",querySdsRelationshipsRoot(),true,false,false,defaultTimeout);
     doRemoveFileRelationship(connlock.conn,primary,secondary,primflds,secflds,kind);
@@ -14062,7 +14063,7 @@ IFileRelationshipIterator *CDistributedFileDirectory::lookupFileRelationships(
     if (foreigndali&&*foreigndali) {
         SocketEndpoint ep(foreigndali);
         if (ep.isNull())
-            throw MakeStringException(-1,"lookupFileRelationships::Cannot resolve foreign dali %s",foreigndali);
+            throw MakeStringException(DALIERR_LookupfilerelationshipsCannotResolveForeignDaliS, "lookupFileRelationships::Cannot resolve foreign dali %s",foreigndali);
         foreign.setown(createINode(ep));
     }
     Owned<CFileRelationshipIterator> ret = new CFileRelationshipIterator(defaultTimeout);
@@ -14073,7 +14074,7 @@ IFileRelationshipIterator *CDistributedFileDirectory::lookupFileRelationships(
 void CDistributedFileDirectory::removeAllFileRelationships(const char *filename)
 {
     if (!filename||!*filename||(strcmp(filename,"*")==0))
-        throw MakeStringException(-1,"removeAllFileRelationships filename cannot be wild");
+        throw MakeStringException(DALIERR_RemoveallfilerelationshipsFilenameCannotBeWild, "removeAllFileRelationships filename cannot be wild");
     {
         CConnectLock connlock("removeFileRelation",querySdsRelationshipsRoot(),true,false,false,defaultTimeout);
         doRemoveFileRelationship(connlock.conn,filename,NULL,NULL,NULL,NULL);
@@ -14088,7 +14089,7 @@ IFileRelationshipIterator *CDistributedFileDirectory::lookupAllFileRelationships
     const char *filename)
 {
     if (isWild(filename,true))
-        throw MakeStringException(-1,"Wildcard filename not allowed in lookupAllFileRelationships");
+        throw MakeStringException(DALIERR_WildcardFilenameNotAllowedInLookupallfilerelationships, "Wildcard filename not allowed in lookupAllFileRelationships");
     CDfsLogicalFileName lfn;
     normLFN(filename,lfn,"lookupAllFileRelationships");
     Owned<CFileRelationshipIterator> ret = new CFileRelationshipIterator(defaultTimeout);
@@ -14408,7 +14409,7 @@ static StringBuffer &convertDFUQResultFields(StringBuffer &res, const DFUQResult
             case (DFUQResultField)0:
                 break;
             default:
-                throw makeStringExceptionV(-1, "Unknown DFUQResultField type value: %u", static_cast<unsigned>(type));
+                throw makeStringExceptionV(DALIERR_UnknownDfuqresultfieldTypeValueU, "Unknown DFUQResultField type value: %u", static_cast<unsigned>(type));
         }
         res.append(getDFUQResultFieldName(fmt&DFUQResultField::fieldMask));
     }

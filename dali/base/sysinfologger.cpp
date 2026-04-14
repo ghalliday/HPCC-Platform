@@ -17,6 +17,7 @@
 
 #include "sysinfologger.hpp"
 #include "jutil.hpp"
+#include "daerr.hpp"
 
 #define SDS_LOCK_TIMEOUT (5*60*1000) // 5 minutes
 #define SYS_INFO_VERSION "1.0"
@@ -75,7 +76,7 @@ class CSysInfoLoggerMsg : implements ISysInfoLoggerMsg
     inline void ensureUpdateable()
     {
         if (!updateable)
-            throw makeStringException(-1, "Unable to update ISysInfoLoggerMsg");
+            throw makeStringException(DALIERR_UnableToUpdateIsysinfologgermsg, "Unable to update ISysInfoLoggerMsg");
     }
 
 public:
@@ -193,7 +194,7 @@ public:
                             hiddenOnly(_hiddenOnly), visibleOnly(_visibleOnly), matchSource(_source)
     {
         if (hiddenOnly && visibleOnly)
-            throw makeStringException(-1, "ISysInfoLoggerMsgFilter: cannot filter by both hiddenOnly and visibleOnly");
+            throw makeStringException(DALIERR_IsysinfologgermsgfilterCannotFilterByBothHiddenonlyAnd, "ISysInfoLoggerMsgFilter: cannot filter by both hiddenOnly and visibleOnly");
         setDateRange(_year, _month, _day, _year, _month, _day);
     }
     virtual void setHiddenOnly() override
@@ -229,9 +230,9 @@ public:
         unsigned year, month, day, seqn;
         bool nonSysInfoLogMsg = decodeMessageId(msgId, year, month, day, seqn);
         if (nonSysInfoLogMsg)
-            throw makeStringExceptionV(-1, "Message id: %" I64F "u cannot be processed by SysInfoLogger", msgId);
+            throw makeStringExceptionV(DALIERR_MessageId, "Message id: %" I64F "u cannot be processed by SysInfoLogger", msgId);
         if (year==0 || month==0 || day==0 || seqn==0)
-            throw makeStringExceptionV(-1,"ISysInfoLoggerMsgFilter::setMatchMsgId invalid message id: %" I64F "u", msgId);
+            throw makeStringExceptionV(DALIERR_IsysinfologgermsgfilterSetmatchmsgidInvalidMessageId, "ISysInfoLoggerMsgFilter::setMatchMsgId invalid message id: %" I64F "u", msgId);
         matchEndYear = matchStartYear = year;
         matchEndMonth = matchStartMonth = month;
         matchEndDay = matchStartDay = day;
@@ -242,13 +243,13 @@ public:
     {
         if ( (startDay && (!startMonth||!startYear)) ||
              (endDay && (!endMonth||!endYear)) )
-            throw makeStringException(-1, "ISysInfoLoggerMsgFilter: month and year must be provided when filtering by day");
+            throw makeStringException(DALIERR_IsysinfologgermsgfilterMonthAndYearMustBeProvided, "ISysInfoLoggerMsgFilter: month and year must be provided when filtering by day");
         if ((!startYear && startMonth) || (!endYear && endMonth))
-            throw makeStringException(-1, "ISysInfoLoggerMsgFilter: year must be provided when filtering by month");
+            throw makeStringException(DALIERR_IsysinfologgermsgfilterYearMustBeProvidedWhenFiltering, "ISysInfoLoggerMsgFilter: year must be provided when filtering by month");
         // Make sure starts are on or before end dates
         if ( (startYear > endYear) || (startMonth && (startYear == endYear && startMonth > endMonth))
              || (startDay && (startYear == endYear && startMonth == endMonth && startDay > endDay)) )
-            throw makeStringExceptionV(-1, "ISysInfoLoggerMsgFilter: invalid date range: %04u-%02u-%02u to %04u-%02u-%02u", startYear, startMonth, startDay, endYear, endMonth, endDay);
+            throw makeStringExceptionV(DALIERR_IsysinfologgermsgfilterInvalidDateRange04u02u02u, "ISysInfoLoggerMsgFilter: invalid date range: %04u-%02u-%02u to %04u-%02u-%02u", startYear, startMonth, startDay, endYear, endMonth, endDay);
         matchEndYear = endYear;
         matchEndMonth = endMonth;
         matchEndDay = endDay;
@@ -535,7 +536,7 @@ unsigned __int64 logSysInfoError(const LogMsgCategory & cat, LogMsgCode code, co
         source = "unknown";
     Owned<IRemoteConnection> conn = querySDS().connect(SYS_INFO_ROOT, myProcessSession(), RTM_LOCK_WRITE|RTM_CREATE_QUERY, SDS_LOCK_TIMEOUT);
     if (!conn)
-        throw makeStringExceptionV(-1, "logSysInfoLogger: unable to create connection to '%s'", SYS_INFO_ROOT);
+        throw makeStringExceptionV(DALIERR_LogsysinfologgerUnableToCreateConnectionToS, "logSysInfoLogger: unable to create connection to '%s'", SYS_INFO_ROOT);
 
     IPropertyTree * root = conn->queryRoot();
     unsigned seqn = root->getPropInt(ATTR_NEXTSEQN, 1);
@@ -549,7 +550,7 @@ unsigned __int64 logSysInfoError(const LogMsgCategory & cat, LogMsgCode code, co
     xpath.appendf("%s/m%04u%02u/d%02u/%s", SYS_INFO_ROOT, year, month, day, MSG_NODE);
     Owned<IRemoteConnection> connMsgRoot = querySDS().connect(xpath.str(), myProcessSession(), RTM_CREATE_ADD, SDS_LOCK_TIMEOUT);
     if (!connMsgRoot)
-        throw makeStringExceptionV(-1, "logSysInfoLogger: unable to create connection to '%s'", xpath.str());
+        throw makeStringExceptionV(DALIERR_LogsysinfologgerUnableToCreateConnectionToS, "logSysInfoLogger: unable to create connection to '%s'", xpath.str());
     IPropertyTree * msgPT = connMsgRoot->queryRoot();
 
     CSysInfoLoggerMsg sysInfoMsg(seqn, cat, code, source, msg, ts, false);
@@ -632,13 +633,13 @@ bool deleteLogSysInfoMsg(unsigned __int64 msgId, const char *source)
 unsigned deleteOlderThanLogSysInfoMsg(bool visibleOnly, bool hiddenOnly, unsigned year, unsigned month, unsigned day, const char *source)
 {
     if (!year && month)
-        throw makeStringExceptionV(-1, "deleteOlderThanLogSysInfoMsg: year must be provided if month is specified (year=%u, month=%u, day=%u)", year, month, day);
+        throw makeStringExceptionV(DALIERR_DeleteolderthanlogsysinfomsgYearMustBeProvidedIfMonth, "deleteOlderThanLogSysInfoMsg: year must be provided if month is specified (year=%u, month=%u, day=%u)", year, month, day);
     if (!month && day)
-        throw makeStringExceptionV(-1, "deleteOlderThanLogSysInfoMsg: month must be provided if day is specified (year=%u, month=%u, day=%u)", year, month, day);
+        throw makeStringExceptionV(DALIERR_DeleteolderthanlogsysinfomsgMonthMustBeProvidedIfDay, "deleteOlderThanLogSysInfoMsg: month must be provided if day is specified (year=%u, month=%u, day=%u)", year, month, day);
     if (month>12)
-        throw makeStringExceptionV(-1, "deleteOlderThanLogSysInfoMsg: invalid month(year=%u, month=%u, day=%u)", year, month, day);
+        throw makeStringExceptionV(DALIERR_DeleteolderthanlogsysinfomsgInvalidMonthYearUMonthU, "deleteOlderThanLogSysInfoMsg: invalid month(year=%u, month=%u, day=%u)", year, month, day);
     if (day>31)
-        throw makeStringExceptionV(-1, "deleteOlderThanLogSysInfoMsg: invalid day(year=%u, month=%u, day=%u)", year, month, day);
+        throw makeStringExceptionV(DALIERR_DeleteolderthanlogsysinfomsgInvalidDayYearUMonthU, "deleteOlderThanLogSysInfoMsg: invalid day(year=%u, month=%u, day=%u)", year, month, day);
     // With visibleOnly/hiddenOnly option, use createSysInfoLoggerMsgFilter()
     if (visibleOnly || hiddenOnly || day)
     {
@@ -680,7 +681,7 @@ unsigned deleteOlderThanLogSysInfoMsg(bool visibleOnly, bool hiddenOnly, unsigne
             if (msgYear == 0 || msgMonth == 0)
             {
                 if (!innerException)
-                    innerException.setown(makeStringExceptionV(-1, "child of " SYS_INFO_ROOT " is invalid: %s", monthPT.queryName()));
+                    innerException.setown(makeStringExceptionV(DALIERR_ChildOf, "child of " SYS_INFO_ROOT " is invalid: %s", monthPT.queryName()));
                 continue;
             }
             if (msgYear > year)
@@ -707,7 +708,7 @@ unsigned deleteOlderThanLogSysInfoMsg(bool visibleOnly, bool hiddenOnly, unsigne
                         if (msgDay == 0)
                         {
                             if (!innerException)
-                                innerException.setown(makeStringExceptionV(-1, "child of " SYS_INFO_ROOT "/%s is invalid: %s", monthPT.queryName(), dayPT.queryName()));
+                                innerException.setown(makeStringExceptionV(DALIERR_ChildOf, "child of " SYS_INFO_ROOT "/%s is invalid: %s", monthPT.queryName(), dayPT.queryName()));
                             continue;
                         }
                         if (day && (msgDay >= day))

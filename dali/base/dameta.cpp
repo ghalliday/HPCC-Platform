@@ -19,6 +19,7 @@
 #include "dameta.hpp"
 #include "dadfs.hpp"
 #include "dautils.hpp"
+#include "daerr.hpp"
 
 
 //Expand indirect hostGroups so each hostGroups has an expanded list of host names
@@ -36,13 +37,13 @@ void normalizeHostGroups(IPropertyTree * globalConfig)
             const char * name = cur.queryProp("@name");
             const char * baseGroup = cur.queryProp("@hostGroup");
             if (!baseGroup)
-                throw makeStringExceptionV(-1, "HostGroup %s with no hosts does not have a base hostgroup", name ? name : "<null>");
+                throw makeStringExceptionV(DALIERR_HostgroupSWithNoHostsDoesNot, "HostGroup %s with no hosts does not have a base hostgroup", name ? name : "<null>");
 
             //Cannot call getHostGroup() because that uses getGlobalConfig()
             VStringBuffer xpath("storage/hostGroups[@name='%s']", baseGroup);
             IPropertyTree * match = globalConfig->queryPropTree(xpath);
             if (!match)
-                throw makeStringExceptionV(-1, "No entry found for hostGroup: '%s'", baseGroup);
+                throw makeStringExceptionV(DALIERR_NoEntryFoundForHostgroupS, "No entry found for hostGroup: '%s'", baseGroup);
 
             StringArray hosts;
             Owned<IPropertyTreeIterator> hostIter = match->getElements("hosts");
@@ -50,12 +51,12 @@ void normalizeHostGroups(IPropertyTree * globalConfig)
                 hosts.append(hostIter->query().queryProp(nullptr));
 
             if (hosts.ordinality() == 0)
-                throw makeStringExceptionV(-1, "Host group %s contains no hosts", baseGroup);
+                throw makeStringExceptionV(DALIERR_HostGroupSContainsNoHosts, "Host group %s contains no hosts", baseGroup);
 
             unsigned numHosts = cur.getPropInt("@count", hosts.ordinality());
             unsigned offset = cur.getPropInt("@offset");
             if (offset + numHosts > hosts.ordinality())
-                throw makeStringExceptionV(-1, "Group %s extends past the end of the base group %s", name, baseGroup);
+                throw makeStringExceptionV(DALIERR_GroupSExtendsPastTheEndOf, "Group %s extends past the end of the base group %s", name, baseGroup);
 
             unsigned delta = cur.getPropInt("@delta");
             for (unsigned i=0; i < numHosts; i++)
@@ -310,7 +311,7 @@ void LogicalFileResolver::processFile(IDistributedFile & file)
         }
 
         if (totalSize && fileSize && totalSize != fileSize)
-            throw makeStringExceptionV(0, "Inconsistent file size: %" I64F "u v %" I64F "u", fileSize, totalSize);
+            throw makeStringExceptionV(DALIERR_InconsistentFileSize, "Inconsistent file size: %" I64F "u v %" I64F "u", fileSize, totalSize);
     }
 
     fileMeta->setPropInt64("@rawSize", fileSize);

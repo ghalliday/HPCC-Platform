@@ -68,6 +68,7 @@ static unsigned readWriteTimeout = 60000;
 
 #include "dacsds.ipp"
 #include "dasds.ipp"
+#include "daerr.hpp"
 
 #define ALWAYSLAZY_NOTUSED
 #define NoMoreChildrenMarker ((__int64)-1)
@@ -4026,7 +4027,7 @@ int CSDSTransactionServer::run()
                         {
                             TimingBlock xactTimingBlock(xactTimingStats);
                             mb.clear().append(DAMP_SDSREPLY_ERROR);
-                            throw MakeStringException(-1, "Client too old to communicate with this dali");
+                            throw MakeStringException(DALIERR_ClientTooOldToCommunicateWithThis, "Client too old to communicate with this dali");
                         }
 #endif
                         case DAMP_SDSCMD_DIAGNOSTIC:
@@ -5421,7 +5422,7 @@ class CStoreHelper : implements IStoreHelper, public CInterface
         if (!dIter->first())
             updateStoreInfo(base, location, 0, nullptr, nullptr, &info);
         else if (dIter->next())
-            throw MakeStringException(0, "Multiple store.X files - only one corresponding to latest dalisds<X>.xml should exist");
+            throw MakeStringException(DALIERR_MultipleStoreXFilesOnlyOneCorresponding, "Multiple store.X files - only one corresponding to latest dalisds<X>.xml should exist");
     }
 
     void renameDelta(unsigned oldEdition, unsigned newEdition, const char *path)
@@ -5505,7 +5506,7 @@ class CStoreHelper : implements IStoreHelper, public CInterface
         }
         catch (DALI_CATCHALL)
         {
-            IException *e = MakeStringException(0, "Unknown exception - loading %s store file : %s", isBinary ? "Binary" : "XML", storeFilename.str());
+            IException *e = MakeStringException(DALIERR_UnknownExceptionLoadingSStoreFileS, "Unknown exception - loading %s store file : %s", isBinary ? "Binary" : "XML", storeFilename.str());
             DISLOG(e);
             throw;
         }
@@ -6494,13 +6495,13 @@ void CCovenSDSManager::loadStore(const bool *abort)
             LOG(MCdebugInfo, "loading external Environment from: %s", environment);
             Owned<IFile> envFile = createIFile(environment);
             if (!envFile->exists())
-                throw MakeStringException(0, "'%s' does not exist", environment);
+                throw MakeStringException(DALIERR_SDoesNotExist, "'%s' does not exist", environment);
             OwnedIFileIO iFileIO = envFile->open(IFOread);
             if (!iFileIO)
-                throw MakeStringException(0, "Failed to open '%s'", environment);
+                throw MakeStringException(DALIERR_FailedToOpenS, "Failed to open '%s'", environment);
             Owned<IPropertyTree> envTree = createPTreeFromXMLFile(environment);
             if (0 != stricmp("Environment", envTree->queryName()))
-                throw MakeStringException(0, "External environment file '%s', has '%s' as root, expecting a 'Environment' xml node.", environment, envTree->queryName());
+                throw MakeStringException(DALIERR_ExternalEnvironmentFileSHasSAs, "External environment file '%s', has '%s' as root, expecting a 'Environment' xml node.", environment, envTree->queryName());
 
             Owned <IMPServer> thisDali = getMPServer();
             assertex(thisDali);
@@ -6514,7 +6515,7 @@ void CCovenSDSManager::loadStore(const bool *abort)
                     Owned<IPluggableFactory> factory = loadPlugin(&plugins->query());
                     assertex (factory);
                     if (!factory->initializeStore())
-                        throw MakeStringException(0, "Failed to initialize plugin store '%s'", plugins->query().queryProp("@type"));
+                        throw MakeStringException(DALIERR_FailedToInitializePluginStoreS, "Failed to initialize plugin store '%s'", plugins->query().queryProp("@type"));
                 }
             }
 
@@ -6846,7 +6847,7 @@ void CCovenSDSManager::saveStore(const char *storeName, SaveStoreFlags flags)
 
     if (ignoreExternals.exchange(true)) // NB: This is set during save to prevent serialization of externals during the save
     {
-        Owned<IException> exception = makeStringException(0, "Save already in progress");
+        Owned<IException> exception = makeStringException(DALIERR_SaveAlreadyInProgress, "Save already in progress");
         EXCLOG(exception);
         throw exception.getClear();
     }
@@ -9531,12 +9532,12 @@ bool applyXmlDeltas(IPropertyTree &root, IIOStream &stream, bool stopOnError)
                     {
                         const char *pos = child.queryProp("@pos");
                         if (!pos)
-                            throw MakeStringException(0, "Missing position attribute in child reference, section end offset=%" I64F "d", sectionEndOffset);
+                            throw MakeStringException(DALIERR_MissingPositionAttributeInChildReferenceSection, "Missing position attribute in child reference, section end offset=%" I64F "d", sectionEndOffset);
                         StringBuffer xpath(name);
                         xpath.append('[').append(pos).append(']');
                         IPropertyTree *existingBranch = currentBranch.queryPropTree(xpath.str());
                         if (!existingBranch)
-                            throw MakeStringException(0, "Failed to locate delta change in %s, section end offset=%" I64F "d", xpath.str(), sectionEndOffset);
+                            throw MakeStringException(DALIERR_FailedToLocateDeltaChangeInS, "Failed to locate delta change in %s, section end offset=%" I64F "d", xpath.str(), sectionEndOffset);
                         apply(child, *existingBranch);
                     }
                 }
@@ -9559,10 +9560,10 @@ bool applyXmlDeltas(IPropertyTree &root, IIOStream &stream, bool stopOnError)
                 xpath++;
             IPropertyTree *root = store.queryPropTree(xpath);
             if (!root)
-                throw MakeStringException(0, "Failed to locate header xpath = %s", xpath);
+                throw MakeStringException(DALIERR_FailedToLocateHeaderXpathS, "Failed to locate header xpath = %s", xpath);
             IPropertyTree *start = match.queryPropTree("Delta/T");
             if (!start)
-                throw MakeStringException(0, "Badly constructed delta format (missing Delta/T) in header path=%s, section end offset=%" I64F "d", xpath, endOffset);
+                throw MakeStringException(DALIERR_BadlyConstructedDeltaFormatMissingDeltaT, "Badly constructed delta format (missing Delta/T) in header path=%s, section end offset=%" I64F "d", xpath, endOffset);
             headerPath.set(xpath);
             apply(*start, *root);
         }

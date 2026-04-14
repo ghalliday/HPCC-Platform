@@ -33,6 +33,7 @@
 #include "daserver.hpp"
 
 #include "dasubs.ipp"
+#include "daerr.hpp"
 
 #ifdef _MSC_VER
 #pragma warning (disable : 4355)
@@ -79,7 +80,7 @@ public:
     void notify(MemoryBuffer &returndata)   // if returns false should unsubscribe
     {
         if (hasaborted) {
-            throw MakeStringException(-1,"Subscription notification aborted");
+            throw MakeStringException(DALIERR_SubscriptionNotificationAborted, "Subscription notification aborted");
             return;
         }
         size32_t dlen = returndata.length();
@@ -91,7 +92,7 @@ public:
                 // Kludge to avoid locking SDS on blocked client
                 hasaborted = true;
                 StringBuffer tmp;
-                throw MakeStringException(-1,"Subscription notification to %s timed out",dst->endpoint().getEndpointHostText(tmp).str());
+                throw MakeStringException(DALIERR_SubscriptionNotificationToSTimedOut, "Subscription notification to %s timed out",dst->endpoint().getEndpointHostText(tmp).str());
                 return;
             }
 

@@ -38,6 +38,7 @@
 #include <memory>
 #include <string_view>
 #include <vector>
+#include "daerr.hpp"
 
 #ifdef _DEBUG
 //#define TEST_DEADLOCK_RELEASE
@@ -61,7 +62,7 @@ IPropertyTreeIterator * getDropZonePlanesIterator(const char * name)
 IPropertyTree * getDropZonePlane(const char * name)
 {
     if (isEmptyString(name))
-        throw makeStringException(-1, "Drop zone name required");
+        throw makeStringException(DALIERR_DropZoneNameRequired, "Drop zone name required");
     Owned<IPropertyTreeIterator> iter = getDropZonePlanesIterator(name);
     return iter->first() ? &iter->get() : nullptr;
 }
@@ -95,7 +96,7 @@ IPropertyTree * findPlane(const char *category, const char * path, const char * 
             return LINK(&plane);
     }
     if (mustMatch)
-        throw makeStringExceptionV(-1, "DropZone not found for host '%s' path '%s'.",
+        throw makeStringExceptionV(DALIERR_DropzoneNotFoundForHostSPath, "DropZone not found for host '%s' path '%s'.",
             isEmptyString(host) ? "unspecified" : host, isEmptyString(path) ? "unspecified" : path);
     return nullptr;
 }
@@ -128,7 +129,7 @@ extern da_decl const char *queryDfsXmlBranchName(DfsXmlBranchKind kind)
 extern da_decl DfsXmlBranchKind queryDfsXmlBranchType(const char *typeStr)
 {
     if (isEmptyString(typeStr))
-        throw makeStringException(0, "Blank DFS xml branch type");
+        throw makeStringException(DALIERR_BlankDfsXmlBranchType, "Blank DFS xml branch type");
     if (strieq(typeStr, "File"))
         return DXB_File;
     else if (strieq(typeStr, "SuperFile"))
@@ -140,7 +141,7 @@ extern da_decl DfsXmlBranchKind queryDfsXmlBranchType(const char *typeStr)
     else if (strieq(typeStr, "HpccInternal"))
         return DXB_Internal;
     else
-        throw makeStringExceptionV(0, "Unknown DFS xml Branch type: %s", typeStr);
+        throw makeStringExceptionV(DALIERR_UnknownDfsXmlBranchTypeS, "Unknown DFS xml Branch type: %s", typeStr);
 }
 
 
@@ -439,7 +440,7 @@ bool CDfsLogicalFileName::isForeign(SocketEndpoint *ep) const
     if (multi)
     {
         if (!multi->isExpanded())
-            throw MakeStringException(-1, "Must call CDfsLogicalFileName::expand() before calling CDfsLogicalFileName::isForeign(), wildcards are specified");
+            throw MakeStringException(DALIERR_MustCallCdfslogicalfilenameExpandBeforeCallingCdfslogicalfilename, "Must call CDfsLogicalFileName::expand() before calling CDfsLogicalFileName::isForeign(), wildcards are specified");
         ForEachItemIn(i1,*multi)
             if (multi->item(i1).isForeign(ep))        // if any are say all are
                 return true;
@@ -491,18 +492,18 @@ inline void normalizeScope(const char *name, const char *scope, unsigned len, St
     while (len && isspace(scope[len-1]))
     {
         if (strict)
-            throw MakeStringException(-1, "Scope contains trailing spaces in file name '%s'", name);
+            throw MakeStringException(DALIERR_ScopeContainsTrailingSpacesInFileName, "Scope contains trailing spaces in file name '%s'", name);
         len--;
     }
     while (len && isspace(scope[0]))
     {
         if (strict)
-            throw MakeStringException(-1, "Scope contains leading spaces in file name '%s'", name);
+            throw MakeStringException(DALIERR_ScopeContainsLeadingSpacesInFileName, "Scope contains leading spaces in file name '%s'", name);
         len--;
         scope++;
     }
     if (!len && !allowEmptyScope)
-        throw MakeStringException(-1, "Scope is blank in file name '%s'", name);
+        throw MakeStringException(DALIERR_ScopeIsBlankInFileNameS, "Scope is blank in file name '%s'", name);
 
     res.append(len, scope);
 }
@@ -554,7 +555,7 @@ bool expandExternalPath(StringBuffer &dir, StringBuffer &tail, const char * file
     //The following code is never actually executed, since s always points at the leading '::'
     if (!t1||!*t1) {
         if (e)
-            *e = MakeStringException(-1,"No directory specified in external file name (%s)",filename);
+            *e = MakeStringException(DALIERR_NoDirectorySpecifiedInExternalFileName, "No directory specified in external file name (%s)",filename);
         return false;
     }
     size32_t odl = dir.length();
@@ -563,7 +564,7 @@ bool expandExternalPath(StringBuffer &dir, StringBuffer &tail, const char * file
         char c=*(s++);
         if (isPathSepChar(c)) {
             if (e)
-                *e = MakeStringException(-1,"Path cannot contain separators, use '::' to separate directories: (%s)",filename);
+                *e = MakeStringException(DALIERR_PathCannotContainSeparatorsUseToSeparate, "Path cannot contain separators, use '::' to separate directories: (%s)",filename);
             return false;
         }
         if ((c==':')&&(s!=t1)&&(*s==':')) {
@@ -573,13 +574,13 @@ bool expandExternalPath(StringBuffer &dir, StringBuffer &tail, const char * file
             if (strncmp(s, "..::", 4) == 0)
             {
                 if (e)
-                    *e = MakeStringException(-1,"External filename cannot contain relative path '..' (%s)", filename);
+                    *e = MakeStringException(DALIERR_ExternalFilenameCannotContainRelativePathS, "External filename cannot contain relative path '..' (%s)", filename);
                 return false;
             }
         }
         else if (c==':') {
             if (e)
-                *e = MakeStringException(-1,"Path cannot contain single ':', use 'c$' to indicate 'c:' (%s)",filename);
+                *e = MakeStringException(DALIERR_PathCannotContainSingleUseCTo, "Path cannot contain single ':', use 'c$' to indicate 'c:' (%s)",filename);
             return false;
         }
         else if (iswin&&start&&(s!=t1)&&(*s=='$')) {
@@ -633,7 +634,7 @@ void CDfsLogicalFileName::normalizeName(const char *name, StringAttr &res, bool 
             case '?':
             case '*': wilddetected = true; break;
             case '~':
-                throw MakeStringException(-1, "Unexpected character '%c' in logical name '%s' detected", *s, name);
+                throw MakeStringException(DALIERR_UnexpectedCharacterCInLogicalNameS, "Unexpected character '%c' in logical name '%s' detected", *s, name);
             case '>':
             {
                 c = '\0'; // will cause break out of loop
@@ -642,13 +643,13 @@ void CDfsLogicalFileName::normalizeName(const char *name, StringAttr &res, bool 
             default:
             {
                 if (!validFNameChar(c))
-                    throw MakeStringException(-1, "Unexpected character '%c' in logical name '%s' detected", *s, name);
+                    throw MakeStringException(DALIERR_UnexpectedCharacterCInLogicalNameS, "Unexpected character '%c' in logical name '%s' detected", *s, name);
             }
         }
         c = *++s;
     }
     if (!allowWild && wilddetected)
-        throw MakeStringException(-1, "Wildcards not allowed in filename (%s)", name);
+        throw MakeStringException(DALIERR_WildcardsNotAllowedInFilenameS, "Wildcards not allowed in filename (%s)", name);
     if (ct&&(ct-name>=1)) // trailing @
     {
         if ((ct[1]=='@')||(ct[1]=='^')) // escape
@@ -734,7 +735,7 @@ void CDfsLogicalFileName::normalizeName(const char *name, StringAttr &res, bool 
         normalizeScope(name, s, strlen(name)-(s-name), str, strict, allowTrailingEmptyScope);
         unsigned scopeLen = str.length()-tailpos;
         if ((1 == scopeLen) && (*SELF_SCOPE == str.charAt(str.length()-1)))
-            throw MakeStringException(-1, "Logical filename cannot end with scope \".\"");
+            throw MakeStringException(DALIERR_LogicalFilenameCannotEndWithScope, "Logical filename cannot end with scope \".\"");
         str.toLowerCase();
         res.set(str);
     }
@@ -1106,7 +1107,7 @@ static void convertPosixPathToLfn(StringBuffer &str,const char *path)
 void CDfsLogicalFileName::setPlaneExternal(const char *plane,const char *path)
 {
     if (!isEmptyString(path)&&isPathSepChar(path[0])&&(path[0]==path[1]))
-        throw makeStringExceptionV(-1,"Invalid path %s.",path);
+        throw makeStringExceptionV(DALIERR_InvalidPathS, "Invalid path %s.",path);
     StringBuffer str(PLANE_SCOPE "::");
     str.append(plane);
     if (!isEmptyString(path))
@@ -1428,7 +1429,7 @@ bool CDfsLogicalFileName::getExternalPath(StringBuffer &dir, StringBuffer &tail,
         *e = NULL;
     if (!isExternal()) {
         if (e)
-            *e = MakeStringException(-1,"File not external (%s)",get());
+            *e = MakeStringException(DALIERR_FileNotExternalS, "File not external (%s)",get());
         return false;
     }
     if (multi)
@@ -1455,13 +1456,13 @@ bool CDfsLogicalFileName::getExternalPath(StringBuffer &dir, StringBuffer &tail,
                 if (!plane)
                 {
                     if (e)
-                        *e = makeStringExceptionV(-1, "Scope contains unknown storage plane '%s'", planeName.str());
+                        *e = makeStringExceptionV(DALIERR_ScopeContainsUnknownStoragePlaneS, "Scope contains unknown storage plane '%s'", planeName.str());
                     return false;
                 }
                 if (plane->numDevices() != 1)
                 {
                     if (e)
-                        *e = makeStringExceptionV(-1, "plane:: does not support planes with more than one device '%s'", planeName.str());
+                        *e = makeStringExceptionV(DALIERR_PlaneDoesNotSupportPlanesWithMore, "plane:: does not support planes with more than one device '%s'", planeName.str());
                     return false;
                 }
                 const char * prefix = plane->queryPrefix();
@@ -2025,11 +2026,11 @@ void filterParts(IPropertyTree *file,UnsignedArray &partslist)
 void ensureSDSPath(const char * sdsPath)
 {
     if (!sdsPath)
-        throw MakeStringException(-1,"Attempted to create empty DALI path");
+        throw MakeStringException(DALIERR_AttemptedToCreateEmptyDaliPath, "Attempted to create empty DALI path");
 
     Owned<IRemoteConnection> conn = querySDS().connect(sdsPath, myProcessSession(), RTM_LOCK_WRITE | RTM_CREATE_QUERY, SDS_LOCK_TIMEOUT);
     if (!conn)
-        throw MakeStringException(-1,"Could not create DALI %s branch",sdsPath);
+        throw MakeStringException(DALIERR_CouldNotCreateDaliSBranch, "Could not create DALI %s branch",sdsPath);
 }
 
 inline void filteredAdd(IArrayOf<IPropertyTree> &results,const char *namefilterlo,const char *namefilterhi,StringArray& unknownAttributes, IPropertyTree *item)
@@ -2997,7 +2998,7 @@ public:
                     opath.append("/Owner");
                     oconn.setown(querySDS().connect(opath.str(),mysession,RTM_CREATE|RTM_LOCK_WRITE|RTM_DELETE_ON_DISCONNECT,SDS_CONNECT_TIMEOUT));
                     if (!oconn)
-                        throw MakeStringException(-1,"CDaliMutex::enter Cannot create %s branch",opath.str());
+                        throw MakeStringException(DALIERR_CdalimutexEnterCannotCreateSBranch, "CDaliMutex::enter Cannot create %s branch",opath.str());
                     oconn->queryRoot()->setPropInt64(NULL,mysession);
                     oconn->commit();
                     if (needstop)
@@ -3008,7 +3009,7 @@ public:
             else {
                 Owned<IRemoteConnection> pconn = querySDS().connect("Locks",mysession,RTM_LOCK_WRITE|RTM_CREATE_QUERY,SDS_CONNECT_TIMEOUT);
                 if (!pconn)
-                    throw MakeStringException(-1,"CDaliMutex::enter Cannot create /Locks branch");
+                    throw MakeStringException(DALIERR_CdalimutexEnterCannotCreateLocksBranch, "CDaliMutex::enter Cannot create /Locks branch");
                 path.clear().appendf("Mutex[@name=\"%s\"]",name.get());
                 if (!pconn->queryRoot()->hasProp(name))
                     pconn->queryRoot()->addPropTree("Mutex",createPTree("Mutex"))->setProp("@name",name);
@@ -3047,7 +3048,7 @@ public:
     {
         CriticalBlock block(crit);
         if (!count)
-            throw MakeStringException(-1,"CDaliMutex leave without corresponding enter");
+            throw MakeStringException(DALIERR_CdalimutexLeaveWithoutCorrespondingEnter, "CDaliMutex leave without corresponding enter");
         if (--count)
             return;
         oconn.clear();
@@ -3689,7 +3690,7 @@ void remapGroupsToDafilesrv(IPropertyTree *file, bool foreign, bool secure)
                         const char *typeText = secure ? "secure" : "non-secure";
                         Owned<INode> directIONode = createINode(dafilesrvEpStr);
                         if (directIONode->endpoint().isNull())
-                            throw makeStringExceptionV(0, "Unable to resolve %s directio dafilesrv hostname '%s'", typeText, directioService.first.c_str());
+                            throw makeStringExceptionV(DALIERR_UnableToResolveSDirectioDafilesrvHostname, "Unable to resolve %s directio dafilesrv hostname '%s'", typeText, directioService.first.c_str());
                         PROGLOG("%s directio = %s", typeText, dafilesrvEpStr.str());
                         return directIONode.getClear();
                     };
@@ -3726,7 +3727,7 @@ void remapGroupsToDafilesrv(IPropertyTree *file, bool foreign, bool secure)
                 if (!dafileSrvNodeCopy)
                 {
                     const char *typeText = secure ? "secure" : "non-secure";
-                    throw makeStringExceptionV(0, "%s DFS service request made, but no %s directio service available", typeText, typeText);
+                    throw makeStringExceptionV(DALIERR_SDfsServiceRequestMadeButNo, "%s DFS service request made, but no %s directio service available", typeText, typeText);
                 }
                 for (unsigned n=0; n<group->ordinality(); n++)
                     nodes.push_back(dafileSrvNodeCopy);

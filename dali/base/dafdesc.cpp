@@ -36,6 +36,7 @@
 #include "rmtfile.hpp"
 
 #include <memory>
+#include "daerr.hpp"
 
 #define INCLUDE_1_OF_1    // whether to use 1_of_1 for single part files
 
@@ -799,7 +800,7 @@ public:
                 rfn.set(rmfn.item(0));
                 return rfn;
             }
-            throw MakeStringException(-1,"Remote Filename: Cannot resolve single part from wild/multi filename");
+            throw MakeStringException(DALIERR_RemoteFilenameCannotResolveSinglePartFrom, "Remote Filename: Cannot resolve single part from wild/multi filename");
         }
         StringBuffer fullpath;
         getPath(fullpath,copy);
@@ -1151,7 +1152,7 @@ class CFileDescriptor:  public CFileDescriptorBase, implements ISuperFileDescrip
             attr->setPropInt("@flags", static_cast<int>(fileFlags));
 
             if (setupdone)
-                throw MakeStringException(-1,"IFileDescriptor - setup already done");
+                throw MakeStringException(DALIERR_IfiledescriptorSetupAlreadyDone, "IFileDescriptor - setup already done");
             setupdone = true;
             ClusterPartDiskMapSpec mspec;
             unsigned clusterFlags = 0;
@@ -1569,7 +1570,7 @@ public:
         setupdone = true;
         mb.read(version);
         if ((version != SERIALIZATION_VERSION) && (version != SERIALIZATION_VERSION2)) // check serialization matched
-            throw MakeStringException(-1,"FileDescriptor serialization version mismatch %d/%d",(int)SERIALIZATION_VERSION,(int)version);
+            throw MakeStringException(DALIERR_FiledescriptorSerializationVersionMismatchDD, "FileDescriptor serialization version mismatch %d/%d",(int)SERIALIZATION_VERSION,(int)version);
         mb.read(tracename);
         mb.read(directory);
         mb.read(partmask);
@@ -2533,10 +2534,10 @@ static IFileDescriptor *_createExternalFileDescriptor(const char *_logicalname, 
     {
         StringBuffer grp;
         if (logicalname.getGroupName(grp).length()==0)
-            throw MakeStringException(-1,"missing node in external file name (%s)",logicalname.get());
+            throw MakeStringException(DALIERR_MissingNodeInExternalFileNameS, "missing node in external file name (%s)",logicalname.get());
         group.setown(queryNamedGroupStore().lookup(grp.str()));
         if (!group)
-            throw MakeStringException(-1,"cannot resolve node %s in external file name (%s)",grp.str(),logicalname.get());
+            throw MakeStringException(DALIERR_CannotResolveNodeSInExternalFile, "cannot resolve node %s in external file name (%s)",grp.str(),logicalname.get());
         ep = group->queryNode(0).endpoint();
     }
 
@@ -2886,7 +2887,7 @@ void setBaseDirectory(const char * dir, unsigned replicateLevel, DFD_OS os)
     loadDefaultBases();
     StringBuffer out;
     if (!dir||!*dir||!isAbsolutePath(dir))
-        throw MakeStringException(-1,"setBaseDirectory(%s) requires an absolute path",dir ? dir : "null");
+        throw MakeStringException(DALIERR_SetbasedirectorySRequiresAnAbsolutePath, "setBaseDirectory(%s) requires an absolute path",dir ? dir : "null");
     size32_t l = strlen(dir);
     if ((l>3)&&(isPathSepChar(dir[l-1])))
         l--;
@@ -3327,14 +3328,14 @@ IFileDescriptor *createFileDescriptorFromRoxieXML(IPropertyTree *tree,const char
         id = "";
     const char *dir = tree->queryProp("@directory");
     if (!dir||!*dir)
-        throw MakeStringException(-1,"createFileDescriptorFromRoxie: %s missing directory",id);
+        throw MakeStringException(DALIERR_CreatefiledescriptorfromroxieSMissingDirectory, "createFileDescriptorFromRoxie: %s missing directory",id);
     const char *mask = tree->queryProp("@partmask");
     if (!mask||!*mask)
-        throw MakeStringException(-1,"createFileDescriptorFromRoxie: %s missing part mask",id);
+        throw MakeStringException(DALIERR_CreatefiledescriptorfromroxieSMissingPartMask, "createFileDescriptorFromRoxie: %s missing part mask",id);
     unsigned np = tree->getPropInt("@numparts");
     IPropertyTree *part1 = tree->queryPropTree("Part_1");
     if (!part1)
-        throw MakeStringException(-1,"createFileDescriptorFromRoxie: %s missing part 1",id);
+        throw MakeStringException(DALIERR_CreatefiledescriptorfromroxieSMissingPart1, "createFileDescriptorFromRoxie: %s missing part 1",id);
 
     // assume same number of copies for all parts
     unsigned nc = 0;
@@ -3347,7 +3348,7 @@ IFileDescriptor *createFileDescriptorFromRoxieXML(IPropertyTree *tree,const char
             break;
         const char *path = loc->queryProp("@path");
         if (!path)
-            throw MakeStringException(-1,"createFileDescriptorFromRoxie: %s missing part 1 loc path",id);
+            throw MakeStringException(DALIERR_CreatefiledescriptorfromroxieSMissingPart1LocPath, "createFileDescriptorFromRoxie: %s missing part 1 loc path",id);
         RemoteFilename rfn;
         rfn.setRemotePath(path);
         if (rfn.queryEndpoint().isNull())
@@ -3356,7 +3357,7 @@ IFileDescriptor *createFileDescriptorFromRoxieXML(IPropertyTree *tree,const char
         nc++;
     }
     if (!nc)
-        throw MakeStringException(-1,"createFileDescriptorFromRoxie: %s missing part 1 Loc",id);
+        throw MakeStringException(DALIERR_CreatefiledescriptorfromroxieSMissingPart1Loc, "createFileDescriptorFromRoxie: %s missing part 1 Loc",id);
     StringBuffer fulldir(locdirs.item(0));
     addPathSepChar(fulldir).append(tree->queryProp("@directory"));
     res->setDefaultDir(fulldir.str());
@@ -3365,7 +3366,7 @@ IFileDescriptor *createFileDescriptorFromRoxieXML(IPropertyTree *tree,const char
     for (unsigned p=1;p<=np;p++) {
         IPropertyTree *part = tree->queryPropTree(xpath.clear().appendf("Part_%d",p));
         if (!part)
-            throw MakeStringException(-1,"createFileDescriptorFromRoxie: %s missing part %d",id,p);
+            throw MakeStringException(DALIERR_CreatefiledescriptorfromroxieSMissingPartD, "createFileDescriptorFromRoxie: %s missing part %d",id,p);
         if (iskey&&(p==np)&&(np>1)) // leave off tlk
             continue;
         unsigned c;
@@ -3374,7 +3375,7 @@ IFileDescriptor *createFileDescriptorFromRoxieXML(IPropertyTree *tree,const char
             if (loc) {
                 const char *path = loc->queryProp("@path");
                 if (!path)
-                    throw MakeStringException(-1,"createFileDescriptorFromRoxie: %s missing part %d loc path",id,p);
+                    throw MakeStringException(DALIERR_CreatefiledescriptorfromroxieSMissingPartDLocPath, "createFileDescriptorFromRoxie: %s missing part %d loc path",id,p);
                 RemoteFilename rfn;
                 rfn.setRemotePath(path);
                 ForEachItemIn(d,locdirs) {
@@ -3429,7 +3430,7 @@ IFileDescriptor *createFileDescriptorFromRoxieXML(IPropertyTree *tree,const char
                 break;
             map.replicateOffset++;
             if (map.replicateOffset==grp->ordinality())
-                throw MakeStringException(-1,"createFileDescriptorFromRoxie: %s cannot determine replication offset",id);
+                throw MakeStringException(DALIERR_CreatefiledescriptorfromroxieSCannotDetermineReplicationOffset, "createFileDescriptorFromRoxie: %s cannot determine replication offset",id);
         }
     }
 
@@ -3442,9 +3443,9 @@ IFileDescriptor *createFileDescriptorFromRoxieXML(IPropertyTree *tree,const char
 #if 0
         Owned<IGroup> cgrp = queryNamedGroupStore().lookup(clustername);
         if (!cgrp)
-            throw MakeStringException(-1,"createFileDescriptorFromRoxieXML: Cluster %s not found",clustername);
+            throw MakeStringException(DALIERR_CreatefiledescriptorfromroxiexmlClusterSNotFound, "createFileDescriptorFromRoxieXML: Cluster %s not found",clustername);
         if (!cgrp->equals(grp))
-            throw MakeStringException(-1,"createFileDescriptorFromRoxieXML: Cluster %s does not match XML",clustername);
+            throw MakeStringException(DALIERR_CreatefiledescriptorfromroxiexmlClusterSDoesNotMatchXml, "createFileDescriptorFromRoxieXML: Cluster %s does not match XML",clustername);
 #endif
         res->addCluster(clustername,grp,map);
     }
@@ -3473,7 +3474,7 @@ IFileDescriptor *createFileDescriptorFromRoxieXML(IPropertyTree *tree,const char
             if (loc) {
                 const char *path = loc->queryProp("@path");
                 if (!path)
-                    throw MakeStringException(-1,"createFileDescriptorFromRoxie: %s missing part %d loc path",id,c+1);
+                    throw MakeStringException(DALIERR_CreatefiledescriptorfromroxieSMissingPartDLocPath, "createFileDescriptorFromRoxie: %s missing part %d loc path",id,c+1);
                 StringBuffer fullpath(path);
                 addPathSepChar(fullpath).append(tree->queryProp("@directory"));
                 expandMask(addPathSepChar(fullpath),mask,p-1,np);

@@ -30,6 +30,7 @@
 #include "daserver.hpp"
 #include "dacoven.hpp"
 #include "mpcomm.hpp"
+#include "daerr.hpp"
 
 extern void closedownDFS();
 
@@ -170,11 +171,11 @@ static void checkDaliVersionInfo(ICommunicator *comm, CDaliVersion &serverVersio
     StringBuffer daliEpStr;
     comm->queryGroup().queryNode(0).endpoint().getEndpointHostText(daliEpStr); // NB: there's always exactly 1 node
     if (!comm->verifyConnection(0, VERSION_REQUEST_TIMEOUT))
-        throw makeStringExceptionV(-1, "Failed to connect to server [%s]", daliEpStr.str());
+        throw makeStringExceptionV(DALIERR_FailedToConnectToServerS, "Failed to connect to server [%s]", daliEpStr.str());
     if (!comm->sendRecv(mb, RANK_RANDOM, MPTAG_DALI_COVEN_REQUEST, VERSION_REQUEST_TIMEOUT))
-        throw makeStringExceptionV(-1, "Failed retrieving version information from server [%s], legacy server?", daliEpStr.str());
+        throw makeStringExceptionV(DALIERR_FailedRetrievingVersionInformationFromServerS, "Failed retrieving version information from server [%s], legacy server?", daliEpStr.str());
     if (!mb.length())
-        throw makeStringExceptionV(-1, "Failed to receive server [%s] information (probably communicating to legacy server)", daliEpStr.str());
+        throw makeStringExceptionV(DALIERR_FailedToReceiveServerSInformationProbably, "Failed to receive server [%s] information (probably communicating to legacy server)", daliEpStr.str());
     StringAttr serverVersionStr, minClientVersionStr;
     mb.read(serverVersionStr);
     serverVersion.set(serverVersionStr), 
@@ -505,7 +506,7 @@ public:
                 store->serialize(mb.clear());
                 if (!sendRecv(mb,r,MPTAG_DALI_COVEN_REQUEST, COVEN_SERVER_TIMEOUT)) {
                     StringBuffer str;
-                    throw MakeStringException(-1,"Could not connect to %s",grp->queryNode(r).endpoint().getEndpointHostText(str).str());
+                    throw MakeStringException(DALIERR_CouldNotConnectToS, "Could not connect to %s",grp->queryNode(r).endpoint().getEndpointHostText(str).str());
                 }   
                 mergeStore(store,mb,true);
             }
@@ -515,7 +516,7 @@ public:
                 for (;;)
                 {
                     if (!recv(mb,r,MPTAG_DALI_COVEN_REQUEST,&sender,COVEN_SERVER_TIMEOUT)) {
-                        throw MakeStringException(-1,"Could not connect to %s",grp->queryNode(r).endpoint().getEndpointHostText(str).str());
+                        throw MakeStringException(DALIERR_CouldNotConnectToS, "Could not connect to %s",grp->queryNode(r).endpoint().getEndpointHostText(str).str());
                     }
                     if (RANK_NULL==sender)
                         processMessage(mb);
@@ -599,13 +600,13 @@ public:
                 setCovenId(covenid);
             }
             else if (covenid!=mycovenid)
-                throw MakeStringException(-1,"Dali mismatched Coven servers");
+                throw MakeStringException(DALIERR_DaliMismatchedCovenServers, "Dali mismatched Coven servers");
         }
         if (check) {
             if (mt->getPropInt("UIDbase")!=t->getPropInt("UIDbase"))
-                throw MakeStringException(-1,"UID base incompatibility amongst Coven servers");
+                throw MakeStringException(DALIERR_UidBaseIncompatibilityAmongstCovenServers, "UID base incompatibility amongst Coven servers");
             if (mt->getPropInt("SDSedition")!=t->getPropInt("SDSedition"))
-                throw MakeStringException(-1,"SDS edition incompatibility amongst Coven Servers");
+                throw MakeStringException(DALIERR_SdsEditionIncompatibilityAmongstCovenServers, "SDS edition incompatibility amongst Coven Servers");
         }
         else {
             t->setPropInt("UIDbase",mt->getPropInt("UIDbase"));
@@ -993,7 +994,7 @@ ICoven &queryCoven()
     if (coven==NULL)
     {
         PrintStackReport();
-        Owned<IException> e = MakeStringException(-1, "No access to Dali - this normally means a plugin call is being called from a thorslave");
+        Owned<IException> e = MakeStringException(DALIERR_NoAccessToDaliThisNormallyMeans, "No access to Dali - this normally means a plugin call is being called from a thorslave");
         EXCLOG(e, NULL);
         throw e.getClear();
     }
@@ -1079,7 +1080,7 @@ DALI_UID getGlobalUniqueIds(unsigned num,SocketEndpoint *_foreignnode)
         if (coven)
             return coven->getUniqueIds(num,_foreignnode);
         if (!_foreignnode||_foreignnode->isNull())
-            throw MakeStringException(99,"getUniqueIds: Not connected to dali");
+            throw MakeStringException(DALIERR_GetuniqueidsNotConnectedToDali, "getUniqueIds: Not connected to dali");
         SocketEndpoint foreignnode;
         foreignnode.set(*_foreignnode);
         if (foreignnode.port==0)
