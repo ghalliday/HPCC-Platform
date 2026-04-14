@@ -610,7 +610,7 @@ void CThreadedPersistent::start(bool inheritThreadContext)
         VStringBuffer msg("CThreadedPersistent::start(%s) - not ready", athread.getName());
         IWARNLOG("%s", msg.str());
         PrintStackReport();
-        throw MakeStringExceptionDirect(-1, msg.str());
+        throw MakeStringExceptionDirect(JLIBERR_SystemMsgStr, msg.str());
     }
     if (inheritThreadContext)
         athread.captureThreadLoggingInfo();

@@ -142,7 +142,7 @@ __declspec(noreturn) void jlib_decl throwUnexpectedException(const char * what, 
 
 const char jlib_decl *sanitizeSourceFile(const char *file);
 
-#define makeUnexpectedException()  makeStringExceptionV(JLIBERR_UtilInternalErrorInSAtSD_1, "Internal Error in %s() at %s(%d)", __func__, sanitizeSourceFile(__FILE__), __LINE__)
+#define makeUnexpectedException()  makeStringExceptionV(UNEXPECTED_ERROR_CODE, "Internal Error in %s() at %s(%d)", __func__, sanitizeSourceFile(__FILE__), __LINE__)
 #define throwUnexpected()          throwUnexpectedException(__func__, sanitizeSourceFile(__FILE__), __LINE__)
 #define throwUnexpectedX(x)        throwUnexpectedException(x, __func__, sanitizeSourceFile(__FILE__), __LINE__)
 #define assertThrow(x)             assertex(x)

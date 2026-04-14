@@ -567,7 +567,7 @@ bool invoke_program(const char *command_line, DWORD &runcode, bool wait, const c
 
         OERRLOG("%s",s.str());
         if(throwException)
-            throw MakeStringExceptionDirect(-1, s.str());
+            throw MakeStringExceptionDirect(JLIBERR_UtilSStr, s.str());
         return false;
     }
 

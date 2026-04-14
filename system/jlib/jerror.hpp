@@ -334,6 +334,13 @@
 #define JLIBERR_UtilPrecompiledHeaderGenerationOnlySupportedForG 6348
 #define JLIBERR_UtilCbitsetWithFixedMemCannotExpand        6349
 #define JLIBERR_UtilInternalErrorInSAtSD_1                 6350
+
+#define JLIBERR_UtilJcontainerizedErrMsg                6300
+#define JLIBERR_UtilJcontainerizedExceptionText         6301
+#define JLIBERR_SystemMsgStr                            6302
+#define JLIBERR_UtilSStr                                6303
+#define JLIBERR_CompressUnexpectedZeroLengthCompressionBlock 6304
+
 //---- Text for all errors (make it easy to internationalise) ---------------------------
 
 #define JLIBERR_BadlyFormedDateTime_Text        "Badly formatted date/time '%s'"

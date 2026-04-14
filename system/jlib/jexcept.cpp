@@ -863,7 +863,7 @@ void raiseAssertException(const char *assertion, const char *file, unsigned line
 #endif
 #endif
 
-    throw makeStringException(3000, s.str()); // 3000: internal error
+    throw makeStringException(JLIBERR_InternalError, s.str()); // 3000: internal error
 }
 
 void raiseAssertCore(const char *assertion, const char *file, unsigned line)

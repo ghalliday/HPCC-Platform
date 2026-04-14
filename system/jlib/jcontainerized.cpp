@@ -146,7 +146,7 @@ void waitJob(const char *componentName, const char *resourceType, const char *jo
                         DBGLOG("checkContainerExitCodes - output = %s", output.str());
                         checkExitCodes(errMsg, output);
                     }
-                    throw makeStringException(0, errMsg);
+                    throw makeStringException(JLIBERR_UtilJcontainerizedErrMsg, errMsg);
                 }
                 // Check for success: k8s <1.31 uses "Complete: True", k8s >=1.31 produces "SuccessCriteriaMet: True" 1st
                 // followed by "Complete: True"
@@ -492,7 +492,7 @@ std::pair<std::string, unsigned> getExternalService(const char *serviceName)
         VStringBuffer exceptionText("Failed to get external service for '%s'. Error: [%d, ", serviceName, e->errorCode());
         e->errorMessage(exceptionText).append("]");
         e->Release();
-        throw makeStringException(-1, exceptionText);
+        throw makeStringException(JLIBERR_UtilJcontainerizedExceptionText, exceptionText);
     }
     StringArray fields;
     fields.appendList(output, ",");

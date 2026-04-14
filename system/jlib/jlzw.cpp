@@ -782,7 +782,7 @@ void compressToBuffer(MemoryBuffer & out, size32_t len, const void * src, Compre
         if (!handler)
         {
             VStringBuffer s("Unknown compression method %x requested in compressToBuffer", (byte) method);
-            throw makeStringException(0, s.str());
+            throw makeStringException(JLIBERR_CompressCompressUnexpectedZeroLengthCompressionBlock, s.str());
         }
         unsigned originalLength = out.length();
         // For back-compatibility, we always store COMPRESS_METHOD_LZW_LITTLE_ENDIAN as 1 as earlier versions stored a boolean here
@@ -849,7 +849,7 @@ void decompressToBuffer(MemoryBuffer & out, MemoryBuffer & in, const char *optio
         if (!handler)
         {
             VStringBuffer s("Unknown decompression method %x required in decompressToBuffer", (byte) method);
-            throw makeStringException(0, s.str());
+            throw makeStringException(JLIBERR_CompressCompressUnexpectedZeroLengthCompressionBlock, s.str());
         }
         Owned<IExpander> expander = handler->getExpander(options);
         unsigned outSize = expander->init(in.readDirect(srcLen));
