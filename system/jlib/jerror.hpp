@@ -41,9 +41,16 @@
 #define JLIBERR_FeatureConfigNotFound          6013
 #define JLIBERR_FactoryReturnedNull            6014
 
-#define JLIBERR_MemoryAllocation               6015
-#define JLIBERR_FileIO                         6016
-#define JLIBERR_SocketError                    6017
+#define JLIBERR_ArrayOverflow                  6015
+#define JLIBERR_ArrayAllocationFailed          6016
+#define JLIBERR_ArrayTooFewItems               6017
+
+#define JLIBERR_BufferErrorReadingFile         6018
+#define JLIBERR_BufferUnableToCreateFile       6019
+#define JLIBERR_BufferDiskFull                 6020
+#define JLIBERR_BufferErrorWritingFile         6021
+
+#define JLIBERR_SocketError                    6025
 
 //---- Text for all errors (make it easy to internationalise) ---------------------------
 
