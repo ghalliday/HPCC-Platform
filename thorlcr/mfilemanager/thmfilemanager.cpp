@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "thorerr.hpp"
 
 #include "jfile.hpp"
 #include "jiface.hpp"
@@ -169,7 +170,7 @@ class CFileManager : public CSimpleInterface, implements IThorFileManager
                     Owned<IWorkUnit> workunit = &job.queryWorkUnit().lock();
                     WUState currentState = workunit->getState();
                     if (WUStateBlocked != currentState) // could happen if user aborted whilst blocked. Bail out.
-                        throw MakeStringException(0, "WorkUnit state has changed to '%s' whilst blocked trying to '%s'", getWorkunitStateStr(currentState), msg);
+                        throw MakeStringException(THORERR_WorkunitStateHasChangedToS, "WorkUnit state has changed to '%s' whilst blocked trying to '%s'", getWorkunitStateStr(currentState), msg);
                     workunit->setState(preBlockedState); // i.e. restore original state
                 }
                 return ret;
@@ -187,14 +188,14 @@ class CFileManager : public CSimpleInterface, implements IThorFileManager
             if (WUStateUnknown == preBlockedState) // i.e. 1st time
             {
                 if (WUStateUnknown == currentState) // should never happen, but guard against it JIC
-                    throw MakeStringException(0, "WorkUnit in unknown state");
+                    throw MakeStringException(THORERR_WorkunitInUnknownState, "WorkUnit in unknown state");
                 preBlockedState = currentState;
                 workunit->setState(WUStateBlocked);
             }
             else // NB: implies >= 2nd time around
             {
                 if (WUStateBlocked != currentState) // could happen if user aborted whilst blocked. Bail out.
-                    throw MakeStringException(0, "WorkUnit state has changed to '%s' whilst blocked trying to '%s'", getWorkunitStateStr(currentState), msg);
+                    throw MakeStringException(THORERR_WorkunitStateHasChangedToS, "WorkUnit state has changed to '%s' whilst blocked trying to '%s'", getWorkunitStateStr(currentState), msg);
             }
             VStringBuffer blockedMsg("Blocked for %u minutes trying to %s", tm.elapsed()/60000, msg);
             workunit->setStateEx(blockedMsg);
@@ -348,7 +349,7 @@ public:
                     throw MakeStringException(TE_MachineOrderNotFound, "Superfile %s has no content\n", scopedName.str());
             }
             else
-                throw MakeStringException(-1, "Unexpected, standard file %s contains no parts", scopedName.str());
+                throw MakeStringException(THORERR_UnexpectedStandardFileSContainsNo, "Unexpected, standard file %s contains no parts", scopedName.str());
         }
         if (!file)
         {
@@ -496,9 +497,9 @@ public:
                     {
                         // 2nd+ output plane
                         if (!streq(thisPlaneDir, planeDir))
-                            throw makeStringException(0, "When targeting multiple clusters on a write, the clusters must have the same target directory");
+                            throw makeStringException(THORERR_WhenTargetingMultipleClustersOnA, "When targeting multiple clusters on a write, the clusters must have the same target directory");
                         if (thisDirPerPart != dirPerPart)
-                            throw makeStringException(0, "When targeting multiple clusters on a write, all clusters must have the same subDirPerFilePart value");
+                            throw makeStringException(THORERR_WhenTargetingMultipleClustersOnA_1, "When targeting multiple clusters on a write, all clusters must have the same subDirPerFilePart value");
                     }
                 }
                 // places logical filename directory in 'dir'
@@ -699,7 +700,7 @@ void fillClusterArray(CJobBase &job, const char *filename, StringArray &clusters
         const char *cluster = clusters.item(0);
         Owned<IGroup> group = queryNamedGroupStore().lookup(cluster);
         if (!group)
-            throw MakeStringException(0, "Could not find cluster group %s for file: %s", cluster, filename);
+            throw MakeStringException(THORERR_CouldNotFindClusterGroupS, "Could not find cluster group %s for file: %s", cluster, filename);
 #ifndef _CONTAINERIZED
         EnvMachineOS os = queryOS(group->queryNode(0).endpoint());
 #endif
@@ -712,20 +713,20 @@ void fillClusterArray(CJobBase &job, const char *filename, StringArray &clusters
             cluster = clusters.item(clusterIdx++);
             group.setown(queryNamedGroupStore().lookup(cluster));
             if (!group)
-                throw MakeStringException(0, "Could not find cluster group %s for file: %s", cluster, filename);
+                throw MakeStringException(THORERR_CouldNotFindClusterGroupS, "Could not find cluster group %s for file: %s", cluster, filename);
 #ifndef _CONTAINERIZED
             if (MachineOsUnknown != os)
             {
                 EnvMachineOS thisOs = queryOS(group->queryNode(0).endpoint());
                 if (MachineOsUnknown != thisOs && thisOs != os)
-                    throw MakeStringException(0, "UNSUPPORTED: multiple clusters with different target OS's. File: %s", filename);
+                    throw MakeStringException(THORERR_UnsupportedMultipleClustersWithDifferentTarget, "UNSUPPORTED: multiple clusters with different target OS's. File: %s", filename);
             }
             // check for overlap
             ForEachItemIn(g,groups)
             {
                 IGroup &agrp = groups.item(g);
                 if (GRdisjoint != agrp.compare(group))
-                    throw MakeStringException(0, "Target cluster '%s', overlaps with target cluster '%s'", clusters.item(clusterIdx-1), clusters.item(g));
+                    throw MakeStringException(THORERR_TargetClusterSOverlapsWithTarget, "Target cluster '%s', overlaps with target cluster '%s'", clusters.item(clusterIdx-1), clusters.item(g));
             }
 #endif
         }

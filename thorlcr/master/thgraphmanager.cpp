@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <chrono>
+#include "thorerr.hpp"
 #include <future>
 #include <string>
 #include <unordered_set>
@@ -185,7 +186,7 @@ class CJobManager : public CSimpleInterface, implements IJobManager, implements 
             StringBuffer scopeStr;
             wfidScopeId.getScopeText(scopeStr).append(':');
             graphScopeId.getScopeText(scopeStr);
-            Owned<IException> e = makeStringExceptionV(-1, "%s: Degraded performance. Worker pods are unevenly distributed over nodes. StdDev=%.2f. min node(%s) has %" I64F "u pods, max node(%s) has %" I64F "u pods", scopeStr.str(), stdDev, nodeNames[minNode].c_str(), min, nodeNames[maxNode].c_str(), max);
+            Owned<IException> e = makeStringExceptionV(THORERR_SDegradedPerformanceWorkerPodsAre, "%s: Degraded performance. Worker pods are unevenly distributed over nodes. StdDev=%.2f. min node(%s) has %" I64F "u pods, max node(%s) has %" I64F "u pods", scopeStr.str(), stdDev, nodeNames[minNode].c_str(), min, nodeNames[maxNode].c_str(), max);
             reportExceptionToWorkunit(*wu, e);
         }
     } podInfo;
@@ -552,11 +553,11 @@ bool CJobManager::execute(IConstWorkUnit *workunit, const char *wuid, const char
         updateTraceFlags(wuLoadTraceFlags(workunit, thorTraceOptions, startTraceFlags), true);
 
         if (!workunit) // check workunit is available and ready to run.
-            throw MakeStringException(0, "Could not locate workunit %s", wuid);
+            throw MakeStringException(THORERR_CouldNotLocateWorkunitS, "Could not locate workunit %s", wuid);
         if (workunit->getCodeVersion() == 0)
-            throw makeStringException(0, "Attempting to execute a workunit that hasn't been compiled");
+            throw makeStringException(THORERR_AttemptingToExecuteAWorkunitThat, "Attempting to execute a workunit that hasn't been compiled");
         if ((workunit->getCodeVersion() > ACTIVITY_INTERFACE_VERSION) || (workunit->getCodeVersion() < MIN_ACTIVITY_INTERFACE_VERSION))
-            throw MakeStringException(0, "Workunit was compiled for eclagent interface version %d, this thor (%s) requires version %d..%d", workunit->getCodeVersion(), globals->queryProp("@name"), MIN_ACTIVITY_INTERFACE_VERSION, ACTIVITY_INTERFACE_VERSION);
+            throw MakeStringException(THORERR_WorkunitWasCompiledForEclagentInterface, "Workunit was compiled for eclagent interface version %d, this thor (%s) requires version %d..%d", workunit->getCodeVersion(), globals->queryProp("@name"), MIN_ACTIVITY_INTERFACE_VERSION, ACTIVITY_INTERFACE_VERSION);
         if (workunit->getCodeVersion() == 652)
         {
             // Any workunit compiled using eclcc 7.12.0-7.12.18 is not compatible
@@ -568,7 +569,7 @@ bool CJobManager::execute(IConstWorkUnit *workunit, const char *wuid, const char
                 const char *point = version + strlen("7.12.");
                 unsigned pointVer = atoi(point);
                 if (pointVer <= 18)
-                    throw MakeStringException(0, "Workunit was compiled by eclcc version %s which is not compatible with this thor (%s)", buildVersion.str(), globals->queryProp("@name"));
+                    throw MakeStringException(THORERR_WorkunitWasCompiledByEclccVersion, "Workunit was compiled by eclcc version %s which is not compatible with this thor (%s)", buildVersion.str(), globals->queryProp("@name"));
             }
         }
 
@@ -592,7 +593,7 @@ bool CJobManager::execute(IConstWorkUnit *workunit, const char *wuid, const char
     }
     catch (CATCHALL)
     {
-        exception.setown(makeStringException(0, "Unknown exception"));
+        exception.setown(makeStringException(THORERR_UnknownException, "Unknown exception"));
     }
     reply(workunit, wuid, exception, agentep, false);
     return false;
@@ -866,7 +867,7 @@ void CJobManager::run()
         }
         catch (CATCHALL)
         {
-            exception.setown(makeStringException(0, "Unknown exception"));
+            exception.setown(makeStringException(THORERR_UnknownException, "Unknown exception"));
         }
         reply(workunit, wuid, exception, agentep, false);
 
@@ -1532,13 +1533,13 @@ void thorMain(ILogMsgHandler *logHandler)
                             bool unsupported = false;
                             if (workunit->hasDebugValue("platformVersion"))
                             {
-                                Owned<IException> e = makeStringException(0, "The #option 'platformVersion' is no longer supported as a per-workunit option");
+                                Owned<IException> e = makeStringException(THORERR_TheOptionPlatformversionIsNoLonger, "The #option 'platformVersion' is no longer supported as a per-workunit option");
                                 reportExceptionToWorkunit(*workunit, e);
                                 unsupported = true;
                             }
                             if (workunit->hasDebugValue("numWorkersPerPod"))
                             {
-                                Owned<IException> e = makeStringException(0, "The #option 'numWorkersPerPod' is no longer supported as a per-workunit option");
+                                Owned<IException> e = makeStringException(THORERR_TheOptionNumworkersperpodIsNoLonger, "The #option 'numWorkersPerPod' is no longer supported as a per-workunit option");
                                 reportExceptionToWorkunit(*workunit, e);
                                 unsupported = true;
                             }

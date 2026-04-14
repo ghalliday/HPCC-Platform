@@ -18,6 +18,7 @@
 // Entrypoint for ThorMaster.EXE
 
 #include "platform.h"
+#include "thorerr.hpp"
 
 #include <algorithm>
 #include <string>
@@ -1014,12 +1015,12 @@ int main( int argc, const char *argv[]  )
             unsigned numWorkersPerPod = 1;
             numWorkers = globals->getPropInt("@numWorkers", 0);
             if (0 == numWorkers)
-                throw makeStringException(0, "Number of workers must be > 0 (numWorkers)");
+                throw makeStringException(THORERR_NumberOfWorkersMustBe0, "Number of workers must be > 0 (numWorkers)");
             numWorkersPerPod = globals->getPropInt("@numWorkersPerPod", 1);
             if (numWorkersPerPod < 1)
-                throw makeStringException(0, "Number of workers per pod must be > 0 (numWorkersPerPod)");
+                throw makeStringException(THORERR_NumberOfWorkersPerPodMust, "Number of workers per pod must be > 0 (numWorkersPerPod)");
             if ((numWorkers % numWorkersPerPod) != 0)
-                throw makeStringExceptionV(0, "numWorkersPerPod must be a factor of numWorkers. (numWorkers=%u, numWorkersPerPod=%u)", numWorkers, numWorkersPerPod);
+                throw makeStringExceptionV(THORERR_NumworkersperpodMustBeAFactorOf, "numWorkersPerPod must be a factor of numWorkers. (numWorkers=%u, numWorkersPerPod=%u)", numWorkers, numWorkersPerPod);
 
             workerProvisionTracker.noteWaiting(numWorkers);
             k8sStartedTs = getTimeStampNowValue();

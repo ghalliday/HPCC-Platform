@@ -17,6 +17,7 @@
 
 
 #include "platform.h"
+#include "thorerr.hpp"
 #include "limits.h"
 #include "slave.ipp"
 #include "thactivityutil.ipp"
@@ -874,7 +875,7 @@ public:
                                             if (outputmetaL && outputmetaL->hasXML()) {
                                                 outputmetaL->toXML((const byte *) nextleft.get(), xmlwrite);
                                             }
-                                            throw MakeStringException(0, "More than %d match candidates in join for row %s", abortlimit, xmlwrite.str());
+                                            throw MakeStringException(THORERR_MoreThanDMatchCandidatesIn, "More than %d match candidates in join for row %s", abortlimit, xmlwrite.str());
                                         }
                                         catch (IException *_e)
                                         {
@@ -972,7 +973,7 @@ public:
                             {
                                 activity.logRow("prev: ", *allocatorL->queryOutputMeta(), prevleft);
                                 activity.logRow("next: ", *allocatorL->queryOutputMeta(), nextleft);
-                                throw MakeStringException(-1,"JOIN LHS not in sorted order");
+                                throw MakeStringException(THORERR_JoinLhsNotInSortedOrder, "JOIN LHS not in sorted order");
                             }
                         }
                         else
@@ -1206,7 +1207,7 @@ retry:
                                     if (outputmetaL && outputmetaL->hasXML()) {
                                         outputmetaL->toXML((const byte *) nextrow.get(), xmlwrite);
                                     }
-                                    throw MakeStringException(0, "More than %d match candidates in join for row %s", abortlimit, xmlwrite.str());
+                                    throw MakeStringException(THORERR_MoreThanDMatchCandidatesIn, "More than %d match candidates in join for row %s", abortlimit, xmlwrite.str());
                                 }
                                 catch (IException *_e)
                                 {

@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <string>
+#include "thorerr.hpp"
 
 #ifndef _WIN32
 #include <sys/types.h>
@@ -688,7 +689,7 @@ public:
         Owned<IFile> nameTmpDir = createIFile("tmpdir"); // NB: each pod is in it's own private working directory
         Owned<IFileIO> nameTmpDirIO = nameTmpDir->open(IFOcreate);
         if (!nameTmpDirIO)
-            throw makeStringException(0, "Failed to create file 'tmpdir' with content of temp directory name");
+            throw makeStringException(THORERR_FailedToCreateFileTmpdirWith, "Failed to create file 'tmpdir' with content of temp directory name");
         nameTmpDirIO->write(0, subDirPath.length(), subDirPath.str());
 #endif
     }
@@ -1278,7 +1279,7 @@ public:
             }
             // no msg just give me data
             if (!comm.send(msg, node, mpTag, LONGTIMEOUT)) // should never timeout, unless other end down
-                throw MakeStringException(0, "CRowStreamFromNode: Failed to send data request from node %d, to node %d", myNode, node);
+                throw MakeStringException(THORERR_CrowstreamfromnodeFailedToSendDataRequest, "CRowStreamFromNode: Failed to send data request from node %d, to node %d", myNode, node);
             for (;;)
             {
                 if (abortSoon)
@@ -1378,7 +1379,7 @@ public:
                     activity->queryRowSerializer()->serialize(mbs,(const byte *)row.get());
                 } while (mb.length() < fetchBuffSize); // NB: allows at least 1
                 if (!comm.reply(mb, LONGTIMEOUT))
-                    throw MakeStringException(0, "CRowStreamFromNode: Failed to send data back to node: %d", activity->queryContainer().queryJobChannel().queryMyRank());
+                    throw MakeStringException(THORERR_CrowstreamfromnodeFailedToSendDataBack, "CRowStreamFromNode: Failed to send data back to node: %d", activity->queryContainer().queryJobChannel().queryMyRank());
                 mb.clear();
             }
         }
@@ -1712,7 +1713,7 @@ void saveWuidToFile(const char *wuid)
     Owned<IFile> wuidFile = createIFile("wuid"); // NB: each pod is in it's own private working directory
     Owned<IFileIO> wuidFileIO = wuidFile->open(IFOcreate);
     if (!wuidFileIO)
-        throw makeStringException(0, "Failed to create file 'wuid' to store current workunit for post mortem script");
+        throw makeStringException(THORERR_FailedToCreateFileWuidTo, "Failed to create file 'wuid' to store current workunit for post mortem script");
     wuidFileIO->write(0, strlen(wuid), wuid);
     wuidFileIO->close();
 }
@@ -1832,6 +1833,6 @@ offset_t verifyFileSize(IFile *file, offset_t expectedSize, unsigned maxRetries,
         if (attempt + 1 < maxRetries)
             MilliSleep(retryDelayMs);
     }
-    throw makeStringExceptionV(0, "File size mismatch for '%s' after %u retries: expected %" I64F "d, got %" I64F "d",
+    throw makeStringExceptionV(THORERR_FileSizeMismatchForSAfter, "File size mismatch for '%s' after %u retries: expected %" I64F "d, got %" I64F "d",
                 filename, maxRetries, expectedSize, actualSize);
 }

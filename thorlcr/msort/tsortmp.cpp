@@ -1,4 +1,5 @@
 #include "platform.h"
+#include "thorerr.hpp"
 #include "jbuff.hpp"
 #include "tsorts.hpp"
 #include "thormisc.hpp"
@@ -511,7 +512,7 @@ bool SortSlaveMP::marshall(ISortSlaveMP &slave, ICommunicator* comm, mptag_t tag
             // fall through
             return false;
             default:
-                throw MakeStringException(-1,"unknown function %d",(int)fn);
+                throw MakeStringException(THORERR_UnknownFunctionD, "unknown function %d",(int)fn);
         }
     }
     catch (IException *e) {

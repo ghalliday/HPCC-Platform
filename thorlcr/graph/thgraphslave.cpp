@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jlib.hpp"
+#include "thorerr.hpp"
 #include "jcontainerized.hpp"
 #include "jlzw.hpp"
 #include "jhtree.hpp"
@@ -64,7 +65,7 @@ public:
                 return false;
         }
         if (!comm->send(msg, 0, tag, INFINITE != timeout ? remaining : LONGTIMEOUT))
-            throw MakeStringException(0, "CBarrierSlave::wait - Timeout sending to master");
+            throw MakeStringException(THORERR_CbarrierslaveWaitTimeoutSendingToMaster, "CBarrierSlave::wait - Timeout sending to master");
         msg.clear();
         if (INFINITE != timeout && tm.timedout(&remaining))
         {
@@ -109,7 +110,7 @@ public:
         else
             msg.append(false);
         if (!comm->send(msg, 0, tag, LONGTIMEOUT))
-            throw MakeStringException(0, "CBarrierSlave::cancel - Timeout sending to master");
+            throw MakeStringException(THORERR_CbarrierslaveCancelTimeoutSendingToMaster, "CBarrierSlave::cancel - Timeout sending to master");
     }
     virtual mptag_t queryTag() const override { return tag; }
 };
@@ -1040,11 +1041,11 @@ bool CSlaveGraph::recvActivityInitData(size32_t parentExtractSz, const byte *par
         while (!graphCancelHandler.recv(queryJobChannel().queryJobComm(), msg, 0, mpTag, NULL, MEDIUMTIMEOUT))
         {
             if (graphCancelHandler.isCancelled())
-                throw MakeStringException(0, "Aborted whilst waiting to receive actinit data for graph: %" GIDPF "d", graphId);
+                throw MakeStringException(THORERR_AbortedWhilstWaitingToReceiveActinit, "Aborted whilst waiting to receive actinit data for graph: %" GIDPF "d", graphId);
             // put an upper limit on time Thor can be stalled here
             unsigned mins = timer.elapsed()/60000;
             if (mins >= jobS->queryActInitWaitTimeMins())
-                throw MakeStringException(0, "Timed out after %u minutes, waiting to receive actinit data for graph: %" GIDPF "u", mins, graphId);
+                throw MakeStringException(THORERR_TimedOutAfterUMinutesWaiting, "Timed out after %u minutes, waiting to receive actinit data for graph: %" GIDPF "u", mins, graphId);
 
             GraphPrintLogEx(this, thorlog_null, MCwarning, "Waited %u minutes for activity initialization message (Master may be blocked on a file lock?).", mins);
         }
@@ -1090,7 +1091,7 @@ bool CSlaveGraph::recvActivityInitData(size32_t parentExtractSz, const byte *par
                 IERRLOG(e, "Master hit exception");
                 msg.clear();
                 if (!queryJobChannel().queryJobComm().send(msg, 0, replyTag, LONGTIMEOUT))
-                    throw MakeStringException(0, "Timeout sending init data back to master");
+                    throw MakeStringException(THORERR_TimeoutSendingInitDataBackTo, "Timeout sending init data back to master");
                 throw e.getClear();
             }
             msg.read(len);
@@ -1117,7 +1118,7 @@ bool CSlaveGraph::recvActivityInitData(size32_t parentExtractSz, const byte *par
     if (syncInitData() || needActInit)
     {
         if (!queryJobChannel().queryJobComm().send(actInitRtnData, 0, replyTag, LONGTIMEOUT))
-            throw MakeStringException(0, "Timeout sending init data back to master");
+            throw MakeStringException(THORERR_TimeoutSendingInitDataBackTo, "Timeout sending init data back to master");
     }
     if (exception)
         throw exception.getClear();
@@ -1206,7 +1207,7 @@ void CSlaveGraph::executeSubGraph(size32_t parentExtractSz, const byte *parentEx
                 {
                     CMessageBuffer msg;
                     if (!graphCancelHandler.recv(queryJobChannel().queryJobComm(), msg, 0, mpTag, NULL, LONGTIMEOUT))
-                        throw MakeStringException(0, "Error receiving createctx data for graph: %" GIDPF "d", graphId);
+                        throw MakeStringException(THORERR_ErrorReceivingCreatectxDataForGraph, "Error receiving createctx data for graph: %" GIDPF "d", graphId);
                     try
                     {
                         size32_t len;
@@ -1227,7 +1228,7 @@ void CSlaveGraph::executeSubGraph(size32_t parentExtractSz, const byte *parentEx
                         serializeThorException(e, msg);
                     }
                     if (!queryJobChannel().queryJobComm().send(msg, 0, msg.getReplyTag(), LONGTIMEOUT))
-                        throw MakeStringException(0, "Timeout sending init data back to master");
+                        throw MakeStringException(THORERR_TimeoutSendingInitDataBackTo, "Timeout sending init data back to master");
                 }
                 else
                 {
@@ -1566,7 +1567,7 @@ class CThorCodeContextSlave : public CThorCodeContextBase, implements IEngineCon
 
     void invalidSetResult(const char * name, unsigned seq)
     {
-        throw MakeStringException(0, "Attempt to output result ('%s',%d) from a child query", name ? name : "", (int)seq);
+        throw MakeStringException(THORERR_AttemptToOutputResultSD, "Attempt to output result ('%s',%d) from a child query", name ? name : "", (int)seq);
     }
 
 public:
@@ -1917,7 +1918,7 @@ void CJobSlave::debugRequest(MemoryBuffer &msg, const char *request) const
         {
             StringBuffer instanceDir;
             if (!req->getProp("@dir", instanceDir))
-                throw makeStringException(0, "deguginfo command missing 'dir' attribute");
+                throw makeStringException(THORERR_DeguginfoCommandMissingDirAttribute, "deguginfo command missing 'dir' attribute");
             JobInfoCaptureType captureFlags = (JobInfoCaptureType)req->getPropInt("@flags", 0);
             // NB: stacks are for all channels, but file naming is based on 1st channel
             rank_t myRank = queryJobChannel(0).queryMyRank();

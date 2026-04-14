@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <deque>
+#include "thorerr.hpp"
 #include <queue>
 #include <tuple>
 #include <memory>
@@ -152,7 +153,7 @@ class CSmartRowBuffer: public CSimpleInterface, implements ISmartRowBuffer, impl
             tempFileIO.setown(tmpFileOwner.queryIFile().open(IFOcreaterw));
             if (!tempFileIO)
             {
-                throw MakeStringException(-1,"CSmartRowBuffer::flush cannot write file %s", tmpFileOwner.queryIFile().queryFilename());
+                throw MakeStringException(THORERR_CsmartrowbufferFlushCannotWriteFileS, "CSmartRowBuffer::flush cannot write file %s", tmpFileOwner.queryIFile().queryFilename());
             }
         }
         MemoryBuffer mb;
@@ -3033,7 +3034,7 @@ public:
 
     size32_t write(size32_t len, const void * data)
     {
-        throw MakeStringException(-1,"CRCFileStream does not support write");
+        throw MakeStringException(THORERR_CrcfilestreamDoesNotSupportWrite, "CRCFileStream does not support write");
     }
 
     void seek(offset_t pos, IFSmode origin)

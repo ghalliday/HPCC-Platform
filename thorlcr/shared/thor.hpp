@@ -38,12 +38,13 @@ typedef size32_t rowidx_t;
 #define RIUNSET RIMAX
 
 #include "jexcept.hpp"
+#include "thorerr.hpp"
 
 template <class T>
 inline rowidx_t validRIDX(T X)
 {
     if (X != (rowidx_t)X)
-        throw MakeStringException(0, "rowidx_t value truncation");
+        throw MakeStringException(THORERR_RowidxTValueTruncation, "rowidx_t value truncation");
     return (rowidx_t)X;
 }
 

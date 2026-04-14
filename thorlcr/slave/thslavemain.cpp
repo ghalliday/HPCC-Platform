@@ -18,6 +18,7 @@
 // Entrypoint for ThorSlave.EXE
 
 #include "platform.h"
+#include "thorerr.hpp"
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -321,9 +322,9 @@ bool ControlHandler(ahType type)
         {
             Owned<IException> e;
             if (ahInterrupt == type)
-                e.setown(makeStringException(0, "Worker received SIGINT (CTRL-C)"));
+                e.setown(makeStringException(THORERR_WorkerReceivedSigintCtrlC, "Worker received SIGINT (CTRL-C)"));
             else
-                e.setown(makeStringException(0, "Worker received SIGTERM"));
+                e.setown(makeStringException(THORERR_WorkerReceivedSigterm, "Worker received SIGTERM"));
             unregOK = UnregisterSelf(e);
         }
         abortSlave();
@@ -443,7 +444,7 @@ int main( int argc, const char *argv[]  )
 
         mySlaveNum = globals->getPropInt("@slavenum", NotFound);
         if (!isContainerized() && (NotFound == mySlaveNum))
-            throw makeStringException(0, "Slave number not specified (@slavenum)");
+            throw makeStringException(THORERR_SlaveNumberNotSpecifiedSlavenum, "Slave number not specified (@slavenum)");
         startSlaveLog(); // configures 'logHandler'
 
         // In container world, SLAVE= will not be used

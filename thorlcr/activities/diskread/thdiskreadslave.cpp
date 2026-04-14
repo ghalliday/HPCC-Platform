@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "thorerr.hpp"
 
 #include "jfile.hpp"
 #include "jio.hpp"
@@ -363,7 +364,7 @@ void CDiskRecordPartHandler::open()
             if (!partStream.get())
             {
                 if (!blockCompressed)
-                    throw MakeStringException(-1,"Unsupported compressed file format: %s", filename.get());
+                    throw MakeStringException(THORERR_UnsupportedCompressedFileFormatS, "Unsupported compressed file format: %s", filename.get());
                 else
                     throw MakeActivityException(&activity, 0, "Failed to open block compressed file '%s'", filename.get());
             }

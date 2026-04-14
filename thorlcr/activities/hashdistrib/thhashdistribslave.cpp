@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "thorerr.hpp"
 #include "limits.h"
 #include <math.h>
 
@@ -1904,7 +1905,7 @@ public:
                     cachefile.setown(createIFile(tempname.str()));
                     cachefileio.setown(cachefile->open(IFOcreaterw));
                     if (!cachefileio)
-                        throw MakeStringException(-1,"CRowPullDistributor: Could not create disk cache");
+                        throw MakeStringException(THORERR_CrowpulldistributorCouldNotCreateDiskCache, "CRowPullDistributor: Could not create disk cache");
                     diskpos = 0;
                     ActPrintLog("CRowPullDistributor spilling to %s",tempname.str());
                 }
@@ -2364,7 +2365,7 @@ public:
                 }
                 Owned<ILogicalRowWriter> out = createRowWriter(tempfile, activity, rwFlags);
                 if (!out)
-                    throw MakeStringException(-1,"Could not created file %s",tempname.str());
+                    throw MakeStringException(THORERR_CouldNotCreatedFileS, "Could not created file %s",tempname.str());
                 for (;;)
                 {
                     const void * row = inputStream->ungroupedNextRow();
@@ -2383,12 +2384,12 @@ public:
         ActPrintLog(activity, "REDISTRIBUTE sending size %" I64F "d to master",sz);
         if (!activity->queryContainer().queryJobChannel().queryJobComm().send(mb, (rank_t)0, statstag)) {
             ActPrintLog(activity, "REDISTRIBUTE send to master failed");
-            throw MakeStringException(-1, "REDISTRIBUTE send to master failed");
+            throw MakeStringException(THORERR_RedistributeSendToMasterFailed, "REDISTRIBUTE send to master failed");
         }
         mb.clear();
         if (!activity->queryContainer().queryJobChannel().queryJobComm().recv(mb, (rank_t)0, statstag)) {
             ActPrintLog(activity, "REDISTRIBUTE recv from master failed");
-            throw MakeStringException(-1, "REDISTRIBUTE recv from master failed");
+            throw MakeStringException(THORERR_RedistributeRecvFromMasterFailed, "REDISTRIBUTE recv from master failed");
         }
         ActPrintLog(activity, "REDISTRIBUTE received sizes from master");
         offset_t *insz = (offset_t *)mb.readDirect(n*sizeof(offset_t));

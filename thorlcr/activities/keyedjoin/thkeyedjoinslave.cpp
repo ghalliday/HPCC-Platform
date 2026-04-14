@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jlib.hpp"
+#include "thorerr.hpp"
 #include "limits.h"
 
 #include "jbuff.hpp"
@@ -2360,7 +2361,7 @@ class CKeyedJoinSlave : public CSlaveActivity, implements IJoinProcessor, implem
             else
                 partIO.iFileIO = iFile->open(IFOread);
             if (!partIO.iFileIO)
-                throw MakeStringException(0, "Failed to open fetch file part %u: %s", partNo, iFile->queryFilename());
+                throw MakeStringException(THORERR_FailedToOpenFetchFilePart, "Failed to open fetch file part %u: %s", partNo, iFile->queryFilename());
 
             partIO.stream = createFileSerialStream(partIO.iFileIO, 0, (offset_t)-1, 0); // bufsize=0, no buffering
 

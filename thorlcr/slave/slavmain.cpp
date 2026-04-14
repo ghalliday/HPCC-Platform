@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <platform.h>
+#include "thorerr.hpp"
 
 #include <type_traits>
 #include <unordered_map>
@@ -68,7 +69,7 @@ void enableThorSlaveAsDaliClient()
     PROGLOG("Slave activated as a Dali client");
     const char *daliServers = globals->queryProp("@daliServers");
     if (!daliServers)
-        throw MakeStringException(0, "No Dali server list specified");
+        throw MakeStringException(THORERR_NoDaliServerListSpecified, "No Dali server list specified");
     Owned<IGroup> serverGroup = createIGroup(daliServers, DALI_SERVER_PORT);
     unsigned retry = 0;
     for (;;)
@@ -296,7 +297,7 @@ class CKJService : public CSimpleInterfaceOf<IKJService>, implements IThreaded, 
             else
                 fileIO = iFile->open(IFOread);
             if (!fileIO)
-                throw MakeStringException(0, "Failed to open fetch file part %u: %s", part, fname);
+                throw MakeStringException(THORERR_FailedToOpenFetchFilePart, "Failed to open fetch file part %u: %s", part, fname);
             openFetchFiles.replace(fileIO, part);
             return LINK(fileIO);
         }
@@ -351,12 +352,12 @@ class CKJService : public CSimpleInterfaceOf<IKJService>, implements IThreaded, 
                 else if (publishedFormatCrc && publishedFormatCrc != expectedFormatCrc)
                 {
                     if (!projectedFormat)
-                        throw MakeStringException(0, "Record layout mismatch for: %s", tracing);
+                        throw MakeStringException(THORERR_RecordLayoutMismatchForS, "Record layout mismatch for: %s", tracing);
                     translator.setown(createRecordTranslator(projectedFormat->queryRecordAccessor(true), publishedFormat->queryRecordAccessor(true)));
                     if (!translator->canTranslate())
-                        throw MakeStringException(0, "Untranslatable record layout mismatch detected for: %s", tracing);
+                        throw MakeStringException(THORERR_UntranslatableRecordLayoutMismatchDetectedFor, "Untranslatable record layout mismatch detected for: %s", tracing);
                     if (RecordTranslationMode::PayloadRemoveOnly == translationMode && translator->hasNewFields())
-                        throw MakeStringException(0, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", tracing);
+                        throw MakeStringException(THORERR_TranslatableFileLayoutMismatchReadingFile, "Translatable file layout mismatch reading file %s but translation disabled when expected fields are missing from source.", tracing);
                 }
                 DBGLOG("Record layout translator created for %s", tracing);
                 translator->describe();
@@ -566,7 +567,7 @@ class CKJService : public CSimpleInterfaceOf<IKJService>, implements IThreaded, 
         {
             replyAttempt = true;
             if (!queryNodeComm().send(msg, sender, replyTag, LONGTIMEOUT))
-                throw MakeStringException(0, "Failed to reply to lookup request");
+                throw MakeStringException(THORERR_FailedToReplyToLookupRequest, "Failed to reply to lookup request");
         }
         void replyError(IException *e)
         {
@@ -578,7 +579,7 @@ class CKJService : public CSimpleInterfaceOf<IKJService>, implements IThreaded, 
             msg.append(errorCode);
             serializeException(e, msg);
             if (!queryNodeComm().send(msg, sender, replyTag, LONGTIMEOUT))
-                throw MakeStringException(0, "Failed to reply to lookup request");
+                throw MakeStringException(THORERR_FailedToReplyToLookupRequest, "Failed to reply to lookup request");
         }
         virtual void process(bool &abortSoon) = 0;
     };
@@ -1372,7 +1373,7 @@ public:
                             msg.append(errorCode);
 
                             if (!queryNodeComm().send(msg, sender, replyTag, LONGTIMEOUT))
-                                throw MakeStringException(0, "Failed to reply to challenge on key read");
+                                throw MakeStringException(THORERR_FailedToReplyToChallengeOn, "Failed to reply to challenge on key read");
 
                             // client will resent with kjs_keyopen + full info.
                             continue;
@@ -1390,7 +1391,7 @@ public:
                         msg.append(res);
                         replyAttempt = true;
                         if (!queryNodeComm().send(msg, sender, replyTag, LONGTIMEOUT))
-                            throw MakeStringException(0, "kjs_keyclose: Failed to reply to lookup request");
+                            throw MakeStringException(THORERR_KjsKeycloseFailedToReplyTo, "kjs_keyclose: Failed to reply to lookup request");
                         msg.clear();
                         break;
                     }
@@ -1463,7 +1464,7 @@ public:
                             msg.append(errorCode);
 
                             if (!queryNodeComm().send(msg, sender, replyTag, LONGTIMEOUT))
-                                throw MakeStringException(0, "Failed to reply to challenge on fetch read");
+                                throw MakeStringException(THORERR_FailedToReplyToChallengeOn_1, "Failed to reply to challenge on fetch read");
 
                             // client will resent with kjs_fetchopen + full info.
                             continue;
@@ -1490,7 +1491,7 @@ public:
                         msg.append(res);
                         replyAttempt = true;
                         if (!queryNodeComm().send(msg, sender, replyTag, LONGTIMEOUT))
-                            throw MakeStringException(0, "kjs_fetchclose: Failed to reply to lookup request");
+                            throw MakeStringException(THORERR_KjsFetchcloseFailedToReplyTo, "kjs_fetchclose: Failed to reply to lookup request");
                         msg.clear();
                         break;
                     }
@@ -1948,7 +1949,7 @@ public:
                         msg.read(key);
                         CJobSlave *job = jobs.find(key.get());
                         if (!job)
-                            throw makeStringException(0, "QueryDone: job not found"); // can happen if job failed during initialization on some slaves
+                            throw makeStringException(THORERR_QuerydoneJobNotFound, "QueryDone: job not found"); // can happen if job failed during initialization on some slaves
                         StringAttr wuid = job->queryWuid();
                         StringAttr graphName = job->queryGraphName();
 
@@ -1991,7 +1992,7 @@ public:
                         msg.read(jobKey);
                         CJobSlave *job = jobs.find(jobKey.get());
                         if (!job)
-                            throw MakeStringException(0, "Job not found: %s", jobKey.get());
+                            throw MakeStringException(THORERR_JobNotFoundS, "Job not found: %s", jobKey.get());
 
                         mptag_t executeReplyTag = job->deserializeMPTag(msg);
                         size32_t len;

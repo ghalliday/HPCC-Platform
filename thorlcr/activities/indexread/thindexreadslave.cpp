@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jio.hpp"
+#include "thorerr.hpp"
 #include "jfile.hpp"
 #include "jtime.hpp"
 #include "jsort.hpp"
@@ -136,9 +137,9 @@ protected:
         if (!ret)
             return nullptr;
         if (!ret->queryTranslator().canTranslate())
-            throw MakeStringException(0, "Untranslatable key layout mismatch reading index %s", logicalFilename.get());
+            throw MakeStringException(THORERR_UntranslatableKeyLayoutMismatchReadingIndex, "Untranslatable key layout mismatch reading index %s", logicalFilename.get());
         if (ret->queryTranslator().keyedTranslated())
-            throw MakeStringException(0, "Untranslatable key layout mismatch reading index %s - keyed fields do not match", logicalFilename.get());
+            throw MakeStringException(THORERR_UntranslatableKeyLayoutMismatchReadingIndex_1, "Untranslatable key layout mismatch reading index %s - keyed fields do not match", logicalFilename.get());
         return ret.getClear();
     }
 public:

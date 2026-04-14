@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <limits.h>
+#include "thorerr.hpp"
 #include <stdlib.h>
 #include <future>
 #include <vector>
@@ -905,7 +906,7 @@ public:
                 return false;
         }
         if (!comm->send(msg, RANK_ALL_OTHER, tag, INFINITE != timeout ? remaining : LONGTIMEOUT))
-            throw MakeStringException(0, "CBarrierMaster::wait - Timeout sending to slaves");
+            throw MakeStringException(THORERR_CbarriermasterWaitTimeoutSendingToSlaves, "CBarrierMaster::wait - Timeout sending to slaves");
         if (aborted)
         {
             if (!exception)
@@ -931,7 +932,7 @@ public:
         else
             msg.append(false);
         if (!comm->send(msg, RANK_ALL_OTHER, tag, LONGTIMEOUT))
-            throw MakeStringException(0, "CBarrierMaster::cancel - Timeout sending to slaves");
+            throw MakeStringException(THORERR_CbarriermasterCancelTimeoutSendingToSlaves, "CBarrierMaster::cancel - Timeout sending to slaves");
     }
 };
 
@@ -2126,11 +2127,11 @@ bool CJobMaster::go()
         qtHandler.setown(new CQueryTimeoutHandler(*this, guillotineTimeout));
     else if (guillotineTimeout < 0)
     {
-        Owned<IException> e = MakeStringException(0, "Ignoring negative maxRunTime: %d", guillotineTimeout);
+        Owned<IException> e = MakeStringException(THORERR_IgnoringNegativeMaxruntimeD, "Ignoring negative maxRunTime: %d", guillotineTimeout);
         reportExceptionToWorkunit(*workunit, e);
     }
     if (WUActionPause == workunit->getAction() || WUActionPauseNow == workunit->getAction())
-        throw MakeStringException(0, "Job paused at start, exiting");
+        throw MakeStringException(THORERR_JobPausedAtStartExiting, "Job paused at start, exiting");
 
     bool allDone = true;
     unsigned concurrentSubGraphs = (unsigned)getWorkUnitValueInt("concurrentSubGraphs", globals->getPropInt("@concurrentSubGraphs", 1));
@@ -2257,14 +2258,14 @@ void CJobMaster::issueWorkerDebugCmd(const char *rawText, unsigned workerNum, st
         rank_t sender;
         mbuf.clear();
         if (!comm.recv(mbuf, rank, replyTag, &sender, debugInfoWorkerTimeoutMs))
-            throw makeStringExceptionV(0, "Timedout waiting for debugcmd response from worker %u", workerNum);
+            throw makeStringExceptionV(THORERR_TimedoutWaitingForDebugcmdResponseFrom, "Timedout waiting for debugcmd response from worker %u", workerNum);
         while (mbuf.remaining())
             responseFunc(sender, mbuf);
         remainingToRecv--;
         if (0 == remainingToRecv)
             break;
         if (tm.timedout())
-            throw makeStringExceptionV(0, "Timedout waiting for debugcmd response from workers - %u did not respond within timelimit (%u secs)", remainingToRecv, debugInfoWorkerTimeoutMs/1000);
+            throw makeStringExceptionV(THORERR_TimedoutWaitingForDebugcmdResponseFrom_1, "Timedout waiting for debugcmd response from workers - %u did not respond within timelimit (%u secs)", remainingToRecv, debugInfoWorkerTimeoutMs/1000);
     }
 }
 
@@ -2768,7 +2769,7 @@ void CMasterGraph::sendActivityInitData()
             if (!queryJobChannel().queryJobComm().send(msg, w+1, mpTag, LONGTIMEOUT))
             {
                 StringBuffer epStr;
-                throw MakeStringException(0, "Timeout sending to slave %s", job.querySlaveGroup().queryNode(w).endpoint().getEndpointHostText(epStr).str());
+                throw MakeStringException(THORERR_TimeoutSendingToSlaveS, "Timeout sending to slave %s", job.querySlaveGroup().queryNode(w).endpoint().getEndpointHostText(epStr).str());
             }
             ++sentTo;
         }

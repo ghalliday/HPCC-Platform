@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "thorerr.hpp"
 
 #include "jmisc.hpp"
 #include "jio.hpp"
@@ -2690,7 +2691,7 @@ void *fastLZDecompressToRoxieMem(roxiemem::IVariableRowHeap &heap, const void * 
     {
         size32_t written = fastlz_decompress(sz,cmpsz,o,expsz);
         if (written!=expsz)
-            throw MakeStringException(0, "fastLZDecompressToBuffer - corrupt data(1) %d %d",written,expsz);
+            throw MakeStringException(THORERR_FastlzdecompresstobufferCorruptData1DD, "fastLZDecompressToBuffer - corrupt data(1) %d %d",written,expsz);
     }
     else
         memcpy_iflen(o,sz,expsz);

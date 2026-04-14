@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "thgraph.hpp"
+#include "thorerr.hpp"
 #include "jptree.hpp"
 #include "commonext.hpp"
 #include "dasess.hpp"
@@ -2696,7 +2697,7 @@ CJobBase::CJobBase(ILoadedDllEntry *_querySo, const char *_graphName) : querySo(
         jobSlaveChannelNum[s] = NotFound;
     Owned<ILocalWorkUnit> localWU = createLocalWorkUnit(querySo);
     if (!localWU)
-        throw MakeStringException(0, "Failed to locate workunit info in query : %s", querySo->queryName());
+        throw MakeStringException(THORERR_FailedToLocateWorkunitInfoIn, "Failed to locate workunit info in query : %s", querySo->queryName());
     Owned<IConstWUGraph> graph = localWU->getGraph(graphName);
     graphXGMML.setown(graph->getXGMMLTree(false, false));
     if (!graphXGMML)

@@ -38,6 +38,7 @@
 #define DEFAULT_MAXLFN_BLOCKTIME_MINS 25 // 25 mins
 
 #include <unordered_map>
+#include "thorerr.hpp"
 #include <string>
 #include <memory>
 
@@ -1297,16 +1298,16 @@ protected:
         IMPLEMENT_IINTERFACE
 
         CThorUninitializedGraphResults(unsigned _id) { id = _id; }
-        virtual IRowWriter *getWriter() { throw MakeStringException(0, "Graph Result %d accessed before it is created", id); }
-        virtual void setResultStream(IRowWriterMultiReader *stream, rowcount_t count) { throw MakeStringException(0, "Graph Result %d accessed before it is created", id); }
-        virtual IRowStream *getRowStream() { throw MakeStringException(0, "Graph Result %d accessed before it is created", id); }
-        virtual IThorRowInterfaces *queryRowInterfaces() { throw MakeStringException(0, "Graph Result %d accessed before it is created", id); }
-        virtual CActivityBase *queryActivity() { throw MakeStringException(0, "Graph Result %d accessed before it is created", id); }
-        virtual bool isDistributed() const { throw MakeStringException(0, "Graph Result %d accessed before it is created", id); }
-        virtual void serialize(MemoryBuffer &mb) { throw MakeStringException(0, "Graph Result %d accessed before it is created", id); }
-        virtual void getResult(size32_t & retSize, void * & ret) { throw MakeStringException(0, "Graph Result %d accessed before it is created", id); }
-        virtual void getLinkedResult(unsigned & count, const byte * * & ret) override { throw MakeStringException(0, "Graph Result %d accessed before it is created", id); }
-        virtual const void * getLinkedRowResult() { throw MakeStringException(0, "Graph Result %d accessed before it is created", id); }
+        virtual IRowWriter *getWriter() { throw MakeStringException(THORERR_GraphResultDAccessedBeforeIt, "Graph Result %d accessed before it is created", id); }
+        virtual void setResultStream(IRowWriterMultiReader *stream, rowcount_t count) { throw MakeStringException(THORERR_GraphResultDAccessedBeforeIt, "Graph Result %d accessed before it is created", id); }
+        virtual IRowStream *getRowStream() { throw MakeStringException(THORERR_GraphResultDAccessedBeforeIt, "Graph Result %d accessed before it is created", id); }
+        virtual IThorRowInterfaces *queryRowInterfaces() { throw MakeStringException(THORERR_GraphResultDAccessedBeforeIt, "Graph Result %d accessed before it is created", id); }
+        virtual CActivityBase *queryActivity() { throw MakeStringException(THORERR_GraphResultDAccessedBeforeIt, "Graph Result %d accessed before it is created", id); }
+        virtual bool isDistributed() const { throw MakeStringException(THORERR_GraphResultDAccessedBeforeIt, "Graph Result %d accessed before it is created", id); }
+        virtual void serialize(MemoryBuffer &mb) { throw MakeStringException(THORERR_GraphResultDAccessedBeforeIt, "Graph Result %d accessed before it is created", id); }
+        virtual void getResult(size32_t & retSize, void * & ret) { throw MakeStringException(THORERR_GraphResultDAccessedBeforeIt, "Graph Result %d accessed before it is created", id); }
+        virtual void getLinkedResult(unsigned & count, const byte * * & ret) override { throw MakeStringException(THORERR_GraphResultDAccessedBeforeIt, "Graph Result %d accessed before it is created", id); }
+        virtual const void * getLinkedRowResult() { throw MakeStringException(THORERR_GraphResultDAccessedBeforeIt, "Graph Result %d accessed before it is created", id); }
     };
     IArrayOf<IThorResult> results;
     CriticalSection cs;
