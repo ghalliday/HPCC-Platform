@@ -98,9 +98,72 @@
 #define JLIBERR_FileEventWatcherAddInvalidEmpty     6069
 #define JLIBERR_ReentrantCallCBlockedFileIORead     6070
 
+#define JLIBERR_CompressClzwcompressorTargetBufferTooSmall 6100
+#define JLIBERR_CompressCorruptRleFormat                   6101
+#define JLIBERR_CompressCorruptCompressedData1             6102
+#define JLIBERR_CompressCorruptCompressedData2             6103
+#define JLIBERR_CompressCorruptCompressedData3             6104
+#define JLIBERR_CompressCorruptCompressedData4             6105
+#define JLIBERR_CompressCrdiffcompressorRowDoesnTFitInBuffer 6106
+#define JLIBERR_CompressCrdiffcompressorUsedWithVariableSizedRow 6107
+#define JLIBERR_CompressCrdiffcompressorUsedWithVariableSizedRow_1 6108
+#define JLIBERR_CompressCrdiffcompressorTargetBufferTooSmall 6109
+#define JLIBERR_CompressCrdiffexpanderInvalidBufferFormat  6110
+#define JLIBERR_CompressCrdiffexpanderInvalidBufferFormat_1 6111
+#define JLIBERR_CompressCrandrdiffcompressorUsedWithVariableSizedRow 6112
+#define JLIBERR_CompressCrandrdiffcompressorUsedWithVariableSizedRow_1 6113
+#define JLIBERR_CompressCrandrdiffcompressorTargetBufferTooSmall 6114
+#define JLIBERR_CompressCrandrdiffcompressorUsedWithVariableSizedRowU 6115
+#define JLIBERR_CompressFileHasCompressionTypeUWhichIs     6116
+#define JLIBERR_CompressUnexpectedZeroLengthCompressionBlock 6117
+#define JLIBERR_CompressReadPastEndOfIoBuffer              6118
+#define JLIBERR_CompressReadPastEndOfIoBuffer_1            6119
+#define JLIBERR_CompressUnexpectedZeroFillInCompressedFileAt 6120
+#define JLIBERR_CompressUnsupportedCompressionMethodU      6121
+#define JLIBERR_CompressSequentialWritesOnlyOnCompressedFile 6122
+#define JLIBERR_CompressCompressedFileFormatErrorDEncrypted 6123
+#define JLIBERR_CompressCompressedFileFormatErrorDEncrypted_1 6124
+#define JLIBERR_CompressAppendingToARowCompressedFileIs    6125
+#define JLIBERR_CompressAppendingToFileThatIsNotCompressed 6126
+#define JLIBERR_CompressUnsupportedCompressionMethodU_1    6127
+#define JLIBERR_CompressCaescompressorTargetBufferTooSmall 6128
+#define JLIBERR_CompressSetdefaultcompressorSCompressorNotRegistered 6129
+#define JLIBERR_CompressLzmaencCreateFailed                6130
+#define JLIBERR_CompressLzmaencSetpropsFailed              6131
+#define JLIBERR_CompressLzmaencMemencodeFailedD            6132
+#define JLIBERR_CompressLzmadecodeFailedD                  6133
+#define JLIBERR_CompressFastlzdecompresstobufferCorruptData1DD 6134
+#define JLIBERR_CompressFastlzdecompresstobufferCorruptData3DD 6135
+#define JLIBERR_CompressFastlzdecompresstobufferCorruptData2DD 6136
+#define JLIBERR_CompressFastlzdecompresstobufferCorruptData4DD 6137
+#define JLIBERR_CompressFastlzexpanderCorruptData1DD       6138
+#define JLIBERR_CompressFastlzexpanderCorruptData2DD       6139
+#define JLIBERR_CompressFastlzdecompresstobufferCorruptData1DD_1 6140
+#define JLIBERR_CompressFastlzdecompresstobufferCorruptData3DD_1 6141
+#define JLIBERR_CompressFastlzdecompresstobufferCorruptData2DD_1 6142
+#define JLIBERR_CompressFastlzdecompresstobufferCorruptData4DD_1 6143
+#define JLIBERR_CompressCfastlzstreamFileCorrupt1          6144
+#define JLIBERR_CompressCfastlzstreamFileCorrupt2          6145
+#define JLIBERR_CompressZstdCompressionErrorS              6146
+#define JLIBERR_CompressZstdDecompressionErrorS            6147
+#define JLIBERR_CompressZstdDecompressionErrorS_1          6148
+#define JLIBERR_CompressFailedToCreateZstdCompressionStream 6149
+#define JLIBERR_CompressFailedToInitializeZstdCompressionStreamS 6150
+#define JLIBERR_CompressFailedToInitializeZstdCompressionStreamS_1 6151
+#define JLIBERR_CompressZstdCompressionErrorSCompressLimitUU 6152
+#define JLIBERR_CompressFailedToCreateZstdDecompressionStream 6153
+#define JLIBERR_CompressFailedToResetZstdDecompressionStreamS 6154
+#define JLIBERR_CompressZstdStreamDecompressionErrorS      6155
+#define JLIBERR_CompressBlockexpanderCorruptData1UU        6156
+#define JLIBERR_CompressBlockexpanderCorruptData2UU        6157
+#define JLIBERR_CompressBlockexpanderCorruptData3UU        6158
+#define JLIBERR_CompressStreamCompressorsDoesNotSupportMemorybufferOutput 6159
+#define JLIBERR_CompressTotalSizeTooLargeUncompressedUU    6160
+#define JLIBERR_CompressLz4compressorFlushcommittedInputSizeUExceedsMaximum 6161
 //---- Text for all errors (make it easy to internationalise) ---------------------------
 
 #define JLIBERR_BadlyFormedDateTime_Text        "Badly formatted date/time '%s'"
 #define JLIBERR_BadUtf8InArguments_Text         "The utf separators/terminators aren't valid utf-8"
 
 #endif
+

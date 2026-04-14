@@ -706,11 +706,11 @@ public:
                 size32_t written = fastlz_decompress(in,szchunk,(byte *)buf+done,outlen-done);
                 done += written;
                 if (!written||(done>outlen))
-                    throw MakeStringException(0, "FastLZExpander - corrupt data(1) %d %d",written,szchunk);
+                    throw MakeStringException(JLIBERR_CompressFastlzexpanderCorruptData1DD, "FastLZExpander - corrupt data(1) %d %d",written,szchunk);
             }
             else {
                 if (szchunk+done!=outlen)
-                    throw MakeStringException(0, "FastLZExpander - corrupt data(2) %d %d",szchunk,outlen);
+                    throw MakeStringException(JLIBERR_CompressFastlzexpanderCorruptData2DD, "FastLZExpander - corrupt data(2) %d %d",szchunk,outlen);
                 memcpy((byte *)buf+done,in,szchunk);
                 break;
             }
@@ -745,7 +745,7 @@ void fastLZDecompressToBuffer(MemoryBuffer & out, const void * src)
     if (cmpsz!=expsz) {
         size32_t written = fastlz_decompress(sz,cmpsz,o,expsz);
         if (written!=expsz)
-            throw MakeStringException(0, "fastLZDecompressToBuffer - corrupt data(1) %d %d",written,expsz);
+            throw MakeStringException(JLIBERR_CompressFastlzdecompresstobufferCorruptData1DD_1, "fastLZDecompressToBuffer - corrupt data(1) %d %d",written,expsz);
     }
     else
         memcpy_iflen(o,sz,expsz);
@@ -760,7 +760,7 @@ void fastLZDecompressToBuffer(MemoryBuffer & out, MemoryBuffer & in)
     if (cmpsz!=expsz) {
         size32_t written = fastlz_decompress(in.readDirect(cmpsz),cmpsz,o,expsz);
         if (written!=expsz)
-            throw MakeStringException(0, "fastLZDecompressToBuffer - corrupt data(3) %d %d",written,expsz);
+            throw MakeStringException(JLIBERR_CompressFastlzdecompresstobufferCorruptData3DD_1, "fastLZDecompressToBuffer - corrupt data(3) %d %d",written,expsz);
     }
     else
         memcpy(o,in.readDirect(cmpsz),expsz);
@@ -775,7 +775,7 @@ void fastLZDecompressToAttr(MemoryAttr & out, const void * src)
     if (cmpsz!=expsz) {
         size32_t written = fastlz_decompress(sz,cmpsz,o,expsz);
         if (written!=expsz)
-            throw MakeStringException(0, "fastLZDecompressToBuffer - corrupt data(2) %d %d",written,expsz);
+            throw MakeStringException(JLIBERR_CompressFastlzdecompresstobufferCorruptData2DD_1, "fastLZDecompressToBuffer - corrupt data(2) %d %d",written,expsz);
     }
     else
         memcpy(o,sz,expsz);
@@ -790,7 +790,7 @@ void fastLZDecompressToBuffer(MemoryAttr & out, MemoryBuffer & in)
     if (cmpsz!=expsz) {
         size32_t written = fastlz_decompress(in.readDirect(cmpsz),cmpsz,o,expsz);
         if (written!=expsz)
-            throw MakeStringException(0, "fastLZDecompressToBuffer - corrupt data(4) %d %d",written,expsz);
+            throw MakeStringException(JLIBERR_CompressFastlzdecompresstobufferCorruptData4DD_1, "fastLZDecompressToBuffer - corrupt data(4) %d %d",written,expsz);
     }
     else
         memcpy(o,in.readDirect(cmpsz),expsz);
@@ -829,9 +829,9 @@ class CFastLZStream : public CFcmpStream
         MemoryAttr cmpma;
         byte *cmpbuf = (byte *)cmpma.allocate(sz[1]);
         if (baseio->read(cmpOffset,sz[1],cmpbuf)!=sz[1])
-            throw MakeStringException(-1,"CFastLZStream: file corrupt.1");
+            throw MakeStringException(JLIBERR_CompressCfastlzstreamFileCorrupt1,"CFastLZStream: file corrupt.1");
         if (fastlz_decompress(cmpbuf,sz[1],ma.bufferBase(),bufsize)!=bufsize)
-            throw MakeStringException(-1,"CFastLZStream: file corrupt.2");
+            throw MakeStringException(JLIBERR_CompressCfastlzstreamFileCorrupt2,"CFastLZStream: file corrupt.2");
         cmpOffset += sz[1];
         return true;
     }
