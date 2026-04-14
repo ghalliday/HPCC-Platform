@@ -160,10 +160,42 @@
 #define JLIBERR_CompressStreamCompressorsDoesNotSupportMemorybufferOutput 6159
 #define JLIBERR_CompressTotalSizeTooLargeUncompressedUU    6160
 #define JLIBERR_CompressLz4compressorFlushcommittedInputSizeUExceedsMaximum 6161
+#define JLIBERR_ParseCouldNotLocateFilenameS               6170
+#define JLIBERR_ParseSavexmlCouldNotFindSToOpen            6171
+#define JLIBERR_ParseInvalidExtractXmlTextUsageXpath       6172
+#define JLIBERR_ParseNotAllowedInParentNodeOf              6173
+#define JLIBERR_ParseNotAllowedInParentNodeOf_1            6174
+#define JLIBERR_ParseInvalidUrlParameterFormatS            6175
+#define JLIBERR_ParseInvalidRestQueryInputSpecifierS       6176
+#define JLIBERR_ParseConfigurationFileSNotFound            6177
+#define JLIBERR_ParseErrorLoadingConfigurationFileSInvalidYaml 6178
+#define JLIBERR_ParseUnrecognisedFileExtensionS            6179
+#define JLIBERR_ParseErrorLoadingConfigurationFileS        6180
+#define JLIBERR_ParseSectionSIsMissingFromFileS            6181
+#define JLIBERR_ParseCannotOverrideScalarConfigurationElementSWith 6182
+#define JLIBERR_ParseInvalidOptionNameS                    6183
+#define JLIBERR_ParseConfigurationHasAlreadyBeenInitialised 6184
+#define JLIBERR_ParseNameOfConfigurationFileOmittedUseConfigFilename 6185
+#define JLIBERR_ParseConfigurationForComponentSHasAlreadyBeen 6186
+#define JLIBERR_ParseConfigurationForComponentSHasAlreadyBeen_1 6187
+#define JLIBERR_ParseDefaultConfigurationDoesNotContainTheTag 6188
+#define JLIBERR_ParseFiledToInitializeLibyamlParser        6189
+#define JLIBERR_ParseLibyamlParserErrorS                   6190
+#define JLIBERR_ParseLibyamlParserS                        6191
+#define JLIBERR_ParseLibyamlParserExpectedSequenceName     6192
+#define JLIBERR_ParseYamlCurrentlyOnlySupportOneContentSection 6193
+#define JLIBERR_ParseYamlCurrentlyOnlySupportOneContentSection_1 6194
+#define JLIBERR_ParseYamlCurrentlyOnlySupportOneDocumentPer 6195
+#define JLIBERR_ParseYamlemitterFailedToInitialize         6196
+#define JLIBERR_ParseYamlemitterSFailed                    6197
+#define JLIBERR_ParseSavexmlCouldNotFindSToOpen_1          6198
+#define JLIBERR_ParseDuplicateEntry                        6199
+#define JLIBERR_ParseDuplicateEntry_1                      6200
 //---- Text for all errors (make it easy to internationalise) ---------------------------
 
 #define JLIBERR_BadlyFormedDateTime_Text        "Badly formatted date/time '%s'"
 #define JLIBERR_BadUtf8InArguments_Text         "The utf separators/terminators aren't valid utf-8"
 
 #endif
+
 

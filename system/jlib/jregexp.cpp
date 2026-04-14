@@ -1514,13 +1514,13 @@ StringMatcher::~StringMatcher()
 void StringMatcher::addEntry(const char * text, unsigned action)
 {
     if (!queryAddEntry((size32_t)strlen(text), text, action))
-        throw MakeStringException(-1, "Duplicate entry \"%s\" added to string matcher", text);
+        throw MakeStringException(JLIBERR_ParseDuplicateEntry, "Duplicate entry \"%s\" added to string matcher", text);
 }
 
 void StringMatcher::addEntry(unsigned len, const char * text, unsigned action)
 {
     if (!queryAddEntry(len, text, action))
-        throw MakeStringException(-1, "Duplicate entry \"%*s\" added to string matcher", len, text);
+        throw MakeStringException(JLIBERR_ParseDuplicateEntry_1, "Duplicate entry \"%*s\" added to string matcher", len, text);
 }
 
 bool StringMatcher::queryAddEntry(unsigned len, const char * text, unsigned action)
