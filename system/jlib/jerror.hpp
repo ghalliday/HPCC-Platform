@@ -191,11 +191,64 @@
 #define JLIBERR_ParseSavexmlCouldNotFindSToOpen_1          6198
 #define JLIBERR_ParseDuplicateEntry                        6199
 #define JLIBERR_ParseDuplicateEntry_1                      6200
+#define JLIBERR_SystemNiceLevelShouldBeBetween20And        6210
+#define JLIBERR_SystemNiceCanOnlyBeSetBeforeThe            6211
+#define JLIBERR_SystemUnknownExceptionInThreadS            6212
+#define JLIBERR_SystemThreadStartSThreadAlreadyStarted     6213
+#define JLIBERR_SystemThreadStartSFailed                   6214
+#define JLIBERR_SystemUnknownExceptionInThreadS_1          6215
+#define JLIBERR_SystemUnknownExceptionInMainThread         6216
+#define JLIBERR_SystemUnknownExceptionInThreadFromPoolS    6217
+#define JLIBERR_SystemNoThreadsAvailableInPoolS            6218
+#define JLIBERR_SystemUnauthorizedPipeProgramS             6219
+#define JLIBERR_SystemFailedToRunDoperf                    6220
+#define JLIBERR_SystemCanNotLockD                          6221
+#define JLIBERR_SystemInvalidEventTypeU                    6222
+#define JLIBERR_SystemRecordingsourceCanOnlyBeTheFirstRecorded 6223
+#define JLIBERR_SystemChannelidValueLluExceedsMaximumAllowedValue 6224
+#define JLIBERR_SystemReplicaidValueLluExceedsMaximumAllowedValue 6225
+#define JLIBERR_SystemInvalidAttributeTypeU                6226
+#define JLIBERR_SystemNoDataTypeForAttributeS              6227
+#define JLIBERR_SystemUnknownDataTypeDForAttributeS        6228
+#define JLIBERR_SystemFileSNotFound                        6229
+#define JLIBERR_SystemFileSNotOpenedForReading             6230
+#define JLIBERR_SystemFileSIsNotAnEventFile                6231
+#define JLIBERR_SystemUnsupportedFileVersionURequiredU     6232
+#define JLIBERR_SystemUnexpectedEof                        6233
+#define JLIBERR_SystemEofBeforeEndOfUByteString            6234
+#define JLIBERR_SystemEofBeforeEndOfNullTerminatedString   6235
+#define JLIBERR_SystemEofBeforeEndOfUByteString_1          6236
+#define JLIBERR_SystemErrorWhileWritingByte0xXN            6237
+#define JLIBERR_SystemErrorWhileWritingDBytesN             6238
+#define JLIBERR_SystemTruncatedDWhileWritingDBytesN        6239
+#define JLIBERR_SystemBlockedInputStreamRecordTooLargeTo   6240
+#define JLIBERR_SystemEndOfInputStreamForReadOf            6241
+#define JLIBERR_SystemBlockedInputStreamRecordTooLargeTo_1 6242
+#define JLIBERR_SystemEndOfInputStreamForReadOf_1          6243
+#define JLIBERR_SystemFailedToWriteUBytesAtOffset          6244
+#define JLIBERR_SystemFailedToReadTheExpectedNumberOf      6245
+#define JLIBERR_SystemFailedToReadTheExpectedNumberOf_1    6246
+#define JLIBERR_SystemFailedToInitializeIoUringQueueErrorCode 6247
+#define JLIBERR_SystemInvalidSecretCategoryS               6248
+#define JLIBERR_SystemInvalidSecretNameS                   6249
+#define JLIBERR_SystemInvalidSecretKeyNameS                6250
+#define JLIBERR_SystemInvalidEmptyUrl                      6251
+#define JLIBERR_SystemInvalidUrlProtocolNotRecognizedS     6252
+#define JLIBERR_SystemVaultSSAuthErrorS                    6253
+#define JLIBERR_SystemInvalidSecretNameS_1                 6254
+#define JLIBERR_SystemSecretSSNotFound                     6255
+#define JLIBERR_SystemSecretSSMissingKeyS                  6256
+#define JLIBERR_SystemUdpKeyNotInitialized                 6257
+#define JLIBERR_SystemUdpKeyNotFoundCertManagerIntegrationConfigurationRequired 6258
+#define JLIBERR_SystemSecretSSNotFound_1                   6259
+#define JLIBERR_SystemMonthShouldBetween1And12             6260
+#define JLIBERR_SystemBadCronSpecS                         6261
 //---- Text for all errors (make it easy to internationalise) ---------------------------
 
 #define JLIBERR_BadlyFormedDateTime_Text        "Badly formatted date/time '%s'"
 #define JLIBERR_BadUtf8InArguments_Text         "The utf separators/terminators aren't valid utf-8"
 
 #endif
+
 
 

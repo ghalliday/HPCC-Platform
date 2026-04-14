@@ -278,7 +278,7 @@ bool TimedMutex::lockWait(unsigned timeout)
 
 void TimedMutexBlock::throwLockException(unsigned timeout)
 {
-    throw MakeStringException(0,"Can not lock - %d",timeout);
+    throw MakeStringException(JLIBERR_SystemCanNotLockD,"Can not lock - %d",timeout);
 }
 
 

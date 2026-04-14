@@ -113,7 +113,7 @@ URingProcessor::URingProcessor(const IPropertyTree * config)
 
     int ret = io_uring_queue_init_params(queueDepth, &ring, &params);
     if (ret != 0)
-        throw MakeStringException(0, "Failed to initialize io_uring queue: error code %d", ret);
+        throw MakeStringException(JLIBERR_SystemFailedToInitializeIoUringQueueErrorCode, "Failed to initialize io_uring queue: error code %d", ret);
 
     io_uring_ring_dontfork(&ring);
     alive = true;

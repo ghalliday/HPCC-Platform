@@ -40,7 +40,7 @@ inline void read(IBufferedSerialInputStream &source, void *buffer, size32_t size
 {
     size32_t got = source.read(size, buffer);
     if (unlikely(got != size))
-        throw makeStringExceptionV(0, "Failed to read the expected number of bytes %u, only read %u bytes", size, got);
+        throw makeStringExceptionV(JLIBERR_SystemFailedToReadTheExpectedNumberOf, "Failed to read the expected number of bytes %u, only read %u bytes", size, got);
 }
 
 template <class T>
@@ -48,7 +48,7 @@ inline void read(IBufferedSerialInputStream &source, T &value)
 {
     size32_t got = source.read(sizeof(T), &value);
     if (unlikely(got != sizeof(T)))
-        throw makeStringExceptionV(0, "Failed to read the expected number of bytes %zu, only read %u bytes", sizeof(T), got);
+        throw makeStringExceptionV(JLIBERR_SystemFailedToReadTheExpectedNumberOf_1, "Failed to read the expected number of bytes %zu, only read %u bytes", sizeof(T), got);
 }
 
 enum class NextByteStatus : byte { nextByteIsZero, nextByteIsNonZero, endOfStream };
