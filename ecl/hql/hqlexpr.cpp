@@ -8109,7 +8109,7 @@ void CFileContents::ensureUtf8(MemoryBuffer & contents)
         if (convertToUtf8(translated, contents.length(), contents.bufferBase()))
             contents.swapWith(translated);
         else
-            throw MakeStringException(1, "File %s doesn't appear to be UTF8", file->queryFilename());
+            throw MakeStringException(ECLERR_FileSDoesnTAppearTo, "File %s doesn't appear to be UTF8", file->queryFilename());
     }
 }
 
@@ -8120,22 +8120,22 @@ void CFileContents::ensureLoaded()
     delayedRead = false;
     Owned<IFileIO> io = file->openShared(IFOread, IFSHread);
     if (!io)
-        throw MakeStringException(1, "File %s could not be opened", file->queryFilename());
+        throw MakeStringException(ECLERR_FileSCouldNotBeOpened, "File %s could not be opened", file->queryFilename());
 
     offset_t size = io->size();
     if (size == (offset_t)-1)
-        throw MakeStringException(1, "File %s could not be read", file->queryFilename());
+        throw MakeStringException(ECLERR_FileSCouldNotBeRead, "File %s could not be read", file->queryFilename());
 
     size32_t sizeToRead = (size32_t)size;
     if (sizeToRead != size)
-        throw MakeStringException(1, "File %s is larger than 4Gb", file->queryFilename());
+        throw MakeStringException(ECLERR_FileSIsLargerThan4gb, "File %s is larger than 4Gb", file->queryFilename());
 
     MemoryBuffer buffer;
     buffer.ensureCapacity(sizeToRead+1);
     byte * contents = static_cast<byte *>(buffer.reserve(sizeToRead));
     size32_t sizeRead = io->read(0, sizeToRead, contents);
     if (sizeRead != sizeToRead)
-        throw MakeStringException(1, "File %s only read %u of %u bytes", file->queryFilename(), sizeRead, sizeToRead);
+        throw MakeStringException(ECLERR_FileSOnlyReadUOf, "File %s only read %u of %u bytes", file->queryFilename(), sizeRead, sizeToRead);
 
 #ifdef _USE_ZLIB
     if (isgzipped(contents, sizeToRead))

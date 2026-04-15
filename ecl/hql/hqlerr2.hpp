@@ -121,5 +121,14 @@
 #define ECLERR_SStr 8517
 #define ECLERR_ServerAddressNotSpecified 8518
 #define ECLERR_S 8519
+#define ECLERR_ExpressionCannotBeEvaluated 8520
+#define ECLERR_NoQueryFoundInXml 8521
+#define ECLERR_SContentDoesnTAppearTo 8522
+#define ECLERR_StdinCouldNotBeOpened 8523
+#define ECLERR_FileSCouldNotBeOpened 8524
+#define ECLERR_FileSIsLargerThan4gb 8525
+#define ECLERR_FileSOnlyReadUOf 8526
+#define ECLERR_FileSDoesnTAppearTo 8527
+#define ECLERR_FileSCouldNotBeRead 8528
 
 #endif // HQLERR2_HPP

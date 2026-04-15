@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <stdio.h>
+#include "hqlerr2.hpp"
 #include "jlog.hpp"
 #include "jfile.hpp"
 #include "jargv.hpp"
@@ -206,7 +207,7 @@ void EclObjectParameter::ensureUtf8Content()
         if (convertToUtf8(translated, mb.length(), mb.bufferBase()))
             mb.swapWith(translated);
         else
-            throw MakeStringException(1, "%s content doesn't appear to be UTF8", value.get());
+            throw MakeStringException(ECLERR_SContentDoesnTAppearTo, "%s content doesn't appear to be UTF8", value.get());
     }
 }
 
@@ -240,7 +241,7 @@ void EclObjectParameter::loadStdIn()
     Owned<IFile> file = createIFile("stdin:");
     Owned<IFileIO> io = file->openShared(IFOread, IFSHread);
     if (!io)
-        throw MakeStringException(1, "stdin could not be opened");
+        throw MakeStringException(ECLERR_StdinCouldNotBeOpened, "stdin could not be opened");
     size32_t rd;
     size32_t sizeRead = 0;
     do {
@@ -256,18 +257,18 @@ void EclObjectParameter::loadFile()
     Owned<IFile> file = createIFile(value.get());
     Owned<IFileIO> io = file->openShared(IFOread, IFSHread);
     if (!io)
-        throw MakeStringException(1, "File %s could not be opened", file->queryFilename());
+        throw MakeStringException(ECLERR_FileSCouldNotBeOpened, "File %s could not be opened", file->queryFilename());
 
     offset_t size = io->size();
     size32_t sizeToRead = (size32_t)size;
     if (sizeToRead != size)
-        throw MakeStringException(1, "File %s is larger than 4Gb", file->queryFilename());
+        throw MakeStringException(ECLERR_FileSIsLargerThan4gb, "File %s is larger than 4Gb", file->queryFilename());
 
     mb.ensureCapacity(sizeToRead+1);
     byte * contents = static_cast<byte *>(mb.reserve(sizeToRead));
     size32_t sizeRead = io->read(0, sizeToRead, contents);
     if (sizeRead != sizeToRead)
-        throw MakeStringException(1, "File %s only read %u of %u bytes", file->queryFilename(), sizeRead, sizeToRead);
+        throw MakeStringException(ECLERR_FileSOnlyReadUOf, "File %s only read %u of %u bytes", file->queryFilename(), sizeRead, sizeToRead);
     finalizeContentType();
 }
 

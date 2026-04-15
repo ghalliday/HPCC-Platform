@@ -1191,7 +1191,7 @@ void EclCC::evaluateResult(EclCompileInstance & instance)
             if (result)
                 result->generateECL(out);
             else
-                throw MakeStringException(1, "Expression cannot be evaluated");
+                throw MakeStringException(ECLERR_ExpressionCannotBeEvaluated, "Expression cannot be evaluated");
         }
         out.append(']');
     }
@@ -1213,19 +1213,19 @@ void EclCC::evaluateResult(EclCompileInstance & instance)
                 if (result)
                     result->generateECL(out);
                 else
-                    throw MakeStringException(1, "Expression cannot be evaluated");
+                    throw MakeStringException(ECLERR_ExpressionCannotBeEvaluated, "Expression cannot be evaluated");
             }
             out.append(']');
         }
         else
-            throw MakeStringException(1, "Expression cannot be evaluated");
+            throw MakeStringException(ECLERR_ExpressionCannotBeEvaluated, "Expression cannot be evaluated");
     }
     else
     {
 #ifdef _DEBUG
         EclIR::dump_ir(folded);
 #endif
-        throw MakeStringException(1, "Expression cannot be evaluated");
+        throw MakeStringException(ECLERR_ExpressionCannotBeEvaluated, "Expression cannot be evaluated");
     }
     printf("%s\n", out.str());
 }
@@ -1722,7 +1722,7 @@ void EclCC::processXmlFile(EclCompileInstance & instance, const char *archiveXML
         const char * syntaxCheckModule = archiveTree->queryProp("SyntaxCheck/@module");
         const char * syntaxCheckAttribute = archiveTree->queryProp("SyntaxCheck/@attribute");
         if (!queryText || !syntaxCheckModule || !syntaxCheckAttribute)
-            throw MakeStringException(1, "No query found in xml");
+            throw MakeStringException(ECLERR_NoQueryFoundInXml, "No query found in xml");
 
         instance.wu->setDebugValueInt("syntaxCheck", true, true);
         fullPath.append(syntaxCheckModule).append('.').append(syntaxCheckAttribute);
