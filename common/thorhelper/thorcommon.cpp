@@ -1808,9 +1808,9 @@ static unsigned getCpuId(const char * text, char * * next)
 {
     unsigned cpu = (unsigned)strtoul(text, next, 10);
     if (*next == text)
-        throw makeStringExceptionV(1, "Invalid CPU: %s", text);
+        throw makeStringExceptionV(COMMONERR_InvalidCpuS, "Invalid CPU: %s", text);
     else if (cpu >= CPU_SETSIZE)
-        throw makeStringExceptionV(1, "CPU %u is out of range 0..%u", cpu, CPU_SETSIZE);
+        throw makeStringExceptionV(COMMONERR_CpuUIsOutOfRange, "CPU %u is out of range 0..%u", cpu, CPU_SETSIZE);
     return cpu;
 }
 #endif
@@ -1841,7 +1841,7 @@ void setProcessAffinity(const char * cpuList)
             break;
 
         if (*next != ',')
-            throw makeStringExceptionV(1, "Invalid cpu affinity list %s", cur);
+            throw makeStringExceptionV(COMMONERR_InvalidCpuAffinityListS, "Invalid cpu affinity list %s", cur);
 
         cur = next+1;
     }
@@ -1866,7 +1866,7 @@ void setAutoAffinity(unsigned curProcess, unsigned processPerMachine, const char
     }
 
     if (optNodes)
-        throw makeStringException(1, "Numa node list not yet supported");
+        throw makeStringException(COMMONERR_NumaNodeListNotYetSupported, "Numa node list not yet supported");
 
     unsigned numaMap[NUMA_NUM_NODES];
     unsigned numNumaNodes = 0;
@@ -1957,7 +1957,7 @@ void setAutoAffinity(unsigned curProcess, unsigned processPerMachine, const char
 #endif
 
     if (!ok)
-        throw makeStringExceptionV(1, "Failed to set affinity to numa node %u (id:%u)", firstNode, numaMap[firstNode]);
+        throw makeStringExceptionV(COMMONERR_FailedToSetAffinityToNuma, "Failed to set affinity to numa node %u (id:%u)", firstNode, numaMap[firstNode]);
 
     DBGLOG("Process bound to numa node %u..%u (id:%u) of %u", firstNode, firstNode + numNodes - 1, numaMap[firstNode], numNumaNodes);
 #endif

@@ -235,5 +235,13 @@
 #define COMMONERR_Format 8331
 #define COMMONERR_UnknownSizeUnitS 8332
 #define COMMONERR_PackageErrorCircularOrInvalidBase 8333
+#define COMMONERR_OutOfRangeValue_1 8334
+#define COMMONERR_CouldNotFindTheLocationOf 8335
+#define COMMONERR_CouldNotFindTheSlaveProgram 8336
+#define COMMONERR_InvalidCpuS 8337
+#define COMMONERR_CpuUIsOutOfRange 8338
+#define COMMONERR_InvalidCpuAffinityListS 8339
+#define COMMONERR_NumaNodeListNotYetSupported 8340
+#define COMMONERR_FailedToSetAffinityToNuma 8341
 
 #endif // COMMONERR_HPP

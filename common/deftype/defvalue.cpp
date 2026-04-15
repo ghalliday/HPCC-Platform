@@ -1890,7 +1890,7 @@ IValue *createIntValue(__int64 val, ITypeInfo * type)
 {
 #ifdef _DEBUG
     if (!isInRange(val, type->isSigned(), type->getSize()))
-        throw MakeStringException(1, "Out of range value");
+        throw MakeStringException(COMMONERR_OutOfRangeValue_1, "Out of range value");
 #endif
     return new IntValue(val, type);
 }

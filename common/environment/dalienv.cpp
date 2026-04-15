@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "commonerr.hpp"
 
 #include "jlib.hpp"
 #include "jio.hpp"
@@ -209,7 +210,7 @@ const char * querySlaveExecutable(const char * keyName, const char * exeName, co
         progpath.append(".exe");
 #endif
 #else
-        throw MakeStringException(1, "Could not find the location of the slave program %s for machine %s", keyName, addr.str());
+        throw MakeStringException(COMMONERR_CouldNotFindTheLocationOf, "Could not find the location of the slave program %s for machine %s", keyName, addr.str());
 #endif
     }
     // on linux check that file exists where it is supposed to be 
@@ -222,7 +223,7 @@ const char * querySlaveExecutable(const char * keyName, const char * exeName, co
         Owned<IFile> file = createIFile(rfn); 
         if (!file->exists())  {
             WARNLOG("Could not find the the slave program %s for machine %s at %s", keyName, addr.str(), progpath.str());
-            throw MakeStringException(1, "Could not find the slave program %s for machine %s at %s", keyName, addr.str(), progpath.str());
+            throw MakeStringException(COMMONERR_CouldNotFindTheSlaveProgram, "Could not find the slave program %s for machine %s at %s", keyName, addr.str(), progpath.str());
         }
     }
 #endif
