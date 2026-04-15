@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "pluginerr.hpp"
 #include <mysql/mysql.h>
 #include <mysql/mysqld_error.h>
 #include "jexcept.hpp"
@@ -44,7 +45,7 @@ static unsigned mysqlConnectionCacheSize = 10;
 
 static void UNSUPPORTED(const char *feature)
 {
-    throw MakeStringException(-1, "UNSUPPORTED feature: %s not supported in mysql plugin", feature);
+    throw MakeStringException(PLUGINERR_UnsupportedFeatureSNotSupportedIn_3, "UNSUPPORTED feature: %s not supported in mysql plugin", feature);
 }
 
 static const char * compatibleVersions[] = {

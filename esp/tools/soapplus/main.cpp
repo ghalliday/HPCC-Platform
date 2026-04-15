@@ -16,6 +16,7 @@
  */
 
 #include "http.hpp"
+#include "esperr.hpp"
 #include "jliball.hpp"
 #include "xsdparser.hpp"
 #include "xmldiff.hpp"
@@ -162,7 +163,7 @@ void createDirectories(const char* outdir, const char* url, bool bClient, bool b
         if(out->exists())
         {
             if(out->isDirectory()==fileBool::foundNo)
-                throw MakeStringException(0, "Output destination %s already exists, and it's not a directory", outdir);
+                throw MakeStringException(ESPERR_OutputDestinationSAlreadyExistsAnd, "Output destination %s already exists, and it's not a directory", outdir);
         }
         outpath.append(outdir);
         if(outpath.charAt(outpath.length() - 1) != PATHSEPCHAR)
@@ -187,7 +188,7 @@ void createDirectories(const char* outdir, const char* url, bool bClient, bool b
         if(out->exists())
         {
             if(out->isDirectory()==fileBool::foundNo)
-                throw MakeStringException(0, "Output destination %s already exists, and it's not a directory", outpath1.str());
+                throw MakeStringException(ESPERR_OutputDestinationSAlreadyExistsAnd, "Output destination %s already exists, and it's not a directory", outpath1.str());
         }
         else
         {
@@ -201,7 +202,7 @@ void createDirectories(const char* outdir, const char* url, bool bClient, bool b
             if(out->exists())
             {
                 if(out->isDirectory()==fileBool::foundNo)
-                    throw MakeStringException(0, "Output destination %s already exists, and it's not a directory", outpath2.str());
+                    throw MakeStringException(ESPERR_OutputDestinationSAlreadyExistsAnd, "Output destination %s already exists, and it's not a directory", outpath2.str());
             }
             else
             {
@@ -214,7 +215,7 @@ void createDirectories(const char* outdir, const char* url, bool bClient, bool b
             if(out->exists())
             {
                 if(out->isDirectory()==fileBool::foundNo)
-                    throw MakeStringException(0, "Output destination %s already exists, and it's not a directory", outpath3.str());
+                    throw MakeStringException(ESPERR_OutputDestinationSAlreadyExistsAnd, "Output destination %s already exists, and it's not a directory", outpath3.str());
             }
             else
             {
@@ -273,7 +274,7 @@ int processRequest(IProperties* globals, SoapPlusAction action, const char* url,
         const char* method = globals->queryProp("method");
         if(autogen && (!method || !*method))
         {
-            throw MakeStringException(0, "In hybrid mode, you have to specify a method for automatically generating the request");
+            throw MakeStringException(ESPERR_InHybridModeYouHaveTo, "In hybrid mode, you have to specify a method for automatically generating the request");
         }
 
         Owned<IFile> infile = NULL;

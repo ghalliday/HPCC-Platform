@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "keybuild.hpp"
+#include "systemerr.hpp"
 #include "eclhelper.hpp"
 #include "bloom.hpp"
 #include "jmisc.hpp"
@@ -229,7 +230,7 @@ public:
         assertex(options.nodeSize >= CKeyHdr::getSize());
         assertex(options.nodeSize <= 0xffff); // stored in a short in the header - we should fix that if/when we restructure header
         if (!(options.flags & COL_PREFIX))
-            throw MakeStringException(0, "Invalid flags in CKeyBuilder::CKeyBuilder - COL_PREFIX is required");
+            throw MakeStringException(SYSTEMERR_InvalidFlagsInCkeybuilderCkeybuilderCol, "Invalid flags in CKeyBuilder::CKeyBuilder - COL_PREFIX is required");
         unsigned flags = options.flags;
         if (flags & TRAILING_HEADER_ONLY)
             flags |= USE_TRAILING_HEADER;
@@ -295,7 +296,7 @@ public:
                 indexCompressor.setown(new LegacyIndexCompressor);
             }
             else
-                throw makeStringExceptionV(0, "Unrecognised index compression format %s", compression);
+                throw makeStringExceptionV(SYSTEMERR_UnrecognisedIndexCompressionFormatS, "Unrecognised index compression format %s", compression);
         }
         else
             indexCompressor.setown(new LegacyIndexCompressor);
@@ -639,7 +640,7 @@ protected:
             nextPos += keyHdr->getNodeSize();
             numLeaves++;
             if (!activeNode->add(pos, keyData, recsize, sequence))
-                throw MakeStringException(0, "Key row too large to fit within a key node (uncompressed size=%d, variable=%s, pos=%" I64F "d)", recsize, keyHdr->isVariable()?"true":"false", pos);
+                throw MakeStringException(SYSTEMERR_KeyRowTooLargeToFit, "Key row too large to fit within a key node (uncompressed size=%d, variable=%s, pos=%" I64F "d)", recsize, keyHdr->isVariable()?"true":"false", pos);
         }
         sequence++;
     }

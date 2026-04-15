@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "deployutils.hpp"
+#include "deployerr.hpp"
 #include "jliball.hpp"
 //#include "computerpicker.hpp"
 //#include "configenvhelper.hpp"
@@ -371,7 +372,7 @@ bool ComponentFromXSD::generateHeaders()
   StringBuffer sbPropName;
 
   if (!m_pSchemaRoot)
-    throw MakeStringException(-1, "Missing schema property tree");
+    throw MakeStringException(DEPLOYERR_MissingSchemaPropertyTree, "Missing schema property tree");
 
   IPropertyTree *schemaNode = m_pSchemaRoot->queryPropTree("xs:element");
 

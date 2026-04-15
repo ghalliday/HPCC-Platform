@@ -16,6 +16,7 @@ limitations under the License.
 ############################################################################## */
 
 #include "HPCCSQLTreeWalker.hpp"
+#include "esperr.hpp"
 
 void trimSingleQuotes(StringBuffer & quotedString)
 {
@@ -57,10 +58,10 @@ void HPCCSQLTreeWalker::limitTreeWalker(pANTLR3_BASE_TREE limitAST)
                 }
             }
             else if (childrenCount > 2)
-                throw MakeStringException(-1," Extra token found after LIMIT/OFFSET directive.");
+                throw MakeStringException(ESPERR_ExtraTokenFoundAfterLimitOffset, " Extra token found after LIMIT/OFFSET directive.");
         }
         else
-            throw MakeStringException(-1," Missing LIMIT value");
+            throw MakeStringException(ESPERR_MissingLimitValue, " Missing LIMIT value");
     }
 }
 
@@ -92,7 +93,7 @@ void HPCCSQLTreeWalker::fromTreeWalker(pANTLR3_BASE_TREE fromsqlAST)
 
                 int joinNodeChildcount = ithchild->getChildCount(ithchild);
                 if (joinNodeChildcount < 2 )
-                    throw MakeStringException(-1, "Join statement appears to be incomplete");
+                    throw MakeStringException(ESPERR_JoinStatementAppearsToBeIncomplete, "Join statement appears to be incomplete");
 
                 onclausenode = (pANTLR3_BASE_TREE) ithchild->getFirstChildWithType(ithchild, ON);
 
@@ -146,7 +147,7 @@ void HPCCSQLTreeWalker::fromTreeWalker(pANTLR3_BASE_TREE fromsqlAST)
 
                 const char * fullTableName = tmpHPCCFileCache->cacheHpccFileByName(tablename);
                 if (!fullTableName || !*fullTableName)
-                    throw MakeStringException(-1, "Invalid table name or file type not supported: %s\n", tablename);
+                    throw MakeStringException(ESPERR_InvalidTableNameOrFileType, "Invalid table name or file type not supported: %s\n", tablename);
                 else
                     temptable->setName(fullTableName);
 
@@ -164,7 +165,7 @@ void HPCCSQLTreeWalker::fromTreeWalker(pANTLR3_BASE_TREE fromsqlAST)
                     if (onclausenode)
                         join->setOnClause(expressionTreeWalker((pANTLR3_BASE_TREE)onclausenode->getChild(onclausenode, 0), NULL));
                     else
-                        throw MakeStringException(-1, "Join statement appears to be missing on clause");
+                        throw MakeStringException(ESPERR_JoinStatementAppearsToBeMissing, "Join statement appears to be missing on clause");
 
                     temptable->setJoin(join.getLink());
                 }
@@ -203,9 +204,9 @@ ISQLExpression * HPCCSQLTreeWalker::expressionTreeWalker(pANTLR3_BASE_TREE exprA
                 if (exprAST->getChildCount(exprAST) <= 0)
                 {
                     if (parent != NULL)
-                        throw MakeStringException(-1, "Error detected while parsing SQL around: %s", (char *)parent->toString(parent)->chars);
+                        throw MakeStringException(ESPERR_ErrorDetectedWhileParsingSqlAround, "Error detected while parsing SQL around: %s", (char *)parent->toString(parent)->chars);
                     else
-                        throw MakeStringException(-1, "Error detected while parsing SQL.");
+                        throw MakeStringException(ESPERR_ErrorDetectedWhileParsingSql, "Error detected while parsing SQL.");
                 }
 
                 pANTLR3_BASE_TREE tmpNode = (pANTLR3_BASE_TREE)(exprAST->getChild(exprAST, 0));
@@ -308,7 +309,7 @@ ISQLExpression * HPCCSQLTreeWalker::expressionTreeWalker(pANTLR3_BASE_TREE exprA
                 {
                     StringBuffer invalidexp;
                     leftexp->toString(invalidexp, false);
-                    throw makeStringExceptionV(-1, "Cannot apply arithmetic logic to normalized nested column: '%s'!\n", invalidexp.str());
+                    throw makeStringExceptionV(ESPERR_CannotApplyArithmeticLogicToNormalized, "Cannot apply arithmetic logic to normalized nested column: '%s'!\n", invalidexp.str());
                 }
 
                 rightexp.set(expressionTreeWalker((pANTLR3_BASE_TREE)(exprAST->getChild(exprAST, 1)),exprAST));
@@ -316,7 +317,7 @@ ISQLExpression * HPCCSQLTreeWalker::expressionTreeWalker(pANTLR3_BASE_TREE exprA
                 {
                     StringBuffer invalidexp;
                     rightexp->toString(invalidexp, false);
-                    throw makeStringExceptionV(-1, "Cannot apply arithmetic logic to normalized nested column: '%s'!\n", invalidexp.str());
+                    throw makeStringExceptionV(ESPERR_CannotApplyArithmeticLogicToNormalized, "Cannot apply arithmetic logic to normalized nested column: '%s'!\n", invalidexp.str());
                 }
 
                 tmpexp.setown( new SQLBinaryExpression(exptype,leftexp, rightexp));
@@ -353,7 +354,7 @@ ISQLExpression * HPCCSQLTreeWalker::expressionTreeWalker(pANTLR3_BASE_TREE exprA
                 {
                     StringBuffer expstr;
                     tmpexp->toString(expstr, false);
-                    throw makeStringExceptionV(-1, "Cannot apply arithmetic logic to normalized nested column: '%s'!\n", expstr.str());
+                    throw makeStringExceptionV(ESPERR_CannotApplyArithmeticLogicToNormalized, "Cannot apply arithmetic logic to normalized nested column: '%s'!\n", expstr.str());
                 }
                 break;
             }
@@ -388,7 +389,7 @@ ISQLExpression * HPCCSQLTreeWalker::expressionTreeWalker(pANTLR3_BASE_TREE exprA
 
                         if (found == false)
                         {
-                            throw MakeStringException(-1, "INVALID TABLE NAME FOUND: %s\n", tablename );
+                            throw MakeStringException(ESPERR_InvalidTableNameFoundSN, "INVALID TABLE NAME FOUND: %s\n", tablename );
                         }
                     }
                 }
@@ -437,7 +438,7 @@ ISQLExpression * HPCCSQLTreeWalker::expressionTreeWalker(pANTLR3_BASE_TREE exprA
                         tmpfve->setParentTableName(colparent);
                     }
                     else
-                        throw MakeStringException(-1, "AMBIGUOUS COLUMN FOUND: %s\n", colname);
+                        throw MakeStringException(ESPERR_AmbiguousColumnFoundSN, "AMBIGUOUS COLUMN FOUND: %s\n", colname);
                 }
                 else
                 {
@@ -457,7 +458,7 @@ ISQLExpression * HPCCSQLTreeWalker::expressionTreeWalker(pANTLR3_BASE_TREE exprA
                     {
                         StringBuffer msg;
                         tmpfve->toString(msg, true);
-                        throw MakeStringException(-1, "INVALID COLUMN FOUND (parent table unknown): %s\n", msg.str() );
+                        throw MakeStringException(ESPERR_InvalidColumnFoundParentTableUnknown, "INVALID COLUMN FOUND (parent table unknown): %s\n", msg.str() );
                     }
                 }
 
@@ -473,7 +474,7 @@ ISQLExpression * HPCCSQLTreeWalker::expressionTreeWalker(pANTLR3_BASE_TREE exprA
                 int nodeChildrenCount = exprAST->getChildCount(exprAST);
 
                 if (nodeChildrenCount != 2)
-                    throw MakeStringException(-1, "Invalid column definition encountered");
+                    throw MakeStringException(ESPERR_InvalidColumnDefinitionEncountered, "Invalid column definition encountered");
 
                 pANTLR3_BASE_TREE tmpNode = (pANTLR3_BASE_TREE)(exprAST->getChild(exprAST, 0));
 
@@ -521,7 +522,7 @@ ISQLExpression * HPCCSQLTreeWalker::expressionTreeWalker(pANTLR3_BASE_TREE exprA
                         isbinary = true;
                     }
                     else
-                        throw MakeStringException(-1, "\n Unexpected type option encountered: %s ", (char *)tmpCNode->toString(tmpCNode)->chars);
+                        throw MakeStringException(ESPERR_NUnexpectedTypeOptionEncounteredS, "\n Unexpected type option encountered: %s ", (char *)tmpCNode->toString(tmpCNode)->chars);
                 }
 
                 StringBuffer ecltype;
@@ -569,7 +570,7 @@ ISQLExpression * HPCCSQLTreeWalker::expressionTreeWalker(pANTLR3_BASE_TREE exprA
                         }
                         break;
                     case NUMERIC_SYM:
-                        throw MakeStringException(-1, "Ambiguous 'NUMERIC' column type encountered, please specify actual type.");
+                        throw MakeStringException(ESPERR_AmbiguousNumericColumnTypeEncounteredPlease, "Ambiguous 'NUMERIC' column type encountered, please specify actual type.");
                         break;
                     case DATE_SYM:
                         ecltype.set("std.Date.DATE_T");
@@ -584,7 +585,7 @@ ISQLExpression * HPCCSQLTreeWalker::expressionTreeWalker(pANTLR3_BASE_TREE exprA
                         ecltype.set("DATETIME_T");
                         break;
                     case YEAR_SYM:
-                        throw MakeStringException(-1, "'YEAR' column type not supported in ECL.");
+                        throw MakeStringException(ESPERR_YearColumnTypeNotSupportedIn, "'YEAR' column type not supported in ECL.");
                         break;
                     case CHAR_SYM:
                         ecltype.setf("STRING%s", lengthi > 0 && lengthi < 255 ? length : "255");
@@ -636,16 +637,16 @@ ISQLExpression * HPCCSQLTreeWalker::expressionTreeWalker(pANTLR3_BASE_TREE exprA
                         if (strList.length())
                             ecltype.setf("ENUM ( %s )", strList.str());
                         else
-                            throw MakeStringException(-1, "\n Enumeration definition must contain at least one entry");
+                            throw MakeStringException(ESPERR_NEnumerationDefinitionMustContainAt, "\n Enumeration definition must contain at least one entry");
                         break;
                     case SET_SYM:
                         if (strList.length())
                             ecltype.setf("SET OF STRING");
                         else
-                            throw MakeStringException(-1, "\n SET definition must contain at least one entry");
+                            throw MakeStringException(ESPERR_NSetDefinitionMustContainAt, "\n SET definition must contain at least one entry");
                         break;
                     default:
-                        throw MakeStringException(-1, "\n Unexpected/Unsupported SQL field type encountered");
+                        throw MakeStringException(ESPERR_NUnexpectedUnsupportedSqlFieldType, "\n Unexpected/Unsupported SQL field type encountered");
                         break;
                 }
                 tmpfve->setECLType(ecltype.str());
@@ -653,7 +654,7 @@ ISQLExpression * HPCCSQLTreeWalker::expressionTreeWalker(pANTLR3_BASE_TREE exprA
                 break;
             }
             default:
-                throw MakeStringException(-1, "\n Unexpected expression node found : %s ", (char *)exprAST->toString(exprAST)->chars);
+                throw MakeStringException(ESPERR_NUnexpectedExpressionNodeFoundS, "\n Unexpected expression node found : %s ", (char *)exprAST->toString(exprAST)->chars);
                 break;
         }
 
@@ -671,7 +672,7 @@ ISQLExpression * HPCCSQLTreeWalker::expressionTreeWalker(pANTLR3_BASE_TREE exprA
                 }
                 else
                 {
-                    throw MakeStringException(-1, "INVALID NODE: '%s' found while processing possible expression alias \n", (char *)tmpNode->toString(tmpNode)->chars);
+                    throw MakeStringException(ESPERR_InvalidNodeSFoundWhileProcessing, "INVALID NODE: '%s' found while processing possible expression alias \n", (char *)tmpNode->toString(tmpNode)->chars);
                 }
             }
         }
@@ -686,7 +687,7 @@ void HPCCSQLTreeWalker::createAndLoadStatementTreeWalker(pANTLR3_BASE_TREE clsql
         char * tokenText = NULL;
 
         if (clsqlAST->getChildCount(clsqlAST) != 2 || clsqlAST->getType(clsqlAST) != TOKEN_CREATE_LOAD_TABLE_STATEMENT)
-            throw MakeStringException(-1, "\nError in Create and Load command(s). WsSQL requires CREATE command to be accompanied by a LOAD command.\n");
+            throw MakeStringException(ESPERR_NerrorInCreateAndLoadCommand, "\nError in Create and Load command(s). WsSQL requires CREATE command to be accompanied by a LOAD command.\n");
 
         pANTLR3_BASE_TREE createPart = (pANTLR3_BASE_TREE)(clsqlAST->getChild(clsqlAST, 0));
         if ( createPart->getType(createPart) == TOKEN_CREATE_TABLE)
@@ -697,7 +698,7 @@ void HPCCSQLTreeWalker::createAndLoadStatementTreeWalker(pANTLR3_BASE_TREE clsql
                 pANTLR3_BASE_TREE newTableName = (pANTLR3_BASE_TREE)(createPart->getChild(createPart, 0));
                 tokenText = (char *)newTableName->toString(newTableName)->chars;
                 if (!tokenText || !*tokenText)
-                    throw MakeStringException(-1, "Error detected in CREATE and LOAD: New table name cannot be empty.");
+                    throw MakeStringException(ESPERR_ErrorDetectedInCreateAndLoad, "Error detected in CREATE and LOAD: New table name cannot be empty.");
                 tableName.set(tokenText);
 
                 for (int createAttributesIndex = 1; createAttributesIndex < createPartCount; createAttributesIndex++)
@@ -724,13 +725,13 @@ void HPCCSQLTreeWalker::createAndLoadStatementTreeWalker(pANTLR3_BASE_TREE clsql
                             if (exp.get())
                                 recordDefinition.appendf("%s\t%s;\n", exp->getECLType(), exp->getName());
                             else
-                                throw MakeStringException(-1, "\nError in call list\n");
+                                throw MakeStringException(ESPERR_NerrorInCallListN, "\nError in call list\n");
                         }
                     }
                 }
             }
             else
-                throw MakeStringException(-1, "Error detected in CREATE and LOAD: Missing CREATE information.");
+                throw MakeStringException(ESPERR_ErrorDetectedInCreateAndLoad_1, "Error detected in CREATE and LOAD: Missing CREATE information.");
 
             pANTLR3_BASE_TREE loadPart = (pANTLR3_BASE_TREE)(clsqlAST->getChild(clsqlAST, 1));
             if ( loadPart->getType(loadPart) == TOKEN_LOAD_TABLE)
@@ -738,12 +739,12 @@ void HPCCSQLTreeWalker::createAndLoadStatementTreeWalker(pANTLR3_BASE_TREE clsql
                 int loadPartCount = loadPart->getChildCount(loadPart);
 
                 if (loadPartCount < 2)
-                    throw MakeStringException(-1, "Error detected in CREATE and LOAD: Missing LOAD information.");
+                    throw MakeStringException(ESPERR_ErrorDetectedInCreateAndLoad_2, "Error detected in CREATE and LOAD: Missing LOAD information.");
 
                 pANTLR3_BASE_TREE loadPartIthChild = (pANTLR3_BASE_TREE)(loadPart->getChild(loadPart, 0));
 
                 if (strcmp((char *)loadPartIthChild->toString(loadPartIthChild)->chars, tableName.str()) != 0)
-                    throw MakeStringException(-1, "Error detected in CREATE and LOAD: LOAD must target newly created table.");
+                    throw MakeStringException(ESPERR_ErrorDetectedInCreateAndLoad_3, "Error detected in CREATE and LOAD: LOAD must target newly created table.");
 
                 loadPartIthChild = (pANTLR3_BASE_TREE)(loadPart->getChild(loadPart, 1));
                 sourceDataTableName = (char *)loadPartIthChild->toString(loadPartIthChild)->chars;
@@ -759,7 +760,7 @@ void HPCCSQLTreeWalker::createAndLoadStatementTreeWalker(pANTLR3_BASE_TREE clsql
                         {
                             int sourcetypechildcount = loadPartIthChild->getChildCount(loadPartIthChild);
                             if (sourcetypechildcount != 2)
-                                throw MakeStringException(-1, "Error detected in CREATE and LOAD: LOAD Landing Zone clause requires IP and Directory.");
+                                throw MakeStringException(ESPERR_ErrorDetectedInCreateAndLoad_4, "Error detected in CREATE and LOAD: LOAD Landing Zone clause requires IP and Directory.");
 
                             pANTLR3_BASE_TREE lzinfo = (pANTLR3_BASE_TREE)(loadPartIthChild->getChild(loadPartIthChild, 0));
                             landingZoneIP.set((char *)lzinfo->toString(lzinfo)->chars);
@@ -828,7 +829,7 @@ void HPCCSQLTreeWalker::createAndLoadStatementTreeWalker(pANTLR3_BASE_TREE clsql
                                         sourceDataType.append("TERMINATOR( ");
                                     }
                                     else
-                                        throw MakeStringException(-1, "Unknown variable file data type option encountered.");
+                                        throw MakeStringException(ESPERR_UnknownVariableFileDataTypeOption, "Unknown variable file data type option encountered.");
 
                                     sourcetypechild = (pANTLR3_BASE_TREE)(sourcetypechild->getChild(sourcetypechild, 0));
                                     sourceDataType.append((char *)sourcetypechild->toString(sourcetypechild)->chars);
@@ -846,10 +847,10 @@ void HPCCSQLTreeWalker::createAndLoadStatementTreeWalker(pANTLR3_BASE_TREE clsql
                 }
             }
             else
-                throw MakeStringException(-1, "Error detected in CREATE and LOAD: LOAD clause not found.");
+                throw MakeStringException(ESPERR_ErrorDetectedInCreateAndLoad_5, "Error detected in CREATE and LOAD: LOAD clause not found.");
         }
         else
-            throw MakeStringException(-1, "Error detected in CREATE and LOAD: CREATE clause not found.");
+            throw MakeStringException(ESPERR_ErrorDetectedInCreateAndLoad_6, "Error detected in CREATE and LOAD: CREATE clause not found.");
     }
 }
 
@@ -880,13 +881,13 @@ void HPCCSQLTreeWalker::callStatementTreeWalker(pANTLR3_BASE_TREE callsqlAST)
                         querySetName.set(tokenText);
                     }
                     else if (namepartcount > 2)
-                        throw MakeStringException(-1, "Error detected in CALL: Invalid Procedure name.");
+                        throw MakeStringException(ESPERR_ErrorDetectedInCallInvalidProcedure, "Error detected in CALL: Invalid Procedure name.");
                 }
                 else
-                    throw MakeStringException(-1, "Error detected in CALL: Procedure name is empty.");
+                    throw MakeStringException(ESPERR_ErrorDetectedInCallProcedureName, "Error detected in CALL: Procedure name is empty.");
             }
             else
-                throw MakeStringException(-1, "Error detected in CALL: Procedure name not found.");
+                throw MakeStringException(ESPERR_ErrorDetectedInCallProcedureName_1, "Error detected in CALL: Procedure name not found.");
 
             if (childrenCount == 2)
             {
@@ -916,15 +917,15 @@ void HPCCSQLTreeWalker::callStatementTreeWalker(pANTLR3_BASE_TREE callsqlAST)
                             paramList.append(*exp.getLink());
                         }
                         else
-                            throw MakeStringException(-1, "\nError in call list\n");
+                            throw MakeStringException(ESPERR_NerrorInCallListN, "\nError in call list\n");
                     }
                 }
             }
             else if (childrenCount > 2)
-                throw MakeStringException(-1, "Error detected in CALL: Error in param list.");
+                throw MakeStringException(ESPERR_ErrorDetectedInCallErrorIn, "Error detected in CALL: Error in param list.");
         }
         else
-            throw MakeStringException(-1, "\nError detected in CALL.");
+            throw MakeStringException(ESPERR_NerrorDetectedInCall, "\nError detected in CALL.");
     }
 }
 
@@ -967,7 +968,7 @@ void HPCCSQLTreeWalker::selectStatementTreeWalker(pANTLR3_BASE_TREE selectsqlAST
                             if (exp.get())
                                 selectList.append(*exp.getLink());
                             else
-                                throw MakeStringException(-1, "\nError in select list\n");
+                                throw MakeStringException(ESPERR_NerrorInSelectListN, "\nError in select list\n");
                         }
                     }
 
@@ -998,13 +999,13 @@ void HPCCSQLTreeWalker::selectStatementTreeWalker(pANTLR3_BASE_TREE selectsqlAST
                             {
                                 StringBuffer tmp;
                                 logicexpression->toString(tmp, false);
-                                throw MakeStringException(-1, "Invalid expression type detected in Where clause: %s", tmp.str());
+                                throw MakeStringException(ESPERR_InvalidExpressionTypeDetectedInWhere, "Invalid expression type detected in Where clause: %s", tmp.str());
                             }
                                 break;
                         }
                     }
                     else
-                        throw MakeStringException(-1, "Error in Where clause");
+                        throw MakeStringException(ESPERR_ErrorInWhereClause, "Error in Where clause");
                     break;
                 }
                 case GROUP_SYM:
@@ -1015,7 +1016,7 @@ void HPCCSQLTreeWalker::selectStatementTreeWalker(pANTLR3_BASE_TREE selectsqlAST
                         Owned<ISQLExpression> exp = expressionTreeWalker((pANTLR3_BASE_TREE)(ithchild->getChild(ithchild, i)),NULL);
 
                         if (!exp)
-                            throw MakeStringException(-1, "Error in order by list.");
+                            throw MakeStringException(ESPERR_ErrorInOrderByList, "Error in order by list.");
 
                         if (exp->getExpType() == FieldValue_ExpressionType)
                         {
@@ -1026,7 +1027,7 @@ void HPCCSQLTreeWalker::selectStatementTreeWalker(pANTLR3_BASE_TREE selectsqlAST
                         {
                             StringBuffer fieldvalue;
                             exp->toString(fieldvalue, true);
-                            throw MakeStringException(-1, "Encountered invalid entry '%s' in 'GROUP BY' clause", fieldvalue.str());
+                            throw MakeStringException(ESPERR_EncounteredInvalidEntrySInGroup, "Encountered invalid entry '%s' in 'GROUP BY' clause", fieldvalue.str());
                         }
                     }
                     break;
@@ -1042,7 +1043,7 @@ void HPCCSQLTreeWalker::selectStatementTreeWalker(pANTLR3_BASE_TREE selectsqlAST
                         Owned<ISQLExpression> exp = expressionTreeWalker((pANTLR3_BASE_TREE)(ithchild->getChild(ithchild, i)),NULL);
 
                         if (!exp)
-                            throw MakeStringException(-1, "Error in order by list.");
+                            throw MakeStringException(ESPERR_ErrorInOrderByList, "Error in order by list.");
 
                         if (exp->getExpType() == FieldValue_ExpressionType)
                         {
@@ -1053,7 +1054,7 @@ void HPCCSQLTreeWalker::selectStatementTreeWalker(pANTLR3_BASE_TREE selectsqlAST
                         {
                             StringBuffer fieldvalue;
                             exp->toString(fieldvalue, true);
-                            throw MakeStringException(-1, "Encountered invalid entry '%s' in 'ORDER BY' clause", fieldvalue.str());
+                            throw MakeStringException(ESPERR_EncounteredInvalidEntrySInOrder, "Encountered invalid entry '%s' in 'ORDER BY' clause", fieldvalue.str());
                         }
                     }
                     break;
@@ -1062,7 +1063,7 @@ void HPCCSQLTreeWalker::selectStatementTreeWalker(pANTLR3_BASE_TREE selectsqlAST
                     limitTreeWalker(ithchild);
                     break;
                  default:
-                     throw MakeStringException(-1, "Error in SQL Statement.");
+                     throw MakeStringException(ESPERR_ErrorInSqlStatement, "Error in SQL Statement.");
                     break;
             }
         }
@@ -1094,12 +1095,12 @@ void HPCCSQLTreeWalker::sqlTreeWalker(pANTLR3_BASE_TREE sqlAST)
                 break;
             default:
                 setSqlType(SQLTypeUnknown);
-                throw MakeStringException(-1, "Invalid sql tree root node found: %s\n", (char *)firstchild->toString(firstchild)->chars);
+                throw MakeStringException(ESPERR_InvalidSqlTreeRootNodeFound, "Invalid sql tree root node found: %s\n", (char *)firstchild->toString(firstchild)->chars);
                 break;
         }
     }
     else
-        throw MakeStringException(-1, "Error could not parse SQL Statement.");
+        throw MakeStringException(ESPERR_ErrorCouldNotParseSqlStatement, "Error could not parse SQL Statement.");
 }
 
 void HPCCSQLTreeWalker::assignParameterIndexes()
@@ -1221,7 +1222,7 @@ void HPCCSQLTreeWalker::expandWildCardColumn()
                         }
                     }
                     else
-                        throw MakeStringException(-1, "INVALID TABLE FOUND");
+                        throw MakeStringException(ESPERR_InvalidTableFound, "INVALID TABLE FOUND");
                 }
             }
             else
@@ -1332,7 +1333,7 @@ void HPCCSQLTreeWalker::verifyAndDisambiguateNameFromList(IArrayOf<SQLFieldValue
                 }
             }
             if (!found)
-                throw MakeStringException(-1, "Could not verify field: %s. It does not appear in SELECT list.", coltoverify->getName());
+                throw MakeStringException(ESPERR_CouldNotVerifyFieldSIt, "Could not verify field: %s. It does not appear in SELECT list.", coltoverify->getName());
         }
     }
 }
@@ -1355,19 +1356,19 @@ void HPCCSQLTreeWalker::verifyColumn(SQLFieldValueExpression * col)
                     if (fcol)
                         col->setECLType(fcol->getColumnType());
                     else //This exception doesn't allows us to validate direct references to aliases from select list
-                        throw MakeStringException(-1, "INVALID COLUMN FOUND: %s.%s\n", selcolparent, selcolname );
+                        throw MakeStringException(ESPERR_InvalidColumnFoundSSN, "INVALID COLUMN FOUND: %s.%s\n", selcolparent, selcolname );
                 }
                 else
-                    throw MakeStringException(-1, "Could not verify a column\n");
+                    throw MakeStringException(ESPERR_CouldNotVerifyAColumnN, "Could not verify a column\n");
             }
             else
-                throw MakeStringException(-1, "INVALID COLUMN PARENT FOUND: %s.%s\n", selcolparent, selcolname );
+                throw MakeStringException(ESPERR_InvalidColumnParentFoundSS, "INVALID COLUMN PARENT FOUND: %s.%s\n", selcolparent, selcolname );
         }
         else
-            throw MakeStringException(-1, "Could not verify a column\n");
+            throw MakeStringException(ESPERR_CouldNotVerifyAColumnN, "Could not verify a column\n");
     }
     else
-        throw MakeStringException(-1, "Could not verify a column\n");
+        throw MakeStringException(ESPERR_CouldNotVerifyAColumnN, "Could not verify a column\n");
 }
 
 void HPCCSQLTreeWalker::verifyColAndDisambiguateName()
@@ -1396,7 +1397,7 @@ void HPCCSQLTreeWalker::verifyColAndDisambiguateName()
             continue;
         }
         else
-            throw MakeStringException(-1, "Could not process an entry on the select list");
+            throw MakeStringException(ESPERR_CouldNotProcessAnEntryOn, "Could not process an entry on the select list");
     }
 
     if (orderbyList.length())

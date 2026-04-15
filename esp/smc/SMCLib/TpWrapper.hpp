@@ -31,6 +31,7 @@
 
 
 #include "jlib.hpp"
+#include "esperr.hpp"
 #include "mpbase.hpp"
 #include "daclient.hpp"
 #include "dadfs.hpp"
@@ -211,7 +212,7 @@ public:
     CCluster(const char* cluster): conn(querySDS().connect(StringBuffer("/Status/Servers/Server[@thorname=\"").append(cluster).append("\"]").str(),myProcessSession(),RTM_SUB,SDS_LOCK_TIMEOUT))
     {
         if (!conn)
-            throw MakeStringException(0,"Cannot connect to SDS cluster %s",cluster);
+            throw MakeStringException(ESPERR_CannotConnectToSdsClusterS, "Cannot connect to SDS cluster %s",cluster);
     }
 
     operator IRemoteConnection* () { return conn.get(); }

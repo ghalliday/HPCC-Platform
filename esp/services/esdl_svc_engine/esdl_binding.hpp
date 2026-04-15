@@ -18,6 +18,7 @@
 #define _EsdlBinding_HPP__
 
 #include "esdl_script.hpp"
+#include "esperr.hpp"
 #include "esdl_def.hpp"
 #include "esdl_transformer.hpp"
 #include "esdl_def_helper.hpp"
@@ -139,10 +140,10 @@ public:
 #else
             javaPluginDll.setown(createDllEntry("javaembed", false, NULL, false));
             if (!javaPluginDll)
-                throw makeStringException(0, "Failed to load javaembed plugin");
+                throw makeStringException(ESPERR_FailedToLoadJavaembedPlugin, "Failed to load javaembed plugin");
             GetEmbedContextFunction pf = (GetEmbedContextFunction) javaPluginDll->getEntry("getEmbedContextDynamic");
             if (!pf)
-                throw makeStringException(0, "Failed to load javaembed plugin");
+                throw makeStringException(ESPERR_FailedToLoadJavaembedPlugin, "Failed to load javaembed plugin");
             javaplugin.setown(pf());
 #endif
             }

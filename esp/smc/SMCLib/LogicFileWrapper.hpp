@@ -30,6 +30,7 @@
 
 
 #include "jiface.hpp"
+#include "esperr.hpp"
 #include "jstring.hpp"
 #include "dadfs.hpp"
 #include "daft.hpp"
@@ -112,7 +113,7 @@ struct DeleteTask: public CInterface, implements ITask
             }
         }
         if(errs.length())
-            throw MakeStringException(0, "%s", errs.str());
+            throw MakeStringException(ESPERR_S, "%s", errs.str());
 
         return 0;
     }

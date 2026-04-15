@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include <math.h>
+#include "esperr.hpp"
 
 #include "jcontainerized.hpp"
 #include "daclient.hpp"
@@ -146,12 +147,12 @@ void CWsDfuEx::init(IPropertyTree *cfg, const char *process, const char *service
     VStringBuffer xpath("Software/EspProcess[@name=\"%s\"]", process);
     IPropertyTree *processTree = cfg->queryPropTree(xpath);
     if (!processTree)
-        throw MakeStringException(-1, "config not found for process %s", process);
+        throw MakeStringException(ESPERR_ConfigNotFoundForProcessS, "config not found for process %s", process);
 
     xpath.clear().appendf("EspService[@name=\"%s\"]", service);
     IPropertyTree *serviceTree = processTree->queryPropTree(xpath);
     if (!serviceTree)
-        throw MakeStringException(-1, "config not found for service %s", service);
+        throw MakeStringException(ESPERR_ConfigNotFoundForServiceS, "config not found for service %s", service);
 
     serviceTree->getProp("DefaultScope", defaultScope_);
     serviceTree->getProp("User", user_);
@@ -184,7 +185,7 @@ void CWsDfuEx::init(IPropertyTree *cfg, const char *process, const char *service
     thorNodeGroupCache.setown(new CThorNodeGroupCache());
 
     if (!daliClientActive())
-        throw MakeStringException(-1, "No Dali Connection Active. Please Specify a Dali to connect to in you configuration file");
+        throw MakeStringException(ESPERR_NoDaliConnectionActivePleaseSpecify, "No Dali Connection Active. Please Specify a Dali to connect to in you configuration file");
 
     setDaliServixSocketCaching(true);
 
@@ -6250,7 +6251,7 @@ void CWsDfuEx::dFUFileAccessCommon(IEspContext &context, const CDfsLogicalFileNa
 #ifdef _CONTAINERIZED
     keyPairName.set("signing");
     if (!hasIssuerTlsConfig(keyPairName))
-        throw makeStringExceptionV(-1, "dFUFileAccessCommon: file signing certificate ('%s') not defined in configuration.", keyPairName.str());
+        throw makeStringExceptionV(ESPERR_DfufileaccesscommonFileSigningCertificateSNot, "dFUFileAccessCommon: file signing certificate ('%s') not defined in configuration.", keyPairName.str());
 
     auto externalService = k8s::getDafileServiceFromConfig("stream", true, true);
     dafilesrvHost.set(externalService.first.c_str());
@@ -6271,7 +6272,7 @@ void CWsDfuEx::dFUFileAccessCommon(IEspContext &context, const CDfsLogicalFileNa
     getFileDafilesrvConfiguration(keyPairName, port, secure, fileName, groups);
  #ifdef _USE_OPENSSL
     if (secure && keyPairName.isEmpty())
-        throw makeStringExceptionV(-1, "No keyPairName is found for '%s' in environment settings: /EnvSettings/Keys/ClusterGroup.", cluster.str());
+        throw makeStringExceptionV(ESPERR_NoKeypairnameIsFoundForS, "No keyPairName is found for '%s' in environment settings: /EnvSettings/Keys/ClusterGroup.", cluster.str());
  #endif
 #endif
 
@@ -6626,7 +6627,7 @@ bool CWsDfuEx::onDFUFileCreateV2(IEspContext &context, IEspDFUFileCreateV2Reques
 #ifdef _CONTAINERIZED
         keyPairName.set("signing");
         if (!hasIssuerTlsConfig(keyPairName))
-            throw makeStringExceptionV(-1, "onDFUFileCreateV2: file signing certificate ('%s' ) not defined in configuration.", keyPairName.str());
+            throw makeStringExceptionV(ESPERR_Ondfufilecreatev2FileSigningCertificateSNot, "onDFUFileCreateV2: file signing certificate ('%s' ) not defined in configuration.", keyPairName.str());
 
         const char *planeName = clusterName;
         unsigned numParts = 0; // in future perhaps client can specify, for now default is = to plane default (defaultSprayParts)

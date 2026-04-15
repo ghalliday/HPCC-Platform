@@ -16,6 +16,7 @@ limitations under the License.
 ############################################################################## */
 
 #include "jmisc.hpp"
+#include "esperr.hpp"
 #include "jutil.hpp"
 #include "ldapenvironmentService.hpp"
 #include "exception_util.hpp"
@@ -40,7 +41,7 @@ void CldapenvironmentEx::init(IPropertyTree *_cfg, const char *_process, const c
         xpath.set(prefix).append("hpccRootName");
         cfg->getProp(xpath.str(), ldapRootOU);
         if (ldapRootOU.isEmpty())
-            throw MakeStringException(-1, "hpccRootName must be specified in configuration (ex. 'ou=hpcc,dc=myldap,dc=com')");
+            throw MakeStringException(ESPERR_HpccrootnameMustBeSpecifiedInConfiguration, "hpccRootName must be specified in configuration (ex. 'ou=hpcc,dc=myldap,dc=com')");
 
         xpath.set(prefix).append("adminGroupName");
         cfg->getProp(xpath.str(), adminGroupName);
@@ -50,27 +51,27 @@ void CldapenvironmentEx::init(IPropertyTree *_cfg, const char *_process, const c
         xpath.set(prefix).append("sharedFilesBaseDN");
         cfg->getProp(xpath.str(), sharedFilesBaseDN);
         if (sharedFilesBaseDN.isEmpty())
-            throw MakeStringException(-1, "sharedFilesBaseDN must be specified in configuration (ex. 'ou=files,ou=shared,ou=hpcc,dc=myldap,dc=com')");
+            throw MakeStringException(ESPERR_SharedfilesbasednMustBeSpecifiedInConfiguration, "sharedFilesBaseDN must be specified in configuration (ex. 'ou=files,ou=shared,ou=hpcc,dc=myldap,dc=com')");
 
         xpath.set(prefix).append("sharedGroupsBaseDN");
         cfg->getProp(xpath.str(), sharedGroupsBaseDN);
         if (sharedGroupsBaseDN.isEmpty())
-            throw MakeStringException(-1, "sharedGroupsBaseDN must be specified in configuration (ex. 'ou=groups,ou=shared,ou=hpcc,dc=myldap,dc=com')");
+            throw MakeStringException(ESPERR_SharedgroupsbasednMustBeSpecifiedInConfiguration, "sharedGroupsBaseDN must be specified in configuration (ex. 'ou=groups,ou=shared,ou=hpcc,dc=myldap,dc=com')");
 
         xpath.set(prefix).append("sharedUsersBaseDN");
         cfg->getProp(xpath.str(), sharedUsersBaseDN);
         if (sharedUsersBaseDN.isEmpty())
-            throw MakeStringException(-1, "sharedUsersBaseDN must be specified in configuration (ex. 'ou=users,ou=shared,ou=hpcc,dc=myldap,dc=com')");
+            throw MakeStringException(ESPERR_SharedusersbasednMustBeSpecifiedInConfiguration, "sharedUsersBaseDN must be specified in configuration (ex. 'ou=users,ou=shared,ou=hpcc,dc=myldap,dc=com')");
 
         xpath.set(prefix).append("sharedResourcesBaseDN");
         cfg->getProp(xpath.str(), sharedResourcesBaseDN);
         if (sharedResourcesBaseDN.isEmpty())
-            throw MakeStringException(-1, "sharedResourcesBaseDN must be specified in configuration (ex. 'ou=smc,ou=espservices,ou=shared,ou=hpcc,dc=myldap,dc=com')");
+            throw MakeStringException(ESPERR_SharedresourcesbasednMustBeSpecifiedInConfiguration, "sharedResourcesBaseDN must be specified in configuration (ex. 'ou=smc,ou=espservices,ou=shared,ou=hpcc,dc=myldap,dc=com')");
 
         xpath.set(prefix).append("sharedWorkunitsBaseDN");
         cfg->getProp(xpath.str(), sharedWorkunitsBaseDN);
         if (sharedWorkunitsBaseDN.isEmpty())
-            throw MakeStringException(-1, "sharedWorkunitsBaseDN must be specified in configuration (ex. 'ou=workunits,ou=shared,ou=hpcc,dc=myldap,dc=com')");
+            throw MakeStringException(ESPERR_SharedworkunitsbasednMustBeSpecifiedInConfiguration, "sharedWorkunitsBaseDN must be specified in configuration (ex. 'ou=workunits,ou=shared,ou=hpcc,dc=myldap,dc=com')");
 
         //get other environment settings to be placed in HELM response
         prefix.clear().appendf("Software/EspProcess[@name='%s']/ldapSecurity/@", _process);
@@ -245,29 +246,29 @@ bool CldapenvironmentEx::onLDAPCreateEnvironment(IEspContext &context, IEspLDAPC
         //Verify request
 
         if (isEmptyString(req.getEnvName()))
-            throw MakeStringException(-1, "Environment name must be specified");
+            throw MakeStringException(ESPERR_EnvironmentNameMustBeSpecified, "Environment name must be specified");
 
         if (strpbrk(req.getEnvName(), " ~`!@#$%^&*()_-+={[}]|:;<,>.?/"))
-            throw MakeStringException(-1, "Environment name cannot contain spaces or special characters");
+            throw MakeStringException(ESPERR_EnvironmentNameCannotContainSpacesOr, "Environment name cannot contain spaces or special characters");
 
         if (isEmptyString(req.getEnvOwnerName()))
-            throw MakeStringException(-1, "Environment Owner name must be specified");
+            throw MakeStringException(ESPERR_EnvironmentOwnerNameMustBeSpecified, "Environment Owner name must be specified");
         if (isEmptyString(req.getEnvDescription()))
-            throw MakeStringException(-1, "Environment Description must be specified");
+            throw MakeStringException(ESPERR_EnvironmentDescriptionMustBeSpecified, "Environment Description must be specified");
 
         if (req.getFilesMode() == COUMode_CreateCustom  && isEmptyString(req.getCustomFilesBaseDN()))
-            throw MakeStringException(-1, "CustomFilesBaseDN must be specified (ex. 'ou=files,ou=hpcc,dc=myldap,dc=com')");
+            throw MakeStringException(ESPERR_CustomfilesbasednMustBeSpecifiedExOu, "CustomFilesBaseDN must be specified (ex. 'ou=files,ou=hpcc,dc=myldap,dc=com')");
         if (req.getGroupsMode() == COUMode_CreateCustom && isEmptyString(req.getCustomGroupsBaseDN()))
-            throw MakeStringException(-1, "CustomGroupsBaseDN must be specified (ex. 'ou=groups,ou=hpcc,dc=myldap,dc=com')");
+            throw MakeStringException(ESPERR_CustomgroupsbasednMustBeSpecifiedExOu, "CustomGroupsBaseDN must be specified (ex. 'ou=groups,ou=hpcc,dc=myldap,dc=com')");
         if (req.getUsersMode() == COUMode_CreateCustom && isEmptyString(req.getCustomUsersBaseDN()))
-            throw MakeStringException(-1, "CustomUsersBaseDN must be specified (ex. 'ou=users,ou=hpcc,dc=myldap,dc=com')");
+            throw MakeStringException(ESPERR_CustomusersbasednMustBeSpecifiedExOu, "CustomUsersBaseDN must be specified (ex. 'ou=users,ou=hpcc,dc=myldap,dc=com')");
         if (req.getResourcesMode() == COUMode_CreateCustom && isEmptyString(req.getCustomResourcesBaseDN()))
-            throw MakeStringException(-1, "CustomResourcesBaseDN must be specified (ex. 'ou=smc,ou=espservices,ou=hpcc,dc=myldap,dc=com')");
+            throw MakeStringException(ESPERR_CustomresourcesbasednMustBeSpecifiedExOu, "CustomResourcesBaseDN must be specified (ex. 'ou=smc,ou=espservices,ou=hpcc,dc=myldap,dc=com')");
         if (req.getWorkunitsMode() == COUMode_CreateCustom && isEmptyString(req.getCustomWorkunitsBaseDN()))
-            throw MakeStringException(-1, "CustomWorkunitsBaseDN must be specified (ex. 'ou=workunits,ou=hpcc,dc=myldap,dc=com')");
+            throw MakeStringException(ESPERR_CustomworkunitsbasednMustBeSpecifiedExOu, "CustomWorkunitsBaseDN must be specified (ex. 'ou=workunits,ou=hpcc,dc=myldap,dc=com')");
 
         if (req.getCreateVaultSecrets() && isEmptyString(req.getVaultName()))
-            throw MakeStringException(-1, "Vault Name must be specified to create vault secrets");
+            throw MakeStringException(ESPERR_VaultNameMustBeSpecifiedTo, "Vault Name must be specified to create vault secrets");
 
         // Create OU string names
 
@@ -282,7 +283,7 @@ bool CldapenvironmentEx::onLDAPCreateEnvironment(IEspContext &context, IEspLDAPC
         VStringBuffer envOU("ou=%s,%s", req.getEnvName(), ldapRootOU.str());
         if (secmgr->organizationalUnitExists(envOU.str()))
         {
-            throw MakeStringException(-1, "Environment '%s' already exists, please specify a different name", envOU.str());
+            throw MakeStringException(ESPERR_EnvironmentSAlreadyExistsPleaseSpecify, "Environment '%s' already exists, please specify a different name", envOU.str());
         }
 
         //Create LDAP resources OU Hierarchy

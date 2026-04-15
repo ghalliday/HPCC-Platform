@@ -19,6 +19,7 @@
 #define __ESPP_HPP__
 
 #include "espthread.hpp"
+#include "esperr.hpp"
 #include "espcfg.ipp"
 #include "datamaskingengine.hpp"
 #include "datamaskingplugin.hpp"
@@ -257,7 +258,7 @@ public:
         else
         {
             IERRLOG("Can't create socket on %s:%d", strIP.str(), port);
-            throw MakeStringException(-1, "Can't create socket on %s:%d", strIP.str(), port);
+            throw MakeStringException(ESPERR_CanTCreateSocketOnS, "Can't create socket on %s:%d", strIP.str(), port);
         }
     }
 

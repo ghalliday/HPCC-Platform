@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "ws_codesignService.hpp"
+#include "esperr.hpp"
 #include "jutil.hpp"
 #include "codesigner.hpp"
 
@@ -30,7 +31,7 @@ Cws_codesignEx::~Cws_codesignEx()
 void Cws_codesignEx::init(IPropertyTree *cfg, const char *process, const char *service)
 {
     if(cfg == nullptr)
-        throw MakeStringException(-1, "Cannot initialize Cws_codesignEx, cfg is NULL");
+        throw MakeStringException(ESPERR_CannotInitializeCwsCodesignexCfgIs, "Cannot initialize Cws_codesignEx, cfg is NULL");
 
     StringBuffer xpath;
     xpath.appendf("Software/EspProcess[@name=\"%s\"]/EspService[@name=\"%s\"]", process, service);

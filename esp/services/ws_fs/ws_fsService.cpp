@@ -19,6 +19,7 @@
 #pragma warning (disable : 4129)
 
 #include <math.h>
+#include "esperr.hpp"
 #include "jconfig.hpp"
 #include "jsocket.hpp"
 #include "dasds.hpp"
@@ -145,7 +146,7 @@ void CFileSprayEx::init(IPropertyTree *cfg, const char *process, const char *ser
                 }
             }
             if (!found)
-                throw MakeStringException(-1, "Invalid DFU Queue Label %s in configuration file", m_QueueLabel.str());
+                throw MakeStringException(ESPERR_InvalidDfuQueueLabelSIn, "Invalid DFU Queue Label %s in configuration file", m_QueueLabel.str());
         }
     }
 
@@ -182,7 +183,7 @@ void CFileSprayEx::init(IPropertyTree *cfg, const char *process, const char *ser
     if (!daliClientActive())
     {
         OERRLOG("No Dali Connection Active.");
-        throw MakeStringException(-1, "No Dali Connection Active. Please Specify a Dali to connect to in your configuration file");
+        throw MakeStringException(ESPERR_NoDaliConnectionActivePleaseSpecify_1, "No Dali Connection Active. Please Specify a Dali to connect to in your configuration file");
     }
 
     m_sched.start(false);

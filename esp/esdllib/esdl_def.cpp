@@ -18,6 +18,7 @@
 #pragma warning(disable : 4786)
 
 #include "jliball.hpp"
+#include "esperr.hpp"
 #include "espcontext.hpp"
 #include "esdl_def.hpp"
 #include "EsdlAccessMapGenerator.hpp"
@@ -1525,12 +1526,12 @@ IEsdlDefObjectIterator* EsdlDefinition::getDependencies( const char* service, St
 
         if( NULL == serviceDef )
         {
-            throw( MakeStringException(0, "ESDL Service Definition not found for %s", service) );
+            throw( MakeStringException(ESPERR_EsdlServiceDefinitionNotFoundFor, "ESDL Service Definition not found for %s", service) );
         }
     }
     else if (methods.length() != 0) //Only require service name when "methods" is provided
     {
-        throw( MakeStringException(0, "No ESDL Service Definition provided, need to have a service to search in for methods") );
+        throw( MakeStringException(ESPERR_NoEsdlServiceDefinitionProvidedNeed, "No ESDL Service Definition provided, need to have a service to search in for methods") );
     }
 
     if (methods.length() == 0)
@@ -1550,7 +1551,7 @@ IEsdlDefObjectIterator* EsdlDefinition::getDependencies( const char* service, St
             IEsdlDefMethod* methodDef = serviceDef->queryMethodByName(methods.item(i));
 
             if (!methodDef)
-                throw( MakeStringException(0, "ESDL Method Definition not found for %s in service %s", methods.item(i), service) );
+                throw( MakeStringException(ESPERR_EsdlMethodDefinitionNotFoundFor, "ESDL Method Definition not found for %s in service %s", methods.item(i), service) );
             if ((flags & DEPFLAG_ECL_ONLY) && methodDef->getPropBool("ecl_hide"))
                 continue;
             methodArray.append( *methodDef );
@@ -1599,7 +1600,7 @@ void EsdlDefinition::gatherMethodDependencies( EsdlDefObjectWrapperArray& depend
                 const char* request = method->queryRequestType();
                 IEsdlDefObject* requestObj = this->queryObj( request );
                 if(!requestObj)
-                    throw( MakeStringException(0, "Request struct %s not found in ESDL Definition", request) );
+                    throw( MakeStringException(ESPERR_RequestStructSNotFoundIn, "Request struct %s not found in ESDL Definition", request) );
                 walkDefinitionDepthFirst( foundByName, dependencies, requestObj, requestedVer, opts, 0, flags );
             }
 
@@ -1608,7 +1609,7 @@ void EsdlDefinition::gatherMethodDependencies( EsdlDefObjectWrapperArray& depend
                 const char* response = method->queryResponseType();
                 IEsdlDefObject* responseObj = this->queryObj( response );
                 if(!responseObj)
-                    throw( MakeStringException(0, "Response struct %s not found in ESDL Definition", response) );
+                    throw( MakeStringException(ESPERR_ResponseStructSNotFoundIn, "Response struct %s not found in ESDL Definition", response) );
                 walkDefinitionDepthFirst( foundByName, dependencies, responseObj, requestedVer, opts, 0, flags );
             }
 
@@ -1801,7 +1802,7 @@ void EsdlDefinition::walkDefinitionDepthFirst( AddedObjs& foundByName, EsdlDefOb
             if( NULL == baseObject )
             {
                 wrapper->Release();
-                throw( MakeStringException(0, "ESDL base type defintion %s not found for %s", baseType, esdlObj->queryName()) );
+                throw( MakeStringException(ESPERR_EsdlBaseTypeDefintionSNot, "ESDL base type defintion %s not found for %s", baseType, esdlObj->queryName()) );
             }
 
             if( flags & DEPFLAG_COLLAPSE )
@@ -1848,7 +1849,7 @@ void EsdlDefinition::walkDefinitionDepthFirst( AddedObjs& foundByName, EsdlDefOb
                         if( NULL == baseObject )
                         {
                             wrapper->Release();
-                            throw( MakeStringException(0, "ESDL base type defintion %s not found for %s", baseType, esdlObj->queryName()) );
+                            throw( MakeStringException(ESPERR_EsdlBaseTypeDefintionSNot, "ESDL base type defintion %s not found for %s", baseType, esdlObj->queryName()) );
                         }
                     }
                 }
@@ -2033,7 +2034,7 @@ public:
                 DBGLOG("Already loaded %s", filename);
         }
         else
-            throw MakeStringException(-1, "Could not load file, name not available");
+            throw MakeStringException(ESPERR_CouldNotLoadFileNameNot, "Could not load file, name not available");
     }
 
 };
@@ -2088,7 +2089,7 @@ void EsdlDefinition::addDefinitionFromXML(const StringBuffer & xmlDef, const cha
         if (loader.loadXMLDefinitionFrombuffer(xmlDef, "", 0, false))
             added.setValue(esdlDefId, true);
         else
-            throw MakeStringException(-1, "Could not load XML ESDL def: %s", xmlDef.str());
+            throw MakeStringException(ESPERR_CouldNotLoadXmlEsdlDef, "Could not load XML ESDL def: %s", xmlDef.str());
     }
     else
         DBGLOG("XML ESDL definition: %s has already been loaded!", esdlDefId);
@@ -2136,7 +2137,7 @@ EsdlDefObject::EsdlDefObject(StartTag &tag, EsdlDefinition *esdl)
                 if (verdefval && *verdefval)
                     props->setProp(localname, verdefval);
                 else
-                    throw MakeStringException(-1, "Error! EsdlDefVersion %s not found", value);
+                    throw MakeStringException(ESPERR_ErrorEsdldefversionSNotFound, "Error! EsdlDefVersion %s not found", value);
             }
             else if (strieq(localname, "optional"))
             {

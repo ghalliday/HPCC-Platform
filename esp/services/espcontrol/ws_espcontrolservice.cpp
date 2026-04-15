@@ -17,6 +17,7 @@
 
 #ifdef _USE_OPENLDAP
 #include "ldapsecurity.ipp"
+#include "esperr.hpp"
 #endif
 
 #include "ws_espcontrolservice.hpp"
@@ -55,14 +56,14 @@ IEspSession* CWSESPControlEx::setSessionInfo(IPropertyTree* espSessionTree, unsi
 void CWSESPControlEx::init(IPropertyTree *cfg, const char *process, const char *service)
 {
     if(cfg == NULL)
-        throw MakeStringException(-1, "Can't initialize CWSESPControlEx, cfg is NULL");
+        throw MakeStringException(ESPERR_CanTInitializeCwsespcontrolexCfgIs, "Can't initialize CWSESPControlEx, cfg is NULL");
 
     espProcess.set(process);
 
     VStringBuffer xpath("Software/EspProcess[@name=\"%s\"]", process);
     IPropertyTree* espCFG = cfg->queryPropTree(xpath.str());
     if (!espCFG)
-        throw MakeStringException(-1, "Can't find EspBinding for %s", process);
+        throw MakeStringException(ESPERR_CanTFindEspbindingForS, "Can't find EspBinding for %s", process);
 
     loggingLevelSetting = cfg->getPropInt("Software/EspProcess/@logLevel", 1);
     logRequestsSetting = readLogRequest(cfg->queryProp("Software/EspProcess/@logRequests"));

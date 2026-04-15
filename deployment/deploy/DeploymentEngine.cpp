@@ -16,6 +16,7 @@
 ############################################################################## */
 #pragma warning(disable : 4786)
 #include <functional>
+#include "deployerr.hpp"
 #include <algorithm>
 #include "deploy.hpp"
 #include "environment.hpp"
@@ -68,7 +69,7 @@ CDeploymentEngine::CDeploymentEngine(IEnvDeploymentEngine& envDepEngine,
     {
         Owned<IPropertyTreeIterator> iter = m_process.getElements(m_instanceType);
         if (!iter->first())
-            throw MakeStringException(0, "Process %s has no instances defined", m_name.get());
+            throw MakeStringException(DEPLOYERR_ProcessSHasNoInstancesDefined, "Process %s has no instances defined", m_name.get());
 
         for (iter->first(); iter->isValid(); iter->next())
             m_instances.append(iter->get());
@@ -108,7 +109,7 @@ CDeploymentEngine::~CDeploymentEngine()
 void CDeploymentEngine::addInstance(const char* tagName, const char* name)
 {
     if (m_instanceType.length() == 0)
-        throw MakeStringException(-1, "%s: Specification of individual instances is not allowed!", m_name.get());
+        throw MakeStringException(DEPLOYERR_SSpecificationOfIndividualInstancesIs, "%s: Specification of individual instances is not allowed!", m_name.get());
 
     StringBuffer xpath;
     xpath.appendf("%s[@name='%s']", tagName, name);
@@ -116,7 +117,7 @@ void CDeploymentEngine::addInstance(const char* tagName, const char* name)
     Owned<IPropertyTree> pInstance = m_process.getPropTree(xpath.str());
 
     if (!pInstance)
-        throw MakeStringException(-1, "%s: Instance '%s' cannot be found!", m_name.get(), name);
+        throw MakeStringException(DEPLOYERR_SInstanceSCannotBeFound, "%s: Instance '%s' cannot be found!", m_name.get(), name);
 
     m_instances.append(*pInstance.getLink());
 }
@@ -466,7 +467,7 @@ void CDeploymentEngine::check()
     checkBuild();
 
     if (m_instances.empty())
-        throw MakeStringException(0, "Process %s has no instances defined.  Nothing to do!", m_name.get());
+        throw MakeStringException(DEPLOYERR_ProcessSHasNoInstancesDefined_1, "Process %s has no instances defined.  Nothing to do!", m_name.get());
 
     if (m_instanceCheck)
     {
@@ -508,13 +509,13 @@ void CDeploymentEngine::checkInstance(IPropertyTree& node) const
     // Check for valid net address
     StringAttr sAttr;
     if (m_envDepEngine.lookupNetAddress(sAttr, node.queryProp("@computer")).length()==0)
-        throw MakeStringException(0, "Process %s has invalid computer net address", m_name.get());
+        throw MakeStringException(DEPLOYERR_ProcessSHasInvalidComputerNet, "Process %s has invalid computer net address", m_name.get());
 
     // Check for valid directory
     StringBuffer directory;
     queryDirectory(node, directory);
     if (directory.length()==0)
-        throw MakeStringException(0, "Process %s has invalid directory", m_name.get());
+        throw MakeStringException(DEPLOYERR_ProcessSHasInvalidDirectory, "Process %s has invalid directory", m_name.get());
 }
 
 //---------------------------------------------------------------------------
@@ -529,20 +530,20 @@ void CDeploymentEngine::checkBuild() const
     StringAttr build(m_process.queryProp("@build"));
     StringAttr buildset(m_process.queryProp("@buildSet"));
     if (build.length()==0 || buildset.length()==0)
-        throw MakeStringException(0, "Process %s has no build or buildSet defined", m_name.get());
+        throw MakeStringException(DEPLOYERR_ProcessSHasNoBuildOr, "Process %s has no build or buildSet defined", m_name.get());
 
     // Make sure build is valid
     StringBuffer path;
     path.appendf("./Programs/Build[@name=\"%s\"]", build.get());
     IPropertyTree* buildNode = m_rootNode->queryPropTree(path.str());
     if (!buildNode)
-        throw MakeStringException(0, "Process %s has invalid build", m_name.get());
+        throw MakeStringException(DEPLOYERR_ProcessSHasInvalidBuild, "Process %s has invalid build", m_name.get());
 
     // Make sure buildset is valid
     path.clear().appendf("./BuildSet[@name=\"%s\"]", buildset.get());
     IPropertyTree* buildsetNode = buildNode->queryPropTree(path.str());
     if (!buildsetNode)
-        throw MakeStringException(0, "Process %s has invalid buildSet", m_name.get());
+        throw MakeStringException(DEPLOYERR_ProcessSHasInvalidBuildset, "Process %s has invalid buildSet", m_name.get());
 
     m_pCallback->printStatus(STATUS_NORMAL, NULL, NULL, NULL);
 }
@@ -828,7 +829,7 @@ void CDeploymentEngine::abort()
 void CDeploymentEngine::checkAbort(IDeployTask* task) const
 {
     if (m_abort || m_pCallback->getAbortStatus() || (task && task->getAbort()))
-        throw MakeStringException(0, "User abort");
+        throw MakeStringException(DEPLOYERR_UserAbort, "User abort");
 }
 
 //---------------------------------------------------------------------------
@@ -977,7 +978,7 @@ void CDeploymentEngine::writeFile(const char* filename, const char* str, EnvMach
             String* perr = errmsg.substring(0, index > 0? index : errmsg.length());
             output.clear().appendf("%s", perr->str());
             delete perr;
-            throw MakeStringException(-1, "%s", output.str());
+            throw MakeStringException(DEPLOYERR_S, "%s", output.str());
         }
     }
     else
@@ -1018,7 +1019,7 @@ IPropertyTree* CDeploymentEngine::lookupTable(IPropertyTree* modelTree, const ch
     if (ret)
         return ret;
     else
-        throw MakeStringException(0, "Table %s could not be found", table);
+        throw MakeStringException(DEPLOYERR_TableSCouldNotBeFound, "Table %s could not be found", table);
 }
 
 //---------------------------------------------------------------------------
@@ -1225,7 +1226,7 @@ void CDeploymentEngine::connectToNetworkPath(const char* uncPath, const char* us
 
     // No sense in continuing if connection falied
     if (task->getErrorCode() != 0)
-        throw MakeStringException(0, "%s", ""); //message already displayed!
+        throw MakeStringException(DEPLOYERR_S, "%s", ""); //message already displayed!
 
     // Save connections for disconnecting during destructor
     m_connections.insert( path.str() );
@@ -1674,7 +1675,7 @@ bool CDeploymentEngine::processInstallFile(IPropertyTree& processNode, const cha
                         m_pCallback->printStatus(task);
 
                         if (task && task->getAbort())
-                            throw MakeStringException(0, "User abort");
+                            throw MakeStringException(DEPLOYERR_UserAbort, "User abort");
                     }
                     else
                     {
@@ -2088,7 +2089,7 @@ int CDeploymentEngine::determineInstallFiles(IPropertyTree& processNode, CInstal
 
 
                     if (sDestName.empty())
-                        throw MakeStringException(-1, "The destination file name '%s' for source file '%s' "
+                        throw MakeStringException(DEPLOYERR_TheDestinationFileNameSFor, "The destination file name '%s' for source file '%s' "
                         "translates to an empty string!", destName, name);
                 }
             }
@@ -2175,7 +2176,7 @@ int CDeploymentEngine::determineInstallFiles(IPropertyTree& processNode, CInstal
         StringBuffer msg;
         e->errorMessage(msg);
         e->Release();
-        throw MakeStringException(0, "Error creating file list for process %s: %s", m_name.get(), msg.str());
+        throw MakeStringException(DEPLOYERR_ErrorCreatingFileListForProcess, "Error creating file list for process %s: %s", m_name.get(), msg.str());
     }
     catch (...)
     {
@@ -2332,7 +2333,7 @@ void CDeploymentEngine::addDeploymentFile(StringBuffer &ret, const char *in, IXs
 
     int len = tokens.length();
     if (len < 4)
-        throw MakeStringException(0, "Invalid format for external function parameter!");
+        throw MakeStringException(DEPLOYERR_InvalidFormatForExternalFunctionParameter, "Invalid format for external function parameter!");
 
     const char* method  = tokens.item(0);
     const char* name    = tokens.item(1);
@@ -2369,7 +2370,7 @@ void CDeploymentEngine::siteCertificateFunction(StringBuffer &ret, const char *i
 
     int len = tokens.length();
     if (len < 4)
-        throw MakeStringException(0, "Invalid format for external function parameter!");
+        throw MakeStringException(DEPLOYERR_InvalidFormatForExternalFunctionParameter, "Invalid format for external function parameter!");
 
     const char* processType = tokens.item(0);
     const char* processName = tokens.item(1);
@@ -2379,12 +2380,12 @@ void CDeploymentEngine::siteCertificateFunction(StringBuffer &ret, const char *i
     if (!processType || !*processType || !processName || !*processName ||
         !instanceName || !*instanceName || !outputFile || !*outputFile)
     {
-        throw MakeStringException(0, "Invalid parameters for siteCertificate method call!");
+        throw MakeStringException(DEPLOYERR_InvalidParametersForSitecertificateMethodCall, "Invalid parameters for siteCertificate method call!");
     }
 
     IPropertyTree* pProcess = s_xsltDepEngine->lookupProcess(processType, processName);
     if (!pProcess)
-        throw MakeStringException(0, "%s with name %s is not defined!", processType, processName);
+        throw MakeStringException(DEPLOYERR_SWithNameSIsNot, "%s with name %s is not defined!", processType, processName);
 
     s_xsltDepEngine->siteCertificate( *pProcess, instanceName, outputFile );
 }
@@ -2402,13 +2403,13 @@ void CDeploymentEngine::processCustomMethod(const char* method, const char *sour
     const char* fileName = splitDirTail(source, dir);
 
     if (0 != stricmp(method, "ssl_certificate"))
-        throw MakeStringException(0, "Process '%s': invalid method '%s' specified for file '%s'",
+        throw MakeStringException(DEPLOYERR_ProcessSInvalidMethodSSpecified, "Process '%s': invalid method '%s' specified for file '%s'",
         m_name.get(), method, fileName);
 
 #ifdef _USE_OPENSSL
     siteCertificate(m_process, instanceName, outputFile);
 #else
-    throw MakeStringException(0, "Process '%s' file '%s' method '%s': requires OpenSSL (disabled in build)",
+    throw MakeStringException(DEPLOYERR_ProcessSFileSMethodS, "Process '%s' file '%s' method '%s': requires OpenSSL (disabled in build)",
         m_name.get(), fileName, method);
 #endif
 }
@@ -2450,7 +2451,7 @@ void CDeploymentEngine::siteCertificate(IPropertyTree& process, const char *inst
             if (!pHttps)
             {
                 if (!strcmp(process.queryName(), "EspProcess"))
-                    throw MakeStringExceptionDirect(-1, "Cannot generate SSL certificate.\nNo HTTPS information was specified.");
+                    throw MakeStringExceptionDirect(DEPLOYERR_CannotGenerateSslCertificateNnoHttps, "Cannot generate SSL certificate.\nNo HTTPS information was specified.");
                 else
                     pHttps = &process;
             }
@@ -2459,7 +2460,7 @@ void CDeploymentEngine::siteCertificate(IPropertyTree& process, const char *inst
             pszPrivFile  = pHttps->queryProp("@privateKeyFileName");
 
             if (!pszCertFile || !*pszCertFile || !pszPrivFile || !*pszPrivFile)
-                throw MakeStringExceptionDirect(-1, "Cannot generate SSL certificate.\nName for certificate or private key file was not specified.");
+                throw MakeStringExceptionDirect(DEPLOYERR_CannotGenerateSslCertificateNnameFor, "Cannot generate SSL certificate.\nName for certificate or private key file was not specified.");
 
             IPropertyTree* pCertNode    = pInstanceNode->queryPropTree("Certificate");
 
@@ -2501,16 +2502,16 @@ void CDeploymentEngine::siteCertificate(IPropertyTree& process, const char *inst
                 int         daysValid    = pHttps->getPropInt("@daysValid", -1);
 
                 if (!pszOrgUnit || !*pszOrgUnit || !pszOrg || !*pszOrg)
-                    throw MakeStringExceptionDirect(-1, "Cannot generate SSL certificate.\nOrganizational unit or organization was not specified.");
+                    throw MakeStringExceptionDirect(DEPLOYERR_CannotGenerateSslCertificateNorganizationalUnit, "Cannot generate SSL certificate.\nOrganizational unit or organization was not specified.");
 
                 if (!pszCity || !*pszCity || !pszState || !*pszState || !pszCountry || !*pszCountry)
-                    throw MakeStringExceptionDirect(-1, "Cannot generate SSL certificate.\nCity, state or country was not specified.");
+                    throw MakeStringExceptionDirect(DEPLOYERR_CannotGenerateSslCertificateNcityState, "Cannot generate SSL certificate.\nCity, state or country was not specified.");
 
                 if (!pszPassPhrase || !*pszPassPhrase)
-                    throw MakeStringExceptionDirect(-1, "Cannot generate SSL certificate.\nPass phrase was not specified.");
+                    throw MakeStringExceptionDirect(DEPLOYERR_CannotGenerateSslCertificateNpassPhrase, "Cannot generate SSL certificate.\nPass phrase was not specified.");
 
                 if (daysValid < -1)
-                    throw MakeStringExceptionDirect(-1, "Cannot generate SSL certificate.\nNumber of days the certificate needs to be valid was not specified.");
+                    throw MakeStringExceptionDirect(DEPLOYERR_CannotGenerateSslCertificateNnumberOf, "Cannot generate SSL certificate.\nNumber of days the certificate needs to be valid was not specified.");
 
                 //call secure socket method to generate the certificate and private key into string buffers
                 //

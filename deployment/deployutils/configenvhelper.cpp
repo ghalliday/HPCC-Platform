@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "jliball.hpp"
+#include "deployerr.hpp"
 #include "environment.hpp"
 #include "XMLTags.h"
 #include "configenvhelper.hpp"
@@ -73,7 +74,7 @@ bool CConfigEnvHelper::handleThorTopologyOp(const char* cmd, const char* xmlArg,
         }
 
         if (!strcmp(newType, "Master") && computers.size() != 1)
-          throw MakeStringException(-1, "Thor cannot have more than one master. Please choose one computer only!");
+          throw MakeStringException(DEPLOYERR_ThorCannotHaveMoreThanOne, "Thor cannot have more than one master. Please choose one computer only!");
 
         int numNodes = 1;
         if (slavesPerNode && *slavesPerNode)
@@ -213,7 +214,7 @@ bool CConfigEnvHelper::handleReplaceRoxieServer(const char* xmlArg)
 
     IPropertyTree* pFarm = pParent->queryPropTree(xpath.str());
     if (!pFarm)
-      throw MakeStringException(-1, "Could not find a RoxieCluster with name '%s'", pszRoxieCluster);
+      throw MakeStringException(DEPLOYERR_CouldNotFindARoxieclusterWith, "Could not find a RoxieCluster with name '%s'", pszRoxieCluster);
 
     Owned<IPropertyTreeIterator> iter = pSrcTree->getElements("Nodes/Node");
       
@@ -641,7 +642,7 @@ bool CConfigEnvHelper::deleteRoxiePorts(const char* xmlArg)
 
     pTree = pRoxieCluster->queryPropTree(xpath2.str());
     if (pSrcTree->queryPropTree(XML_TAG_ROXIE_ONLY_SLAVE) == NULL)  //probably an old config
-        throw MakeStringException(-1, "Error modifying roxie cluster!  Possible using an old version of the config?" );
+        throw MakeStringException(DEPLOYERR_ErrorModifyingRoxieClusterPossibleUsing, "Error modifying roxie cluster!  Possible using an old version of the config?" );
     if (pTree && (!strcmp(pSrcTree->queryPropTree(XML_TAG_ROXIE_ONLY_SLAVE)->queryProp(XML_ATTR_NAME), "Roxie Cluster") || !strcmp(pTree->queryProp(XML_ATTR_NAME), pSrcTree->queryPropTree(XML_TAG_ROXIE_ONLY_SLAVE)->queryProp(XML_ATTR_NAME))))
     {
       pRoxieCluster->removeTree(pTree);
@@ -798,7 +799,7 @@ bool CConfigEnvHelper::EnsureInRange(const char* psz, UINT low, UINT high, const
     if (!rc)
     {
         msg.append('.');
-        throw MakeStringException(-1, "%s", msg.str());
+        throw MakeStringException(DEPLOYERR_S, "%s", msg.str());
     }
     return rc;
 }
@@ -815,7 +816,7 @@ bool CConfigEnvHelper::handleRoxieSlaveConfig(const char* xmlArg)
         IPropertyTree* pRoxie = m_pRoot->queryPropTree(xpath.str());
 
         if (!pRoxie)
-            throw MakeStringException(-1, "Cannot find roxie with name %s", pszRoxie);
+            throw MakeStringException(DEPLOYERR_CannotFindRoxieWithNameS, "Cannot find roxie with name %s", pszRoxie);
 
         Owned<IPropertyTreeIterator> iterComputers = pSrcTree->getElements(XML_TAG_INSTANCES "/" XML_TAG_INSTANCE);
         IPropertyTreePtrArray computers;
@@ -851,11 +852,11 @@ bool CConfigEnvHelper::handleRoxieSlaveConfig(const char* xmlArg)
     catch (IException *e)
     {
         StringBuffer msg;
-        throw MakeStringException(-1, "%s", e->errorMessage(msg).str());
+        throw MakeStringException(DEPLOYERR_S, "%s", e->errorMessage(msg).str());
     }
     catch (...)
     {
-        throw MakeStringException(-1, "Unknown exception adding servers" );
+        throw MakeStringException(DEPLOYERR_UnknownExceptionAddingServers, "Unknown exception adding servers" );
     }
 
     return true;

@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "mongodbembed.hpp"
+#include "pluginerr.hpp"
 
 #include <map>
 #include <mutex>
@@ -332,7 +333,7 @@ namespace mongodbembed
      */
     extern void UNSUPPORTED(const char *feature)
     {
-        throw MakeStringException(-1, "%s UNSUPPORTED feature: %s not supported in %s", MODULE_NAME, feature, VERSION);
+        throw MakeStringException(PLUGINERR_SUnsupportedFeatureSNotSupported, "%s UNSUPPORTED feature: %s not supported in %s", MODULE_NAME, feature, VERSION);
     }
 
     /**

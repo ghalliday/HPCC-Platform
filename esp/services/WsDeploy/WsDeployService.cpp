@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include "WsDeployService.hpp"
+#include "esperr.hpp"
 #include "WsDeployEngine.hpp"
 #include "jwrapper.hpp"
 #include "daclient.hpp"
@@ -42,7 +43,7 @@ bool CCloudTaskThread::s_abort = false;
 
 bool supportedInEEOnly()
 {
-  throw MakeStringException(-1, "This operation is supported in Enterprise and above editions only. Please contact HPCC Systems® at http://www.hpccsystems.com/contactus");
+  throw MakeStringException(ESPERR_ThisOperationIsSupportedInEnterprise, "This operation is supported in Enterprise and above editions only. Please contact HPCC Systems® at http://www.hpccsystems.com/contactus");
 }
 
 void substituteParameters(const IPropertyTree* pEnv, const char *xpath, IPropertyTree* pNode, StringBuffer& result)
@@ -344,7 +345,7 @@ bool CWsDeployFileInfo::navMenuEvent(IEspContext &context,
   const char* xmlArg = req.getXmlArgs();
 
   if (!cmd || !*cmd)
-    throw ::MakeStringException(-1, "Invalid command specified!");
+    throw ::MakeStringException(ESPERR_InvalidCommandSpecified, "Invalid command specified!");
 
   if (!strcmp(cmd, "LockEnvironment"))
   {
@@ -353,7 +354,7 @@ bool CWsDeployFileInfo::navMenuEvent(IEspContext &context,
     context.getPeer(sbUserIp);
 
     if (!strcmp(sbName.str(), m_userWithLock.str()) && !strcmp(sbUserIp.str(), m_userIp.str()))
-      throw MakeStringException(-1, "Another browser window already has write access on machine '%s'. Please use that window.", sbUserIp.str());
+      throw MakeStringException(ESPERR_AnotherBrowserWindowAlreadyHasWrite, "Another browser window already has write access on machine '%s'. Please use that window.", sbUserIp.str());
   }
   else if (strcmp(cmd, "SaveEnvironmentAs") != 0)
     checkForRefresh(context, &req.getReqInfo(), true);
@@ -673,13 +674,13 @@ bool CWsDeployFileInfo::navMenuEvent(IEspContext &context,
           else
             sMsg.append(":\n\n").append(sErrMsg);
 
-          throw MakeStringExceptionDirect(0, sMsg.str());
+          throw MakeStringExceptionDirect(ESPERR_SmsgStr, sMsg.str());
         }
         else
         {
           StringBuffer sMsg;
           sMsg.append("Error locking environment. ").append(sErrMsg.str());
-          throw MakeStringExceptionDirect(-1, sMsg.str());
+          throw MakeStringExceptionDirect(ESPERR_SmsgStr, sMsg.str());
         }
       }
     }
@@ -761,13 +762,13 @@ bool CWsDeployFileInfo::navMenuEvent(IEspContext &context,
           else
             sMsg.append(":\n\n").append(sErrMsg);
 
-          throw MakeStringExceptionDirect(0, sMsg.str());
+          throw MakeStringExceptionDirect(ESPERR_SmsgStr, sMsg.str());
         }
         else
         {
           StringBuffer sMsg;
           sMsg.append("Error unlocking environment. ").append(sErrMsg.str());
-          throw MakeStringExceptionDirect(-1, sMsg.str());
+          throw MakeStringExceptionDirect(ESPERR_SmsgStr, sMsg.str());
         }
       }
     }
@@ -858,7 +859,7 @@ bool CWsDeployFileInfo::navMenuEvent(IEspContext &context,
           StringBuffer sbUser, sbIp, sbXml;
 
           if ( fi->isLocked(sbUser, sbIp) == true)
-            throw MakeStringException(-1, "%s is locked by another user. File not saved.", envSaveAs);
+            throw MakeStringException(ESPERR_SIsLockedByAnotherUser, "%s is locked by another user. File not saved.", envSaveAs);
           if (isLocked(sbUser,sbIp) == true)  // if we are in write only mode then save the working environment
             toXML(&m_Environment->getPTree(), sbXml);
           else
@@ -867,7 +868,7 @@ bool CWsDeployFileInfo::navMenuEvent(IEspContext &context,
           if (fi->updateEnvironment(sbXml))
             fi->saveEnvironment(NULL, &req.getReqInfo(), sbErrMsg, true);
           else
-            throw MakeStringException(-1, "Environment Save as operation has failed");
+            throw MakeStringException(ESPERR_EnvironmentSaveAsOperationHasFailed, "Environment Save as operation has failed");
 
           if (m_userWithLock.length() != 0 && m_userIp.length() != 0)
           {
@@ -889,7 +890,7 @@ bool CWsDeployFileInfo::navMenuEvent(IEspContext &context,
         }
       }
       else
-        throw MakeStringException(-1, "File name to save environment as cannot be empty");
+        throw MakeStringException(ESPERR_FileNameToSaveEnvironmentAs, "File name to save environment as cannot be empty");
     }
     else if (!stricmp(cmd, "ValidateEnvironment"))
     {
@@ -1228,7 +1229,7 @@ bool CWsDeployFileInfo::saveSetting(IEspContext &context, IEspSaveSettingRequest
       }
 
       if (!pComp)
-        throw MakeStringException(-1, "No such component in environment: '%s' named '%s'.", pszCompType, pszCompName);
+        throw MakeStringException(ESPERR_NoSuchComponentInEnvironmentS, "No such component in environment: '%s' named '%s'.", pszCompType, pszCompName);
       else
       {
         if (pszOnChange && !strcmp(pszOnChange, "2"))
@@ -1303,7 +1304,7 @@ bool CWsDeployFileInfo::saveSetting(IEspContext &context, IEspSaveSettingRequest
 
           if (isAlphaNumeric(pszNewValue) == false)
           {
-            throw MakeStringException(-1, "Invalid Character in name '%s'.", pszNewValue);
+            throw MakeStringException(ESPERR_InvalidCharacterInNameS, "Invalid Character in name '%s'.", pszNewValue);
           }
         }
 
@@ -1611,7 +1612,7 @@ bool CWsDeployFileInfo::saveSetting(IEspContext &context, IEspSaveSettingRequest
         //Check to see if the cluster name is already in use
         IPropertyTree* pEnvCluster = pEnvRoot->queryPropTree(xpath_key);
         if (pEnvCluster != NULL)
-          throw MakeStringException(-1, "Cluster - %s is already in use. Please enter a unique name for the Cluster.", pszNewValue);
+          throw MakeStringException(ESPERR_ClusterSIsAlreadyInUse, "Cluster - %s is already in use. Please enter a unique name for the Cluster.", pszNewValue);
       }
 
       StringBuffer buf("Topology");
@@ -1682,7 +1683,7 @@ bool CWsDeployFileInfo::saveSetting(IEspContext &context, IEspSaveSettingRequest
       }
 
       if (!pComp)
-        throw MakeStringException(-1, "No such component in environment: '%s' named '%s'.", pszCompType, pszCompName);
+        throw MakeStringException(ESPERR_NoSuchComponentInEnvironmentS, "No such component in environment: '%s' named '%s'.", pszCompType, pszCompName);
       else
       {
         xpath.clear().appendf("@%s", pszAttrName);
@@ -1788,7 +1789,7 @@ bool CWsDeployFileInfo::saveSetting(IEspContext &context, IEspSaveSettingRequest
       }
 
       if (!pComp)
-        throw MakeStringException(-1, "No such component in environment: '%s' named '%s'.", pszCompType, pszCompName);
+        throw MakeStringException(ESPERR_NoSuchComponentInEnvironmentS, "No such component in environment: '%s' named '%s'.", pszCompType, pszCompName);
       else
       {
         if (!strcmp(pszAttrName, "name"))
@@ -1796,7 +1797,7 @@ bool CWsDeployFileInfo::saveSetting(IEspContext &context, IEspSaveSettingRequest
           xpath.clear().appendf("%s[" XML_ATTR_NAME "='%s']", pszSubType, pszNewValue);
 
           if (pEnvHardware->queryPropTree(xpath.str()))
-            throw MakeStringException(-1, "Another item exists with the same name '%s'!  Please specify a unique name.", pszNewValue);
+            throw MakeStringException(ESPERR_AnotherItemExistsWithTheSame, "Another item exists with the same name '%s'!  Please specify a unique name.", pszNewValue);
         }
 
         xpath.clear().appendf("@%s", pszAttrName);
@@ -1817,7 +1818,7 @@ bool CWsDeployFileInfo::saveSetting(IEspContext &context, IEspSaveSettingRequest
             CCloudActionHandler lockCloud(this, CLOUD_LOCK_ENV, CLOUD_NONE, m_userWithLock.str(), "8015", pComputer);
             bool ret = lockCloud.start(sbMsg.clear());
             if (!ret || sbMsg.length())
-              throw MakeStringException(-1, "Cannot set netAddress as environment lock could not be obtained. Reason(s):\n%s", sbMsg.str());
+              throw MakeStringException(ESPERR_CannotSetNetaddressAsEnvironmentLock, "Cannot set netAddress as environment lock could not be obtained. Reason(s):\n%s", sbMsg.str());
           }
 
           if (pszOldValue && *pszOldValue)
@@ -1836,7 +1837,7 @@ bool CWsDeployFileInfo::saveSetting(IEspContext &context, IEspSaveSettingRequest
                 ret = unlockPrevCloud.start(sbMsg.clear());
               }
 
-              throw MakeStringException(-1, "Cannot set netAddress as some targets could not be unlocked. Reason(s):\n%s", sbMsg.str());
+              throw MakeStringException(ESPERR_CannotSetNetaddressAsSomeTargets, "Cannot set netAddress as some targets could not be unlocked. Reason(s):\n%s", sbMsg.str());
             }
           }
         }
@@ -2000,7 +2001,7 @@ bool CWsDeployFileInfo::saveSetting(IEspContext &context, IEspSaveSettingRequest
         resp.setUpdateValue(pszNewValue);
       }
       else
-        throw MakeStringException(-1, "Cannot find component/attribute in environment: '%s'.", pszAttrName);
+        throw MakeStringException(ESPERR_CannotFindComponentAttributeInEnvironment, "Cannot find component/attribute in environment: '%s'.", pszAttrName);
     }
   }
 
@@ -2026,7 +2027,7 @@ bool CWsDeployFileInfo::getNavTreeDefn(IEspContext &context, IEspGetNavTreeDefnR
   context.getPeer(sbUserIp);
 
   if (!strcmp(sbName.str(), m_userWithLock.str()) && !strcmp(sbUserIp.str(), m_userIp.str()) && reload && !strcmp(reload, "true"))
-    throw MakeStringException(-1, "Another browser window already has write access on machine '%s'. Please use that window.", sbUserIp.str());
+    throw MakeStringException(ESPERR_AnotherBrowserWindowAlreadyHasWrite, "Another browser window already has write access on machine '%s'. Please use that window.", sbUserIp.str());
 
   if (m_pNavTree.get() == NULL)
     m_pNavTree.setown(getEnvTree(context, &req.getReqInfo()));
@@ -2110,7 +2111,7 @@ bool CWsDeployFileInfo::lockEnvironmentForCloud(IEspContext &context, IEspLockEn
     else
       sMsg.append(":\n\n").append(sErrMsg);
 
-    //throw MakeStringException(0, sMsg);
+    //throw MakeStringException(ESPERR_Smsg, sMsg);
     resp.setMsg(sMsg.str());
     resp.setReturnCode(0);
   }
@@ -2944,7 +2945,7 @@ bool CWsDeployFileInfo::displaySettings(IEspContext &context, IEspDisplaySetting
       }
 
       if (!pBuildSet)
-        throw MakeStringException(-1, "Cannot determine buildset for component in environment: '%s' named '%s'.", pszCompType, pszCompName);
+        throw MakeStringException(ESPERR_CannotDetermineBuildsetForComponentIn, "Cannot determine buildset for component in environment: '%s' named '%s'.", pszCompType, pszCompName);
 
       const char* buildSetName = pBuildSet->queryProp(XML_ATTR_NAME);
       const char* processName = pBuildSet->queryProp(XML_ATTR_PROCESS_NAME);
@@ -2953,7 +2954,7 @@ bool CWsDeployFileInfo::displaySettings(IEspContext &context, IEspDisplaySetting
 
       if ( CConfigHelper::getInstance()->isInBuildSet(pszCompType,buildSetName) == false )
       {
-        throw MakeStringException(-1, "Component '%s' named '%s' not in build set. Component may be incompatible with the current version.", pszCompType, pszCompName);
+        throw MakeStringException(ESPERR_ComponentSNamedSNotIn, "Component '%s' named '%s' not in build set. Component may be incompatible with the current version.", pszCompType, pszCompName);
       }
 
       StringArray sNewCompArray;
@@ -3198,7 +3199,7 @@ bool CWsDeployFileInfo::displaySettings(IEspContext &context, IEspDisplaySetting
                 IPropertyTree* pComputer= pEnvRoot->queryPropTree(xpath.str());
 
                 if (pComputer == NULL)
-                  throw MakeStringException(-1, "XPATH: %s is invalid. (Did you add the Hardware?)",xpath.str());
+                  throw MakeStringException(ESPERR_XpathSIsInvalidDidYou, "XPATH: %s is invalid. (Did you add the Hardware?)",xpath.str());
 
                 const char* pszNetAddr = pComputer->queryProp(XML_ATTR_NETADDRESS);
                 if (pszNetAddr)
@@ -3371,7 +3372,7 @@ bool CWsDeployFileInfo::displaySettings(IEspContext &context, IEspDisplaySetting
       const char* pszBldSet = pComp->queryProp(XML_ATTR_BUILDSET);
 
       if (strcmp(pszCompName, "Directories") && !pszBldSet)
-        throw MakeStringException(-1, "Cannot determine buildset for component in environment: '%s' named '%s'.", pszCompType, pszCompName);
+        throw MakeStringException(ESPERR_CannotDetermineBuildsetForComponentIn, "Cannot determine buildset for component in environment: '%s' named '%s'.", pszCompType, pszCompName);
 
       if (!strcmp(pszCompType, XML_TAG_ESPSERVICE) || !strcmp(pszCompType, XML_TAG_PLUGINPROCESS))
         resp.setComponent(pszBldSet);
@@ -3475,7 +3476,7 @@ bool CWsDeployFileInfo::displaySettings(IEspContext &context, IEspDisplaySetting
 
       IPropertyTree* pComp = pEnvPrograms->queryPropTree(xpath.str());
       if (!pComp)
-        throw MakeStringException(-1, "No such build and buildset in environment: '%s' named '%s'.", pszBuild, pszBuildSet);
+        throw MakeStringException(ESPERR_NoSuchBuildAndBuildsetIn, "No such build and buildset in environment: '%s' named '%s'.", pszBuild, pszBuildSet);
 
       StringBuffer s;
       s.append("./Programs/Build[@name=\"").append(pszBuild).append("\"]");
@@ -3702,7 +3703,7 @@ bool CWsDeployFileInfo::getBuildSetInfo(IEspContext &context, IEspGetBuildSetInf
 
       IPropertyTree* pComp = pEnvPrograms->queryPropTree(xpath.str());
       if (!pComp)
-        throw MakeStringException(-1, "No such build and buildset in environment: '%s' named '%s'.", pszBuild, pszBuildSet);
+        throw MakeStringException(ESPERR_NoSuchBuildAndBuildsetIn, "No such build and buildset in environment: '%s' named '%s'.", pszBuild, pszBuildSet);
 
       StringBuffer s;
       s.append("./Programs/Build[@name=\"").append(pszBuild).append("\"]");
@@ -3963,7 +3964,7 @@ bool CWsDeployFileInfo::handleAttributeAdd(IEspContext &context, IEspHandleAttri
   StringBuffer attribName(pSetting->queryProp(XML_ATTR_ATTRIB));
 
   if (attribName.length() == 0)
-    throw MakeStringException(-1,"Attribute name can't be empty!");
+    throw MakeStringException(ESPERR_AttributeNameCanTBeEmpty, "Attribute name can't be empty!");
 
   IPropertyTree* pComp =  pEnvRoot->queryPropTree(xpath.str());
 
@@ -3997,7 +3998,7 @@ bool CWsDeployFileInfo::handleAttributeDelete(IEspContext &context, IEspHandleAt
   IPropertyTree* pComp = pEnvRoot->queryPropTree(xpath2.str());
 
   if (pComp == NULL)
-    throw MakeStringException(-1,"Bad XPath %s (Try refreshing the browser?)", xpath2.str());
+    throw MakeStringException(ESPERR_BadXpathSTryRefreshingThe, "Bad XPath %s (Try refreshing the browser?)", xpath2.str());
 
   StringBuffer xml;
   StringBuffer attrib;
@@ -4005,7 +4006,7 @@ bool CWsDeployFileInfo::handleAttributeDelete(IEspContext &context, IEspHandleAt
   int count = xpath2.length()-2;
 
   if (count <= 0)
-    throw MakeStringException(-1,"Bad XPath %s (Try refreshing the browser?)", xpath2.str());
+    throw MakeStringException(ESPERR_BadXpathSTryRefreshingThe, "Bad XPath %s (Try refreshing the browser?)", xpath2.str());
 
   while (xpath2[count] != '=' || xpath2[count+1] != '\'')
     count--;
@@ -4155,7 +4156,7 @@ bool CWsDeployFileInfo::handleComponent(IEspContext &context, IEspHandleComponen
       IPropertyTree* pCompTree = pEnvRoot->queryPropTree(xpath.str());
 
       if (pCompTree == NULL)
-        throw MakeStringException(-1,"XPATH: %s is invalid.", xpath.str());
+        throw MakeStringException(ESPERR_XpathSIsInvalid, "XPATH: %s is invalid.", xpath.str());
 
       StringBuffer xml;
       toXML(pCompTree, xml);
@@ -4225,7 +4226,7 @@ bool CWsDeployFileInfo::handleHardwareCopy(IPropertyTree *pComponents, IProperty
 
         String strHWPath(pComp.hasProp(XML_ATTR_HWXPATH) ? pComp.queryProp(XML_ATTR_HWXPATH) : "" );
         if (strHWPath.length() == 0)
-             throw MakeStringException(-1, "Copy failed. Did you select anything to copy?.");
+             throw MakeStringException(ESPERR_CopyFailedDidYouSelectAnything, "Copy failed. Did you select anything to copy?.");
 
         StringBuffer strHWChild(strHWPath);
         String strParse(strHWChild.str());
@@ -4258,7 +4259,7 @@ bool CWsDeployFileInfo::handleHardwareCopy(IPropertyTree *pComponents, IProperty
     else
     {
         VStringBuffer err("Copy failed. Element %s may already exist in the target configuration.", dupTree ? dupTree->queryProp(XML_ATTR_NAME) : "");
-        throw MakeStringException(-1, "%s", err.str());
+        throw MakeStringException(ESPERR_S, "%s", err.str());
     }
     return true;
 }
@@ -4306,7 +4307,7 @@ bool CWsDeployFileInfo::handleComponentCopy(IPropertyTree *pComponents, IPropert
     IPropertyTree* pCompTree = pEnvRoot->queryPropTree(xpath.str());
 
     if ( pCompTree == NULL)
-      throw MakeStringException(-1,"XPATH: %s is invalid in source configuration. Copy failed.", xpath.str());
+      throw MakeStringException(ESPERR_XpathSIsInvalidInSource, "XPATH: %s is invalid in source configuration. Copy failed.", xpath.str());
 
     xpath.clear().appendf("./%s/%s[%s=\"%s\"]", XML_TAG_SOFTWARE, compType, XML_ATTR_NAME, sbNewName.str());
     StringBuffer xml;
@@ -4317,14 +4318,14 @@ bool CWsDeployFileInfo::handleComponentCopy(IPropertyTree *pComponents, IPropert
     dupTree->setProp(XML_ATTR_NAME, sbNewName.str());
 
     if (pEnvRoot2->addPropTree(xpath, dupTree) == NULL)
-      throw MakeStringException(-1,"XPATH: %s is invalid in target. Copy failed.", xpath.str());
+      throw MakeStringException(ESPERR_XpathSIsInvalidInTarget, "XPATH: %s is invalid in target. Copy failed.", xpath.str());
   }
 
   StringBuffer err;
   fi->saveEnvironment(NULL, NULL, err);
 
   if (bError == true)
-    throw MakeStringException(-1,"Save succeeded but an error was encountered with message: %s", errMsg.str());
+    throw MakeStringException(ESPERR_SaveSucceededButAnErrorWas, "Save succeeded but an error was encountered with message: %s", errMsg.str());
 
   return true;
 }
@@ -4769,7 +4770,7 @@ bool CWsDeployFileInfo::handleComputer(IEspContext &context, IEspHandleComputerR
       if (!ret || sbMsg.length())
       {
         resp.setStatus("false");
-        throw MakeStringException(-1, "Cannot add new range of computers as environment lock could not be obtained. Reason(s):\n%s", sbMsg.str());
+        throw MakeStringException(ESPERR_CannotAddNewRangeOfComputers, "Cannot add new range of computers as environment lock could not be obtained. Reason(s):\n%s", sbMsg.str());
       }
     }
 
@@ -4798,7 +4799,7 @@ bool CWsDeployFileInfo::handleComputer(IEspContext &context, IEspHandleComputerR
       if (!ret || sbMsg.length())
       {
         resp.setStatus("false");
-        throw MakeStringException(-1, "Cannot add new range of computers as environment lock could not be obtained. Reason(s):\n%s", sbMsg.str());
+        throw MakeStringException(ESPERR_CannotAddNewRangeOfComputers, "Cannot add new range of computers as environment lock could not be obtained. Reason(s):\n%s", sbMsg.str());
       }
     }
 
@@ -4880,7 +4881,7 @@ bool CWsDeployFileInfo::handleComputer(IEspContext &context, IEspHandleComputerR
       }
 
       if (refs.length())
-        throw MakeStringException(-1, "Cannot delete %s with name %s as it is being referenced by components: %s.", type, refName.str(), refs.str());
+        throw MakeStringException(ESPERR_CannotDeleteSWithNameS, "Cannot delete %s with name %s as it is being referenced by components: %s.", type, refName.str(), refs.str());
       else
       {
           if (m_bCloud && !strcmp(type, XML_TAG_COMPUTER))
@@ -4900,7 +4901,7 @@ bool CWsDeployFileInfo::handleComputer(IEspContext &context, IEspHandleComputerR
             CCloudActionHandler unlockCloud(this, CLOUD_UNLOCK_ENV, CLOUD_LOCK_ENV, m_userWithLock.str(), "8015", pComputers);
             bool ret = unlockCloud.start(sbMsg);
             if (!ret || sbMsg.length())
-              throw MakeStringException(-1, "Cannot delete computers as they cannot be unlocked. Reason(s):\n%s", sbMsg.str());
+              throw MakeStringException(ESPERR_CannotDeleteComputersAsTheyCannot, "Cannot delete computers as they cannot be unlocked. Reason(s):\n%s", sbMsg.str());
           }
       }
 
@@ -5443,14 +5444,14 @@ IPropertyTree* CWsDeployFileInfo::findComponentForFolder(IPropertyTree* pFolder,
   const char* name = pParams->queryProp("name");
 
   if (!(comp && *comp && name && *name))
-    throw MakeStringException(-1, "Invalid parameters");
+    throw MakeStringException(ESPERR_InvalidParameters, "Invalid parameters");
 
   StringBuffer xpath;
   xpath.appendf("%s[@name='%s']", comp, name);
 
   IPropertyTree* pComp = pEnvSoftware->queryPropTree(xpath.str());
   if (!pComp)
-    throw MakeStringException(-1, "No such component in environment: '%s' named '%s'.", comp, name);
+    throw MakeStringException(ESPERR_NoSuchComponentInEnvironmentS, "No such component in environment: '%s' named '%s'.", comp, name);
 
   return pComp;
 }
@@ -5463,22 +5464,22 @@ void CWsDeployFileInfo::addDeployableComponentAndInstances(IPropertyTree* pEnvRo
   const char* name = pComp->queryProp(XML_ATTR_NAME);
 
   if (!name || !*name)
-    throw MakeStringException(-1, "The environment has an incomplete definition for a '%s'!", comp);
+    throw MakeStringException(ESPERR_TheEnvironmentHasAnIncompleteDefinition, "The environment has an incomplete definition for a '%s'!", comp);
 
   const char* build= pComp->queryProp(XML_ATTR_BUILD);
   const char* buildSet= pComp->queryProp(XML_ATTR_BUILDSET);
 
   if (!build || !*build)
-    throw MakeStringException(-1, "%s '%s' does not have any build defined!", comp, name);
+    throw MakeStringException(ESPERR_SSDoesNotHaveAny, "%s '%s' does not have any build defined!", comp, name);
 
   if (!buildSet || !*buildSet)
-    throw MakeStringException(-1, "%s '%s' does not have any build set defined!", comp, name);
+    throw MakeStringException(ESPERR_SSDoesNotHaveAny_1, "%s '%s' does not have any build set defined!", comp, name);
 
   StringBuffer xpath;
   xpath.appendf("Programs/Build[@name='%s']/BuildSet[@name='%s']", build, buildSet);
   IPropertyTree* pBuildSetNode = pEnvRoot->queryPropTree(xpath.str());
   if (!pBuildSetNode)
-    throw MakeStringException(-1, "Build %s or build set %s is not defined!", build, buildSet);
+    throw MakeStringException(ESPERR_BuildSOrBuildSetS, "Build %s or build set %s is not defined!", build, buildSet);
 
   const char* deployable = pBuildSetNode->queryProp("@deployable");
   if (!deployable || (0!=strcmp(deployable, "no") && 0!=strcmp(deployable, "false")))
@@ -5540,7 +5541,7 @@ void CWsDeployFileInfo::addDeployableComponentAndInstances(IPropertyTree* pEnvRo
             IPropertyTree* pInstNode = pComp->queryPropTree(xpath.str());
 
             if (!pInstNode)
-              throw MakeStringException(-1, "%s '%s' does not have any '%s' named %s!", displayType, comp, instType, instName);
+              throw MakeStringException(ESPERR_SSDoesNotHaveAny_2, "%s '%s' does not have any '%s' named %s!", displayType, comp, instType, instName);
 
             addInstance(pDst,  comp, displayType, name, build, instType, instName, computer);
           }
@@ -5735,7 +5736,7 @@ void CWsDeployFileInfo::getNavigationData(IEspContext &context, IPropertyTree* p
         context.getUserID(sbName);
         context.getPeer(sbUserIp);
         if (strcmp(sbName.str(), m_userWithLock.str()) || strcmp(sbUserIp.str(), m_userIp.str()))
-          throw MakeStringException(-1, "A user on machine %s is accessing the file. Please try again later.", m_userIp.str());
+          throw MakeStringException(ESPERR_AUserOnMachineSIs, "A user on machine %s is accessing the file. Please try again later.", m_userIp.str());
       }
 
       initFileInfo(false);
@@ -5817,7 +5818,7 @@ void CWsDeployFileInfo::saveEnvironment(IEspContext* pContext, IConstWsDeployReq
       bool ret = saveCloud.start(sbMsg);
 
       if (!ret || sbMsg.length())
-        throw MakeStringException(0, "Environment could not be successfully saved. Reason(s):\n%s", sbMsg.str());
+        throw MakeStringException(ESPERR_EnvironmentCouldNotBeSuccessfullySaved, "Environment could not be successfully saved. Reason(s):\n%s", sbMsg.str());
     }
 
     try
@@ -5940,7 +5941,7 @@ void CWsDeployFileInfo::saveEnvironment(IEspContext* pContext, IConstWsDeployReq
       else
         sMsg.append(":\n\n").append(sErrMsg);
 
-      throw MakeStringExceptionDirect(0, sMsg.str());
+      throw MakeStringExceptionDirect(ESPERR_SmsgStr, sMsg.str());
     }
   }
 
@@ -6042,10 +6043,10 @@ void CWsDeployFileInfo::unlockEnvironment(IEspContext* context, IConstWsDeployRe
     Owned<IGroup> serverGroup = createIGroup(m_daliServer.str(), m_daliServerPort);
 
     if (!serverGroup)
-      throw MakeStringException(0, "Could not instantiate IGroup");
+      throw MakeStringException(ESPERR_CouldNotInstantiateIgroup, "Could not instantiate IGroup");
 
     if (!initClientProcess(serverGroup, DCR_Config, 0, NULL, NULL, 10000))
-      throw MakeStringException(0, "Could not initialize the client process");
+      throw MakeStringException(ESPERR_CouldNotInitializeTheClientProcess, "Could not initialize the client process");
 
     m_pSubscription.clear();
     m_pSubscription.setown( new CSdsSubscription(this) );
@@ -6078,9 +6079,9 @@ void CWsDeployFileInfo::checkForRefresh(IEspContext &context, IConstWsDeployReqI
   if (checkWriteAccess)
   {
       if (!m_Environment || m_userWithLock.length() == 0 || m_userIp.length() == 0)
-        throw MakeStringException(-1, "Cannot modify environment as it is currently in readonly mode");
+        throw MakeStringException(ESPERR_CannotModifyEnvironmentAsItIs, "Cannot modify environment as it is currently in readonly mode");
       else if (m_userWithLock.length() != 0 && m_userIp.length() != 0 && (strcmp(m_userWithLock.str(), sbUser.str()) || strcmp(m_userIp.str(), sbIp.str())))
-        throw MakeStringException(-1, "Cannot modify setting as environment is currently in use on machine '%s'", m_userIp.str());
+        throw MakeStringException(ESPERR_CannotModifySettingAsEnvironmentIs, "Cannot modify setting as environment is currently in use on machine '%s'", m_userIp.str());
   }
 
 }
@@ -6951,7 +6952,7 @@ CWsDeployFileInfo* CWsDeployExCE::getFileInfo(const char* fileName, bool addIfNo
 {
   synchronized block(m_mutexSrv);
   if (!fileName || !*fileName)
-    throw MakeStringException(-1, "File name required for operation");
+    throw MakeStringException(ESPERR_FileNameRequiredForOperation, "File name required for operation");
 
   CWsDeployFileInfo* fi = m_fileInfos.getValue(fileName);
 
@@ -6989,13 +6990,13 @@ CWsDeployFileInfo* CWsDeployExCE::getFileInfo(const char* fileName, bool addIfNo
       m_fileInfos.setValue(sb.str(), fi);
     }
     else
-      throw MakeStringException(-1, "File information not found for %s", fileName);
+      throw MakeStringException(ESPERR_FileInformationNotFoundForS, "File information not found for %s", fileName);
   }
   else if (createFile)
   {
     StringBuffer sbuser, sbip;
     if (fi->getUserWithLock(sbuser, sbip))
-      throw MakeStringException(-1, "Cannot overwrite file '%s' as it is currently locked by user '%s' on machine '%s'", fileName, sbuser.str(), sbip.str());
+      throw MakeStringException(ESPERR_CannotOverwriteFileSAsIt, "Cannot overwrite file '%s' as it is currently locked by user '%s' on machine '%s'", fileName, sbuser.str(), sbip.str());
     else
     {
       try
@@ -7318,7 +7319,7 @@ bool CWsDeployFileInfo::checkForRequiredComponents(IPropertyTree* pEnvRoot, cons
       if(checkFileExists(genEnvConf.str()))
         algProps.setown(createProperties(genEnvConf.str()));
       else
-        throw MakeStringException( -1 , "The algorithm file %s does not exists", genEnvConf.str());
+        throw MakeStringException(ESPERR_TheAlgorithmFileSDoesNot, "The algorithm file %s does not exists", genEnvConf.str());
 
       algProps->getProp("comps_on_all_nodes", prop);
       algProps->getProp("exclude_from_comps_on_all_nodes", prop2);

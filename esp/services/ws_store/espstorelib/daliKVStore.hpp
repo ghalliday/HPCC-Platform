@@ -25,6 +25,7 @@
 #endif
 
 #include "jiface.hpp"
+#include "esperr.hpp"
 
 #include "dautils.hpp"
 #include "dasds.hpp"
@@ -87,7 +88,7 @@ public:
     void ensureAttachedToDali()
     {
         if (m_isDetachedFromDali)
-            throw MakeStringException(-1, "DALI Keystore Unavailable while in offline mode!");
+            throw MakeStringException(ESPERR_DaliKeystoreUnavailableWhileInOffline, "DALI Keystore Unavailable while in offline mode!");
     }
 
 private:

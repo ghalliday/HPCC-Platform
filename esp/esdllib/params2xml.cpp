@@ -18,6 +18,7 @@
 #pragma warning(disable : 4786)
 
 #include "jliball.hpp"
+#include "esperr.hpp"
 #include "esdl_def.hpp"
 #include "params2xml.hpp"
 
@@ -68,7 +69,7 @@ esdl_decl void params2xml(IEsdlDefinition *def, const char *structname, IPropert
 {
     IEsdlDefStruct *est = def->queryStruct(structname);
     if (!est)
-        throw MakeStringException(-1, "parms2xml: ESDL Struct %s not found", structname);
+        throw MakeStringException(ESPERR_Parms2xmlEsdlStructSNotFound, "parms2xml: ESDL Struct %s not found", structname);
 
     StringBuffer path;
     paramsStruct2xml(def, est, structname, params, xmlstr, path, flags, ver, true);
@@ -79,13 +80,13 @@ esdl_decl void params2xml(IEsdlDefinition *def, const char *structname, IPropert
 esdl_decl void params2xml(IEsdlDefinition *def, const char *service, const char *method, EsdlDefTypeId esdltype, IProperties *params, StringBuffer &xmlstr, unsigned flags, double ver)
 {
     if (esdltype!=EsdlTypeRequest && esdltype!=EsdlTypeResponse)
-        throw MakeStringException(-1, "parms2xml: Only ESDL request and response types supported");
+        throw MakeStringException(ESPERR_Parms2xmlOnlyEsdlRequestAndResponse, "parms2xml: Only ESDL request and response types supported");
     IEsdlDefService *srv = def->queryService(service);
     if (!srv)
-        throw MakeStringException(-1, "parms2xml: ESDL Service %s not found", service);
+        throw MakeStringException(ESPERR_Parms2xmlEsdlServiceSNotFound, "parms2xml: ESDL Service %s not found", service);
     IEsdlDefMethod *mth = srv->queryMethodByName(method);
     if (!mth)
-        throw MakeStringException(-1, "parms2xml: ESDL Method %s not found", method);
+        throw MakeStringException(ESPERR_Parms2xmlEsdlMethodSNotFound, "parms2xml: ESDL Method %s not found", method);
     if (esdltype==EsdlTypeRequest)
         params2xml(def, mth->queryRequestType(), params, xmlstr, flags, ver);
     else if (esdltype==EsdlTypeResponse)

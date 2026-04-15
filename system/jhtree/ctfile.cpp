@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "systemerr.hpp"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -447,7 +448,7 @@ bool CLegacyWriteNode::add(offset_t pos, const void *indata, size32_t insize, un
     }
 
     if (insize>keyLen)
-        throw MakeStringException(0, "key+payload (%u) exceeds max length (%u)", insize, keyLen);
+        throw MakeStringException(SYSTEMERR_KeyPayloadUExceedsMaxLength, "key+payload (%u) exceeds max length (%u)", insize, keyLen);
     memcpy(lastKeyValue, indata, insize);
     lastSequence = sequence;
     hdr.numKeys++;
@@ -610,14 +611,14 @@ void CJHTreeNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _fpos, bo
         PROGLOG("nodeSize=%d", keyHdr->getNodeSize());
         PROGLOG("keyBytes=%d",(int)hdr.keyBytes);
         PrintStackReport();
-        throw MakeStringException(0, "Htree: Corrupt key node detected");
+        throw MakeStringException(SYSTEMERR_HtreeCorruptKeyNodeDetected, "Htree: Corrupt key node detected");
     }
     const char *data = ((const char *) rawData) + sizeof(hdr);
     if (hdr.crc32)
     {
         unsigned crc = crc32(data, hdr.keyBytes, 0);
         if (hdr.crc32 != crc)
-            throw MakeStringException(0, "CRC error on key node");
+            throw MakeStringException(SYSTEMERR_CrcErrorOnKeyNode, "CRC error on key node");
     }
 }
 
@@ -1007,7 +1008,7 @@ void CJHLegacySearchNode::load(CKeyHdr *_keyHdr, const void *rawData, offset_t _
                     //which is otherwise tricky to track down.
                     //This can only legally happen if there is an index with 0 entries
                     if (keyHdr->getNumRecords() != 0)
-                        throw MakeStringException(0, "Zeroed index node detected at offset %llu", getFpos());
+                        throw MakeStringException(SYSTEMERR_ZeroedIndexNodeDetectedAtOffset, "Zeroed index node detected at offset %llu", getFpos());
                 }
             }
         }

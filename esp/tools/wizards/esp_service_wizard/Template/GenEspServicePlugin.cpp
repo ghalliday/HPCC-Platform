@@ -1,6 +1,7 @@
 #pragma warning (disable : 4786)
 
 #include "$$root$$_esp.ipp"
+#include "esperr.hpp"
 
 //ESP Bindings
 #include "http/platform/httpprot.hpp"
@@ -25,7 +26,7 @@ ESP_FACTORY IEspService * esp_service_factory(const char *name, const char* type
    }
     else
     {
-        throw MakeStringException(-1, "Unknown service type %s", type);
+        throw MakeStringException(ESPERR_UnknownServiceTypeS, "Unknown service type %s", type);
     }
    return NULL;
 }
@@ -41,7 +42,7 @@ ESP_FACTORY IEspRpcBinding * esp_binding_factory(const char *name, const char* t
    }
     else
     {
-        throw MakeStringException(-1, "Unknown binding type %s", type);
+        throw MakeStringException(ESPERR_UnknownBindingTypeS, "Unknown binding type %s", type);
     }
 
    return NULL;
@@ -65,12 +66,12 @@ ESP_FACTORY IEspProtocol * esp_protocol_factory(const char *name, const char* ty
         }
         else
         {
-            throw MakeStringException(-1, "can't find ssl settings in the config file");
+            throw MakeStringException(ESPERR_CanTFindSslSettingsIn, "can't find ssl settings in the config file");
         }
     }
     else
     {
-        throw MakeStringException(-1, "Unknown protocol %s", name);
+        throw MakeStringException(ESPERR_UnknownProtocolS, "Unknown protocol %s", name);
     }
 
     return NULL;

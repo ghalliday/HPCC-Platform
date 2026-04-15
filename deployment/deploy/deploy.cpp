@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "deploy.hpp"
+#include "deployerr.hpp"
 #include "environment.hpp"
 #include "jptree.hpp"
 #include "jarray.hpp"
@@ -178,7 +179,7 @@ public:
         Owned<IPropertyTree> tree = &m_environment.getPTree();
         IPropertyTree* pComponent = tree->queryPropTree(xpath.str());
         if (!pComponent)
-            throw MakeStringException(0, "%s with name %s was not found!", processType, processName);
+            throw MakeStringException(DEPLOYERR_SWithNameSWasNot, "%s with name %s was not found!", processType, processName);
         
         IDeploymentEngine* deployEngine;
         
@@ -263,7 +264,7 @@ public:
     void check()
     {
         if (m_pCallback->getAbortStatus())
-            throw MakeStringException(0, "User abort");
+            throw MakeStringException(DEPLOYERR_UserAbort, "User abort");
         
         bool valid = false;
         m_nValidationErrors = 0;
@@ -432,7 +433,7 @@ public:
         if (m_abort)
         {
             m_pCallback->printStatus(STATUS_NORMAL, NULL, NULL, NULL, "Aborted!");
-            throw MakeStringException(0, "User abort");
+            throw MakeStringException(DEPLOYERR_UserAbort, "User abort");
         }
         
         m_pCallback->printStatus(STATUS_NORMAL, NULL, NULL, NULL, "Archiving environment data to %s...", filename);
@@ -444,7 +445,7 @@ public:
         task->createFile(xml.str());
         m_pCallback->printStatus(STATUS_NORMAL, NULL, NULL, NULL);
         if (task->getAbort())
-            throw MakeStringException(0, "User abort");
+            throw MakeStringException(DEPLOYERR_UserAbort, "User abort");
         
         Owned<IFile> pFile = createIFile(filename);
         pFile->setReadOnly(true);
@@ -465,7 +466,7 @@ public:
     void initXML(IPropertyTree* pSelectedComponents)
     {
         if (m_abort)
-            throw MakeStringException(0, "User abort");
+            throw MakeStringException(DEPLOYERR_UserAbort, "User abort");
         
         m_pCallback->printStatus(STATUS_NORMAL, NULL, NULL, NULL, "Loading environment...");
         m_processor.setown(getXslProcessor());
@@ -489,7 +490,7 @@ public:
         tree->removeTree(pDeploy);
         
         if (m_transform->setXmlSource(xml.str(), xml.length()) != 0)
-            throw MakeStringException(0, "Invalid environment XML string");
+            throw MakeStringException(DEPLOYERR_InvalidEnvironmentXmlString, "Invalid environment XML string");
     }
     //---------------------------------------------------------------------------
     //  termXML
@@ -664,14 +665,13 @@ public:
             const char* hostName = machineName.str() + 2;
             Owned<IConstMachineInfo> machine = m_environment.getMachine(hostName);
             if (!machine)
-                throw MakeStringException(-1, "The computer '%s' used for deployment folder is undefined!", hostName);
+                throw MakeStringException(DEPLOYERR_TheComputerSUsedForDeployment, "The computer '%s' used for deployment folder is undefined!", hostName);
 
             StringAttr netAddress;
             StringAttrAdaptor adaptor(netAddress);
             machine->getNetAddress(adaptor);
             if (!netAddress.get() || !*netAddress.get())
-                throw MakeStringException(-1, 
-                "The computer '%s' used for deployment folder does not have any network address defined!", hostName);
+                throw MakeStringException(DEPLOYERR_TheComputerSUsedForDeployment_1, "The computer '%s' used for deployment folder does not have any network address defined!", hostName);
 
             StringBuffer uncPath(PATHSEPSTR PATHSEPSTR);
             uncPath.append( netAddress.get() );
@@ -746,7 +746,7 @@ public:
         {
             Owned<IConstDomainInfo> domain = machine->getDomain();
             if (!domain)
-                throw MakeStringException(-1, "The computer '%s' does not have any domain information!", computer);
+                throw MakeStringException(DEPLOYERR_TheComputerSDoesNotHave, "The computer '%s' does not have any domain information!", computer);
 
             StringBuffer x;
             if (machine->getOS() == MachineOsW2K)
@@ -760,7 +760,7 @@ public:
             user.set(x.str());
         }
         else
-            throw MakeStringException(-1, "The computer '%s' is undefined!", computer);
+            throw MakeStringException(DEPLOYERR_TheComputerSIsUndefined, "The computer '%s' is undefined!", computer);
     }
 
     //---------------------------------------------------------------------------
@@ -773,7 +773,7 @@ public:
         {
             Owned<IConstDomainInfo> domain = machine->getDomain();
             if (!domain)
-                throw MakeStringException(-1, "The computer '%s' does not have any domain information!", computer);
+                throw MakeStringException(DEPLOYERR_TheComputerSDoesNotHave, "The computer '%s' does not have any domain information!", computer);
 
             StringBuffer x;
             if (machine->getOS() == MachineOsW2K)
@@ -787,7 +787,7 @@ public:
             user.set(x.str());
         }
         else
-            throw MakeStringException(-1, "The computer '%s' is undefined!", computer);
+            throw MakeStringException(DEPLOYERR_TheComputerSIsUndefined, "The computer '%s' is undefined!", computer);
     }
 
     virtual void setSourceDaliAddress( const char* addr )
@@ -977,7 +977,7 @@ public:
               const char* computer = pChild->queryProp("@computer");
               Owned<IConstMachineInfo> pMachine = environment.getMachine(computer);
               if (!pMachine)
-                throw MakeStringException(0, "Invalid Environment file. Instance '%s' of '%s' references a computer '%s' that has not been defined!", pChild->queryProp("@name"), pComponent->queryProp("@name"), computer);
+                throw MakeStringException(DEPLOYERR_InvalidEnvironmentFileInstanceSOf, "Invalid Environment file. Instance '%s' of '%s' references a computer '%s' that has not been defined!", pChild->queryProp("@name"), pComponent->queryProp("@name"), computer);
               else if (pMachine->getOS() == MachineOsLinux)
                 m_bLinuxDeployment = true;
             }
@@ -1012,7 +1012,7 @@ public:
     Owned<IPropertyTree> tree = &m_environment.getPTree();
     IPropertyTree* pComponent = tree->queryPropTree(xpath.str());
     if (!pComponent)
-      throw MakeStringException(0, "%s with name %s was not found!", processType, processName);
+      throw MakeStringException(DEPLOYERR_SWithNameSWasNot, "%s with name %s was not found!", processType, processName);
 
     IDeploymentEngine* deployEngine;
 
@@ -1041,13 +1041,13 @@ public:
           break;
 
       case DEBACKUP_COPY:
-          throw MakeStringException(-1, "Invalid option Backup copy while generating configurations");
+          throw MakeStringException(DEPLOYERR_InvalidOptionBackupCopyWhileGenerating, "Invalid option Backup copy while generating configurations");
 
       case DEBACKUP_RENAME:
-          throw MakeStringException(-1, "Invalid option Backup rename while generating configurations");
+          throw MakeStringException(DEPLOYERR_InvalidOptionBackupRenameWhileGenerating, "Invalid option Backup rename while generating configurations");
 
       default:
-          throw MakeStringException(-1, "Invalid option while generating configurations");
+          throw MakeStringException(DEPLOYERR_InvalidOptionWhileGeneratingConfigurations, "Invalid option while generating configurations");
     }
   }
 
@@ -1077,7 +1077,7 @@ IEnvDeploymentEngine* createEnvDeploymentEngine(IConstEnvironment& environment,
     }
     catch(...)
     {
-        throw MakeStringException(-1, "Unknown exception!");
+        throw MakeStringException(DEPLOYERR_UnknownException, "Unknown exception!");
     }
 }
 
@@ -1108,7 +1108,7 @@ IEnvDeploymentEngine* createConfigGenMgr(IConstEnvironment& env,
   }
   catch(...)
   {
-    throw MakeStringException(-1, "Unknown exception!");
+    throw MakeStringException(DEPLOYERR_UnknownException, "Unknown exception!");
   }
 }
 
@@ -1220,7 +1220,7 @@ IPropertyTree* getInstances(const IPropertyTree* pEnvRoot, const char* compName,
             IPropertyTree* pComputer = pEnvRoot->queryPropTree(sXPath.str());
 
             if (pComputer == NULL)
-              throw MakeStringException(-1,"XPATH: %s is invalid.\n(Did you configure the Hardware?)", sXPath.str());
+              throw MakeStringException(DEPLOYERR_XpathSIsInvalidNDid, "XPATH: %s is invalid.\n(Did you configure the Hardware?)", sXPath.str());
 
             netAddr = pComputer->queryProp("@netAddress");
             if (matchDeployAddress(ipAddr, netAddr) || 

@@ -19,6 +19,7 @@
 
 #ifdef _USE_OPENLDAP
 #include "ldapsecurity.ipp"
+#include "esperr.hpp"
 #endif
 
 #include "ws_cloudService.hpp"
@@ -39,7 +40,7 @@ constexpr const char* svcSpecTypeServiceTypeNodePort = "NodePort";
 void CWsCloudEx::init(IPropertyTree* cfg, const char* process, const char* service)
 {
     if(cfg == nullptr)
-        throw makeStringException(-1, "Can't initialize CWsCloudEx. The cfg is NULL.");
+        throw makeStringException(ESPERR_CanTInitializeCwscloudexTheCfg, "Can't initialize CWsCloudEx. The cfg is NULL.");
 
     VStringBuffer xpath("Software/EspProcess[@name=\"%s\"]/EspService[@name=\"%s\"]/PODInfoCacheSeconds", process, service);
     unsigned k8sResourcesInfoCacheSeconds  = cfg->getPropInt(xpath.str(), defaultK8sResourcesInfoCacheForceBuildSeconds);

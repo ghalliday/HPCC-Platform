@@ -16,6 +16,7 @@ limitations under the License.
 ############################################################################## */
 
 #include "ws_storeService.hpp"
+#include "esperr.hpp"
 #include "exception_util.hpp"
 
 #define SDS_LOCK_TIMEOUT_ESPSTORE (30*1000)
@@ -32,7 +33,7 @@ typedef IEspStore* (*newEspStore_t_)();
 void CwsstoreEx::init(IPropertyTree *_cfg, const char *_process, const char *_service)
 {
    if(_cfg == nullptr)
-        throw MakeStringException(-1, "CwsstoreEx::init: Empty configuration provided.");
+        throw MakeStringException(ESPERR_CwsstoreexInitEmptyConfigurationProvided, "CwsstoreEx::init: Empty configuration provided.");
 
 #ifdef _DEBUG
     StringBuffer thexml;
@@ -45,23 +46,23 @@ void CwsstoreEx::init(IPropertyTree *_cfg, const char *_process, const char *_se
     m_serviceConfig.setown(_cfg->getPropTree(xpath.str()));
 
     if(!m_serviceConfig)
-        throw MakeStringException(-1, "CwsstoreEx::init: Config not found for service %s/%s",_process, _service);
+        throw MakeStringException(ESPERR_CwsstoreexInitConfigNotFoundFor, "CwsstoreEx::init: Config not found for service %s/%s",_process, _service);
 
     IPropertyTree * storeProviderTree = m_serviceConfig->queryPropTree("StoreProvider[1]");
 
     if (storeProviderTree == nullptr)
-         throw MakeStringException(-1, "CwsstoreEx::init: Store provider configuration not found for service %s/%s",_process, _service);
+         throw MakeStringException(ESPERR_CwsstoreexInitStoreProviderConfigurationNot, "CwsstoreEx::init: Store provider configuration not found for service %s/%s",_process, _service);
 
     const char * providerLibraryName = storeProviderTree->queryProp("@lib");
     if (!providerLibraryName || !*providerLibraryName)
-        throw MakeStringException(-1, "CwsstoreEx::init: Must provide store provider library name for service %s/%s",_process, _service);
+        throw MakeStringException(ESPERR_CwsstoreexInitMustProvideStoreProvider, "CwsstoreEx::init: Must provide store provider library name for service %s/%s",_process, _service);
 
     const char * providerInstanceName = storeProviderTree->queryProp("@name");
     const char * providerFactoryMethod = storeProviderTree->queryProp("@factoryMethod");
 
     m_storeProvider.setown(loadStoreProvider(providerInstanceName, providerLibraryName, (providerFactoryMethod && *providerFactoryMethod) ? providerFactoryMethod : DEFAULT_ESP_STORE_FACTORY_METHOD));
     if (!m_storeProvider)
-        throw MakeStringException(-1, "CwsstoreEx::init: Couldn't instantiate storeprovider lib: '%s' method: '%s'",providerLibraryName, (providerFactoryMethod && *providerFactoryMethod) ? providerFactoryMethod : DEFAULT_ESP_STORE_FACTORY_METHOD);
+        throw MakeStringException(ESPERR_CwsstoreexInitCouldnTInstantiateStoreprovider, "CwsstoreEx::init: Couldn't instantiate storeprovider lib: '%s' method: '%s'",providerLibraryName, (providerFactoryMethod && *providerFactoryMethod) ? providerFactoryMethod : DEFAULT_ESP_STORE_FACTORY_METHOD);
 
     m_storeProvider->init(providerInstanceName, "type", storeProviderTree);
 
@@ -106,7 +107,7 @@ void CwsstoreEx::init(IPropertyTree *_cfg, const char *_process, const char *_se
             if (isDefault)
             {
                 if (!m_defaultStore.isEmpty())
-                   throw MakeStringException(-1, "ws_store init(): Multiple stores erroneously configured as default store!");
+                   throw MakeStringException(ESPERR_WsStoreInitMultipleStoresErroneously, "ws_store init(): Multiple stores erroneously configured as default store!");
 
                 ESPLOG(LogMin, "CwsstoreEx: setting '%s' as default store", id.str());
                 m_defaultStore.set(id.str());
@@ -118,7 +119,7 @@ void CwsstoreEx::init(IPropertyTree *_cfg, const char *_process, const char *_se
 IEspStore* CwsstoreEx::loadStoreProvider(const char* instanceName, const char* libName, const char * factoryMethodName)
 {
     if (!libName || !*libName)
-       throw MakeStringException(-1, "CwsstoreEx::loadStoreProvider: Library name not provided!");
+       throw MakeStringException(ESPERR_CwsstoreexLoadstoreproviderLibraryNameNotProvided, "CwsstoreEx::loadStoreProvider: Library name not provided!");
 
     HINSTANCE espstorelib = LoadSharedObject(libName, true, false);
     if(!espstorelib)
@@ -128,12 +129,12 @@ IEspStore* CwsstoreEx::loadStoreProvider(const char* instanceName, const char* l
         realName.append(SharedObjectPrefix).append(libName).append(SharedObjectExtension);
         espstorelib = LoadSharedObject(realName.str(), true, false);
         if(!espstorelib)
-            throw MakeStringException(-1, "CwsstoreEx::loadStoreProvider: Cannot load library '%s'", realName.str());
+            throw MakeStringException(ESPERR_CwsstoreexLoadstoreproviderCannotLoadLibraryS, "CwsstoreEx::loadStoreProvider: Cannot load library '%s'", realName.str());
     }
 
     newEspStore_t_ xproc = (newEspStore_t_)GetSharedProcedure(espstorelib, factoryMethodName);
     if (!xproc)
-        throw MakeStringException(-1, "CwsstoreEx::loadStoreProvider: Cannot load procedure '%s' from library '%s'", factoryMethodName, libName);
+        throw MakeStringException(ESPERR_CwsstoreexLoadstoreproviderCannotLoadProcedureS, "CwsstoreEx::loadStoreProvider: Cannot load procedure '%s' from library '%s'", factoryMethodName, libName);
 
     return (IEspStore*) xproc();
 }

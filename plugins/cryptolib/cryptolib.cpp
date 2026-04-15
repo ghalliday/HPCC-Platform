@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "jexcept.hpp"
+#include "pluginerr.hpp"
 #include "digisign.hpp"
 #include "ske.hpp"
 #include "dadfs.hpp"
@@ -138,7 +139,7 @@ static void symmDeserialize(size32_t lenPBuffer, const void * pBuffer, StringBuf
     if (pBuffer && lenPBuffer > 0)
     {
         if (lenPBuffer < (sizeof(size32_t) + sizeof(size32_t) + sizeof(size32_t))) // size of IV + size of plaintext + size of cipher name
-            throw makeStringExceptionV(-1, "Invalid encrypted data length (%d) while deserializing ciphertext", lenPBuffer);
+            throw makeStringExceptionV(PLUGINERR_InvalidEncryptedDataLengthDWhile, "Invalid encrypted data length (%d) while deserializing ciphertext", lenPBuffer);
 
         size32_t len;
         const char * finger = (const char *)pBuffer;
@@ -154,7 +155,7 @@ static void symmDeserialize(size32_t lenPBuffer, const void * pBuffer, StringBuf
         memcpy(&len, finger, sizeof(size32_t));//extract length of cipher name
         finger += sizeof(size32_t);
         if ((finger + len) > (finger + lenPBuffer))
-            throw makeStringExceptionV(-1, "Invalid cipher name length (%d) while deserializing ciphertext", len);
+            throw makeStringExceptionV(PLUGINERR_InvalidCipherNameLengthDWhile, "Invalid cipher name length (%d) while deserializing ciphertext", len);
         
         sbCipher.append(len, finger);//extract cipher name
     }
@@ -191,20 +192,20 @@ void verifySymmetricAlgorithm(const char * algorithm, size32_t len)
      if (strieq(algorithm, "aes-128-cbc"))
      {
          if (len != 16)
-             throw makeStringExceptionV(-1, "Invalid Key Length %d specified for algorithm %s, try 16", len, algorithm);
+             throw makeStringExceptionV(PLUGINERR_InvalidKeyLengthDSpecifiedFor, "Invalid Key Length %d specified for algorithm %s, try 16", len, algorithm);
      }
      else if (strieq(algorithm, "aes-192-cbc"))
      {
          if (len != 24)
-             throw makeStringExceptionV(-1, "Invalid Key Length %d specified for algorithm %s, try 24", len, algorithm);
+             throw makeStringExceptionV(PLUGINERR_InvalidKeyLengthDSpecifiedFor_1, "Invalid Key Length %d specified for algorithm %s, try 24", len, algorithm);
      }
      else if (strieq(algorithm, "aes-256-cbc"))
      {
          if (len != 32)
-             throw makeStringExceptionV(-1, "Invalid Key Length %d specified for algorithm %s, try 32", len, algorithm);
+             throw makeStringExceptionV(PLUGINERR_InvalidKeyLengthDSpecifiedFor_2, "Invalid Key Length %d specified for algorithm %s, try 32", len, algorithm);
      }
      else
-         throw makeStringExceptionV(-1, "Unsupported symmetric algorithm (%s) specified", algorithm);
+         throw makeStringExceptionV(PLUGINERR_UnsupportedSymmetricAlgorithmSSpecified, "Unsupported symmetric algorithm (%s) specified", algorithm);
 }
 
 CRYPTOLIB_API void CRYPTOLIB_CALL clSymmEncrypt(size32_t & __lenResult, void * & __result,
@@ -298,7 +299,7 @@ void throwHashError(const char * str)
     unsigned long err = ERR_get_error();
     char errStr[1024];
     ERR_error_string_n(err, errStr, sizeof(errStr));
-    throw makeStringExceptionV(-1, "%s : ERROR %ld (0x%lX) : %s", str, err, err, errStr);
+    throw makeStringExceptionV(PLUGINERR_SErrorLd0xLxS, "%s : ERROR %ld (0x%lX) : %s", str, err, err, errStr);
 }
 
 CRYPTOLIB_API void CRYPTOLIB_CALL clHash(size32_t & __lenResult, void * & __result,
@@ -398,7 +399,7 @@ CRYPTOLIB_API void CRYPTOLIB_CALL clHash(size32_t & __lenResult, void * & __resu
     }
     else
     {
-        throw makeStringExceptionV(-1, "Unsupported hash algorithm '%s' specified", algorithm);
+        throw makeStringExceptionV(PLUGINERR_UnsupportedHashAlgorithmSSpecified, "Unsupported hash algorithm '%s' specified", algorithm);
     }
 }
 
@@ -436,14 +437,14 @@ void doPKISign(size32_t & __lenResult, void * & __result,
     }
     else
     {
-        throw makeStringException(-1, "Unable to create Digital Signature");
+        throw makeStringException(PLUGINERR_UnableToCreateDigitalSignature, "Unable to create Digital Signature");
     }
 }
 
 void verifyPKIAlgorithm(const char * pkAlgorithm)
 {
     if (!strieq(pkAlgorithm, "RSA"))
-        throw makeStringExceptionV(-1, "Unsupported PKI algorithm (%s) specified", pkAlgorithm);
+        throw makeStringExceptionV(PLUGINERR_UnsupportedPkiAlgorithmSSpecified, "Unsupported PKI algorithm (%s) specified", pkAlgorithm);
 }
 
 
@@ -460,12 +461,12 @@ void loadLFS(const char * lfs, IUserDescriptor * user, StringBuffer &sb)
         Owned<IDistributedFile> df = queryDistributedFileDirectory().lookup(lfn, user, AccessMode::tbdRead, false, false, nullptr, defaultPrivilegedUser);//scope checks
         if (!df)
         {
-            throw makeStringExceptionV(-1, "File %s Not Found", lfs);
+            throw makeStringExceptionV(PLUGINERR_FileSNotFound, "File %s Not Found", lfs);
         }
 
         if (df->numParts() == 0)
         {
-            throw makeStringExceptionV(-1, "File %s is Empty", lfs);
+            throw makeStringExceptionV(PLUGINERR_FileSIsEmpty, "File %s is Empty", lfs);
         }
 
         IDistributedFilePart &part = df->queryPart(0);
@@ -474,7 +475,7 @@ void loadLFS(const char * lfs, IUserDescriptor * user, StringBuffer &sb)
         Owned<IFile> file = createIFile(part.getFilename(rfn));
         if (!file->exists())
         {
-            throw makeStringExceptionV(-1, "File %s Not Found", lfs);
+            throw makeStringExceptionV(PLUGINERR_FileSNotFound, "File %s Not Found", lfs);
         }
 
         Owned<IFileIO> io = file->open(IFOread);
@@ -489,7 +490,7 @@ void loadLFS(const char * lfs, IUserDescriptor * user, StringBuffer &sb)
         StringBuffer s;
         VStringBuffer sb("Error accessing Key file '%s' : %s", lfs, e->errorMessage(s).str());
         e->Release();
-        throw makeStringException(-1, sb.str());
+        throw makeStringException(PLUGINERR_SbStr, sb.str());
     }
 }
 
@@ -562,7 +563,7 @@ CRYPTOLIB_API void CRYPTOLIB_CALL clPKISign2(size32_t & __lenResult,void * & __r
     }
     else
     {
-        throw makeStringException(-1, "Unable to create Digital Signature Manager");
+        throw makeStringException(PLUGINERR_UnableToCreateDigitalSignatureManager, "Unable to create Digital Signature Manager");
     }
 }
 
@@ -582,7 +583,7 @@ CRYPTOLIB_API void CRYPTOLIB_CALL clPKISignLFN2(ICodeContext * ctx,
     }
     else
     {
-        throw makeStringException(-1, "Unable to create Digital Signature Manager");
+        throw makeStringException(PLUGINERR_UnableToCreateDigitalSignatureManager, "Unable to create Digital Signature Manager");
     }
 }
 
@@ -600,7 +601,7 @@ CRYPTOLIB_API void CRYPTOLIB_CALL clPKISignBuff2(size32_t & __lenResult, void * 
     }
     else
     {
-        throw makeStringException(-1, "Unable to create Digital Signature Manager");
+        throw makeStringException(PLUGINERR_UnableToCreateDigitalSignatureManager, "Unable to create Digital Signature Manager");
     }
 }
 
@@ -621,7 +622,7 @@ CRYPTOLIB_API bool CRYPTOLIB_CALL clPKIVerifySignature2(const char * pkalgorithm
     }
     else
     {
-        throw makeStringException(-1, "Unable to create Digital Signature Manager");
+        throw makeStringException(PLUGINERR_UnableToCreateDigitalSignatureManager, "Unable to create Digital Signature Manager");
     }
 }
 
@@ -643,7 +644,7 @@ CRYPTOLIB_API bool CRYPTOLIB_CALL clPKIVerifySignatureLFN2(ICodeContext * ctx,
     }
     else
     {
-        throw makeStringException(-1, "Unable to create Digital Signature Manager");
+        throw makeStringException(PLUGINERR_UnableToCreateDigitalSignatureManager, "Unable to create Digital Signature Manager");
     }
 }
 
@@ -663,7 +664,7 @@ CRYPTOLIB_API bool CRYPTOLIB_CALL clPKIVerifySignatureBuff2(const char * pkalgor
     }
     else
     {
-        throw makeStringException(-1, "Unable to create Digital Signature Manager");
+        throw makeStringException(PLUGINERR_UnableToCreateDigitalSignatureManager, "Unable to create Digital Signature Manager");
     }
 }
 
@@ -741,7 +742,7 @@ public:
     CLoadedKey * getInstance(bool isPublic, const char * keyFS, const char * keyBuff, const char * passphrase)
     {
         if (isEmptyString(keyFS) && isEmptyString(keyBuff))
-            throw makeStringExceptionV(-1, "Must specify a key filename or provide a key buffer");
+            throw makeStringExceptionV(PLUGINERR_MustSpecifyAKeyFilenameOr, "Must specify a key filename or provide a key buffer");
         VStringBuffer searchKey("%s_%s_%s", isEmptyString(keyFS) ? "" : keyFS, isEmptyString(keyBuff) ? "" : keyBuff, isEmptyString(passphrase) ? "" : passphrase);
         KeyCache::iterator it = keyCache.find(searchKey.str());
         CLoadedKey * ret = nullptr;
@@ -842,7 +843,7 @@ public:
                     newKey = loadPrivateKeyFromMemory(keyBuff, lenPassphrase, passphrase);
             }
             else
-                throw makeStringException(-1, "Must specify a key filename or provide a key buffer");
+                throw makeStringException(PLUGINERR_MustSpecifyAKeyFilenameOr, "Must specify a key filename or provide a key buffer");
 
             m_loadedKey.setown(newKey);//releases previous ptr
             m_isPublic = isPublic;

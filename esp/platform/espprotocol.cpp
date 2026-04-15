@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include "esphttp.hpp"
+#include "esperr.hpp"
 
 #include "platform.h"
 #include "espprotocol.hpp"
@@ -115,7 +116,7 @@ void CEspApplicationPort::removeBinding(IEspRpcBinding* binding)
 const StringBuffer &CEspApplicationPort::getAppFrameHtml(time_t &modified, const char *inner, StringBuffer &html, IEspContext* ctx)
 {
     if (!xslp)
-       throw MakeStringException(0,"Error - CEspApplicationPort XSLT processor not initialized");
+       throw MakeStringException(ESPERR_ErrorCespapplicationportXsltProcessorNotInitialized, "Error - CEspApplicationPort XSLT processor not initialized");
 
     bool embedded_url=(inner&&*inner);
 

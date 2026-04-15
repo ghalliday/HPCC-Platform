@@ -12,6 +12,7 @@
 ############################################################################## */
 
 #include "parquetembed.hpp"
+#include "pluginerr.hpp"
 #include "arrow/result.h"
 #include "parquet/arrow/schema.h"
 #include "arrow/io/api.h"
@@ -320,7 +321,7 @@ extern "C++" PARQUETEMBED_PLUGIN_API void getParquetRecordStructure(size32_t &__
  */
 extern void UNSUPPORTED(const char *feature)
 {
-    throw MakeStringException(-1, "%s UNSUPPORTED feature: %s not supported in %s", MODULE_NAME, feature, VERSION);
+    throw MakeStringException(PLUGINERR_SUnsupportedFeatureSNotSupported, "%s UNSUPPORTED feature: %s not supported in %s", MODULE_NAME, feature, VERSION);
 }
 
 /**
@@ -2931,7 +2932,7 @@ MODULE_INIT(INIT_PRIORITY_STANDARD)
     auto st = arrow::compute::Initialize();
     if (!st.ok())
     {
-        throw MakeStringException(-1, "Failed to initialize Arrow compute");
+        throw MakeStringException(PLUGINERR_FailedToInitializeArrowCompute, "Failed to initialize Arrow compute");
     }
     return true;
 }

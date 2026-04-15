@@ -19,6 +19,7 @@
 #define _SOAP_PARAM_H_
 
 #include "esphttp.hpp"
+#include "esperr.hpp"
 
 inline bool esp_convert(const char* sv, StringAttr& value){value.set(sv); return (!sv);}
 inline bool esp_convert(const char* sv, StringBuffer& value){value.clear().append(sv); return (!sv);}
@@ -922,7 +923,7 @@ public:
             aindex_t tempval = enumstrings.find(s);
 
             if (tempval == NotFound)
-                throw MakeStringException(-1, "Invalid value for type %s: %s", typeName_.get(), s);
+                throw MakeStringException(ESPERR_InvalidValueForTypeSS, "Invalid value for type %s: %s", typeName_.get(), s);
             else
                 defvalue = (enumtype)tempval;
             if (value == -1)
@@ -961,7 +962,7 @@ public:
                 return (enumtype)tempval;
         }
 
-        throw MakeStringException(-1, "Invalid value for type %s: %s", typeName_.get(), s ? s : "");
+        throw MakeStringException(ESPERR_InvalidValueForTypeSS, "Invalid value for type %s: %s", typeName_.get(), s ? s : "");
     }
 
     void copy(SoapEnumParamNew<enumtype>  &from)
@@ -980,7 +981,7 @@ public:
         else if (valuex == -1)
             value = defvalue;
         else
-            throw MakeStringException(-1, "Invalid value for type %s: %d", typeName_.get(), valuex);
+            throw MakeStringException(ESPERR_InvalidValueForTypeSD, "Invalid value for type %s: %d", typeName_.get(), valuex);
     }
 
     void setValue(const char* s)
@@ -989,7 +990,7 @@ public:
         {
             aindex_t tempval = enumstrings.find(s);
             if (tempval == NotFound)
-                throw MakeStringException(-1, "Invalid value for type %s: %s", typeName_.get(), s);
+                throw MakeStringException(ESPERR_InvalidValueForTypeSS, "Invalid value for type %s: %s", typeName_.get(), s);
             else
                 value = (enumtype)tempval;
         }

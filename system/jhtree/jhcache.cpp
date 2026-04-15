@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "systemerr.hpp"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -134,11 +135,11 @@ public:
 
         // throws means roxie will not start ...
         if ((pageSize < 8192) || !isPowerOf2(pageSize))
-            throw makeStringExceptionV(0, "Disk pageCache invalid page size %u", pageSize);
+            throw makeStringExceptionV(SYSTEMERR_DiskPagecacheInvalidPageSizeU, "Disk pageCache invalid page size %u", pageSize);
 
         // If read size is smaller than the page size, and a power of 2 then pageSize must be a multiple of readSize
         if ((readSize > pageSize) || !isPowerOf2(readSize))
-            throw makeStringExceptionV(0, "Disk pageCache invalid read size %u for page %u", readSize, pageSize);
+            throw makeStringExceptionV(SYSTEMERR_DiskPagecacheInvalidReadSizeU, "Disk pageCache invalid read size %u for page %u", readSize, pageSize);
 
         pageOffsetMask = ~(offset_t)(pageSize - 1);
         readOffsetMask = ~(offset_t)(readSize - 1);
@@ -380,7 +381,7 @@ public:
         fileId &= ~(1U << 31);
 
         if ( (fileId >= (1U << fileIdBits)) || (alignedPosShift >= (1ULL << offsetBits)) )
-            throw makeStringExceptionV(0, "disk page cache read: invalid fileId %u / offset %llu", fileId, alignedPos);
+            throw makeStringExceptionV(SYSTEMERR_DiskPageCacheReadInvalidFileid, "disk page cache read: invalid fileId %u / offset %llu", fileId, alignedPos);
 
         offset_t cacheVal;
         unsigned cacheKey;
@@ -434,7 +435,7 @@ public:
         fileId &= ~(1U << 31);
 
         if ( (fileId >= (1U << fileIdBits)) || (alignedPosShift >= (1ULL << offsetBits)) )
-            throw makeStringExceptionV(0, "disk page cache write: invalid fileId %u / offset %llu", fileId, alignedPos);
+            throw makeStringExceptionV(SYSTEMERR_DiskPageCacheWriteInvalidFileid, "disk page cache write: invalid fileId %u / offset %llu", fileId, alignedPos);
 
         offset_t cacheVal;
         unsigned cacheKey;
@@ -599,11 +600,11 @@ public:
         offsetMask = ~(offset_t)(pageSize-1);
 
         if ((pageSize < 8192) || !isPowerOf2(pageSize))
-            throw makeStringExceptionV(0, "Invalid page size %u", pageSize);
+            throw makeStringExceptionV(SYSTEMERR_InvalidPageSizeU, "Invalid page size %u", pageSize);
 
         // If read size is smaller than the page size, and a power of 2 then pageSize must be a multiple of readSize
         if ((readSize > pageSize) || !isPowerOf2(readSize))
-            throw makeStringExceptionV(0, "Invalid read size %u for page %u", readSize, pageSize);
+            throw makeStringExceptionV(SYSTEMERR_InvalidReadSizeUForPage, "Invalid read size %u for page %u", readSize, pageSize);
         cache.data.allocate(pageSize);
     }
 

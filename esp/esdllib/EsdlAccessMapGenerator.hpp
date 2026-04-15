@@ -19,6 +19,7 @@
 #define _EsdlAccessMapGenerator_HPP_
 
 #include "AccessMapGenerator.hpp"
+#include "esperr.hpp"
 #include "esdl_def.hpp"
 #include "espcontext.hpp"
 #include "jlog.hpp"
@@ -118,7 +119,7 @@ protected:
         // The exception is thrown first due to a crash in the esdl application when the
         // exception occurs while fprintf is processing the message.
         if (errorsAreFatal())
-            throw MakeStringException(0, "%s", msg.str());
+            throw MakeStringException(ESPERR_S, "%s", msg.str());
         if (m_reporter.get() != nullptr)
             m_reporter->report(REPORT_FLAGS(IEsdlDefReporter::ReportUError), fmt, args);
     }

@@ -18,6 +18,7 @@
 #define CONFIGENGCALLBACK_HPP
 
 #include "deploy.hpp"
+#include "deployerr.hpp"
 
 class CConfigEngCallback: public CInterface, implements IDeploymentCallback
 {
@@ -169,7 +170,7 @@ class CConfigEngCallback: public CInterface, implements IDeploymentCallback
       if (m_abortOnException)
       {
         m_abort = true;
-        throw MakeStringException(0, "%s", m_sbExMsg.str());
+        throw MakeStringException(DEPLOYERR_S, "%s", m_sbExMsg.str());
       }
 
       return true;

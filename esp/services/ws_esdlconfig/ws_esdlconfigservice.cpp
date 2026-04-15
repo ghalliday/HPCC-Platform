@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include "ws_esdlconfigservice.hpp"
+#include "esperr.hpp"
 #include "exception_util.hpp"
 #include "daclient.hpp"
 #include "dalienv.hpp"
@@ -42,7 +43,7 @@ IPropertyTree * fetchConfigInfo(IPropertyTree* configTree,
 
     if (nullptr == configTree)
     {
-        throw MakeStringException(-1,"Empty config detected");
+        throw MakeStringException(ESPERR_EmptyConfigDetected, "Empty config detected");
     }
     else
     {
@@ -67,8 +68,7 @@ IPropertyTree * fetchConfigInfo(IPropertyTree* configTree,
                 if (espProcName.length() == 0)
                     espProcName.set(espProcNameFromConfig);
                 else if (stricmp(espProcName.str(), espProcNameFromConfig.str()) != 0)
-                    throw MakeStringException(-1,
-                            "ESP Process name (%s) does not match espprocess entry submitted in configuration (%s).", espProcName.str(), espProcNameFromConfig.str());
+                    throw MakeStringException(ESPERR_EspProcessNameSDoesNot, "ESP Process name (%s) does not match espprocess entry submitted in configuration (%s).", espProcName.str(), espProcNameFromConfig.str());
             }
 
             if (espBindingNameFromConfig.length() != 0)
@@ -76,8 +76,7 @@ IPropertyTree * fetchConfigInfo(IPropertyTree* configTree,
                 if (espBindingName.length() == 0)
                     espBindingName.set(espBindingNameFromConfig);
                 else if (stricmp(espBindingName.str(), espBindingNameFromConfig.str()) != 0)
-                    throw MakeStringException(-1,
-                            "ESP Binding name (%s) does not match espprocess entry submitted in configuration (%s).", espBindingName.str(), espBindingNameFromConfig.str());
+                    throw MakeStringException(ESPERR_EspBindingNameSDoesNot, "ESP Binding name (%s) does not match espprocess entry submitted in configuration (%s).", espBindingName.str(), espBindingNameFromConfig.str());
             }
         }
 
@@ -96,8 +95,7 @@ IPropertyTree * fetchConfigInfo(IPropertyTree* configTree,
                 if (esdlDefId.length() == 0)
                     esdlDefId.set(esdlDefIdFromConfig);
                 else if (stricmp(esdlDefId.str(), esdlDefIdFromConfig.str()) != 0)
-                    throw MakeStringException(-1,
-                            "ESDL definition id (%s) associated with this service does not match the ID entry submitted in configuration (%s).", esdlDefId.str(), esdlDefIdFromConfig.str());
+                    throw MakeStringException(ESPERR_EsdlDefinitionIdSAssociatedWith, "ESDL definition id (%s) associated with this service does not match the ID entry submitted in configuration (%s).", esdlDefId.str(), esdlDefIdFromConfig.str());
             }
 
             if (esdlServiceNameFromConfig.length() != 0)
@@ -105,8 +103,7 @@ IPropertyTree * fetchConfigInfo(IPropertyTree* configTree,
                 if (esdlServiceName.length() == 0)
                     esdlServiceName.set(esdlServiceNameFromConfig);
                 else if (stricmp(esdlServiceName.str(), esdlServiceNameFromConfig.str()) != 0)
-                    throw MakeStringException(-1,
-                            "ESDL Service name (%s) does not match esdlservice entry submitted in configuration (%s).", esdlServiceName.str(), esdlServiceNameFromConfig.str());
+                    throw MakeStringException(ESPERR_EsdlServiceNameSDoesNot, "ESDL Service name (%s) does not match esdlservice entry submitted in configuration (%s).", esdlServiceName.str(), esdlServiceNameFromConfig.str());
             }
 
             methodstree = deftree->getBranch("Methods");
@@ -134,7 +131,7 @@ IPropertyTree * fetchConfigInfo(const char * config,
 
     if (!config || !*config)
     {
-        throw MakeStringException(-1,"Empty config detected");
+        throw MakeStringException(ESPERR_EmptyConfigDetected, "Empty config detected");
     }
     else
     {
@@ -147,7 +144,7 @@ IPropertyTree * fetchConfigInfo(const char * config,
         if (stricmp(rootname.str(), "Binding") == 0)
         {
             if(stricmp(bindingId, configTree->queryProp("@id")) != 0)
-                throw MakeStringException(-1, "Binding id in the config tree doesn't match binding id provided");
+                throw MakeStringException(ESPERR_BindingIdInTheConfigTree, "Binding id in the config tree doesn't match binding id provided");
         }
 
         IPropertyTree * deftree = NULL;
@@ -171,7 +168,7 @@ IPropertyTree * fetchConfigInfo(const char * config,
 void CWsESDLConfigEx::init(IPropertyTree *cfg, const char *process, const char *service)
 {
     if(cfg == NULL)
-        throw MakeStringException(-1, "can't initialize CWsESDLConfigEx, cfg is NULL");
+        throw MakeStringException(ESPERR_CanTInitializeCwsesdlconfigexCfgIs, "can't initialize CWsESDLConfigEx, cfg is NULL");
 
 #ifdef _DEBUG
     StringBuffer thexml;
@@ -184,7 +181,7 @@ void CWsESDLConfigEx::init(IPropertyTree *cfg, const char *process, const char *
     IPropertyTree* servicecfg = cfg->getPropTree(xpath.str());
 
     if(servicecfg == NULL)
-        throw MakeStringException(-1, "config not found for service %s/%s",process, service);
+        throw MakeStringException(ESPERR_ConfigNotFoundForServiceS_1, "config not found for service %s/%s",process, service);
 
     m_esdlStore.setown(getEsdlCentralStore(false));
     m_isDetachedFromDali = (nullptr == m_esdlStore);
@@ -278,7 +275,7 @@ bool CWsESDLConfigEx::onPublishESDLDefinition(IEspContext &context, IEspPublishE
     try
     {
         if (m_isDetachedFromDali)
-          throw MakeStringException(-1, "Cannot publish ESDL Service definition. ESP is currently detached from DALI.");
+          throw MakeStringException(ESPERR_CannotPublishEsdlServiceDefinitionEsp, "Cannot publish ESDL Service definition. ESP is currently detached from DALI.");
 
         context.ensureFeatureAccess(FEATURE_URL, SecAccess_Write, ECLWATCH_ROXIE_QUERY_ACCESS_DENIED, "WsESDLConfigEx::PublishESDLDefinition: Permission denied.");
 
@@ -299,7 +296,7 @@ bool CWsESDLConfigEx::onPublishESDLDefinition(IEspContext &context, IEspPublishE
 
         const char * inxmldef = req.getXMLDefinition();
         if (!inxmldef || !*inxmldef)
-            throw MakeStringException(-1, "Service definition (XML ESDL) is missing");
+            throw MakeStringException(ESPERR_ServiceDefinitionXmlEsdlIsMissing, "Service definition (XML ESDL) is missing");
 
         Owned<IPropertyTree> serviceXMLTree = createPTreeFromXMLString(inxmldef, ipt_caseInsensitive|ipt_ordered);
 #ifdef _DEBUG
@@ -320,7 +317,7 @@ bool CWsESDLConfigEx::onPublishESDLDefinition(IEspContext &context, IEspPublishE
                 servicenames.append(lcname.toLowerCase());
             }
             if (servicenames.length() == 0)
-                throw MakeStringException(-1, "Could not publish ESDL definition, the definition doesn't contain any service");
+                throw MakeStringException(ESPERR_CouldNotPublishEsdlDefinitionThe, "Could not publish ESDL definition, the definition doesn't contain any service");
 
             servicenames.sortAscii();
             for (int i = 0; i < servicenames.length(); i++)
@@ -338,7 +335,7 @@ bool CWsESDLConfigEx::onPublishESDLDefinition(IEspContext &context, IEspPublishE
             serviceXpath.appendf("EsdlService[@name=\"%s\"]", service.str());
 
             if (!serviceXMLTree->hasProp(serviceXpath))
-                throw MakeStringException(-1, "Service \"%s\" definition not found in ESDL provided", service.str());
+                throw MakeStringException(ESPERR_Service, "Service \"%s\" definition not found in ESDL provided", service.str());
         }
 
         bool deletePrevious = req.getDeletePrevious();
@@ -434,7 +431,7 @@ bool CWsESDLConfigEx::onPublishESDLDefinition(IEspContext &context, IEspPublishE
                 }
                 catch (...)
                 {
-                    throw MakeStringException(-1, "Unexpected error while attempting to fetch ESDL definition.");
+                    throw MakeStringException(ESPERR_UnexpectedErrorWhileAttemptingToFetch, "Unexpected error while attempting to fetch ESDL definition.");
                 }
             }
         }
@@ -447,7 +444,7 @@ bool CWsESDLConfigEx::onPublishESDLDefinition(IEspContext &context, IEspPublishE
     }
     catch(...)
     {
-        throw MakeStringException(-1, "Unexpected error while attempting to publish ESDL definition.");
+        throw MakeStringException(ESPERR_UnexpectedErrorWhileAttemptingToPublish, "Unexpected error while attempting to publish ESDL definition.");
     }
 
     return true;
@@ -458,7 +455,7 @@ bool CWsESDLConfigEx::onPublishESDLBinding(IEspContext &context, IEspPublishESDL
     try
     {
         if (m_isDetachedFromDali)
-            throw MakeStringException(-1, "Cannot publish ESDL Binding. ESP is currently detached from DALI.");
+            throw MakeStringException(ESPERR_CannotPublishEsdlBindingEspIs, "Cannot publish ESDL Binding. ESP is currently detached from DALI.");
 
         context.ensureFeatureAccess(FEATURE_URL, SecAccess_Write, ECLWATCH_ROXIE_QUERY_ACCESS_DENIED, "WsESDLConfigEx::PublishESDLBinding: Permission denied.");
 
@@ -518,10 +515,10 @@ bool CWsESDLConfigEx::onPublishESDLBinding(IEspContext &context, IEspPublishESDL
             ESPLOG(LogMin, "Publishing ESDL Binding with no METHODS configured!");
 
         if (espProcName.length() == 0)
-            throw MakeStringException(-1, "Must provide ESP Process name");
+            throw MakeStringException(ESPERR_MustProvideEspProcessName, "Must provide ESP Process name");
 
         if (espBindingName.length() == 0 && espPort.length() == 0)
-            throw MakeStringException(-1, "Must provide either ESP Port, or Binding Name");
+            throw MakeStringException(ESPERR_MustProvideEitherEspPortOr, "Must provide either ESP Port, or Binding Name");
 
         if (m_esdlStore->definitionExists(esdlDefIdSTR.str()))
         {
@@ -535,7 +532,7 @@ bool CWsESDLConfigEx::onPublishESDLBinding(IEspContext &context, IEspPublishESDL
                    const char * methodName = item.queryProp("@name");
                    methodxpath.setf("Method[@name='%s']", methodName);
                    if (methodstree->getCount(methodxpath) > 1)
-                       throw MakeStringException(-1, "Detected non-unique configuration entry: Method name='%s'", methodName);
+                       throw MakeStringException(ESPERR_DetectedNonUniqueConfigurationEntryMethod, "Detected non-unique configuration entry: Method name='%s'", methodName);
 
                    if (!m_esdlStore->isMethodDefined(esdlDefIdSTR.str(), esdlServiceName, methodName))
                    {
@@ -700,10 +697,10 @@ void setContainerizedEspBindingNameByPort(StringBuffer& espPort, StringBuffer& e
     VStringBuffer xpath("services[@class='esp'][@port='%s']", espPort.str());
     Owned<IPropertyTree> process = getGlobalConfigSP()->getPropTree(xpath);
     if (nullptr == process)
-        throw makeStringExceptionV(-1, "No ESP process configured for port %s", espPort.str());
+        throw makeStringExceptionV(ESPERR_NoEspProcessConfiguredForPort, "No ESP process configured for port %s", espPort.str());
     const char* applicationType = process->queryProp("@type");
     if (isEmptyString(applicationType))
-        throw makeStringExceptionV(-1, "ESP process configured for port %s is missing 'type'", espPort.str());
+        throw makeStringExceptionV(ESPERR_EspProcessConfiguredForPortS, "ESP process configured for port %s is missing 'type'", espPort.str());
 
     char sepchar = getPathSepChar(hpccBuildInfo.componentDir);
     StringBuffer path(hpccBuildInfo.componentDir);
@@ -713,11 +710,11 @@ void setContainerizedEspBindingNameByPort(StringBuffer& espPort, StringBuffer& e
         Owned<IPropertyTree> applicationProfile = createPTreeFromYAMLFile(path);
         const char* serviceName = applicationProfile->queryProp("application/services[1]");
         if (isEmptyString(serviceName))
-            throw makeStringExceptionV(-1, "No service entry found in ESP application profile '%s' while trying to build service binding name for port %s", path.str(), espPort.str());
+            throw makeStringExceptionV(ESPERR_NoServiceEntryFoundInEsp, "No service entry found in ESP application profile '%s' while trying to build service binding name for port %s", path.str(), espPort.str());
         espBindingName.setf("%s_binding", serviceName);
     }
     else
-        throw makeStringExceptionV(-1, "Can't open platform ESP application profile '%s' to build service binding name for port %s", path.str(), espPort.str());
+        throw makeStringExceptionV(ESPERR_CanTOpenPlatformEspApplication, "Can't open platform ESP application profile '%s' to build service binding name for port %s", path.str(), espPort.str());
 }
 
 bool CWsESDLConfigEx::onConfigureESDLBindingMethod(IEspContext &context, IEspConfigureESDLBindingMethodRequest &req, IEspConfigureESDLBindingMethodResponse &resp)
@@ -726,7 +723,7 @@ bool CWsESDLConfigEx::onConfigureESDLBindingMethod(IEspContext &context, IEspCon
     try
     {
         if (m_isDetachedFromDali)
-            throw MakeStringException(-1, "Cannot Configure ESDL Binding Method. ESP is currently detached from DALI.");
+            throw MakeStringException(ESPERR_CannotConfigureEsdlBindingMethodEsp, "Cannot Configure ESDL Binding Method. ESP is currently detached from DALI.");
 
         context.ensureFeatureAccess(FEATURE_URL, SecAccess_Write, ECLWATCH_ROXIE_QUERY_ACCESS_DENIED, "WsESDLConfigEx::ConfigureESDLBindingMethod: Permission denied.");
 
@@ -750,7 +747,7 @@ bool CWsESDLConfigEx::onConfigureESDLBindingMethod(IEspContext &context, IEspCon
             StringBuffer msg;
             Owned<IPropertyTree> bindingtree = m_esdlStore->getBindingTree(bindingId, msg);
             if(!bindingtree)
-                throw MakeStringException(-1, "Can't find esdl binding for id %s", bindingId);
+                throw MakeStringException(ESPERR_CanTFindEsdlBindingFor, "Can't find esdl binding for id %s", bindingId);
             bindingtree->getProp("@espprocess", espProcName);
             bindingtree->getProp("@espbinding", espBindingName);
             bindingtree->getProp("@port", espPort);
@@ -797,7 +794,7 @@ bool CWsESDLConfigEx::onConfigureESDLBindingMethod(IEspContext &context, IEspCon
         }
 
         if (!methodstree || methodstree->getCount("Method") <= 0)
-            throw MakeStringException(-1, "Could not find any method configuration entries.");
+            throw MakeStringException(ESPERR_CouldNotFindAnyMethodConfiguration, "Could not find any method configuration entries.");
 
         bool override = req.getOverwrite();
 
@@ -810,7 +807,7 @@ bool CWsESDLConfigEx::onConfigureESDLBindingMethod(IEspContext &context, IEspCon
                 esdlDefinitionName.append(*esdlDefId++);
 
             if (!esdlDefId || !*esdlDefId)
-                throw MakeStringException(-1, "Invalid ESDL Definition ID format detected: '%s'. Expected format: <esdldefname>.<ver>", esdlDefIdSTR.str());
+                throw MakeStringException(ESPERR_InvalidEsdlDefinitionIdFormatDetected, "Invalid ESDL Definition ID format detected: '%s'. Expected format: <esdldefname>.<ver>", esdlDefIdSTR.str());
 
             esdlDefId++;
 
@@ -818,28 +815,28 @@ bool CWsESDLConfigEx::onConfigureESDLBindingMethod(IEspContext &context, IEspCon
                 esdlver = atoi(esdlDefId);
 
             if (esdlver <= 0)
-                throw MakeStringException(-1, "Invalid ESDL Definition version detected: %d", esdlver);
+                throw MakeStringException(ESPERR_InvalidEsdlDefinitionVersionDetectedD, "Invalid ESDL Definition version detected: %d", esdlver);
         }
         else if (ver >= 1.4)
-            throw MakeStringException(-1, "Can't find esdl definition for binding %s", bindingId);
+            throw MakeStringException(ESPERR_CanTFindEsdlDefinitionFor, "Can't find esdl definition for binding %s", bindingId);
 
         if (ver < 1.4)
         {
             if (esdlServiceName.length() == 0)
             {
                if (esdlDefinitionName.length() == 0)
-                    throw MakeStringException(-1, "Must provide either valid EsdlDefinition ID <esdldefname>.<ver> or EsdlServiceName");
+                    throw MakeStringException(ESPERR_MustProvideEitherValidEsdldefinitionId, "Must provide either valid EsdlDefinition ID <esdldefname>.<ver> or EsdlServiceName");
                 else
                     esdlServiceName.set(esdlDefinitionName.str());
             }
 
             if (espProcName.length() == 0)
-                throw MakeStringException(-1, "Must provide ESP Process name");
+                throw MakeStringException(ESPERR_MustProvideEspProcessName, "Must provide ESP Process name");
 
             if (espBindingName.length() == 0)
             {
                 if (espPort.length() <= 0 && espServiceName.length() <= 0)
-                    throw MakeStringException(-1, "Must provide either ESP Port, or Service Name");
+                    throw MakeStringException(ESPERR_MustProvideEitherEspPortOr_1, "Must provide either ESP Port, or Service Name");
 
                 if (isContainerized())
                     setContainerizedEspBindingNameByPort(espPort, espBindingName);
@@ -1043,7 +1040,7 @@ bool CWsESDLConfigEx::onConfigureESDLBindingLogTransform(IEspContext &context, I
     try
     {
         if (m_isDetachedFromDali)
-            throw MakeStringException(-1, "Cannot Configure ESDL Binding LogTransform. ESP is currently detached from DALI.");
+            throw MakeStringException(ESPERR_CannotConfigureEsdlBindingLogtransformEsp, "Cannot Configure ESDL Binding LogTransform. ESP is currently detached from DALI.");
 
         context.ensureFeatureAccess(FEATURE_URL, SecAccess_Write, ECLWATCH_ROXIE_QUERY_ACCESS_DENIED, "WsESDLConfigEx::ConfigureESDLBindingLogTransform: Permission denied.");
 
@@ -1055,7 +1052,7 @@ bool CWsESDLConfigEx::onConfigureESDLBindingLogTransform(IEspContext &context, I
         const char* logTransformName = req.getLogTransformName();
         const char* logTransform = req.getConfig();
         if (isEmptyString(logTransform))
-            throw MakeStringException(-1, "Config not defined.");
+            throw MakeStringException(ESPERR_ConfigNotDefined, "Config not defined.");
 
         StringBuffer espProcName;
         StringBuffer espBindingName;
@@ -1065,7 +1062,7 @@ bool CWsESDLConfigEx::onConfigureESDLBindingLogTransform(IEspContext &context, I
         if (strncmp(logTransform, "<LogTransforms>", 15) == 0)
             config.set(logTransform);
         else if (isEmptyString(logTransformName))
-            throw MakeStringException(-1, "LogTransformName not defined");
+            throw MakeStringException(ESPERR_LogtransformnameNotDefined, "LogTransformName not defined");
         else
         {
             config.appendf("<LogTransforms><LogTransform name='%s'>", logTransformName);
@@ -1083,7 +1080,7 @@ bool CWsESDLConfigEx::onConfigureESDLBindingLogTransform(IEspContext &context, I
         StringBuffer msg;
         Owned<IPropertyTree> bindingtree = m_esdlStore->getBindingTree(bindingId, msg);
         if(!bindingtree)
-            throw MakeStringException(-1, "Can't find esdl binding for id %s", bindingId);
+            throw MakeStringException(ESPERR_CanTFindEsdlBindingFor, "Can't find esdl binding for id %s", bindingId);
 
         bindingtree->getProp("@espprocess", espProcName);
         bindingtree->getProp("@espbinding", espBindingName);
@@ -1092,18 +1089,18 @@ bool CWsESDLConfigEx::onConfigureESDLBindingLogTransform(IEspContext &context, I
 
         Owned<IPropertyTree> logTransformTree = fetchConfigInfo(config, bindingId, ESDLLogTransform);
         if (!logTransformTree || logTransformTree->getCount("LogTransform") <= 0)
-            throw MakeStringException(-1, "Could not find any LogTransform configuration entries.");
+            throw MakeStringException(ESPERR_CouldNotFindAnyLogtransformConfiguration, "Could not find any LogTransform configuration entries.");
 
         const char *esdlDefId = esdlDefIdSTR.str();
         if (isEmptyString(esdlDefId))
-            throw MakeStringException(-1, "Can't find esdl definition for binding %s", bindingId);
+            throw MakeStringException(ESPERR_CanTFindEsdlDefinitionFor, "Can't find esdl definition for binding %s", bindingId);
 
         StringBuffer esdlDefinitionName;
         while (esdlDefId && *esdlDefId != '.')
             esdlDefinitionName.append(*esdlDefId++);
 
         if (isEmptyString(esdlDefId))
-            throw MakeStringException(-1, "Invalid ESDL Definition ID format detected: '%s'. Expected format: <esdldefname>.<ver>", esdlDefIdSTR.str());
+            throw MakeStringException(ESPERR_InvalidEsdlDefinitionIdFormatDetected, "Invalid ESDL Definition ID format detected: '%s'. Expected format: <esdldefname>.<ver>", esdlDefIdSTR.str());
 
         int esdlver = 0;
         esdlDefId++;
@@ -1111,10 +1108,10 @@ bool CWsESDLConfigEx::onConfigureESDLBindingLogTransform(IEspContext &context, I
             esdlver = atoi(esdlDefId);
 
         if (esdlver <= 0)
-            throw MakeStringException(-1, "Invalid ESDL Definition version detected: %d", esdlver);
+            throw MakeStringException(ESPERR_InvalidEsdlDefinitionVersionDetectedD, "Invalid ESDL Definition version detected: %d", esdlver);
 
         if (!m_esdlStore->definitionExists(esdlDefIdSTR.str()))
-            throw MakeStringException(-1, "Invalid ESDL Definition: %s", esdlDefIdSTR.str());
+            throw MakeStringException(ESPERR_InvalidEsdlDefinitionS, "Invalid ESDL Definition: %s", esdlDefIdSTR.str());
 
         bool override = req.getOverwrite();
         StringBuffer status;
@@ -1154,7 +1151,7 @@ bool CWsESDLConfigEx::onGetESDLBinding(IEspContext &context, IEspGetESDLBindingR
     try
     {
         if (m_isDetachedFromDali)
-            throw MakeStringException(-1, "Cannot fetch ESDL Binding. ESP is currently detached from DALI.");
+            throw MakeStringException(ESPERR_CannotFetchEsdlBindingEspIs, "Cannot fetch ESDL Binding. ESP is currently detached from DALI.");
 
         context.ensureFeatureAccess(FEATURE_URL, SecAccess_Read, ECLWATCH_ROXIE_QUERY_ACCESS_DENIED, "WsESDLConfigEx::GetESDLBinding: Permission denied.");
 
@@ -1174,7 +1171,7 @@ bool CWsESDLConfigEx::onGetESDLBinding(IEspContext &context, IEspGetESDLBindingR
         {
             if (!(esdlBindId && *esdlBindId))
             {
-                throw MakeStringException(-1, "Must provide EsdlBindingId");
+                throw MakeStringException(ESPERR_MustProvideEsdlbindingid, "Must provide EsdlBindingId");
             }
         }
         else
@@ -1185,7 +1182,7 @@ bool CWsESDLConfigEx::onGetESDLBinding(IEspContext &context, IEspGetESDLBindingR
                 StringBuffer msg;
                 StringBuffer serviceName;
                 if (espProcName.length() == 0 || (espBindingName.length() == 0 && espPort.length() == 0))
-                    throw MakeStringException(-1, "Must provide EsdlBindingId, or EspProcName plus EspBinding or EspPort");
+                    throw MakeStringException(ESPERR_MustProvideEsdlbindingidOrEspprocnamePlus, "Must provide EsdlBindingId, or EspProcName plus EspBinding or EspPort");
                 if (espBindingName.length() == 0)
                 {
                     if (isContainerized())
@@ -1197,7 +1194,7 @@ bool CWsESDLConfigEx::onGetESDLBinding(IEspContext &context, IEspGetESDLBindingR
                         if(conn)
                             espBindingName.set(conn->queryRoot()->queryProp("@name"));
                         else
-                            throw MakeStringException(-1, "Can't find any esp binding for port %s", espPort.str());
+                            throw MakeStringException(ESPERR_CanTFindAnyEspBinding, "Can't find any esp binding for port %s", espPort.str());
                     }
                 }
             }
@@ -1405,7 +1402,7 @@ bool CWsESDLConfigEx::onDeleteESDLDefinition(IEspContext &context, IEspDeleteESD
 {
     resp.updateStatus().setCode(-1);
     if (m_isDetachedFromDali)
-        throw MakeStringException(-1, "Cannot delete ESDL Definition. ESP is currently detached from DALI.");
+        throw MakeStringException(ESPERR_CannotDeleteEsdlDefinitionEspIs, "Cannot delete ESDL Definition. ESP is currently detached from DALI.");
 
     context.ensureFeatureAccess(FEATURE_URL, SecAccess_Full, ECLWATCH_ROXIE_QUERY_ACCESS_DENIED, "WsESDLConfigEx::DeleteESDLDefinition: Permission denied.");
 
@@ -1449,7 +1446,7 @@ bool CWsESDLConfigEx::onDeleteESDLBinding(IEspContext &context, IEspDeleteESDLBi
     resp.updateStatus().setCode(-1);
 
     if (m_isDetachedFromDali)
-        throw MakeStringException(-1, "Cannot fetch ESDL Binding. ESP is currently detached from DALI.");
+        throw MakeStringException(ESPERR_CannotFetchEsdlBindingEspIs, "Cannot fetch ESDL Binding. ESP is currently detached from DALI.");
 
     context.ensureFeatureAccess(FEATURE_URL, SecAccess_Full, ECLWATCH_ROXIE_QUERY_ACCESS_DENIED, "WsESDLConfigEx::DeleteESDLBinding: Permission denied.");
 
@@ -1546,7 +1543,7 @@ bool CWsESDLConfigEx::onDeleteESDLBinding(IEspContext &context, IEspDeleteESDLBi
 bool CWsESDLConfigEx::onGetESDLDefinition(IEspContext &context, IEspGetESDLDefinitionRequest&req, IEspGetESDLDefinitionResponse &resp)
 {
      if (m_isDetachedFromDali)
-         throw MakeStringException(-1, "Cannot fetch ESDL Definition. ESP is currently detached from DALI.");
+         throw MakeStringException(ESPERR_CannotFetchEsdlDefinitionEspIs, "Cannot fetch ESDL Definition. ESP is currently detached from DALI.");
 
     context.ensureFeatureAccess(FEATURE_URL, SecAccess_Read, ECLWATCH_ROXIE_QUERY_ACCESS_DENIED, "WsESDLConfigEx::GetESDLDefinition: Permission denied.");
 
@@ -1603,7 +1600,7 @@ bool CWsESDLConfigEx::onGetESDLDefinition(IEspContext &context, IEspGetESDLDefin
     }
     catch (...)
     {
-        throw MakeStringException(-1, "Unexpected error while attempting to fetch ESDL definition.");
+        throw MakeStringException(ESPERR_UnexpectedErrorWhileAttemptingToFetch, "Unexpected error while attempting to fetch ESDL definition.");
     }
 
     if (ver >= 1.2)
@@ -1673,7 +1670,7 @@ bool CWsESDLConfigEx::onGetESDLDefinition(IEspContext &context, IEspGetESDLDefin
 bool CWsESDLConfigEx::onListESDLDefinitions(IEspContext &context, IEspListESDLDefinitionsRequest&req, IEspListESDLDefinitionsResponse &resp)
 {
     if (m_isDetachedFromDali)
-        throw MakeStringException(-1, "Cannot list ESDL Definitions. ESP is currently detached from DALI.");
+        throw MakeStringException(ESPERR_CannotListEsdlDefinitionsEspIs, "Cannot list ESDL Definitions. ESP is currently detached from DALI.");
 
     Owned<IPropertyTree> esdlDefinitions = m_esdlStore->getDefinitions();
     if(esdlDefinitions.get() == nullptr)
@@ -1708,7 +1705,7 @@ bool CWsESDLConfigEx::onListESDLDefinitions(IEspContext &context, IEspListESDLDe
 bool CWsESDLConfigEx::onListDESDLEspBindings(IEspContext &context, IEspListDESDLEspBindingsReq&req, IEspListDESDLEspBindingsResp &resp)
 {
     if (m_isDetachedFromDali)
-        throw MakeStringException(-1, "Cannot list ESDL ESP Bindings. ESP is currently detached from DALI.");
+        throw MakeStringException(ESPERR_CannotListEsdlEspBindingsEsp, "Cannot list ESDL ESP Bindings. ESP is currently detached from DALI.");
 
     double ver = context.getClientVersion();
 
@@ -1882,7 +1879,7 @@ void getAllEspProcessesSorted(StringArray& processes)
     {
         Owned<IRemoteConnection> conn = querySDS().connect("/Environment/Software", myProcessSession(), RTM_LOCK_READ , SDS_LOCK_TIMEOUT_DESDL);
         if (!conn)
-            throw MakeStringException(-1, "Unable to connect to /Environment/Software dali path");
+            throw MakeStringException(ESPERR_UnableToConnectToEnvironmentSoftware, "Unable to connect to /Environment/Software dali path");
 
         Owned<IPropertyTreeIterator> iter = conn->queryRoot()->getElements("EspProcess");
         ForEach (*iter)
@@ -1897,7 +1894,7 @@ void getAllEspProcessesSorted(StringArray& processes)
 bool CWsESDLConfigEx::onListESDLBindings(IEspContext &context, IEspListESDLBindingsRequest&req, IEspListESDLBindingsResponse &resp)
 {
     if (m_isDetachedFromDali)
-        throw MakeStringException(-1, "Cannot list ESDL Bindings. ESP is currently detached from DALI.");
+        throw MakeStringException(ESPERR_CannotListEsdlBindingsEspIs, "Cannot list ESDL Bindings. ESP is currently detached from DALI.");
 
     double ver = context.getClientVersion();
     Owned<IPropertyTree> esdlBindings = m_esdlStore->getBindings();

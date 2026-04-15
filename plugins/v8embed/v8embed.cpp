@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "pluginerr.hpp"
 #include "v8.h"
 #include "jexcept.hpp"
 #include "jthread.hpp"
@@ -57,7 +58,7 @@ __declspec(noreturn) static void UNSUPPORTED(const char *feature) __attribute__(
 
 static void UNSUPPORTED(const char *feature)
 {
-    throw MakeStringException(-1, "UNSUPPORTED feature: %s not supported in v8embed plugin", feature);
+    throw MakeStringException(PLUGINERR_UnsupportedFeatureSNotSupportedIn_5, "UNSUPPORTED feature: %s not supported in v8embed plugin", feature);
 }
 
 __declspec(noreturn) static void typeError(const char *expected, const RtlFieldInfo *field) __attribute__((noreturn));

@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <vector>
+#include "esperr.hpp"
 
 #include "jliball.hpp"
 #include "jcontainerized.hpp"
@@ -88,7 +89,7 @@ protected:
             VStringBuffer lfn("~remote::%s::%s", source->queryRemoteName(), owners[w].c_str());
             Owned<IDFSFile> dfsFile = lookupDFSFile(lfn, accessMode, source->queryTimeoutSecs(), keepAliveExpiryFrequency, source->queryUserDescriptor());
             if (!dfsFile)
-                throw makeStringExceptionV(0, "Failed to open superfile %s", lfn.str());
+                throw makeStringExceptionV(ESPERR_FailedToOpenSuperfileS, "Failed to open superfile %s", lfn.str());
             if (!dfsFile->numSubFiles())
                 throwUnexpected();
             Owned<IDistributedFile> legacyDFSFile = createLegacyDFSFile(dfsFile);
@@ -357,7 +358,7 @@ public:
             IPropertyTree *dafileSrvRemoteFilePlane = nullptr;
             Owned<IPropertyTree> remoteStorage = getRemoteStorage(remoteName);
             if (!remoteStorage)
-                throw makeStringExceptionV(0, "Remote storage '%s' not found", remoteName);
+                throw makeStringExceptionV(ESPERR_RemoteStorageSNotFound, "Remote storage '%s' not found", remoteName);
             const char *remotePlaneName = file->queryProp("@group");
             VStringBuffer planeXPath("planes[@name=\"%s\"]", remotePlaneName);
             IPropertyTree *filePlane = dfsFile->queryCommonMeta()->queryPropTree(planeXPath);
@@ -405,7 +406,7 @@ public:
                 if (isAbsolutePath(filePlanePrefix) && !filePlane->hasProp("hosts"))
                 {
                     if (!isMapping)
-                        throw makeStringExceptionV(0, "Remote storage '%s' for lfn '%s' with prefix '%s' has no local plane mapping for remote plane '%s'", remoteName, logicalName.str(), filePlanePrefix.str(), remotePlaneName);
+                        throw makeStringExceptionV(ESPERR_RemoteStorageSForLfnS, "Remote storage '%s' for lfn '%s' with prefix '%s' has no local plane mapping for remote plane '%s'", remoteName, logicalName.str(), filePlanePrefix.str(), remotePlaneName);
                     remap = true;
                 }
                 else if (isMapping) // if there's a mapping use it, but it's optional in this case
@@ -421,7 +422,7 @@ public:
 
                     Owned<const IStoragePlane> localPlane = getRemoteStoragePlane(localMappedPlaneName, false);
                     if (!localPlane)
-                        throw makeStringExceptionV(0, "Local plane not found, mapped to by remote storage '%s' (%s->%s)", remoteName, remotePlaneName, localMappedPlaneName);
+                        throw makeStringExceptionV(ESPERR_LocalPlaneNotFoundMappedTo, "Local plane not found, mapped to by remote storage '%s' (%s->%s)", remoteName, remotePlaneName, localMappedPlaneName);
 
                     DBGLOG("Remote logical file '%s' using remote storage '%s', mapping remote plane '%s' to local plane '%s'", logicalName.str(), remoteName, remotePlaneName, localMappedPlaneName);
 
@@ -530,7 +531,7 @@ public:
         if (!legacyDFSSuperFile->existsPhysicalPartFiles(0))
         {
             const char * logicalName = queryLogicalName();
-            throw makeStringExceptionV(-1, "Some physical parts do not exists, for logical file : %s",(isEmptyString(logicalName) ? "[unattached]" : logicalName));
+            throw makeStringExceptionV(ESPERR_SomePhysicalPartsDoNotExists, "Some physical parts do not exists, for logical file : %s",(isEmptyString(logicalName) ? "[unattached]" : logicalName));
         }
     }
 
@@ -636,25 +637,25 @@ static void configureClientSSL(IEspClientRpcSettings &rpc, const char *secretNam
 {
     Owned<const IPropertyTree> secretPTree = getSecret("storage", secretName);
     if (!secretPTree)
-        throw makeStringExceptionV(-1, "secret %s.%s not found", "storage", secretName);
+        throw makeStringExceptionV(ESPERR_SecretSSNotFound, "secret %s.%s not found", "storage", secretName);
 
     StringBuffer certSecretBuf;
     if (!getSecretKeyValue(certSecretBuf, secretPTree, "tls.crt"))
-        throw makeStringExceptionV(-1, "Client certificate 'tls.crt' missing from secret '%s'.", secretName);
+        throw makeStringExceptionV(ESPERR_ClientCertificateTlsCrtMissingFrom, "Client certificate 'tls.crt' missing from secret '%s'.", secretName);
     if (!containsEmbeddedKey(certSecretBuf))
-        throw makeStringExceptionV(-1, "Client certificate content 'tls.crt' for secret '%s' not in expected format.", secretName);
+        throw makeStringExceptionV(ESPERR_ClientCertificateContentTlsCrtFor, "Client certificate content 'tls.crt' for secret '%s' not in expected format.", secretName);
 
     StringBuffer privKeySecretBuf;
     if (!getSecretKeyValue(privKeySecretBuf, secretPTree, "tls.key"))
-        throw makeStringExceptionV(-1, "Client private key 'tls.crt' missing from secret '%s'.", secretName);
+        throw makeStringExceptionV(ESPERR_ClientPrivateKeyTlsCrtMissing, "Client private key 'tls.crt' missing from secret '%s'.", secretName);
     if (!containsEmbeddedKey(privKeySecretBuf))
-        throw makeStringExceptionV(-1, "Client private key content 'tls.key' for secret '%s' not in expected format.", secretName);
+        throw makeStringExceptionV(ESPERR_ClientPrivateKeyContentTlsKey, "Client private key content 'tls.key' for secret '%s' not in expected format.", secretName);
 
     StringBuffer caCertBuf;
     if (getSecretKeyValue(caCertBuf, secretPTree, "ca.crt"))
     {
         if (!containsEmbeddedKey(caCertBuf))
-            throw makeStringExceptionV(-1, "CA certificate content 'ca.crt' for secret '%s' not in expected format.", secretName);
+            throw makeStringExceptionV(ESPERR_CaCertificateContentCaCrtFor, "CA certificate content 'ca.crt' for secret '%s' not in expected format.", secretName);
     }
 
     setRpcSSLOptionsBuf(rpc, true, certSecretBuf.str(), privKeySecretBuf.str(), caCertBuf.str(), false);
@@ -699,7 +700,7 @@ unsigned __int64 ensureClientLease(IClientWsDfs *dfsClient, const char *service,
         }
 
         if (tm.timedout())
-            throw makeStringExceptionV(0, "GetLease timed out: timeoutSecs=%u", timeoutSecs);
+            throw makeStringExceptionV(ESPERR_GetleaseTimedOutTimeoutsecsU, "GetLease timed out: timeoutSecs=%u", timeoutSecs);
         Sleep(5000); // sanity sleep
     }
 }
@@ -731,7 +732,7 @@ IDFSFile *lookupDFSFile(const char *logicalName, AccessMode accessMode, unsigned
         {
             Owned<IPropertyTree> remoteStorage = getRemoteStorage(remoteName.str());
             if (!remoteStorage)
-                throw makeStringExceptionV(0, "Remote storage '%s' not found", remoteName.str());
+                throw makeStringExceptionV(ESPERR_RemoteStorageSNotFound, "Remote storage '%s' not found", remoteName.str());
             serviceUrl.set(remoteStorage->queryProp("@service"));
 
             if (startsWith(serviceUrl, "https"))
@@ -758,14 +759,14 @@ IDFSFile *lookupDFSFile(const char *logicalName, AccessMode accessMode, unsigned
         // This finds and uses local dfs service for local read lookups.
         Owned<IPropertyTreeIterator> eclWatchServices = getGlobalConfigSP()->getElements("services[@type='dfs']");
         if (!eclWatchServices->first())
-            throw makeStringException(-1, "Dfs service not defined in esp services");
+            throw makeStringException(ESPERR_DfsServiceNotDefinedInEsp, "Dfs service not defined in esp services");
         const IPropertyTree &eclWatch = eclWatchServices->query();
         StringBuffer eclWatchName;
         eclWatch.getProp("@name", eclWatchName);
         const char *protocol = eclWatch.getPropBool("@tls") ? "https" : "http";
         unsigned port = (unsigned)eclWatch.getPropInt("@port", NotFound);
         if (NotFound == port)
-            throw makeStringExceptionV(-1, "dfs '%s': service port not defined", eclWatchName.str());
+            throw makeStringExceptionV(ESPERR_DfsSServicePortNotDefined, "dfs '%s': service port not defined", eclWatchName.str());
         serviceUrl.appendf("%s://%s:%u", protocol, eclWatchName.str(), port);
 #else
         {
@@ -775,7 +776,7 @@ IDFSFile *lookupDFSFile(const char *logicalName, AccessMode accessMode, unsigned
                 dfsServiceUrlsDiscovered = true;
                 getAccessibleServiceURLList("WsSMC", dfsServiceUrls);
                 if (0 == dfsServiceUrls.size())
-                    throw makeStringException(-1, "Could not find any DFS services in the target HPCC configuration.");
+                    throw makeStringException(ESPERR_CouldNotFindAnyDfsServices, "Could not find any DFS services in the target HPCC configuration.");
             }
         }
         serviceUrl.append(dfsServiceUrls[currentDfsServiceUrl].c_str());
@@ -849,7 +850,7 @@ IDFSFile *lookupDFSFile(const char *logicalName, AccessMode accessMode, unsigned
             break;
         Sleep(5000); // sanity sleep
     }
-    throw makeStringExceptionV(0, "DFSFileLookup timed out: file=%s, timeoutSecs=%u", logicalName, timeoutSecs);
+    throw makeStringExceptionV(ESPERR_DfsfilelookupTimedOutFileSTimeoutsecs, "DFSFileLookup timed out: file=%s, timeoutSecs=%u", logicalName, timeoutSecs);
 }
 
 IDistributedFile *createLegacyDFSFile(IDFSFile *dfsFile)
@@ -876,7 +877,7 @@ IDistributedFile *lookup(CDfsLogicalFileName &lfn, IUserDescriptor *user, Access
     try { isForeign = lfn.isForeign(); }
     catch(IException *e) { e->Release(); } // catch and ignore multi lfn case, will be checked later
     if (isForeign && !allowForeign())
-        throw makeStringExceptionV(0, "foreign access is not permitted from this system (file='%s')", lfn.get());
+        throw makeStringExceptionV(ESPERR_ForeignAccessIsNotPermittedFrom, "foreign access is not permitted from this system (file='%s')", lfn.get());
 
     // DFS service currently only supports remote files 
     if (isWrite(accessMode))
@@ -1037,7 +1038,7 @@ public:
             if (clusters)
             {
                 if (clusters->ordinality()>1)
-                    throw makeStringExceptionV(0, "Container mode does not yet support output to multiple clusters while writing file %s)", fname);
+                    throw makeStringExceptionV(ESPERR_ContainerModeDoesNotYetSupport, "Container mode does not yet support output to multiple clusters while writing file %s)", fname);
                 cluster.append(clusters->item(0));
             }
             else

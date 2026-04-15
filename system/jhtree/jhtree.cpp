@@ -39,6 +39,7 @@
 //****************************************************************************
 
 #include "platform.h"
+#include "systemerr.hpp"
 #include <stdio.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -1149,7 +1150,7 @@ IKeyIndex *CKeyStore::doload(const char *fileName, unsigned crc, IReplicatedFile
                 {
                     iFile.setown(part->open());
                     if (NULL == iFile.get())
-                        throw MakeStringException(0, "Failed to open index file %s", fileName);
+                        throw MakeStringException(SYSTEMERR_FailedToOpenIndexFileS, "Failed to open index file %s", fileName);
                 }
                 else
                     iFile.setown(createIFile(fileName));
@@ -1157,7 +1158,7 @@ IKeyIndex *CKeyStore::doload(const char *fileName, unsigned crc, IReplicatedFile
                 if (fio)
                     keyIndex = new CDiskKeyIndex(getUniqId(fileIdx, fileName), fio, fname, isTLK, blockedIOSize);
                 else
-                    throw MakeStringException(0, "Failed to open index file %s", fileName);
+                    throw MakeStringException(SYSTEMERR_FailedToOpenIndexFileS, "Failed to open index file %s", fileName);
             }
             keyIndexCache.replace(fname, *LINK(keyIndex));
         }
@@ -1464,7 +1465,7 @@ void CMemKeyIndex::ensureReady()
     assertex(io->length()==io->fileSize());     // mapped whole file
     KeyHdr hdr;
     if (io->length() < sizeof(hdr))
-        throw MakeStringException(0, "Failed to read key header: file too small, could not read %u bytes", (unsigned) sizeof(hdr));
+        throw MakeStringException(SYSTEMERR_FailedToReadKeyHeaderFile, "Failed to read key header: file too small, could not read %u bytes", (unsigned) sizeof(hdr));
     memcpy(&hdr, io->base(), sizeof(hdr));
 
     if (hdr.ktype & USE_TRAILING_HEADER)
@@ -1554,7 +1555,7 @@ void CDiskKeyIndex::ensureReady()
         size32_t readSize = (size32_t)std::min(actualSize, (offset_t)maxReadSize);
         const byte * match = readCache.queryFillBuffer(0, sizeof(KeyHdr), io, readSize);
         if (!match)
-            throw makeStringExceptionV(0, "Failed to read key '%s' header: file too small, could not read %u bytes - read %u", name.str(), (unsigned) sizeof(KeyHdr), readCache.querySize());
+            throw makeStringExceptionV(SYSTEMERR_FailedToReadKeySHeader, "Failed to read key '%s' header: file too small, could not read %u bytes - read %u", name.str(), (unsigned) sizeof(KeyHdr), readCache.querySize());
 
         memcpy(&hdr, match, sizeof(KeyHdr));
 
@@ -1577,7 +1578,7 @@ void CDiskKeyIndex::ensureReady()
             offset_t readOffset = actualSize - nodeSize;
             const byte * match = readCache.queryBuffer(readOffset, sizeof(hdr));
             if (!match)
-                throw makeStringExceptionV(0, "Failed to read trailing key header at offset %llu, read %u", readOffset, readCache.querySize());
+                throw makeStringExceptionV(SYSTEMERR_FailedToReadTrailingKeyHeader, "Failed to read trailing key header at offset %llu, read %u", readOffset, readCache.querySize());
             memcpy(&hdr, match, sizeof(KeyHdr));
         }
     }
@@ -1635,7 +1636,7 @@ CJHTreeNode *CKeyIndex::_createNode(const NodeHdr &nodeHdr) const
         assertex(nodeHdr.nodeType== NodeBlob);    // Should only be using the NewBlobCompression for blob nodes
         return new CJHNewBlobNode();
     default:
-        throw makeStringExceptionV(0, "Unknown compression type %u in key %s", nodeHdr.compressionType, name.get());
+        throw makeStringExceptionV(SYSTEMERR_UnknownCompressionTypeUInKey, "Unknown compression type %u in key %s", nodeHdr.compressionType, name.get());
     }
 }
 
@@ -2073,7 +2074,7 @@ const CJHTreeNode *CDiskKeyIndex::loadNode(cycle_t * fetchCycles, offset_t pos, 
 
             // Check if we have read in the required node - sizeRead may not equal readSize at the end of the file
             if (unlikely(alignedPos + sizeRead < pos + nodeSize))
-                throw makeStringExceptionV(-1, "Error %d reading node at position %llx read %u at offset %llx", errno, pos, sizeRead, alignedPos);
+                throw makeStringExceptionV(SYSTEMERR_ErrorDReadingNodeAtPosition, "Error %d reading node at position %llx read %u at offset %llx", errno, pos, sizeRead, alignedPos);
 
             if (activePageCache && readState.usePageCache)
             {
@@ -2177,7 +2178,7 @@ CKeyCursor::CKeyCursor(CKeyIndex &_key, const IIndexFilterList *_filter, bool _l
         if (pageCachePageSize && (_blockedIOSize > pageCachePageSize))
         {
             if ((_blockedIOSize % pageCachePageSize) != 0)
-                throw makeStringExceptionV(-1, "Blocked IO size %u must be a multiple of the page cache page size (%u)", _blockedIOSize, pageCachePageSize);
+                throw makeStringExceptionV(SYSTEMERR_BlockedIoSizeUMustBe, "Blocked IO size %u must be a multiple of the page cache page size (%u)", _blockedIOSize, pageCachePageSize);
         }
         readState.preferredReadSize = _blockedIOSize;
     }
@@ -2547,7 +2548,7 @@ bool CKeyCursor::_ltEqual(IContextLogger *ctx)
             NodeType type = (depth < branchDepth) ? NodeBranch : NodeLeaf;
             node.setown(getCursorNode(npos, type, ctx));
             if (!node)
-                throw MakeStringException(0, "Invalid key %s: child node pointer should never be NULL", key.name.get());
+                throw MakeStringException(SYSTEMERR_InvalidKeySChildNodePointer, "Invalid key %s: child node pointer should never be NULL", key.name.get());
         }
     }
 }
@@ -3146,7 +3147,7 @@ class CLazyKeyIndex final : implements IKeyIndex, public CInterface
             if (!realKey)
             {
                 DBGLOG("Lazy key file %s could not be opened", keyfile.get());
-                throw MakeStringException(0, "Lazy key file %s could not be opened", keyfile.get());
+                throw MakeStringException(SYSTEMERR_LazyKeyFileSCouldNot, "Lazy key file %s could not be opened", keyfile.get());
             }
         }
         return *realKey;
@@ -3765,7 +3766,7 @@ public:
     virtual void setLayoutTranslator(const IDynamicTransform * trans) override
     { 
         if (trans && trans->keyedTranslated())
-            throw MakeStringException(0, "Layout translation not supported when merging key parts, as it may change sort order"); 
+            throw MakeStringException(SYSTEMERR_LayoutTranslationNotSupportedWhenMerging, "Layout translation not supported when merging key parts, as it may change sort order"); 
 
         // It MIGHT be possible to support translation still if all keyCursors have the same translation
         // would have to translate AFTER the merge, but that's ok
@@ -3791,10 +3792,10 @@ public:
             {
                 IKeyIndex * part = _keyset->queryPart(i);
                 if (part->keyedSize() != keyedSize)
-                    throw MakeStringException(0, "Key size mismatch on key %s v %s - key size is %u, expected %u", part->queryFileName(), ki->queryFileName(), part->keyedSize(), keyedSize);
+                    throw MakeStringException(SYSTEMERR_KeySizeMismatchOnKeyS, "Key size mismatch on key %s v %s - key size is %u, expected %u", part->queryFileName(), ki->queryFileName(), part->keyedSize(), keyedSize);
             }
             if (sortFieldOffset > keyedSize)
-                throw MakeStringException(0, "Index sort order can only include keyed fields");
+                throw MakeStringException(SYSTEMERR_IndexSortOrderCanOnlyInclude, "Index sort order can only include keyed fields");
         }
         else
             numkeys = 0;

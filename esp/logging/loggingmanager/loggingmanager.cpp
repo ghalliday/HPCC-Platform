@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "LoggingErrors.hpp"
+#include "esperr.hpp"
 #include "loggingcommon.hpp"
 #include "loggingmanager.hpp"
 #include "compressutil.hpp"
@@ -89,7 +90,7 @@ bool CLoggingManager::init(IPropertyTree* cfg, const char* service)
             setServiceMaskService(LGSTUpdateLOG);
         IUpdateLogThread* logThread = createUpdateLogThread(&loggingAgentTree, service, agentName, failSafeLogsDir.get(), loggingAgent);
         if(!logThread)
-            throw MakeStringException(-1, "Failed to create update log thread for %s", agentName);
+            throw MakeStringException(ESPERR_FailedToCreateUpdateLogThread, "Failed to create update log thread for %s", agentName);
         loggingAgentThreads.push_back(logThread);
     }
 
@@ -139,7 +140,7 @@ bool CLoggingManager::updateLog(IEspLogEntry* entry, StringBuffer& status)
 bool CLoggingManager::updateLog(IEspContext* espContext, const char* option, const char* logContent, StringBuffer& status)
 {
     if (!initialized)
-        throw MakeStringException(-1,"LoggingManager not initialized");
+        throw MakeStringException(ESPERR_LoggingmanagerNotInitialized, "LoggingManager not initialized");
 
     bool bRet = false;
     try
@@ -162,7 +163,7 @@ bool CLoggingManager::updateLog(IEspContext* espContext, const char* option, con
 bool CLoggingManager::updateLog(IEspContext* espContext, const char* option, IPropertyTree* logInfo, IInterface* extraLog, StringBuffer& status)
 {
     if (!initialized)
-        throw MakeStringException(-1,"LoggingManager not initialized");
+        throw MakeStringException(ESPERR_LoggingmanagerNotInitialized, "LoggingManager not initialized");
 
     bool bRet = false;
     try
@@ -186,7 +187,7 @@ bool CLoggingManager::updateLog(IEspContext* espContext, const char* option, IPr
     const char* backEndReq, const char* backEndResp, const char* userResp, const char* logDatasets, StringBuffer& status)
 {
     if (!initialized)
-        throw MakeStringException(-1,"LoggingManager not initialized");
+        throw MakeStringException(ESPERR_LoggingmanagerNotInitialized, "LoggingManager not initialized");
 
     bool bRet = false;
     try
@@ -262,7 +263,7 @@ bool CLoggingManager::updateLog(IEspContext* espContext, IEspUpdateLogRequestWra
 bool CLoggingManager::updateLog(IEspContext* espContext, IEspUpdateLogRequestWrap& req, IEspUpdateLogResponse& resp)
 {
     if (!initialized)
-        throw MakeStringException(-1,"LoggingManager not initialized");
+        throw MakeStringException(ESPERR_LoggingmanagerNotInitialized, "LoggingManager not initialized");
 
     try
     {
@@ -274,7 +275,7 @@ bool CLoggingManager::updateLog(IEspContext* espContext, IEspUpdateLogRequestWra
         {
             Owned<CLogRequestInFile> reqInFile = new CLogRequestInFile();
             if (!saveToTankFile(req, reqInFile))
-                throw MakeStringException(-1, "LoggingManager: failed in saveToTankFile().");
+                throw MakeStringException(ESPERR_LoggingmanagerFailedInSavetotankfile, "LoggingManager: failed in saveToTankFile().");
 
             if (!decoupledLogging)
             {
@@ -393,7 +394,7 @@ unsigned CLoggingManager::serializeLogRequestContent(IEspUpdateLogRequestWrap* r
 bool CLoggingManager::hasFilteredService(LOGServiceType service, EspLogAgentIdFilter agentIdFilter) const
 {
     if (!initialized)
-        throw MakeStringException(-1,"LoggingManager not initialized");
+        throw MakeStringException(ESPERR_LoggingmanagerNotInitialized, "LoggingManager not initialized");
     if (!agentIdFilter)
         agentIdFilter = defaultIdFilter;
 
@@ -418,7 +419,7 @@ bool CLoggingManager::hasFilteredService(LOGServiceType service, EspLogAgentIdFi
 bool CLoggingManager::getFilteredTransactionSeed(StringBuffer& transactionSeed, StringBuffer& status, EspLogAgentIdFilter agentIdFilter)
 {
     if (!initialized)
-        throw MakeStringException(-1,"LoggingManager not initialized");
+        throw MakeStringException(ESPERR_LoggingmanagerNotInitialized, "LoggingManager not initialized");
 
     bool bRet = false;
     try
@@ -463,7 +464,7 @@ bool CLoggingManager::getFilteredTransactionSeed(StringBuffer& transactionSeed, 
 bool CLoggingManager::getFilteredTransactionSeed(IEspGetTransactionSeedRequest& req, IEspGetTransactionSeedResponse& resp, EspLogAgentIdFilter agentIdFilter)
 {
     if (!initialized)
-        throw MakeStringException(-1,"LoggingManager not initialized");
+        throw MakeStringException(ESPERR_LoggingmanagerNotInitialized, "LoggingManager not initialized");
     if (!agentIdFilter)
         agentIdFilter = defaultIdFilter;
 
@@ -494,7 +495,7 @@ bool CLoggingManager::getFilteredTransactionSeed(IEspGetTransactionSeedRequest& 
 bool CLoggingManager::getFilteredTransactionID(StringAttrMapping* transFields, StringBuffer& transactionID, StringBuffer& status, EspLogAgentIdFilter agentIdFilter)
 {
     if (!initialized)
-        throw MakeStringException(-1,"LoggingManager not initialized");
+        throw MakeStringException(ESPERR_LoggingmanagerNotInitialized, "LoggingManager not initialized");
     if (!agentIdFilter)
         agentIdFilter = defaultIdFilter;
 

@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include "LoggingErrors.hpp"
+#include "esperr.hpp"
 #include "logthread.hpp"
 #include "loggingservice.hpp"
 
@@ -43,7 +44,7 @@ void CWsLoggingServiceEx::initLogAgent(IPropertyTree &ptree, const char *process
     logAgent->initVariants(&ptree);
     IUpdateLogThread* logThread = createUpdateLogThread(&ptree, service, agentName, nullptr, logAgent);
     if(!logThread)
-        throw MakeStringException(-1, "Failed to create update log thread for %s", agentName);
+        throw MakeStringException(ESPERR_FailedToCreateUpdateLogThread, "Failed to create update log thread for %s", agentName);
 
     loggingAgentThreads.push_back(logThread);
 }
@@ -82,12 +83,12 @@ bool CWsLoggingServiceEx::init(const char* service, const char* type, IPropertyT
     VStringBuffer xpath("Software/EspProcess[@name='%s']", process);
     Owned<IPropertyTree> pProcessNode = cfg->getPropTree(xpath.str());
     if (!pProcessNode)
-        throw MakeStringException(-1, "No settings found for process %s", process);
+        throw MakeStringException(ESPERR_NoSettingsFoundForProcessS, "No settings found for process %s", process);
 
     xpath.setf("EspService[@name=\"%s\"]", service);
     Owned<IPropertyTree> pServiceNode = pProcessNode->getPropTree(xpath.str());
     if (!pServiceNode)
-        throw MakeStringException(-1, "No settings found for service %s", service);
+        throw MakeStringException(ESPERR_NoSettingsFoundForServiceS, "No settings found for service %s", service);
 
     const char *agentdir = pProcessNode->queryProp("@agentdir");
     initLogAgentDirectory(agentdir, "*.xml", process, service);
@@ -95,7 +96,7 @@ bool CWsLoggingServiceEx::init(const char* service, const char* type, IPropertyT
     initLogAgentSet(*pServiceNode, process, service);
 
     if (!loggingAgentThreads.size())
-        throw MakeStringException(-1, "No logAgent is defined for service %s", service);
+        throw MakeStringException(ESPERR_NoLogagentIsDefinedForService, "No logAgent is defined for service %s", service);
 
     return true;
 }

@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jmisc.hpp"
+#include "esperr.hpp"
 #include "jexcept.hpp"
 #include "jdebug.hpp"
 #include "LoggingErrors.hpp"
@@ -61,16 +62,16 @@ CLogThread::CLogThread(IPropertyTree* _cfg , const char* _service, const char* _
     : stopping(false), agentName(_agentName), tankFileDir(_tankFileDir)
 {
     if(!_agentName || !*_agentName)
-        throw MakeStringException(-1,"No Logging agent name defined");
+        throw MakeStringException(ESPERR_NoLoggingAgentNameDefined, "No Logging agent name defined");
 
     if(!_cfg)
-        throw MakeStringException(-1,"No Logging agent Configuration for %s", _agentName);
+        throw MakeStringException(ESPERR_NoLoggingAgentConfigurationForS, "No Logging agent Configuration for %s", _agentName);
 
     if(!_service || !*_service)
-        throw MakeStringException(-1,"No service name defined for %s", _agentName);
+        throw MakeStringException(ESPERR_NoServiceNameDefinedForS, "No service name defined for %s", _agentName);
 
     if(!_logAgent)
-        throw MakeStringException(-1,"No Logging agent interface for %s", _agentName);
+        throw MakeStringException(ESPERR_NoLoggingAgentInterfaceForS, "No Logging agent interface for %s", _agentName);
 
     logAgent.setown(_logAgent);
 
@@ -101,12 +102,12 @@ CLogThread::CLogThread(IPropertyTree* _cfg , const char* _service, const char* _
         settings->ackedLogRequestFile.set(isEmptyString(ackedLogRequestFile) ? PropDefaultAckedLogRequests : ackedLogRequestFile);
         int pendingLogBufferSize = getConfigValue<int>(_cfg, PropPendingLogBufferSize, DEFAULTPENDINGLOGBUFFERSIZE);
         if (pendingLogBufferSize <= 0)
-            throw MakeStringException(-1, "The %s (%d) should be greater than 0.", PropPendingLogBufferSize, pendingLogBufferSize);
+            throw MakeStringException(ESPERR_TheSDShouldBeGreater, "The %s (%d) should be greater than 0.", PropPendingLogBufferSize, pendingLogBufferSize);
 
         settings->pendingLogBufferSize = pendingLogBufferSize;
         int waitSeconds = getConfigValue<int>(_cfg, PropReadRequestWaitingSeconds, DEFAULTREADLOGREQUESTWAITSECOND);
         if (waitSeconds <= 0)
-            throw MakeStringException(-1, "The %s (%d) should be greater than 0.", PropReadRequestWaitingSeconds, waitSeconds);
+            throw MakeStringException(ESPERR_TheSDShouldBeGreater, "The %s (%d) should be greater than 0.", PropReadRequestWaitingSeconds, waitSeconds);
 
         settings->waitSeconds = waitSeconds;
         PROGLOG("%s %s: %s", agentName.get(), PropAckedFiles, settings->ackedFileList.str());
@@ -853,11 +854,11 @@ bool CLogRequestReader::readLogRequestsFromTankFile(const char* fileName, String
 
     Owned<IFile> file = createIFile(fileName);
     if (!file) //This can only happen at start time. So, throw exception.
-        throw MakeStringException(-1, "Unable to find logging file %s", fileName);
+        throw MakeStringException(ESPERR_UnableToFindLoggingFileS, "Unable to find logging file %s", fileName);
 
     Owned<IFileIO> fileIO =  file->open(IFOread);
     if (!fileIO)
-        throw MakeStringException(-1, "Unable to open logging file %s", fileName);
+        throw MakeStringException(ESPERR_UnableToOpenLoggingFileS, "Unable to open logging file %s", fileName);
 
     //Sample: 00009902        0421311217.2019_03_29_14_32_11  <cache><GUID>0421311217.2019_03_29_14_32_11</GUID>
     //<option>SingleInsert</option><LogRequest>dUgAAH...AA==</LogRequest></cache>

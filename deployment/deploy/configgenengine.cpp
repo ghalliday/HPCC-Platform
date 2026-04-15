@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "jptree.hpp"
+#include "deployerr.hpp"
 #include "jmutex.hpp"
 #include "jexcept.hpp"
 #include "environment.hpp"
@@ -223,7 +224,7 @@ int CConfigGenEngine::determineInstallFiles(IPropertyTree& processNode, CInstall
 
 
                     if (sDestName.empty())
-                        throw MakeStringException(-1, "The destination file name '%s' for source file '%s' "
+                        throw MakeStringException(DEPLOYERR_TheDestinationFileNameSFor, "The destination file name '%s' for source file '%s' "
                         "translates to an empty string!", destName, name);
                 }
             }
@@ -326,7 +327,7 @@ int CConfigGenEngine::determineInstallFiles(IPropertyTree& processNode, CInstall
         StringBuffer msg;
         e->errorMessage(msg);
         e->Release();
-        throw MakeStringException(0, "Error creating file list for process %s: %s", m_name.get(), msg.str());
+        throw MakeStringException(DEPLOYERR_ErrorCreatingFileListForProcess, "Error creating file list for process %s: %s", m_name.get(), msg.str());
     }
     catch (...)
     {

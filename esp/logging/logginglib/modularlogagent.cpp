@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "modularlogagent.ipp"
+#include "esperr.hpp"
 
 using namespace TraceLoggingPriority;
 
@@ -1444,7 +1445,7 @@ const char* CEspLogAgent::getName()
 bool CEspLogAgent::init(const char* name, const char* type, IPTree* configuration, const char* process)
 {
     if (!configuration)
-        throw makeStringExceptionV(-1, "%s[%s]: missing configuration", ModularLogAgent::moduleAgent, name);
+        throw makeStringExceptionV(ESPERR_SSMissingConfiguration, "%s[%s]: missing configuration", ModularLogAgent::moduleAgent, name);
 
     m_name.set(name);
 
@@ -1498,9 +1499,9 @@ bool CEspLogAgent::init(const char* name, const char* type, IPTree* configuratio
     if (!m_agent)
     {
         if (module)
-            throw makeStringExceptionV(-1, "%s[%s:%s]: agent module creation failed", ModularLogAgent::moduleAgent, name, module);
+            throw makeStringExceptionV(ESPERR_SSSAgentModuleCreation, "%s[%s:%s]: agent module creation failed", ModularLogAgent::moduleAgent, name, module);
         else
-            throw makeStringExceptionV(-1, "%s[%s]: agent module creation failed", ModularLogAgent::moduleAgent, name);
+            throw makeStringExceptionV(ESPERR_SSAgentModuleCreationFailed, "%s[%s]: agent module creation failed", ModularLogAgent::moduleAgent, name);
     }
 
     bool result = m_agent->configure(*effectiveConfiguration, *m_factory);

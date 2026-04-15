@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "httpclient.hpp"
+#include "esperr.hpp"
 #include "ws_loggingservice_esp.ipp"
 #include "LoggingErrors.hpp"
 #include "loggingcommon.hpp"
@@ -46,12 +47,12 @@ bool CESPServerLoggingAgent::init(const char * name, const char * type, IPropert
     agentName.set(name);
     const char* servicesConfig = cfg->queryProp("@services");
     if (isEmptyString(servicesConfig))
-        throw MakeStringException(-1,"No Logging Service defined for %s", agentName.get());
+        throw MakeStringException(ESPERR_NoLoggingServiceDefinedForS, "No Logging Service defined for %s", agentName.get());
     setServices(servicesConfig);
 
     IPropertyTree* espServer = cfg->queryBranch(PropESPServer);
     if(!espServer)
-        throw MakeStringException(-1,"Unable to find ESPServer settings for log agent %s:%s", name, type);
+        throw MakeStringException(ESPERR_UnableToFindEspserverSettingsFor, "Unable to find ESPServer settings for log agent %s:%s", name, type);
 
     const char* url = espServer->queryProp(PropServerUrl);
     if (url && *url)

@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include "esphttp.hpp"
+#include "esperr.hpp"
 
 //Jlib
 #include "jliball.hpp"
@@ -137,7 +138,7 @@ bool CHttpProtocol::notifySelected(ISocket *sock,unsigned selected, IPersistentH
         CEspApplicationPort *apport = queryApplicationPort(port);
 
         if(apport == NULL)
-            throw MakeStringException(-1, "binding not found!");
+            throw MakeStringException(ESPERR_BindingNotFound, "binding not found!");
         
         if(apport != NULL)
         {
@@ -179,7 +180,7 @@ bool CHttpProtocol::notifySelected(ISocket *sock,unsigned selected, IPersistentH
         }
         else
         {
-            throw MakeStringException(-1, "can't acquire bindings IEspHttpBinding interface (via dynamic_cast)!");
+            throw MakeStringException(ESPERR_CanTAcquireBindingsIesphttpbindingInterface, "can't acquire bindings IEspHttpBinding interface (via dynamic_cast)!");
         }
     }
     catch (IException *e) 
@@ -215,7 +216,7 @@ CSecureHttpProtocol::CSecureHttpProtocol(IPropertyTree* cfg)
 
         IEspPlugin *pplg = loadPlugin(SSLIB);
         if (!pplg)
-            throw MakeStringException(-1, "dll/shared-object %s can't be loaded", SSLIB);
+            throw MakeStringException(ESPERR_DllSharedObjectSCanT, "dll/shared-object %s can't be loaded", SSLIB);
 
         const char *issuer = cfg->queryProp("issuer");
         if (!isEmptyString(issuer))
@@ -225,7 +226,7 @@ CSecureHttpProtocol::CSecureHttpProtocol(IPropertyTree* cfg)
                 trustedPeers = cfg->queryProp("verify/trusted_peers");
             createSecureSocketContextSecretSrv_t xproc = (createSecureSocketContextSecretSrv_t) pplg->getProcAddress("createSecureSocketContextSecretSrv");
             if (!xproc)
-                throw MakeStringException(-1, "procedure createSecureSocketContextSecretSrv can't be loaded");
+                throw MakeStringException(ESPERR_ProcedureCreatesecuresocketcontextsecretsrvCanTBeLoaded, "procedure createSecureSocketContextSecretSrv can't be loaded");
             m_ssctx.setown(xproc(issuer, trustedPeers, false));
         }
         else
@@ -234,15 +235,15 @@ CSecureHttpProtocol::CSecureHttpProtocol(IPropertyTree* cfg)
             StringBuffer sb;
             cfg->getProp("certificate", sb);
             if(sb.isEmpty())
-                throw MakeStringException(-1, "certificate file not specified in config file");
+                throw MakeStringException(ESPERR_CertificateFileNotSpecifiedInConfig, "certificate file not specified in config file");
 
             cfg->getProp("privatekey", sb.clear());
             if(sb.isEmpty())
-                throw MakeStringException(-1, "private key file not specified in config file");
+                throw MakeStringException(ESPERR_PrivateKeyFileNotSpecifiedIn, "private key file not specified in config file");
 
             createSecureSocketContextEx2_t xproc = (createSecureSocketContextEx2_t) pplg->getProcAddress("createSecureSocketContextEx2");
             if (!xproc)
-                throw MakeStringException(-1, "procedure createSecureSocketContextEx2 can't be loaded");
+                throw MakeStringException(ESPERR_ProcedureCreatesecuresocketcontextex2CanTBeLoaded, "procedure createSecureSocketContextEx2 can't be loaded");
             m_ssctx.setown(xproc(cfg, ServerSocket));
         }
     }
@@ -307,7 +308,7 @@ bool CSecureHttpProtocol::notifySelected(ISocket *sock,unsigned selected, IPersi
 
         CEspApplicationPort *apport = queryApplicationPort(port);
         if(apport == NULL)
-            throw MakeStringException(-1, "binding not found!");
+            throw MakeStringException(ESPERR_BindingNotFound, "binding not found!");
         
         if(apport != NULL)
         {
@@ -355,7 +356,7 @@ bool CSecureHttpProtocol::notifySelected(ISocket *sock,unsigned selected, IPersi
         }
         else
         {
-            throw MakeStringException(-1, "can't acquire bindings IEspHttpBinding interface (via dynamic_cast)!");
+            throw MakeStringException(ESPERR_CanTAcquireBindingsIesphttpbindingInterface, "can't acquire bindings IEspHttpBinding interface (via dynamic_cast)!");
         }
     }
     catch (IException *e) 
@@ -487,7 +488,7 @@ void CHttpThread::returnSocket()
 void CPooledHttpThread::init(void *param)
 {
     if (!param)
-        throw makeStringException(-1, "CPooledHttpThread::init: invalid param");
+        throw makeStringException(ESPERR_CpooledhttpthreadInitInvalidParam, "CPooledHttpThread::init: invalid param");
     PooledThreadInfo* ptip = (PooledThreadInfo*)param;
     m_socket.set(&ptip->socket);
     m_apport = &ptip->apport;

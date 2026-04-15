@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include "ws_packageprocessService.hpp"
+#include "esperr.hpp"
 #include "daclient.hpp"
 #include "dalienv.hpp"
 #include "dadfs.hpp"
@@ -1606,7 +1607,7 @@ int CWsPackageProcessSoapBindingEx::onFinishUpload(IEspContext &ctx, CHttpReques
         }
         catch (...)
         {
-	        me->append(*MakeStringExceptionDirect(-1, "Unknown Exception"));
+	        me->append(*MakeStringExceptionDirect(ESPERR_UnknownException, "Unknown Exception"));
         }
 
         if (!me->ordinality())

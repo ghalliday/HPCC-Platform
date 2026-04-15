@@ -19,6 +19,7 @@
 #define _SOAPBIND_HPP__
 
 #include "esphttp.hpp"
+#include "esperr.hpp"
 
 //Jlib
 #include "jliball.hpp"
@@ -204,7 +205,7 @@ public:
 
     virtual void serialize(IRpcMessage& rpc)
     {
-        throw MakeStringException(-1,"Internal error: umimplmented function called: CSoapRequestBinding::serialize()");
+        throw MakeStringException(ESPERR_InternalErrorUmimplmentedFunctionCalledCsoaprequestbinding, "Internal error: umimplmented function called: CSoapRequestBinding::serialize()");
     }
 };
 
@@ -229,12 +230,12 @@ inline void setRpcSSLOptions(IEspClientRpcSettings &rpc, bool useSSL, const char
         if (!isEmptyString(clientCert))
         {
             if (isEmptyString(clientPrivateKey))
-                throw makeStringException(-1,"Client private key not provided.");
+                throw makeStringException(ESPERR_ClientPrivateKeyNotProvided, "Client private key not provided.");
 
             if (!containsEmbeddedKey(clientCert) && !checkFileExists(clientCert))
-                throw makeStringExceptionV(-1,"Client certificate not found %s.", clientCert);
+                throw makeStringExceptionV(ESPERR_ClientCertificateNotFoundS, "Client certificate not found %s.", clientCert);
             if (!containsEmbeddedKey(clientPrivateKey) && !checkFileExists(clientPrivateKey))
-                throw makeStringExceptionV(-1,"Client private key not found %s.", clientPrivateKey);
+                throw makeStringExceptionV(ESPERR_ClientPrivateKeyNotFoundS, "Client private key not found %s.", clientPrivateKey);
 
             rpc.setClientCertificate(clientCert, clientPrivateKey);
         }
@@ -242,7 +243,7 @@ inline void setRpcSSLOptions(IEspClientRpcSettings &rpc, bool useSSL, const char
         if (!isEmptyString(caCert))
         {
             if (!containsEmbeddedKey(caCert) && !checkFileExists(caCert))
-                throw makeStringExceptionV(-1,"CA certificate not found %s.", caCert);
+                throw makeStringExceptionV(ESPERR_CaCertificateNotFoundS, "CA certificate not found %s.", caCert);
 
             rpc.setCACertificates(caCert);
         }

@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "systemerr.hpp"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -2441,7 +2442,7 @@ bool CInplaceLeafWriteNode::add(offset_t pos, const void * _data, size32_t size,
         assertex(oldSize == nowSize);
 
         if (nowSize > (size32_t)maxBytes)
-            throw makeStringExceptionV(0, "Internal error: Leaf grew too large after ignoring row @%llu:%u (%u > %u)", getFpos(), hdr.numKeys, hdr.keyBytes, maxBytes);
+            throw makeStringExceptionV(SYSTEMERR_InternalErrorLeafGrewTooLarge, "Internal error: Leaf grew too large after ignoring row @%llu:%u (%u > %u)", getFpos(), hdr.numKeys, hdr.keyBytes, maxBytes);
 
 #ifdef TRACE_BUILDING
         DBGLOG("---- leaf ----");
@@ -2546,7 +2547,7 @@ void CInplaceLeafWriteNode::write(IFileIOStream *out, CRC32 *crc)
 {
     hdr.keyBytes = getDataSize(true);
     if (hdr.keyBytes > maxBytes)
-        throw makeStringExceptionV(0, "Internal error: Inplace leaf node @%llu is too large (%u > %u)", getFpos(), hdr.keyBytes, maxBytes);
+        throw makeStringExceptionV(SYSTEMERR_InternalErrorInplaceLeafNodeLlu, "Internal error: Inplace leaf node @%llu is too large (%u > %u)", getFpos(), hdr.keyBytes, maxBytes);
 
     MemoryBuffer data;
     data.setBuffer(maxBytes, keyPtr, false);

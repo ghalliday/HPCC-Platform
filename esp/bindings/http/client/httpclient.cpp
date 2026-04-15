@@ -20,6 +20,7 @@
 
 //Jlib
 #include "jliball.hpp"
+#include "esperr.hpp"
 
 //ESP Bindings
 #include "httpclient.ipp"
@@ -104,7 +105,7 @@ IHttpClient* CHttpClientContext::createHttpClient(const char* proxy, const char*
             {
                 theSSLPlugin.setown(loadPlugin(libName.append(SharedObjectPrefix).append(SSLIB).append(SharedObjectExtension)));
                 if (!theSSLPlugin)
-                    throw MakeStringException(-1, "dll/shared-object %s can't be loaded", libName.str());
+                    throw MakeStringException(ESPERR_DllSharedObjectSCanT, "dll/shared-object %s can't be loaded", libName.str());
             }
 
             if(m_config.get() == NULL)
@@ -114,7 +115,7 @@ IHttpClient* CHttpClientContext::createHttpClient(const char* proxy, const char*
                 if (xproc)
                     m_ssctx.setown(xproc(m_mtls_secret.str(), ClientSocket));
                 else
-                    throw MakeStringException(-1, "procedure createSecureSocketContextSecret can't be loaded");
+                    throw MakeStringException(ESPERR_ProcedureCreatesecuresocketcontextsecretCanTBeLoaded, "procedure createSecureSocketContextSecret can't be loaded");
             }
             else
             {
@@ -123,11 +124,11 @@ IHttpClient* CHttpClientContext::createHttpClient(const char* proxy, const char*
                 if (xproc)
                     m_ssctx.setown(xproc(m_config.get(),ClientSocket));
                 else
-                    throw MakeStringException(-1, "procedure createSecureSocketContextEx2 can't be loaded");
+                    throw MakeStringException(ESPERR_ProcedureCreatesecuresocketcontextex2CanTBeLoaded, "procedure createSecureSocketContextEx2 can't be loaded");
 
             }
             if(m_ssctx.get() == NULL)
-                throw MakeStringException(-1, "SecureSocketContext can't be created");
+                throw MakeStringException(ESPERR_SecuresocketcontextCanTBeCreated, "SecureSocketContext can't be created");
 
         }
         client->setSsCtx(m_ssctx.get());
@@ -267,7 +268,7 @@ int CHttpClient::connect(StringBuffer& errmsg, bool forceNewConnection)
     if(m_proxy.length() == 0)
     {
         if(m_host.length() <= 0)
-            throw MakeStringException(-1, "host not specified");
+            throw MakeStringException(ESPERR_HostNotSpecified, "host not specified");
         if (!ep.set(m_host.get(), m_port))
         {
             errmsg.appendf("Bad host name/ip: %s", m_host.get());
@@ -565,7 +566,7 @@ HttpClientErrCode CHttpClient::proxyRequest(IHttpMessage *request, IHttpMessage 
 
     StringBuffer forwardFor;
     if (forwardRequest->getHeader("HPCC-Forward-For", forwardFor).length())
-        throw MakeStringExceptionDirect(-1, "Only one HPCC-Forward-For hop currently allowed");
+        throw MakeStringExceptionDirect(ESPERR_OnlyOneHpccForwardForHop, "Only one HPCC-Forward-For hop currently allowed");
 
     CHttpResponse *forwardResponse = static_cast<CHttpResponse*>(response);
     assertex(forwardResponse != nullptr);

@@ -16,6 +16,7 @@ limitations under the License.
 ############################################################################## */
 
 #include "ws_sqlService.hpp"
+#include "esperr.hpp"
 #include "exception_util.hpp"
 #include "jconfig.hpp"
 
@@ -28,7 +29,7 @@ void CwssqlEx::init(IPropertyTree *_cfg, const char *_process, const char *_serv
     }
     catch (...)
     {
-        throw MakeStringException(-1, "ws_sqlEx: Problem initiating ECLFunctions structure");
+        throw MakeStringException(ESPERR_WsSqlexProblemInitiatingEclfunctionsStructure, "ws_sqlEx: Problem initiating ECLFunctions structure");
     }
 
     setWsSqlBuildVersion(hpccBuildInfo.buildTag);
@@ -590,7 +591,7 @@ void myDisplayRecognitionError (pANTLR3_BASE_RECOGNIZER recognizer,pANTLR3_UINT8
             }
         }
     }
-    throw MakeStringException(-1, "%s", errorMessage.str());
+    throw MakeStringException(ESPERR_S, "%s", errorMessage.str());
 }
 
 HPCCSQLTreeWalker * CwssqlEx::parseSQL(IEspContext &context, StringBuffer & sqltext, bool attemptParameterization)
@@ -606,7 +607,7 @@ HPCCSQLTreeWalker * CwssqlEx::parseSQL(IEspContext &context, StringBuffer & sqlt
     try
     {
         if (sqltext.length() <= 0)
-            throw MakeStringException(-1, "Empty SQL String detected.");
+            throw MakeStringException(ESPERR_EmptySqlStringDetected, "Empty SQL String detected.");
 
         pANTLR3_UINT8 input_string = (pANTLR3_UINT8)sqltext.str();
         pANTLR3_INPUT_STREAM sqlinputstream = antlr3StringStreamNew(input_string,
@@ -619,12 +620,12 @@ HPCCSQLTreeWalker * CwssqlEx::parseSQL(IEspContext &context, StringBuffer & sqlt
 
         //ANTLR3_UINT32  lexerrors = hpccsqllexer->pLexer->rec->getNumberOfSyntaxErrors(hpccsqllexer->pLexer->rec);
         //if (lexerrors > 0)
-        //     throw MakeStringException(-1, "HPCCSQL Lexer reported %d error(s), request aborted.", lexerrors);
+        //     throw MakeStringException(ESPERR_HpccsqlLexerReportedDErrorS, "HPCCSQL Lexer reported %d error(s), request aborted.", lexerrors);
 
         pANTLR3_COMMON_TOKEN_STREAM sqltokens = antlr3CommonTokenStreamSourceNew(ANTLR3_SIZE_HINT, TOKENSOURCE(hpccsqllexer));
         if (sqltokens == NULL)
         {
-            throw MakeStringException(-1, "Out of memory trying to allocate ANTLR HPCCSQLParser token stream.");
+            throw MakeStringException(ESPERR_OutOfMemoryTryingToAllocate, "Out of memory trying to allocate ANTLR HPCCSQLParser token stream.");
         }
 
         pHPCCSQLParser hpccsqlparser = HPCCSQLParserNew(sqltokens);
@@ -635,7 +636,7 @@ HPCCSQLTreeWalker * CwssqlEx::parseSQL(IEspContext &context, StringBuffer & sqlt
 
         ANTLR3_UINT32 parserrors = hpccsqlparser->pParser->rec->getNumberOfSyntaxErrors(hpccsqlparser->pParser->rec);
         if (parserrors > 0)
-            throw MakeStringException(-1, "HPCCSQL Parser reported %d error(s), request aborted.", parserrors);
+            throw MakeStringException(ESPERR_HpccsqlParserReportedDErrorS, "HPCCSQL Parser reported %d error(s), request aborted.", parserrors);
 
 #if defined(_DEBUG)
 printTree(sqlAST, 0);
@@ -692,7 +693,7 @@ printTree(sqlAST, 0);
         }
 
         //All other unexpected exceptions are reported as generic ecl generation error.
-        throw MakeStringException(-1, "Error generating ECL code.");
+        throw MakeStringException(ESPERR_ErrorGeneratingEclCode, "Error generating ECL code.");
     }
     return hpccSqlTreeWalker.getLink();
 }
@@ -765,7 +766,7 @@ bool CwssqlEx::onSetRelatedIndexes(IEspContext &context, IEspSetRelatedIndexesRe
 
     IArrayOf<IConstRelatedIndexSet>& relatedindexSets = req.getRelatedIndexSets();
     if (relatedindexSets.length() == 0)
-        throw MakeStringException(-1, "WsSQL::SetRelatedIndexes empty request detected.");
+        throw MakeStringException(ESPERR_WssqlSetrelatedindexesEmptyRequestDetected, "WsSQL::SetRelatedIndexes empty request detected.");
 
     ForEachItemIn(relatedindexsetindex, relatedindexSets)
     {
@@ -773,7 +774,7 @@ bool CwssqlEx::onSetRelatedIndexes(IEspContext &context, IEspSetRelatedIndexesRe
         const char * fileName = relatedIndexSet.getFileName();
 
         if (!fileName || !*fileName)
-            throw MakeStringException(-1, "WsSQL::SetRelatedIndexes error: Empty file name detected.");
+            throw MakeStringException(ESPERR_WssqlSetrelatedindexesErrorEmptyFileName, "WsSQL::SetRelatedIndexes error: Empty file name detected.");
 
         StringArray& indexHints = relatedIndexSet.getIndexes();
 
@@ -783,7 +784,7 @@ bool CwssqlEx::onSetRelatedIndexes(IEspContext &context, IEspSetRelatedIndexesRe
             Owned<HPCCFile> file = HPCCFileCache::fetchHpccFileByName(fileName,username.str(), passwd, false, false);
 
             if (!file)
-                throw MakeStringException(-1, "WsSQL::SetRelatedIndexes error: could not find file: %s.", fileName);
+                throw MakeStringException(ESPERR_WssqlSetrelatedindexesErrorCouldNotFind, "WsSQL::SetRelatedIndexes error: could not find file: %s.", fileName);
 
             StringBuffer description;
 
@@ -815,7 +816,7 @@ bool CwssqlEx::onGetRelatedIndexes(IEspContext &context, IEspGetRelatedIndexesRe
 
         StringArray& filenames = req.getFileNames();
         if (filenames.length() == 0)
-            throw MakeStringException(-1, "WsSQL::GetRelatedIndexes error: No filenames detected");
+            throw MakeStringException(ESPERR_WssqlGetrelatedindexesErrorNoFilenamesDetected, "WsSQL::GetRelatedIndexes error: No filenames detected");
 
         StringBuffer username;
         context.getUserID(username);
@@ -902,7 +903,7 @@ bool CwssqlEx::onExecuteSQL(IEspContext &context, IEspExecuteSQLRequest &req, IE
         __int64 resultWindowCount = req.getResultWindowCount();
 
         if (resultWindowStart < 0 || resultWindowCount <0 )
-           throw MakeStringException(-1,"Invalid result window value");
+           throw MakeStringException(ESPERR_InvalidResultWindowValue, "Invalid result window value");
 
         bool clonable = false;
         bool cacheeligible =  (version > 3.04 ) ? !req.getIgnoreCache() : true;
@@ -918,7 +919,7 @@ bool CwssqlEx::onExecuteSQL(IEspContext &context, IEspExecuteSQLRequest &req, IE
             if (strlen(parsedSQL->getQuerySetName())==0)
             {
                 if (strlen(req.getTargetQuerySet())==0)
-                    throw MakeStringException(-1,"Missing Target QuerySet.");
+                    throw MakeStringException(ESPERR_MissingTargetQueryset, "Missing Target QuerySet.");
                 else
                     parsedSQL->setQuerySetName(req.getTargetQuerySet());
             }
@@ -1149,7 +1150,7 @@ bool CwssqlEx::onExecuteSQL(IEspContext &context, IEspExecuteSQLRequest &req, IE
     }
     //catch (...)
     //{
-    //    me->append(*MakeStringException(0,"Unknown exception submitting %s",wuid.str()));
+    //    me->append(*MakeStringException(ESPERR_UnknownExceptionSubmittingS, "Unknown exception submitting %s",wuid.str()));
     //}
     return true;
 }
@@ -1306,7 +1307,7 @@ bool CwssqlEx::onExecutePreparedSQL(IEspContext &context, IEspExecutePreparedSQL
 
        Owned<IConstWorkUnit> cw = factory->openWorkUnit(parentWuId, false);
        if (!cw)
-           throw MakeStringException(-1,"Cannot open workunit %s.", parentWuId);
+           throw MakeStringException(ESPERR_CannotOpenWorkunitS, "Cannot open workunit %s.", parentWuId);
 
         WsWUExceptions errors(*cw);
         if (errors.ErrCount()>0)
@@ -1333,7 +1334,7 @@ bool CwssqlEx::onExecutePreparedSQL(IEspContext &context, IEspExecutePreparedSQL
 
            Owned<IConstWorkUnit> cw = factory->openWorkUnit(runningWuId.str(), false);
            if (!cw)
-               throw MakeStringException(-1,"Cannot open workunit %s.", runningWuId.str());
+               throw MakeStringException(ESPERR_CannotOpenWorkunitS, "Cannot open workunit %s.", runningWuId.str());
 
            resp.setParentWuId(parentWuId);
 
@@ -1341,7 +1342,7 @@ bool CwssqlEx::onExecutePreparedSQL(IEspContext &context, IEspExecutePreparedSQL
            __int64 resultWindowCount = req.getResultWindowCount();
 
            if (resultWindowStart < 0 || resultWindowCount <0 )
-               throw MakeStringException(-1,"Invalid result window value");
+               throw MakeStringException(ESPERR_InvalidResultWindowValue, "Invalid result window value");
 
            if (!req.getSuppressResults())
            {
@@ -1434,7 +1435,7 @@ bool CwssqlEx::onPrepareSQL(IEspContext &context, IEspPrepareSQLRequest &req, IE
             if (strlen(parsedSQL->getQuerySetName())==0)
             {
                 if (strlen(req.getTargetQuerySet())==0)
-                   throw MakeStringException(-1,"Missing Target QuerySet.");
+                   throw MakeStringException(ESPERR_MissingTargetQueryset, "Missing Target QuerySet.");
                else
                    parsedSQL->setQuerySetName(req.getTargetQuerySet());
             }
@@ -1484,7 +1485,7 @@ bool CwssqlEx::onPrepareSQL(IEspContext &context, IEspPrepareSQLRequest &req, IE
                 //must clone published query wuid and set params
                 //else just return published query WUID
                 if (parsedSQL->getStoredProcParamListCount() > 0 && !parsedSQL->isParameterizedCall() )
-                    throw MakeStringException(-1, "Prepared Call query must be fully parameterized");
+                    throw MakeStringException(ESPERR_PreparedCallQueryMustBeFully, "Prepared Call query must be fully parameterized");
 //KEEP THIS AROUND IF WE WANT TO SUPPORT CLONING WU with embedded params
 //                if (parsedSQL->isParameterizedCall())
 //                {
@@ -1702,13 +1703,13 @@ bool CwssqlEx::cloneAndExecuteWU(IEspContext &context, const char * originalwuid
            Owned<IConstWorkUnit> pwu = factory->openWorkUnit(originalwuid, false);
 
            if (!pwu)
-               throw MakeStringException(-1,"Cannot open workunit %s.", originalwuid);
+               throw MakeStringException(ESPERR_CannotOpenWorkunitS, "Cannot open workunit %s.", originalwuid);
 
            if (pwu->getExceptionCount()>0)
            {
                WsWUExceptions errors(*pwu);
                if (errors.ErrCount()>0)
-                   throw MakeStringException(-1,"Original query contains errors %s.", originalwuid);
+                   throw MakeStringException(ESPERR_OriginalQueryContainsErrorsS, "Original query contains errors %s.", originalwuid);
            }
 
            StringBufferAdaptor isvWuid(clonedwuid);
@@ -1741,10 +1742,10 @@ bool CwssqlEx::onCreateTableAndLoad(IEspContext &context, IEspCreateTableAndLoad
 
     const char * targetTableName = req.getTableName();
     if (!targetTableName || !*targetTableName)
-        throw MakeStringException(-1, "WsSQL::CreateTableAndLoad: Error: TableName cannot be empty.");
+        throw MakeStringException(ESPERR_WssqlCreatetableandloadErrorTablenameCannotBe, "WsSQL::CreateTableAndLoad: Error: TableName cannot be empty.");
 
     if (!HPCCFile::validateFileName(targetTableName))
-        throw MakeStringException(-1, "WsSQL::CreateTableAndLoad: Error: Target TableName is invalid: %s.", targetTableName);
+        throw MakeStringException(ESPERR_WssqlCreatetableandloadErrorTargetTablenameIs, "WsSQL::CreateTableAndLoad: Error: Target TableName is invalid: %s.", targetTableName);
 
     const char * cluster = req.getTargetCluster();
     if (!isEmptyString(cluster))
@@ -1759,16 +1760,16 @@ bool CwssqlEx::onCreateTableAndLoad(IEspContext &context, IEspCreateTableAndLoad
     {
         sourceDataFileName.set(datasource.getLandingZoneFileName());
         if (sourceDataFileName.length() == 0)
-            throw MakeStringException(-1, "WsSQL::CreateTableAndLoad: Error: Data Source File Name cannot be empty, provide either sprayed file name, or landing zone file name.");
+            throw MakeStringException(ESPERR_WssqlCreatetableandloadErrorDataSourceFile, "WsSQL::CreateTableAndLoad: Error: Data Source File Name cannot be empty, provide either sprayed file name, or landing zone file name.");
 
         const char * lzIP = datasource.getLandingZoneIP();
         if (!lzIP || !*lzIP)
-            throw MakeStringException(-1, "WsSQL::CreateTableAndLoad: Error: LandingZone IP cannot be empty if targeting a landing zone file.");
+            throw MakeStringException(ESPERR_WssqlCreatetableandloadErrorLandingzoneIpCannot, "WsSQL::CreateTableAndLoad: Error: LandingZone IP cannot be empty if targeting a landing zone file.");
 
         StringBuffer lzPath(datasource.getLandingZonePath());
 
         if (!lzPath.length())
-            throw MakeStringException(-1, "WsSQL::CreateTableAndLoad: Error: Landingzone path cannot be empty.");
+            throw MakeStringException(ESPERR_WssqlCreatetableandloadErrorLandingzonePathCannot, "WsSQL::CreateTableAndLoad: Error: Landingzone path cannot be empty.");
 
         addPathSepChar(lzPath);
 
@@ -1802,7 +1803,7 @@ bool CwssqlEx::onCreateTableAndLoad(IEspContext &context, IEspCreateTableAndLoad
             formatname = "XML";
             break;
         default:
-            throw MakeStringException(-1, "WsSQL::CreateTableAndLoad: Error: Invalid file format detected.");
+            throw MakeStringException(ESPERR_WssqlCreatetableandloadErrorInvalidFileFormat, "WsSQL::CreateTableAndLoad: Error: Invalid file format detected.");
     }
 
     StringBuffer ecl;
@@ -1811,7 +1812,7 @@ bool CwssqlEx::onCreateTableAndLoad(IEspContext &context, IEspCreateTableAndLoad
     {
         IArrayOf<IConstEclFieldDeclaration>& eclFields = req.getEclFields();
         if (eclFields.length() == 0)
-            throw MakeStringException(-1, "WsSQL::CreateTableAndLoad: Error: Empty record definition detected.");
+            throw MakeStringException(ESPERR_WssqlCreatetableandloadErrorEmptyRecordDefinition, "WsSQL::CreateTableAndLoad: Error: Empty record definition detected.");
 
 
         recDef.set("TABLERECORDDEF := RECORD\n");
@@ -1858,7 +1859,7 @@ bool CwssqlEx::onCreateTableAndLoad(IEspContext &context, IEspCreateTableAndLoad
                     name = "VARUNICODE";
                     break;
                 default:
-                    throw MakeStringException(-1, "WsSQL::CreateTableAndLoad: Error: Unrecognized field type detected.");
+                    throw MakeStringException(ESPERR_WssqlCreatetableandloadErrorUnrecognizedFieldType, "WsSQL::CreateTableAndLoad: Error: Unrecognized field type detected.");
             }
 
             int len                = ecltype.getLength();
@@ -1899,7 +1900,7 @@ bool CwssqlEx::onCreateTableAndLoad(IEspContext &context, IEspCreateTableAndLoad
             IConstDataTypeParam &paramitem = formatparams.item(paramindex);
             const char * paramname = paramitem.getName();
             if (!paramname || !*paramname)
-                throw MakeStringException(-1, "WsSQL::CreateTableAndLoad: Error: Format type '%s' appears to have unnamed parameter(s).", formatname);
+                throw MakeStringException(ESPERR_WssqlCreatetableandloadErrorFormatTypeS, "WsSQL::CreateTableAndLoad: Error: Format type '%s' appears to have unnamed parameter(s).", formatname);
 
             StringArray & paramvalues = paramitem.getValues();
             int paramvalueslen = paramvalues.length();
@@ -1978,7 +1979,7 @@ bool CwssqlEx::onCreateTableAndLoad(IEspContext &context, IEspCreateTableAndLoad
         Owned<IConstWorkUnit> rw = factory->openWorkUnit(compiledwuid.str(), false);
 
         if (!rw)
-            throw MakeStringException(-1,"WsSQL: Cannot verify create and load request success.");
+            throw MakeStringException(ESPERR_WssqlCannotVerifyCreateAndLoad, "WsSQL: Cannot verify create and load request success.");
 
         WsWuInfo winfo(context, compiledwuid.str());
         WsWUExceptions errors(*rw);
@@ -2011,13 +2012,13 @@ bool CwssqlEx::onGetResults(IEspContext &context, IEspGetResultsRequest &req, IE
         {
             Owned<IConstWorkUnit> cw = factory->openWorkUnit(parentWuId, false);
             if (!cw)
-                throw MakeStringException(-1,"Cannot open workunit %s.", parentWuId);
+                throw MakeStringException(ESPERR_CannotOpenWorkunitS, "Cannot open workunit %s.", parentWuId);
 
             __int64 resultWindowStart = req.getResultWindowStart();
             __int64 resultWindowCount = req.getResultWindowCount();
 
             if (resultWindowStart < 0 || resultWindowCount <0 )
-               throw MakeStringException(-1,"Invalid result window value");
+               throw MakeStringException(ESPERR_InvalidResultWindowValue, "Invalid result window value");
 
             //resp.setResultLimit(resultLimit);
             resp.setResultWindowCount((unsigned)resultWindowCount);
@@ -2032,10 +2033,10 @@ bool CwssqlEx::onGetResults(IEspContext &context, IEspGetResultsRequest &req, IE
             winfo.getExceptions(resp.updateWorkunit(), WUINFO_All);
         }
         else
-            throw MakeStringException(-1,"Could not create WU factory object");
+            throw MakeStringException(ESPERR_CouldNotCreateWuFactoryObject, "Could not create WU factory object");
     }
     else
-        throw MakeStringException(-1,"Missing WuId");
+        throw MakeStringException(ESPERR_MissingWuid, "Missing WuId");
 
     return success;
 }

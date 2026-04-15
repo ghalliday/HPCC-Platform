@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jexcept.hpp"
+#include "esperr.hpp"
 #include "jsmartsock.hpp"
 #include "dasds.hpp"
 #include "daclient.hpp"
@@ -155,7 +156,7 @@ public:
                 return querySDS();
         }
 
-        throw MakeStringException(-1, "ESDS store is not attached to dali");
+        throw MakeStringException(ESPERR_EsdsStoreIsNotAttachedTo, "ESDS store is not attached to dali");
     }
 
 
@@ -164,7 +165,7 @@ public:
         unsigned latestSeq = 1;
         Owned<IRemoteConnection> conn = checkQuerySDS().connect(ESDL_DEFS_ROOT_PATH, myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT_DESDL);
         if (!conn)
-            throw MakeStringException(-1, "Unable to connect to ESDL Service definition information in dali '%s'", ESDL_DEFS_ROOT_PATH);
+            throw MakeStringException(ESPERR_UnableToConnectToEsdlService, "Unable to connect to ESDL Service definition information in dali '%s'", ESDL_DEFS_ROOT_PATH);
 
         IPropertyTree * esdlDefinitions = conn->queryRoot();
 
@@ -180,7 +181,7 @@ public:
                     latestSeq = thisSeq;
             }
         } else
-            throw MakeStringException(-1, "Unable to fetch ESDL definition '%s' from dali", definitionName);
+            throw MakeStringException(ESPERR_UnableToFetchEsdlDefinitionS, "Unable to fetch ESDL definition '%s' from dali", definitionName);
 
         return latestSeq;
     }
@@ -207,7 +208,7 @@ public:
         Owned<CEsdlDefinitionInfo> defInfo= new CEsdlDefinitionInfo();
 
         if (!definitionId || !*definitionId)
-            throw MakeStringException(-1, "Unable to fetch ESDL Service definition information, definition id is not available");
+            throw MakeStringException(ESPERR_UnableToFetchEsdlServiceDefinition, "Unable to fetch ESDL Service definition information, definition id is not available");
 
         StringBuffer targetId(definitionId);
 
@@ -221,7 +222,7 @@ public:
         VStringBuffer xpath("%s[@id='%s'][1]", ESDL_DEF_PATH, targetId.str());
         Owned<IRemoteConnection> conn = checkQuerySDS().connect(xpath.str(), myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT_DESDL);
         if (!conn)
-            throw MakeStringException(-1, "Unable to connect to ESDL Service definition information in dali '%s'", xpath.str());
+            throw MakeStringException(ESPERR_UnableToConnectToEsdlService, "Unable to connect to ESDL Service definition information in dali '%s'", xpath.str());
 
         IPropertyTree* defn = conn->queryRoot();
 
@@ -251,7 +252,7 @@ public:
             if( esxdlTree != nullptr )
                 readServiceMethodInfo(defInfo, esxdlTree);
             else
-                throw MakeStringException(-1, "Unable to retrieve ESDL Service definition %s interface", definitionId);
+                throw MakeStringException(ESPERR_UnableToRetrieveEsdlServiceDefinition, "Unable to retrieve ESDL Service definition %s interface", definitionId);
 
         }
 
@@ -261,7 +262,7 @@ public:
     virtual void fetchDefinitionXML(const char* definitionId, StringBuffer& esxdl) override
     {
         if (!definitionId || !*definitionId)
-            throw MakeStringException(-1, "Unable to fetch ESDL Service definition information, definition id is not available");
+            throw MakeStringException(ESPERR_UnableToFetchEsdlServiceDefinition, "Unable to fetch ESDL Service definition information, definition id is not available");
 
         DBGLOG("ESDL Binding: Fetching ESDL Definition from Dali: %s ", definitionId);
 
@@ -269,7 +270,7 @@ public:
         VStringBuffer xpath("%s[@id='%s'][1]", ESDL_DEF_PATH, definitionId);
         Owned<IRemoteConnection> conn = checkQuerySDS().connect(xpath.str(), myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT_DESDL);
         if (!conn)
-           throw MakeStringException(-1, "Unable to connect to ESDL Service definition information in dali '%s'", xpath.str());
+           throw MakeStringException(ESPERR_UnableToConnectToEsdlService, "Unable to connect to ESDL Service definition information in dali '%s'", xpath.str());
 
         IPropertyTree* defn = conn->queryRoot();
         if( defn->hasProp(ESDL_DEF_CONTENT_STR))
@@ -277,19 +278,19 @@ public:
         else if( defn->hasProp(ESDL_DEF_CONTENT_PTREE))
             toXML(defn->queryPropTree(ESDL_DEF_CONTENT_PTREE), esxdl, 0, 0);
         else
-            throw MakeStringException(-1, "Unable to fetch ESDL Service definition contents for %s", definitionId);
+            throw MakeStringException(ESPERR_UnableToFetchEsdlServiceDefinition_1, "Unable to fetch ESDL Service definition contents for %s", definitionId);
     }
 
     virtual void fetchLatestDefinitionXML(const char* definitionName, StringBuffer& esxdl) override
     {
         if (!definitionName || !*definitionName)
-            throw MakeStringException(-1, "Unable to fetch ESDL Service definition information, definition name is not available");
+            throw MakeStringException(ESPERR_UnableToFetchEsdlServiceDefinition_2, "Unable to fetch ESDL Service definition information, definition name is not available");
 
         DBGLOG("ESDL Binding: Fetching ESDL Definition from Dali based on name: %s ", definitionName);
 
         Owned<IRemoteConnection> conn = checkQuerySDS().connect(ESDL_DEFS_ROOT_PATH, myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT_DESDL);
         if (!conn)
-           throw MakeStringException(-1, "Unable to connect to ESDL Service definition information in dali '%s'", ESDL_DEFS_ROOT_PATH);
+           throw MakeStringException(ESPERR_UnableToConnectToEsdlService, "Unable to connect to ESDL Service definition information in dali '%s'", ESDL_DEFS_ROOT_PATH);
 
         IPropertyTree * esdlDefinitions = conn->queryRoot();
         unsigned latestSeq = fetchLatestSeqForDefinitionName(definitionName);
@@ -302,9 +303,9 @@ public:
             else if( deftree->hasProp(ESDL_DEF_CONTENT_PTREE))
                 toXML(deftree->queryPropTree(ESDL_DEF_CONTENT_PTREE), esxdl, 0, 0);
             else
-                throw MakeStringException(-1, "Unable to fetch ESDL Service definition contents for %s", definitionName);
+                throw MakeStringException(ESPERR_UnableToFetchEsdlServiceDefinition_1, "Unable to fetch ESDL Service definition contents for %s", definitionName);
         else
-            throw MakeStringException(-1, "Unable to fetch ESDL Service definition from dali: '%s'", definitionName);
+            throw MakeStringException(ESPERR_UnableToFetchEsdlServiceDefinition_3, "Unable to fetch ESDL Service definition from dali: '%s'", definitionName);
     }
 
     virtual IPropertyTree* fetchBinding(const char* espProcess, const char* espStaticBinding) override
@@ -532,11 +533,11 @@ public:
 
         //Only lock the branch for the target we're interested in.
         if (!conn)
-            throw MakeStringException(-1, "Unable to connect to %s", rxpath.str());
+            throw MakeStringException(ESPERR_UnableToConnectToS, "Unable to connect to %s", rxpath.str());
 
         Owned<IPropertyTree> root = conn->getRoot();
         if (!root.get())
-            throw MakeStringException(-1, "Unable to open %s", rxpath.str());
+            throw MakeStringException(ESPERR_UnableToOpenS, "Unable to open %s", rxpath.str());
 
         VStringBuffer xpath("Method[@name='%s']", methodName);
         Owned<IPropertyTree> oldEnvironment = root->getPropTree(xpath.str());
@@ -626,11 +627,11 @@ public:
 
         //Only lock the branch for the target we're interested in.
         if (!conn)
-            throw MakeStringException(-1, "Unable to connect to %s", rxpath.str());
+            throw MakeStringException(ESPERR_UnableToConnectToS, "Unable to connect to %s", rxpath.str());
 
         Owned<IPropertyTree> root = conn->getRoot();
         if (!root.get())
-            throw MakeStringException(-1, "Unable to open %s", rxpath.str());
+            throw MakeStringException(ESPERR_UnableToOpenS, "Unable to open %s", rxpath.str());
 
         VStringBuffer xpath("LogTransform[@name='%s']", logTransformName);
         Owned<IPropertyTree> oldEnvironment = root->getPropTree(xpath.str());
@@ -739,14 +740,14 @@ public:
         for ( ; espPort[ind]; ind++)
         {
             if (!isdigit(espPort[ind]))
-                throw MakeStringException(-1, "Esp port can only be a positive integer.");
+                throw MakeStringException(ESPERR_EspPortCanOnlyBeA, "Esp port can only be a positive integer.");
         }
         if(ind > 5)
-            throw MakeStringException(-1, "Esp port should be between 1 and 65535");
+            throw MakeStringException(ESPERR_EspPortShouldBeBetween1, "Esp port should be between 1 and 65535");
 
         int port = atoi(espPort);
         if(port <= 0 || port > 65535)
-            throw MakeStringException(-1, "Esp port should be between 1 and 65535");
+            throw MakeStringException(ESPERR_EspPortShouldBeBetween1, "Esp port should be between 1 and 65535");
     }
 
     bool validateBindServiceParameters(const char* bindingName,
@@ -900,7 +901,7 @@ public:
         }
         Owned<IRemoteConnection> conn = checkQuerySDS().connect(ESDL_BINDINGS_ROOT_PATH, myProcessSession(), RTM_LOCK_WRITE | RTM_CREATE_QUERY, SDS_LOCK_TIMEOUT_DESDL);
         if (!conn)
-           throw MakeStringException(-1, "Unexpected error while attempting to access ESDL definition dali registry.");
+           throw MakeStringException(ESPERR_UnexpectedErrorWhileAttemptingToAccess, "Unexpected error while attempting to access ESDL definition dali registry.");
 
         IPropertyTree * bindings = conn->queryRoot();
         IPropertyTree* existingBinding = nullptr;
@@ -1062,15 +1063,15 @@ public:
         bool ret = false;
         Owned<IRemoteConnection> conn = checkQuerySDS().connect(ESDL_DEFS_ROOT_PATH, myProcessSession(), RTM_LOCK_WRITE, SDS_LOCK_TIMEOUT_DESDL);
         if (!conn)
-            throw MakeStringException(-1, "Unable to connect to %s dali path", ESDL_DEFS_ROOT_PATH);
+            throw MakeStringException(ESPERR_UnableToConnectToSDali, "Unable to connect to %s dali path", ESDL_DEFS_ROOT_PATH);
 
         Owned<IPropertyTree> root = conn->getRoot();
 
         if (!root)
-            throw MakeStringException(-1, "Unable to open %s dali path", ESDL_DEFS_ROOT_PATH);
+            throw MakeStringException(ESPERR_UnableToOpenSDaliPath, "Unable to open %s dali path", ESDL_DEFS_ROOT_PATH);
 
         if (isDefinitionBound(definitionId))
-            throw MakeStringException(-1, "Unable to delete ESDL definition %s - It is currently bound", definitionId);
+            throw MakeStringException(ESPERR_UnableToDeleteEsdlDefinitionS, "Unable to delete ESDL definition %s - It is currently bound", definitionId);
 
         VStringBuffer xpath("%s[@id='%s']", ESDL_DEF_ENTRY, definitionId);
         Owned<IPropertyTree> oldEnvironment = root->getPropTree(xpath.str());
@@ -1101,11 +1102,11 @@ public:
         bool ret = false;
         Owned<IRemoteConnection> conn = checkQuerySDS().connect(ESDL_BINDINGS_ROOT_PATH, myProcessSession(), 0, SDS_LOCK_TIMEOUT_DESDL);
         if (!conn)
-            throw MakeStringException(-1, "Unable to connect to %s dali path", ESDL_BINDINGS_ROOT_PATH);
+            throw MakeStringException(ESPERR_UnableToConnectToSDali, "Unable to connect to %s dali path", ESDL_BINDINGS_ROOT_PATH);
 
         Owned<IPropertyTree> root = conn->getRoot();
         if (!root)
-            throw MakeStringException(-1, "Unable to open %s dali path", ESDL_BINDINGS_ROOT_PATH);
+            throw MakeStringException(ESPERR_UnableToOpenSDaliPath, "Unable to open %s dali path", ESDL_BINDINGS_ROOT_PATH);
 
         VStringBuffer xpath("%s[@id='%s']", ESDL_BINDING_ENTRY, bindingId);
         Owned<IPropertyTree> bindingtree = root->getPropTree(xpath.str());
@@ -1141,7 +1142,7 @@ public:
     {
         Owned<IRemoteConnection> conn = checkQuerySDS().connect(ESDL_DEFS_ROOT_PATH, myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT_DESDL);
         if (!conn)
-           throw MakeStringException(-1, "Unable to connect to ESDL Service definition information in dali '%s'", ESDL_DEFS_ROOT_PATH);
+           throw MakeStringException(ESPERR_UnableToConnectToEsdlService, "Unable to connect to ESDL Service definition information in dali '%s'", ESDL_DEFS_ROOT_PATH);
 
         return createPTreeFromIPT(conn->queryRoot());
     }
@@ -1150,7 +1151,7 @@ public:
     {
         Owned<IRemoteConnection> conn = checkQuerySDS().connect(ESDL_BINDINGS_ROOT_PATH, myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT_DESDL);
         if (!conn)
-           throw MakeStringException(-1, "Unable to connect to ESDL Service definition information in dali '%s'", ESDL_DEFS_ROOT_PATH);
+           throw MakeStringException(ESPERR_UnableToConnectToEsdlService, "Unable to connect to ESDL Service definition information in dali '%s'", ESDL_DEFS_ROOT_PATH);
 
         Owned<IPropertyTree> bindings = createPTreeFromIPT(conn->queryRoot());
         Owned<IPropertyTreeIterator> iter = bindings->getElements("*");
@@ -1211,7 +1212,7 @@ private:
         Owned<IRemoteConnection> globalLock = checkQuerySDS().connect(xpath.str(), myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT_DESDL);
 
         if (!globalLock)
-            throw MakeStringException(-1, "Unable to connect to ESP configuration information in dali %s", xpath.str());
+            throw MakeStringException(ESPERR_UnableToConnectToEspConfiguration, "Unable to connect to ESP configuration information in dali %s", xpath.str());
 
         if (espbindingport && *espbindingport)
             xpath.setf("EspProcess/[@name='%s']/EspBinding[@port=%s]", espprocname, espbindingport);
@@ -1237,7 +1238,7 @@ private:
         VStringBuffer exceptmsg("Can't access ESDL subscription dali registry, please check if %s exists", ESDL_CHANGE_PATH);
         Owned<IRemoteConnection> subsconn = checkQuerySDS().connect(ESDL_CHANGE_PATH, myProcessSession(), RTM_LOCK_WRITE | RTM_CREATE_QUERY, SDS_LOCK_TIMEOUT_DESDL);
         if (!subsconn)
-            throw MakeStringException(-1, "%s", exceptmsg.str());
+            throw MakeStringException(ESPERR_S, "%s", exceptmsg.str());
         IPropertyTree* substree = subsconn->queryRoot();
         substree->setProp(".", changeStr);
         subsconn->commit();

@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include "ws_config_esp.ipp"
+#include "esperr.hpp"
 
 //ESP Bindings
 #include "http/platform/httpprot.hpp"
@@ -43,7 +44,7 @@ ESP_FACTORY IEspService * esp_service_factory(const char *name, const char* type
    }
     else
     {
-        throw MakeStringException(-1, "Unknown service type %s", type);
+        throw MakeStringException(ESPERR_UnknownServiceTypeS, "Unknown service type %s", type);
     }
    return NULL;
 }
@@ -61,7 +62,7 @@ ESP_FACTORY IEspRpcBinding * esp_binding_factory(const char *name, const char* t
    }
     else
     {
-        throw MakeStringException(-1, "Unknown binding type %s", type);
+        throw MakeStringException(ESPERR_UnknownBindingTypeS, "Unknown binding type %s", type);
     }
 
    return NULL;

@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include "ws_dfuXRefService.hpp"
+#include "esperr.hpp"
 
 #include "jconfig.hpp"
 #include "dadfs.hpp"
@@ -114,7 +115,7 @@ void CWsDfuXRefEx::init(IPropertyTree *cfg, const char *process, const char *ser
     if (!daliClientActive())
     {
         OERRLOG("No Dali Connection Active.");
-        throw MakeStringException(-1, "No Dali Connection Active. Please Specify a Dali to connect to in you configuration file");
+        throw MakeStringException(ESPERR_NoDaliConnectionActivePleaseSpecify, "No Dali Connection Active. Please Specify a Dali to connect to in you configuration file");
     }
 
 #ifndef _CONTAINERIZED

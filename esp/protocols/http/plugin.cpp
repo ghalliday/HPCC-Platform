@@ -19,6 +19,7 @@
 
 //JLib
 #include "jliball.hpp"
+#include "esperr.hpp"
 
 //SCM Interfaces
 #include "esp.hpp"
@@ -49,12 +50,12 @@ esp_http_decl IEspProtocol * http_protocol_factory(const char *name, const char*
         }
         else
         {
-            throw MakeStringException(-1, "can't find ssl settings in the config file");
+            throw MakeStringException(ESPERR_CanTFindSslSettingsIn, "can't find ssl settings in the config file");
         }
     }
     else
     {
-        throw MakeStringException(-1, "Unknown protocol %s", name);
+        throw MakeStringException(ESPERR_UnknownProtocolS, "Unknown protocol %s", name);
     }
 
     return NULL;

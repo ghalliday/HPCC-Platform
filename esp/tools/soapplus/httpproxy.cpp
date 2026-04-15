@@ -16,6 +16,7 @@
  */
 
 #include "http.hpp"
+#include "esperr.hpp"
 
 void replaceHeader(StringBuffer& buf, const char* name, const char* value)
 {
@@ -205,7 +206,7 @@ int COneServerHttpProxyThread::start()
                 socket2.set(securesocket.get());
             }
 #else
-        throw MakeStringException(-1, "COneServerHttpProxyThread: failure to create SSL socket - OpenSSL not enabled in build");
+        throw MakeStringException(ESPERR_ConeserverhttpproxythreadFailureToCreateSslSocket, "COneServerHttpProxyThread: failure to create SSL socket - OpenSSL not enabled in build");
 #endif
         }
 
@@ -394,7 +395,7 @@ int CHttpProxyThread::run()
                 http = strstr(oneline, "HTTP://");
 
             if(!http)
-                throw MakeStringException(-1, "protocol not recognized\n");
+                throw MakeStringException(ESPERR_ProtocolNotRecognizedN, "protocol not recognized\n");
 
             StringBuffer requestbuf;
             requestbuf.append(http - oneline, oneline);
@@ -564,7 +565,7 @@ HttpProxy::HttpProxy(int localport, const char* url, FILE* ofile, const char* ur
 #ifdef _USE_OPENSSL
             m_ssctx.setown(createSecureSocketContext(ClientSocket));
 #else
-        throw MakeStringException(-1, "HttpProxy: failure to create SSL socket - OpenSSL not enabled in build");
+        throw MakeStringException(ESPERR_HttpproxyFailureToCreateSslSocket, "HttpProxy: failure to create SSL socket - OpenSSL not enabled in build");
 #endif
         }       
     }
@@ -584,7 +585,7 @@ HttpProxy::HttpProxy(int localport, const char* host, int port, FILE* ofile, boo
 #ifdef _USE_OPENSSL
         m_ssctx.setown(createSecureSocketContextEx2(sslconfig, ClientSocket));
 #else
-        throw MakeStringException(-1, "HttpProxy: failure to create SSL socket - OpenSSL not enabled in build");
+        throw MakeStringException(ESPERR_HttpproxyFailureToCreateSslSocket, "HttpProxy: failure to create SSL socket - OpenSSL not enabled in build");
 #endif
     }       
 }

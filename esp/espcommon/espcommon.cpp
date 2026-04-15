@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "esperr.hpp"
 #include "jexcept.hpp"
 #include "jutil.hpp"
 
@@ -33,7 +34,7 @@ static __uint64 convertToBucketLimit(const char *units, const char *value)
     else if (!strncmp(units, "us", 2))
         limit *= 1000;
     else if (strncmp(units, "ns", 2))
-        throw MakeStringException(-1, "Invalid units, '%s', detected while converting to bucket limits", units);
+        throw MakeStringException(ESPERR_InvalidUnitsSDetectedWhileConverting, "Invalid units, '%s', detected while converting to bucket limits", units);
 
     return limit;
 }

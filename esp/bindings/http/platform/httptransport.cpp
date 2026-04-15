@@ -16,6 +16,7 @@
 ############################################################################## */
 #pragma warning(disable : 4786)
 #include "platform.h"
+#include "esperr.hpp"
 #include "esphttp.hpp"
 #include "persistent.hpp"
 
@@ -2229,7 +2230,7 @@ int CHttpRequest::readContentToFiles(const char * netAddress, const char * path,
 {
     const char* contentType = m_content_type.get();
     if (!contentType || !*contentType)
-        throw MakeStringException(-1, "Content Type not found.");
+        throw MakeStringException(ESPERR_ContentTypeNotFound, "Content Type not found.");
     Owned<CMimeMultiPart> multipart = new CMimeMultiPart("1.0", contentType, "", "", "");
     multipart->parseContentType(contentType);
 

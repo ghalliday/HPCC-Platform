@@ -1,4 +1,5 @@
 #include "WsELKService.hpp"
+#include "esperr.hpp"
 
 Cws_elkEx::Cws_elkEx()
 {
@@ -11,7 +12,7 @@ Cws_elkEx::~Cws_elkEx()
 void Cws_elkEx::init(IPropertyTree *cfg, const char *process, const char *service)
 {
     if(cfg == nullptr)
-        throw MakeStringException(-1, "Cannot initialize Cws_elkEx, cfg is NULL");
+        throw MakeStringException(ESPERR_CannotInitializeCwsElkexCfgIs, "Cannot initialize Cws_elkEx, cfg is NULL");
 
     StringBuffer xpath;
     xpath.appendf("Software/EspProcess[@name=\"%s\"]/EspService[@name=\"%s\"]", process, service);

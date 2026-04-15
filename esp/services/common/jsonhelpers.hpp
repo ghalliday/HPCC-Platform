@@ -23,6 +23,7 @@
 #ifndef _JSONHELPERS_HPP__
 #define _JSONHELPERS_HPP__
 #include "jliball.hpp"
+#include "esperr.hpp"
 #include "wsexcept.hpp"
 
 #define REQSF_ROOT         0x0001
@@ -386,7 +387,7 @@ namespace JsonHelpers
             const char* itemName = type->queryFieldName(0);
             IXmlType*   itemType = type->queryFieldType(0);
             if (!itemName || !itemType)
-                throw MakeStringException(-1,"*** Invalid array definition: tag=%s, itemName=%s", tag, itemName?itemName:"NULL");
+                throw MakeStringException(ESPERR_InvalidArrayDefinitionTagSItemname, "*** Invalid array definition: tag=%s, itemName=%s", tag, itemName?itemName:"NULL");
 
             int startlen = out.length();
             if (tag)

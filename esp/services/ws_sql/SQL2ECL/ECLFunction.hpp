@@ -19,6 +19,7 @@ limitations under the License.
 #define ECLFUNCTION_HPP_
 
 #include "ws_sql.hpp"
+#include "esperr.hpp"
 #include "ws_sql_esp.ipp"
 
 #define AGGREGATE_FUNCTION_TYPE 1
@@ -108,7 +109,7 @@ public:
                 return  eclfuncstable.find(fnnameupper.toUpperCase().str())->second;
         }
 
-        throw MakeStringException(-1, "Invalid ECL function: %s", funcname);
+        throw MakeStringException(ESPERR_InvalidEclFunctionS, "Invalid ECL function: %s", funcname);
     }
 
     static bool funcsinited;

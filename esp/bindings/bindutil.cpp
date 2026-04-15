@@ -20,6 +20,7 @@
 #endif
 
 #include "platform.h"
+#include "esperr.hpp"
 #define BINDUTIL_EXPORT DECL_EXPORT
 
 #include <map>
@@ -540,7 +541,7 @@ void Utils::SplitURL(const char* url, StringBuffer& protocol,StringBuffer& UserN
 {
     int protlen = 0;
     if(!url || strlen(url) <= 7)
-        throw MakeStringException(-1, "Invalid URL %s", url);
+        throw MakeStringException(ESPERR_InvalidUrlS, "Invalid URL %s", url);
     else if(Utils::strncasecmp(url, "HTTP://", 7) == 0)
     {
         protocol.append("HTTP");
@@ -553,7 +554,7 @@ void Utils::SplitURL(const char* url, StringBuffer& protocol,StringBuffer& UserN
     }
     else
     {
-        throw MakeStringException(-1, "Please specify protocol HTTP or HTTPS");
+        throw MakeStringException(ESPERR_PleaseSpecifyProtocolHttpOrHttps, "Please specify protocol HTTP or HTTPS");
     }
 
     char buf[URL_MAX+1];

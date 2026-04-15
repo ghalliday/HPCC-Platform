@@ -1,4 +1,5 @@
 #include <memory>
+#include "esperr.hpp"
 
 #include "jconfig.hpp"
 #include "daclient.hpp"
@@ -283,7 +284,7 @@ bool CWsEclService::init(const char * name, const char * type, IPropertyTree * c
     xpath.appendf("Software/EspProcess[@name='%s']", process);
     IPropertyTree *prc = cfg->queryPropTree(xpath.str());
     if (!prc)
-        throw MakeStringException(-1, "ESP Process %s not configured", process);
+        throw MakeStringException(ESPERR_EspProcessSNotConfigured, "ESP Process %s not configured", process);
 
     auth_method.set(prc->queryProp("Authentication/@method"));
     portal_URL.set(prc->queryProp("@portalurl"));
@@ -299,7 +300,7 @@ bool CWsEclService::init(const char * name, const char * type, IPropertyTree * c
     xpath.clear().appendf("EspService[@name='%s']", name);
     IPropertyTree *serviceTree = prc->queryPropTree(xpath);
     if (!serviceTree)
-        throw MakeStringException(-1, "ESP Service %s not configured", name);
+        throw MakeStringException(ESPERR_EspServiceSNotConfigured, "ESP Service %s not configured", name);
 
     roxieTimeout = serviceTree->getPropInt("RoxieTimeout", 10 * 60);
     if (!roxieTimeout)
@@ -646,7 +647,7 @@ static void buildReqXml(StringArray& parentTypes, IXmlType* type, StringBuffer& 
         const char* itemName = type->queryFieldName(0);
         IXmlType*   itemType = type->queryFieldType(0);
         if (!itemName || !itemType)
-            throw MakeStringException(-1,"*** Invalid array definition: tag=%s, itemName=%s", tag, itemName?itemName:"NULL");
+            throw MakeStringException(ESPERR_InvalidArrayDefinitionTagSItemname, "*** Invalid array definition: tag=%s, itemName=%s", tag, itemName?itemName:"NULL");
 
         int startlen = out.length();
         appendXMLOpenTag(out, tag, NULL, false);
@@ -771,7 +772,7 @@ static void buildRestURL(StringArray& parentTypes, StringArray &path, IXmlType* 
         const char* itemName = type->queryFieldName(0);
         IXmlType*   itemType = type->queryFieldType(0);
         if (!itemName || !itemType)
-            throw makeStringExceptionV(-1, "*** Invalid array definition: tag=%s, itemName=%s", tag?tag:"NULL", itemName?itemName:"NULL");
+            throw makeStringExceptionV(ESPERR_InvalidArrayDefinitionTagSItemname, "*** Invalid array definition: tag=%s, itemName=%s", tag?tag:"NULL", itemName?itemName:"NULL");
 
         StringBuffer itemURLPath(itemName);
         if (depth>1)
@@ -2101,7 +2102,7 @@ void CWsEclBinding::sendRoxieRequest(const char *target, StringBuffer &req, Stri
     {
         ISmartSocketFactory *conn = wsecl->connMap.getValue(target);
         if (!conn)
-            throw MakeStringException(-1, "roxie target cluster not mapped: %s", target);
+            throw MakeStringException(ESPERR_RoxieTargetClusterNotMappedS, "roxie target cluster not mapped: %s", target);
         ep = conn->nextEndpoint();
 
         WsEclSocketFactory *roxieConn = static_cast<WsEclSocketFactory*>(conn);
@@ -2126,7 +2127,7 @@ void CWsEclBinding::sendRoxieRequest(const char *target, StringBuffer &req, Stri
         httpclient->setTimeOut(noTimeout?WAIT_FOREVER:wsecl->roxieTimeout);
         int ret = httpclient->sendRequest(headers, "POST", contentType, req, resp, status);
         if (0 > ret)
-            throw MakeStringException(-1, "Roxie cluster communication error: %s", target);
+            throw MakeStringException(ESPERR_RoxieClusterCommunicationErrorS, "Roxie cluster communication error: %s", target);
         else if (0 == resp.length())
         {
             IMultiException* me = httpclient->queryExceptions();
@@ -2167,7 +2168,7 @@ static void checkWorkunitCompatibleOptions(IEspContext &context, bool submitWork
     bool statsToWorkunit = context.queryRequestParameters()->getPropBool("@statsToWorkunit", false);
     bool summaryStats = context.queryRequestParameters()->getPropBool("@summaryStats", false);
     if (submitWorkunit && (statsToWorkunit || summaryStats))
-        throw makeStringException(-1, "Neither 'Save stats to workunit' or 'Get summary stats' are supported for the 'Create Workunit' option");
+        throw makeStringException(ESPERR_NeitherSaveStatsToWorkunitOr, "Neither 'Save stats to workunit' or 'Get summary stats' are supported for the 'Create Workunit' option");
 }
 
 int CWsEclBinding::onSubmitQueryOutput(IEspContext &context, CHttpRequest* request, CHttpResponse* response, WsEclWuInfo &wsinfo, const char *format, bool forceCreateWorkunit)
@@ -2665,7 +2666,7 @@ int CWsEclBinding::onGet(CHttpRequest* request, CHttpResponse* response)
     //  [sub_serv_method, sub_serv_query, sub_serv_instant_query]
     //
     if (ss!=sub_serv_method && ss!=sub_serv_query && ss!=sub_serv_instant_query)
-        throw makeStringException(-1, "Unexpected URL modifier!");
+        throw makeStringException(ESPERR_UnexpectedUrlModifier, "Unexpected URL modifier!");
 
     //We are in WsECL REST URL mode from here
     Owned<IMultiException> me = MakeMultiException("WsEcl");
@@ -2750,7 +2751,7 @@ int CWsEclBinding::onGet(CHttpRequest* request, CHttpResponse* response)
             setResponseFormatByName(context, format);
 
             if (!wsecl->connMap.getValue(target.str()))
-                throw MakeStringException(-1, "Target cluster not mapped to roxie process!");
+                throw MakeStringException(ESPERR_TargetClusterNotMappedToRoxie, "Target cluster not mapped to roxie process!");
             Owned<IPropertyTree> pt = createPTreeFromHttpParameters(qid.str(), parms, true, false);
             StringBuffer soapreq(
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
@@ -2860,7 +2861,7 @@ int CWsEclBinding::onGet(CHttpRequest* request, CHttpResponse* response)
     }
     catch (...)
     {
-        me->append(*MakeStringExceptionDirect(-1, "Unknown Exception"));
+        me->append(*MakeStringExceptionDirect(ESPERR_UnknownException, "Unknown Exception"));
     }
     
     response->handleExceptions(getXslProcessor(), me, "WsEcl", "", StringBuffer(getCFD()).append("./smc_xslt/exceptions.xslt").str(), false);

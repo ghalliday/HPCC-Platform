@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "espcontext.hpp"
+#include "esperr.hpp"
 #include "espcache.hpp"
 
 
@@ -195,7 +196,7 @@ bool ESPMemCached::checkServersUp()
 ESPCacheResult ESPMemCached::exists(const char* groupID, const char* cacheID)
 {
 #if (LIBMEMCACHED_VERSION_HEX<0x53000)
-    throw makeStringException(0, "memcached_exist not supported in this version of libmemcached");
+    throw makeStringException(ESPERR_MemcachedExistNotSupportedInThis, "memcached_exist not supported in this version of libmemcached");
 #endif
 
     memcached_return_t rc;

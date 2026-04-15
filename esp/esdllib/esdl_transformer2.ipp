@@ -21,6 +21,7 @@
 #pragma warning(disable : 4786)
 
 #include "jliball.hpp"
+#include "esperr.hpp"
 #include "espcontext.hpp"
 #include "esdl_transformer.hpp"
 #include <xpp/XmlPullParser.h>
@@ -153,7 +154,7 @@ public:
     virtual void process(Esdl2TransformerContext &ctx, IPropertyTree *pt, const char *out_name, Esdl2LocalContext* local=NULL,bool count=false){}
     virtual void processElement(Esdl2TransformerContext &ctx)
     {
-        throw MakeStringException(-1, "ESDL Error: processElement not implemented for %s", queryName());
+        throw MakeStringException(ESPERR_EsdlErrorProcesselementNotImplementedFor, "ESDL Error: processElement not implemented for %s", queryName());
     }
 
     virtual void serialize(StringBuffer &out)=0;
@@ -179,7 +180,7 @@ public:
     void setDataFor(Esdl2Base* node)
     {
         if (data_for)
-            throw MakeStringException(-1, "Feature not supported: data-for only for single field. Field: %s", queryName());
+            throw MakeStringException(ESPERR_FeatureNotSupportedDataForOnly, "Feature not supported: data-for only for single field. Field: %s", queryName());
         data_for = node;
     }
     bool hasDataFrom() { return m_hasDataFrom; }

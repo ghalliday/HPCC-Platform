@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "espcontext.hpp"
+#include "esperr.hpp"
 #include "esdl_script.hpp"
 #include "wsexcept.hpp"
 #include "httpclient.hpp"
@@ -41,7 +42,7 @@ public:
         if (scriptContext)
             scriptContext->pushMaskerScope();
         else
-            throw makeStringException(-1, "EsdlScriptMaskerScope failure - missing context");
+            throw makeStringException(ESPERR_EsdlscriptmaskerscopeFailureMissingContext, "EsdlScriptMaskerScope failure - missing context");
     }
     ~EsdlScriptMaskerScope()
     {
@@ -60,7 +61,7 @@ public:
         if (scriptContext)
             scriptContext->pushTraceOptionsScope();
         else
-            throw makeStringException(-1, "EsdlScriptTraceOptionsScope failure - missing context");
+            throw makeStringException(ESPERR_EsdlscripttraceoptionsscopeFailureMissingContext, "EsdlScriptTraceOptionsScope failure - missing context");
     }
     ~EsdlScriptTraceOptionsScope()
     {
@@ -190,14 +191,14 @@ protected:
     virtual void popMaskerScope() override
     {
         if (maskerScopes.empty())
-            throw makeStringException(-1, "popMaskerScope failed - unbalanced push");
+            throw makeStringException(ESPERR_PopmaskerscopeFailedUnbalancedPush, "popMaskerScope failed - unbalanced push");
         maskerScopes.pop_back();
     }
 
     virtual void pushTraceOptionsScope() override
     {
         if (traceOptionsScopes.empty())
-            throw makeStringException(-1, "pushTraceOptionsScope failed - empty stack");
+            throw makeStringException(ESPERR_PushtraceoptionsscopeFailedEmptyStack, "pushTraceOptionsScope failed - empty stack");
         TraceOptionsScope& parent = traceOptionsScopes.back();
         traceOptionsScopes.emplace_back(parent.first, parent.second);
     }
@@ -205,7 +206,7 @@ protected:
     virtual void popTraceOptionsScope() override
     {
         if (maskerScopes.empty())
-            throw makeStringException(-1, "popTraceOptionsScope failed - unbalanced push");
+            throw makeStringException(ESPERR_PoptraceoptionsscopeFailedUnbalancedPush, "popTraceOptionsScope failed - unbalanced push");
         traceOptionsScopes.pop_back();
     }
 
@@ -666,10 +667,10 @@ IEmbedContext &ensureMysqlEmbed()
     {
         mysqlPluginDll.setown(createDllEntry("mysqlembed", false, NULL, false));
         if (!mysqlPluginDll)
-            throw makeStringException(0, "Failed to load mysqlembed plugin");
+            throw makeStringException(ESPERR_FailedToLoadMysqlembedPlugin, "Failed to load mysqlembed plugin");
         GetEmbedContextFunction pf = (GetEmbedContextFunction) mysqlPluginDll->getEntry("getEmbedContextDynamic");
         if (!pf)
-            throw makeStringException(0, "Failed to load mysqlembed plugin");
+            throw makeStringException(ESPERR_FailedToLoadMysqlembedPlugin, "Failed to load mysqlembed plugin");
         mysqlplugin.setown(pf());
     }
     return *mysqlplugin;

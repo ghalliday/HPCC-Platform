@@ -19,6 +19,7 @@
 #define _HTTPRESPONSEBUFFER_IPP__
 
 #include "http/platform/httptransport.ipp"
+#include "esperr.hpp"
 #include "rtlformat.hpp"
 
 static constexpr unsigned defaultResponseFlushThresholdBytes = 8000;
@@ -35,7 +36,7 @@ public:
         response(_response),  responseFlushThreshold(_flushThreshold)
     {
         if (!response)
-            throw makeStringException(-1, "HttpResponse not specified for CFlushingWUFileBuffer");
+            throw makeStringException(ESPERR_HttpresponseNotSpecifiedForCflushingwufilebuffer, "HttpResponse not specified for CFlushingWUFileBuffer");
     };
     ~CFlushingHttpResponseBuffer()
     {

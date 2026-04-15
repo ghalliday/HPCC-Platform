@@ -18,6 +18,7 @@
 #pragma warning(disable : 4786)
 
 #include "esphttp.hpp"
+#include "esperr.hpp"
 
 //Jlib
 #include "jliball.hpp"
@@ -60,7 +61,7 @@ static HINSTANCE getXmlLib()
     const char* name = SharedObjectPrefix "xmllib" SharedObjectExtension;
     HINSTANCE xmllib = LoadSharedObject(name,true,false);
     if (!LoadSucceeded(xmllib))
-        throw MakeStringException(-1,"load %s failed with code %d", name, GetSharedObjectError());
+        throw MakeStringException(ESPERR_LoadSFailedWithCodeD, "load %s failed with code %d", name, GetSharedObjectError());
     return xmllib;
 }
 
@@ -94,11 +95,11 @@ static IXmlSchema* createXmlSchema(const char* schema)
     const char* name = SharedObjectPrefix "xmllib" SharedObjectExtension;
     HINSTANCE xmllib = LoadSharedObject(name,true,false);
     if (!LoadSucceeded(xmllib))
-        throw MakeStringException(-1,"load %s failed with code %d", name, GetSharedObjectError());
+        throw MakeStringException(ESPERR_LoadSFailedWithCodeD, "load %s failed with code %d", name, GetSharedObjectError());
     typedef IXmlSchema* (*XmlSchemaCreator)(const char*);
     XmlSchemaCreator creator = (XmlSchemaCreator)GetSharedProcedure(xmllib, "createXmlSchemaFromString");
     if (!creator)
-        throw MakeStringException(-1,"load XmlSchema factory failed: createXmlSchemaFromString()");
+        throw MakeStringException(ESPERR_LoadXmlschemaFactoryFailedCreatexmlschemafromstring, "load XmlSchema factory failed: createXmlSchemaFromString()");
 
     return creator(schema);
 }
@@ -429,7 +430,7 @@ EspHttpBinding::EspHttpBinding(IPropertyTree* tree, const char *bindname, const 
                             if(lscfg == NULL)
                             {
                                 OERRLOG("can't find bnd_cfg for LdapSecurity %s", lsname.str());
-                                throw MakeStringException(-1, "can't find bnd_cfg for LdapSecurity %s", lsname.str());
+                                throw MakeStringException(ESPERR_CanTFindBndCfgFor, "can't find bnd_cfg for LdapSecurity %s", lsname.str());
                             }
                         }
 
@@ -455,7 +456,7 @@ EspHttpBinding::EspHttpBinding(IPropertyTree* tree, const char *bindname, const 
                             {
                                 auto pSecMgr = SecLoader::loadSecManager("LdapSecurity", "EspHttpBinding", LINK(lscfg));
                                 if (!pSecMgr)
-                                    throw MakeStringException(-1, "error generating SecManager");
+                                    throw MakeStringException(ESPERR_ErrorGeneratingSecmanager, "error generating SecManager");
                                 ldapInstances.emplace(instanceParams, pSecMgr);
                                 m_secmgr.set(pSecMgr);
                             }
@@ -473,7 +474,7 @@ EspHttpBinding::EspHttpBinding(IPropertyTree* tree, const char *bindname, const 
                         m_setting_authmap.setown(m_secmgr->createSettingMap(authcfg));
                     }
                     else if(strieq(m_authmethod.str(), "Local") || strieq(m_authmethod.str(), "Default"))
-                        throw makeStringExceptionV(-1, "obsolete auth method %s; update configuration", m_authmethod.str());
+                        throw makeStringExceptionV(ESPERR_ObsoleteAuthMethodSUpdateConfiguration, "obsolete auth method %s; update configuration", m_authmethod.str());
 
                     IRestartManager* restartManager = dynamic_cast<IRestartManager*>(m_secmgr.get());
                     if(restartManager!=NULL)
@@ -516,7 +517,7 @@ EspHttpBinding::EspHttpBinding(IPropertyTree* tree, const char *bindname, const 
             const char* authType = authDomainTree->queryProp("@authType");
             // Missing authType is assumed to be AuthTypeMixed - see readAuthDomainCfg()
             if (isEmptyString(authType) || !strieq(authType, "AuthPerRequestOnly"))
-                throw MakeStringException(-1, "ESP binding %s cannot use AuthDomain named '%s'. Since no dali is active only AuthPerRequestOnly domains are allowed.", bindname, domainName.str());
+                throw MakeStringException(ESPERR_EspBindingSCannotUseAuthdomain, "ESP binding %s cannot use AuthDomain named '%s'. Since no dali is active only AuthPerRequestOnly domains are allowed.", bindname, domainName.str());
         }
 
         domainAuthType = AuthPerRequestOnly;
@@ -851,7 +852,7 @@ bool EspHttpBinding::authRequired(CHttpRequest *request)
     request->getPath(path);
     if(path.length() == 0)
     {
-        throw MakeStringException(-1, "Path is empty for http request");
+        throw MakeStringException(ESPERR_PathIsEmptyForHttpRequest, "Path is empty for http request");
     }
     if(m_authmap.get() == NULL)
         return false;
@@ -1642,7 +1643,7 @@ int EspHttpBinding::onFeaturesAuthorize(IEspContext &context, MapStringTo<SecAcc
             SecAccessFlags val = *pmap.getValue(key);
             features.appendf("%s%s:%s", (index++ == 0 ? "" : ", "), key, getSecAccessFlagName(val));
         }
-        throw MakeStringException(-1, "%s::%s access denied - Required features: %s.", serviceName, methodName, features.str());
+        throw MakeStringException(ESPERR_SSAccessDeniedRequiredFeatures, "%s::%s access denied - Required features: %s.", serviceName, methodName, features.str());
     }
     return 0;
 }
@@ -1795,7 +1796,7 @@ int EspHttpBinding::onGetVersion(IEspContext &context, CHttpRequest* request, CH
 
 bool EspHttpBinding::getSchema(StringBuffer& schema, IEspContext &ctx, CHttpRequest* req, const char *service, const char *method,bool standalone)
 {
-    throw MakeStringException(-1, "getSchema deprecated in EspHttpBinding, use getServiceSchema instead");
+    throw MakeStringException(ESPERR_GetschemaDeprecatedInEsphttpbindingUseGetserviceschema, "getSchema deprecated in EspHttpBinding, use getServiceSchema instead");
 }
 
 
@@ -1953,7 +1954,7 @@ static void genSampleXml(StringStack& parent, IXmlType* type, StringBuffer& out,
         const char* itemName = type->queryFieldName(0);
         IXmlType*   itemType = type->queryFieldType(0);
         if (!itemName || !itemType)
-            throw MakeStringException(-1,"*** Invalid array definition: tag=%s, itemName=%s", tag, itemName?itemName:"NULL");
+            throw MakeStringException(ESPERR_InvalidArrayDefinitionTagSItemname, "*** Invalid array definition: tag=%s, itemName=%s", tag, itemName?itemName:"NULL");
 
         StringBuffer item;
         if (typeName)
@@ -2153,11 +2154,11 @@ void EspHttpBinding::generateSampleXmlFromSchema(bool isRequest, IEspContext &co
     {
         Owned<IXmlSchema> schema = createXmlSchema(schemaXmlbuff);
         if (!schema.get())
-            throw MakeStringException(-1, "Could not create XML Schema");
+            throw MakeStringException(ESPERR_CouldNotCreateXmlSchema, "Could not create XML Schema");
 
         IXmlType* type = schema->queryElementType(element);
         if (!type)
-            throw MakeStringException(-1, "Unknown type: %s", element.str());
+            throw MakeStringException(ESPERR_UnknownTypeS, "Unknown type: %s", element.str());
 
         StringStack parent;
         StringBuffer nsdecl("xmlns=\"");
@@ -2202,7 +2203,7 @@ int EspHttpBinding::onStartUpload(IEspContext &ctx, CHttpRequest* request, CHttp
     try
     {
         if (!ctx.validateFeatureAccess(FILE_UPLOAD, SecAccess_Full, false))
-            throw MakeStringException(-1, "Permission denied.");
+            throw MakeStringException(ESPERR_PermissionDenied, "Permission denied.");
 
         StringBuffer netAddress, path;
         request->getParameter("NetAddress", netAddress);
@@ -2220,7 +2221,7 @@ int EspHttpBinding::onStartUpload(IEspContext &ctx, CHttpRequest* request, CHttp
     }
     catch (...)
     {
-        me->append(*MakeStringExceptionDirect(-1, "Unknown Exception"));
+        me->append(*MakeStringExceptionDirect(ESPERR_UnknownException, "Unknown Exception"));
     }
 
     //There is an exception. So close socket connection right after sending the response to avoid more file upload.
@@ -2815,13 +2816,13 @@ void EspHttpBinding::validateResponse(IEspContext& context, CHttpRequest* reques
             if (end)
                 end = strchr(end+2, '>');
             if (!end)
-                throw MakeStringException(-1,"Invalid response XML in processing instruction");
+                throw MakeStringException(ESPERR_InvalidResponseXmlInProcessingInstruction, "Invalid response XML in processing instruction");
         }
         else
         {
             end = strchr(xml, '>');
             if (!end)
-                throw MakeStringException(-1,"Can not find the root node");
+                throw MakeStringException(ESPERR_CanNotFindTheRootNode, "Can not find the root node");
             if (*(end-1)=='/')   // root is like: <xxx />
                 end--;
         }

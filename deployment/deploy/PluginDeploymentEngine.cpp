@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "PluginDeploymentEngine.hpp"
+#include "deployerr.hpp"
 #include <Shlwapi.h>    // for path functions
 
 //#####################################################################################################
@@ -55,7 +56,7 @@ void CPluginDeploymentEngine::getPluginDirectory(const char* destPath, StringBuf
       sPluginsDir.replace('$', ':');
 
       if (! ::PathIsRelative(sPluginsDir.str()))
-         throw MakeStringExceptionDirect(-1, "Plugins path for ECL server must be relative to its installation directory!");
+         throw MakeStringExceptionDirect(DEPLOYERR_PluginsPathForEclServerMust, "Plugins path for ECL server must be relative to its installation directory!");
 
       if (!strncmp(sPluginsDir.str(), "./", 2))
          sPluginsDir.remove(0, 2);
@@ -133,7 +134,7 @@ void CPluginDeploymentEngine::getPlugins(StringArray& plugins,
       const char* pluginName = iter->query().queryProp("@process");
       IPropertyTree* pluginProcess = lookupProcess("PluginProcess", pluginName);
       if (!pluginProcess)
-         throw MakeStringException(0, "Process %s references unknown plugin %s", m_name, pluginName);
+         throw MakeStringException(DEPLOYERR_ProcessSReferencesUnknownPluginS, "Process %s references unknown plugin %s", m_name, pluginName);
 
       // Get plugin file list from the plugin process
       mmapStr2PairStrStr fileMap;
@@ -181,7 +182,7 @@ int CPluginDeploymentEngine::createInstallFileMap(IPropertyTree& node,
       const char* pluginName = iter->query().queryProp("@process");
       IPropertyTree* pluginProcess = lookupProcess("PluginProcess", pluginName);
       if (!pluginProcess)
-         throw MakeStringException(0, "Process %s references unknown plugin %s", m_name, pluginName);
+         throw MakeStringException(DEPLOYERR_ProcessSReferencesUnknownPluginS, "Process %s references unknown plugin %s", m_name, pluginName);
 
       // Get plugin file list from the plugin process
       CDeploymentEngine::createInstallFileMap(*pluginProcess, sPluginDest.str(), fileMap);

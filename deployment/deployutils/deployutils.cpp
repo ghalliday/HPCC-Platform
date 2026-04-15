@@ -17,6 +17,7 @@
 // DeployUtils.cpp : Defines the exported functions for the DLL application.
 //
 #include "deployutils.hpp"
+#include "deployerr.hpp"
 #include "XMLTags.h"
 #include "jliball.hpp"
 #include "buildset.hpp"
@@ -3054,13 +3055,13 @@ IPropertyTree* getNewRange(const IPropertyTree* pEnv, const char* prefix, const 
    }
 
    if (start.isNull())
-     throw MakeStringException(-1, "Invalid start ip address: %s", startIP);
+     throw MakeStringException(DEPLOYERR_InvalidStartIpAddressS, "Invalid start ip address: %s", startIP);
 
    if (end.isNull())
-     throw MakeStringException(-1, "Invalid stop ip address: %s", endIP);
+     throw MakeStringException(DEPLOYERR_InvalidStopIpAddressS, "Invalid stop ip address: %s", endIP);
 
    if ((s << 8) != (e << 8))
-     throw MakeStringException(-1, "Start and stop IP addresses must be within same subnet");
+     throw MakeStringException(DEPLOYERR_StartAndStopIpAddressesMust, "Start and stop IP addresses must be within same subnet");
   
    // Create string for common attributes
    StringBuffer attr, val, sAttributes;
@@ -3142,7 +3143,7 @@ bool ensureUniqueName(const IPropertyTree* pEnv, IPropertyTree* pParentNode, con
 
   if (bOriginalFound && bDuplicateFound)
   {
-    throw MakeStringException(-1, "Another %s already exists with the same name!\nPlease specify a unique name", 
+    throw MakeStringException(DEPLOYERR_AnotherSAlreadyExistsWithThe, "Another %s already exists with the same name!\nPlease specify a unique name", 
       pParentNode->queryName());
   }
 
@@ -3152,7 +3153,7 @@ bool ensureUniqueName(const IPropertyTree* pEnv, IPropertyTree* pParentNode, con
 bool ensureUniqueName(const IPropertyTree* pEnv, IPropertyTree* pParentNode, const char* szText)
 {
   if (!strcmp(szText, "Directories"))
-    throw MakeStringException(-1, "%s already exists!\nPlease specify a unique name", szText);
+    throw MakeStringException(DEPLOYERR_SAlreadyExistsNpleaseSpecifyA, "%s already exists!\nPlease specify a unique name", szText);
 
   bool rc = ensureUniqueName(pEnv, pParentNode, "Software", szText) &&
     ensureUniqueName(pEnv, pParentNode,"Hardware", szText) &&
@@ -3192,7 +3193,7 @@ const char* expandXPath(StringBuffer& xpath, IPropertyTree* pNode, IPropertyTree
 bool xsltTransform(const char *xml, const char* sheet, IProperties *params, StringBuffer& ret)
 {
   if (!checkFileExists(sheet))
-    throw MakeStringException(-1, "Could not find stylesheet %s",sheet);
+    throw MakeStringException(DEPLOYERR_CouldNotFindStylesheetS, "Could not find stylesheet %s",sheet);
 
   Owned<IXslProcessor> proc  = getXslProcessor();
   Owned<IXslTransform> trans = proc->createXslTransform();
@@ -3275,7 +3276,7 @@ bool onChangeAttribute(const IPropertyTree* pEnv,
           if (!stricmp(source, "component"))
             pSourceNode = pComponent;
           else
-            throw MakeStringException(0, "Invalid source specified.");
+            throw MakeStringException(DEPLOYERR_InvalidSourceSpecified, "Invalid source specified.");
         }
 
         StringBuffer xml;
@@ -3479,7 +3480,7 @@ void formIPList(const char* ip, StringArray& formattedIpList)
     }
  }
  else
-     throw MakeStringException(-1, "List of IP Addresses cannot be empty");
+     throw MakeStringException(DEPLOYERR_ListOfIpAddressesCannotBe, "List of IP Addresses cannot be empty");
 }
 
 void buildEnvFromWizard(const char * wizardXml, const char* service,IPropertyTree* cfg, StringBuffer& envXml, StringArray& arrBuildSetWithAssignedIPs,
@@ -3491,10 +3492,10 @@ void buildEnvFromWizard(const char * wizardXml, const char* service,IPropertyTre
     wizardInputs.setEnvironment();
     wizardInputs.generateEnvironment(envXml);
     if(envXml.length() == 0)
-      throw MakeStringException(-1, "Failed to generated the environment xml for unknown reason");
+      throw MakeStringException(DEPLOYERR_FailedToGeneratedTheEnvironmentXml, "Failed to generated the environment xml for unknown reason");
   }
   else
-    throw MakeStringException(-1, "User inputs are needed to generate the environment");
+    throw MakeStringException(DEPLOYERR_UserInputsAreNeededToGenerate, "User inputs are needed to generate the environment");
 }
 
 void runScript(StringBuffer& output, StringBuffer& errMsg, const char* pathToScript)
@@ -3532,7 +3533,7 @@ void runScript(StringBuffer& output, StringBuffer& errMsg, const char* pathToScr
       errMsg.clear().append("Could not open or run autodiscovery script ").append(pathToScript);
  }
  else
-    throw MakeStringException(-1,"The Script [%s] for getting IP addresses for environment does not exist", pathToScript);
+    throw MakeStringException(DEPLOYERR_TheScriptSForGettingIp, "The Script [%s] for getting IP addresses for environment does not exist", pathToScript);
 }
 
 bool validateIPS(const char* ipAddressList)
@@ -3548,11 +3549,11 @@ bool validateIPS(const char* ipAddressList)
        IpAddress ipaddr(ip);
        ipaddr.getNetAddress(sizeof(x), &x);
        if ( ipaddr.isNull())
-        throw MakeStringException(-1, "Invalid ip address: %s", ip);
+        throw MakeStringException(DEPLOYERR_InvalidIpAddressS, "Invalid ip address: %s", ip);
     }
   }
   else
-     throw MakeStringException(-1, "List for IP Addresses cannot be empty");
+     throw MakeStringException(DEPLOYERR_ListForIpAddressesCannotBe, "List for IP Addresses cannot be empty");
   return true;
 }
 
@@ -3726,7 +3727,7 @@ void getSummary(const IPropertyTree* pEnvRoot, StringBuffer& respXmlStr, bool pr
       toXML(pSummaryTree,respXmlStr);
   }
   else
-    throw MakeStringException(-1, "Environment does not have any configuration information");
+    throw MakeStringException(DEPLOYERR_EnvironmentDoesNotHaveAnyConfiguration, "Environment does not have any configuration information");
 }
 
 void mergeAttributes(IPropertyTree* pTo, IPropertyTree* pFrom)
@@ -3991,7 +3992,7 @@ bool validateEnv(IConstEnvironment* pConstEnv, bool abortOnException)
     {
       StringBuffer sb("Errors or warnings were found when validating the environment.\n\n");
       sb.appendf("Total errors/warnings: %d", callback.getErrorCount() - 1 + bkupErrCount);
-      throw MakeStringExceptionDirect(-1, sbErrMsg.str());
+      throw MakeStringExceptionDirect(DEPLOYERR_SberrmsgStr, sbErrMsg.str());
     }
   }
   catch(IException* e)

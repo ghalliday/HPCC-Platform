@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "couchbaseembed.hpp"
+#include "pluginerr.hpp"
 
 #include "platform.h"
 #include "jexcept.hpp"
@@ -150,7 +151,7 @@ namespace couchbaseembed
 
     extern void UNSUPPORTED(const char *feature)
     {
-        throw MakeStringException(-1, "UNSUPPORTED feature: %s not supported in %s", feature, g_version);
+        throw MakeStringException(PLUGINERR_UnsupportedFeatureSNotSupportedIn_1, "UNSUPPORTED feature: %s not supported in %s", feature, g_version);
     }
 
     extern void failx(const char *message, ...)

@@ -20,6 +20,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "LogicFileWrapper.hpp"
+#include "esperr.hpp"
 #include "dautils.hpp"
 #include "exception_util.hpp"
 
@@ -44,7 +45,7 @@ void LogicFileWrapper::FindClusterName(const char* logicalName, StringBuffer& re
     try {
         Owned<IDistributedFile> df = queryDistributedFileDirectory().lookup(logicalName, udesc, AccessMode::tbdRead, false, false, nullptr, defaultPrivilegedUser) ;
         if(!df)
-            throw MakeStringException(-1,"Could not find logical file");
+            throw MakeStringException(ESPERR_CouldNotFindLogicalFile, "Could not find logical file");
         df->getClusterName(0,returnCluster);    // ** TBD other cluster
     }
     catch(IException* e){   

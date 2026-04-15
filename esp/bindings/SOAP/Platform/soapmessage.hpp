@@ -23,6 +23,7 @@
 #define _SOAPMESSAGE_HPP__
 
 #include "esphttp.hpp"
+#include "esperr.hpp"
 
 #include "jliball.hpp"
 #include "jexcept.hpp"
@@ -520,7 +521,7 @@ public:
 
     virtual void marshall(StringBuffer & outbuf)
     {
-        throw MakeStringException(-1, "not implemented");
+        throw MakeStringException(ESPERR_NotImplemented, "not implemented");
     }
     virtual void setSerializedContent(const char* c) { m_serializedContent.set(c); }
 };

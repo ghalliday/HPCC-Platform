@@ -19,6 +19,7 @@
 #pragma warning (disable : 4297)  // function assumed not to throw an exception but does
 
 #include "platform.h"
+#include "pluginerr.hpp"
 #include "fileservices.hpp"
 #include "workunit.hpp"
 #include "jio.hpp"
@@ -123,7 +124,7 @@ static IPropertyTree *getEnvironmentTree(IConstEnvironment * daliEnv)
 static void setServerAccess(CClientFileSpray &server, IConstWorkUnit * wu)
 {
     if (!wu)
-        throw makeStringException(-1, "Distributed access token not supported for stand-alone workunits");
+        throw makeStringException(PLUGINERR_DistributedAccessTokenNotSupportedFor, "Distributed access token not supported for stand-alone workunits");
 
     SCMStringBuffer token;
     wu->getWorkunitDistributedAccessToken(token);
@@ -202,7 +203,7 @@ static const char *getAccessibleEspServerURL(const char *param, IConstWorkUnit *
         return param;
 
     if (!wu)
-        throw makeStringException(-1, "Server URL must be provided for stand-alone workunits");
+        throw makeStringException(PLUGINERR_ServerUrlMustBeProvidedFor, "Server URL must be provided for stand-alone workunits");
 
     CriticalBlock b(espURLcrit);
     if (isUrlListEmpty())
@@ -288,12 +289,12 @@ static const char *getAccessibleEspServerURL(const char *param, IConstWorkUnit *
 #endif
 
         if (isUrlListEmpty())
-            throw MakeStringException(-1,"Could not find any WS FileSpray in the target HPCC configuration.");
+            throw MakeStringException(PLUGINERR_CouldNotFindAnyWsFilespray, "Could not find any WS FileSpray in the target HPCC configuration.");
     }
 
     const char * nextWsFSUrl = getNextAliveWsFSURL(wu);
     if (!nextWsFSUrl||!*nextWsFSUrl)
-        throw MakeStringException(-1,"Could not contact any of the configured WS FileSpray instances, check HPCC configuration and system health.");
+        throw MakeStringException(PLUGINERR_CouldNotContactAnyOfThe, "Could not contact any of the configured WS FileSpray instances, check HPCC configuration and system health.");
 
     PROGLOG("FileServices: Targeting ESP WsFileSpray URL: %s", nextWsFSUrl);
 
@@ -303,7 +304,7 @@ static const char *getAccessibleEspServerURL(const char *param, IConstWorkUnit *
 StringBuffer & constructLogicalName(IConstWorkUnit * wu, const char * partialLogicalName, StringBuffer & result)
 {
     if (partialLogicalName == NULL)
-        throw MakeStringException(0, "Logical Name Cannot be blank");
+        throw MakeStringException(PLUGINERR_LogicalNameCannotBeBlank, "Logical Name Cannot be blank");
 
     if (*partialLogicalName == '~')
         ++partialLogicalName;
@@ -395,7 +396,7 @@ FILESERVICES_API void FILESERVICES_CALL fsDeleteLogicalFile(ICodeContext *ctx, c
     }
     else if (!ifexists)
     {
-        throw MakeStringException(0, "Could not delete file %s", lfn.str());
+        throw MakeStringException(PLUGINERR_CouldNotDeleteFileS, "Could not delete file %s", lfn.str());
     }
 }
 
@@ -435,7 +436,7 @@ FILESERVICES_API bool FILESERVICES_CALL fsFileValidate(ICodeContext *ctx, const 
                 {
                     offset_t thisSize = file->size();
                     if (gotone && (partSize != thisSize))
-                        throw MakeStringException(0, "Inconsistent file sizes for %s", lfn.str());
+                        throw MakeStringException(PLUGINERR_InconsistentFileSizesForS, "Inconsistent file sizes for %s", lfn.str());
                     partSize = thisSize;
                     gotone = true;
                 }
@@ -486,7 +487,7 @@ FILESERVICES_API void FILESERVICES_CALL fsSetReadOnly(ICodeContext *ctx, const c
     }
 
     if (!error)
-        error.setown(MakeStringException(0, "Could not find logical file %s", lfn.str()));
+        error.setown(MakeStringException(PLUGINERR_CouldNotFindLogicalFileS, "Could not find logical file %s", lfn.str()));
     throw error.getClear();
 }
 
@@ -501,7 +502,7 @@ FILESERVICES_API void FILESERVICES_CALL implementRenameLogicalFile(ICodeContext 
     IDistributedFileDirectory &distributedDirectory = queryDistributedFileDirectory();
 
     if (!distributedDirectory.exists(oldLfn.str(), udesc, false, false))
-        throw MakeStringException(0, "Old file %s doesn't exists.", oldLfn.str());
+        throw MakeStringException(PLUGINERR_OldFileSDoesnTExists, "Old file %s doesn't exists.", oldLfn.str());
 
     if (overwrite && distributedDirectory.exists(newLfn.str(), udesc, false, false))
         fsDeleteLogicalFile(ctx, newname, true);
@@ -597,13 +598,13 @@ FILESERVICES_API void FILESERVICES_CALL fsSendEmailAttachData(ICodeContext * ctx
 
 FILESERVICES_API char * FILESERVICES_CALL fsCmdProcess(const char *prog, const char *src)
 {
-    throw makeStringException(0, "CmdProcess no longer supported for security reasons");
+    throw makeStringException(PLUGINERR_CmdprocessNoLongerSupportedForSecurity, "CmdProcess no longer supported for security reasons");
 }
 
 
 FILESERVICES_API void FILESERVICES_CALL fsCmdProcess2(unsigned & tgtLen, char * & tgt, const char *prog, unsigned srcLen, const char * src)
 {
-    throw makeStringException(0, "CmdProcess no longer supported for security reasons");
+    throw makeStringException(PLUGINERR_CmdprocessNoLongerSupportedForSecurity, "CmdProcess no longer supported for security reasons");
 }
 
 
@@ -636,7 +637,7 @@ static void blockUntilComplete(const char * label, IClientFileSpray &server, ICo
             setWorkunitState(ctx, WUStateRunning, NULL);
             StringBuffer errmsg;
             excep->errorMessage(errmsg);
-            throw MakeStringExceptionDirect(0, errmsg.str());
+            throw MakeStringExceptionDirect(PLUGINERR_ErrmsgStr, errmsg.str());
         }
 
         IConstDFUWorkunit & dfuwu = result->getResult();
@@ -704,7 +705,7 @@ static void blockUntilComplete(const char * label, IClientFileSpray &server, ICo
         case DFUstate_aborted:
         case DFUstate_failed:
             setWorkunitState(ctx, WUStateRunning, NULL);
-            throw MakeStringException(0, "DFUServer Error %s", dfuwu.getSummaryMessage());
+            throw MakeStringException(PLUGINERR_DfuserverErrorS, "DFUServer Error %s", dfuwu.getSummaryMessage());
 
         case DFUstate_finished:
             setWorkunitState(ctx, WUStateRunning, NULL);
@@ -724,15 +725,15 @@ static void blockUntilComplete(const char * label, IClientFileSpray &server, ICo
             StringBuffer s("DFU Workunit Abort Requested for ");
             s.append(wuid);
             WUmessage(ctx,SeverityWarning,"blockUntilComplete",s.str());
-            throw MakeStringException(0, "Workunit abort request received");
+            throw MakeStringException(PLUGINERR_WorkunitAbortRequestReceived, "Workunit abort request received");
         }
 
         if (time.timedout()) {
             unsigned left = dfuwu.getSecsLeft();
             setWorkunitState(ctx, WUStateRunning, NULL);
             if (left)
-                throw MakeStringException(0, "%s timed out, DFU Secs left:  %d)", label, left);
-            throw MakeStringException(0, "%s timed out)", label);
+                throw MakeStringException(PLUGINERR_STimedOutDfuSecsLeft, "%s timed out, DFU Secs left:  %d)", label, left);
+            throw MakeStringException(PLUGINERR_STimedOut, "%s timed out)", label);
 
         }
 
@@ -803,11 +804,11 @@ FILESERVICES_API char * FILESERVICES_CALL implementSprayFixed(ICodeContext *ctx,
             {
                 StringBuffer errmsg;
                 excep->errorMessage(errmsg);
-                throw MakeStringExceptionDirect(0, errmsg.str());
+                throw MakeStringExceptionDirect(PLUGINERR_ErrmsgStr, errmsg.str());
             }
             else
             {
-                throw MakeStringExceptionDirect(0, "Result's dfu WUID is empty");
+                throw MakeStringExceptionDirect(PLUGINERR_ResultSDfuWuidIsEmpty, "Result's dfu WUID is empty");
             }
         }
 
@@ -949,11 +950,11 @@ static char * implementSprayVariable(ICodeContext *ctx, const char * sourceIP, c
             {
                 StringBuffer errmsg;
                 excep->errorMessage(errmsg);
-                throw MakeStringExceptionDirect(0, errmsg.str());
+                throw MakeStringExceptionDirect(PLUGINERR_ErrmsgStr, errmsg.str());
             }
             else
             {
-                throw MakeStringExceptionDirect(0, "Result's dfu WUID is empty");
+                throw MakeStringExceptionDirect(PLUGINERR_ResultSDfuWuidIsEmpty, "Result's dfu WUID is empty");
             }
         }
 
@@ -1134,11 +1135,11 @@ FILESERVICES_API char * FILESERVICES_CALL implementSprayXml(ICodeContext *ctx, c
             {
                 StringBuffer errmsg;
                 excep->errorMessage(errmsg);
-                throw MakeStringExceptionDirect(0, errmsg.str());
+                throw MakeStringExceptionDirect(PLUGINERR_ErrmsgStr, errmsg.str());
             }
             else
             {
-                throw MakeStringExceptionDirect(0, "Result's dfu WUID is empty");
+                throw MakeStringExceptionDirect(PLUGINERR_ResultSDfuWuidIsEmpty, "Result's dfu WUID is empty");
             }
         }
 
@@ -1290,11 +1291,11 @@ FILESERVICES_API char * FILESERVICES_CALL implementSprayJson(ICodeContext *ctx, 
             {
                 StringBuffer errmsg;
                 excep->errorMessage(errmsg);
-                throw MakeStringExceptionDirect(0, errmsg.str());
+                throw MakeStringExceptionDirect(PLUGINERR_ErrmsgStr, errmsg.str());
             }
             else
             {
-                throw MakeStringExceptionDirect(0, "Result's dfu WUID is empty");
+                throw MakeStringExceptionDirect(PLUGINERR_ResultSDfuWuidIsEmpty, "Result's dfu WUID is empty");
             }
         }
 
@@ -1382,11 +1383,11 @@ static char * implementDespray(ICodeContext *ctx, const char * sourceLogicalName
             {
                 StringBuffer errmsg;
                 excep->errorMessage(errmsg);
-                throw MakeStringExceptionDirect(0, errmsg.str());
+                throw MakeStringExceptionDirect(PLUGINERR_ErrmsgStr, errmsg.str());
             }
             else
             {
-                throw MakeStringExceptionDirect(0, "Result's dfu WUID is empty");
+                throw MakeStringExceptionDirect(PLUGINERR_ResultSDfuWuidIsEmpty, "Result's dfu WUID is empty");
             }
         }
 
@@ -1484,11 +1485,11 @@ FILESERVICES_API char * FILESERVICES_CALL implementCopy(ICodeContext *ctx, const
             {
                 StringBuffer errmsg;
                 excep->errorMessage(errmsg);
-                throw MakeStringExceptionDirect(0, errmsg.str());
+                throw MakeStringExceptionDirect(PLUGINERR_ErrmsgStr, errmsg.str());
             }
             else
             {
-                throw MakeStringExceptionDirect(0, "Result's dfu WUID is empty");
+                throw MakeStringExceptionDirect(PLUGINERR_ResultSDfuWuidIsEmpty, "Result's dfu WUID is empty");
             }
         }
 
@@ -1601,11 +1602,11 @@ FILESERVICES_API char * FILESERVICES_CALL fsfReplicate(ICodeContext *ctx, const 
             {
                 StringBuffer errmsg;
                 excep->errorMessage(errmsg);
-                throw MakeStringExceptionDirect(0, errmsg.str());
+                throw MakeStringExceptionDirect(PLUGINERR_ErrmsgStr, errmsg.str());
             }
             else
             {
-                throw MakeStringExceptionDirect(0, "Result's dfu WUID is empty");
+                throw MakeStringExceptionDirect(PLUGINERR_ResultSDfuWuidIsEmpty, "Result's dfu WUID is empty");
             }
         }
 
@@ -1676,13 +1677,13 @@ static bool lookupSuperFile(ICodeContext *ctx, const char *lsuperfn, AccessMode 
         CDfsLogicalFileName dlfn;
         dlfn.set(lsfn.str());
         if (dlfn.isForeign())
-            throw MakeStringException(0, "Foreign superfile not allowed: %s", lsfn.str());
+            throw MakeStringException(PLUGINERR_ForeignSuperfileNotAllowedS, "Foreign superfile not allowed: %s", lsfn.str());
     }
     file.setown(transaction->lookupSuperFile(lsfn.str(), accessMode));
     if (file.get())
         return true;
     if (throwerr)
-        throw MakeStringException(0, "Could not locate superfile: %s", lsfn.str());
+        throw MakeStringException(PLUGINERR_CouldNotLocateSuperfileS, "Could not locate superfile: %s", lsfn.str());
     return false;
 }
 
@@ -1719,10 +1720,10 @@ static IDistributedSuperFile *lookupRemoteOrForeignSuper(ICodeContext *ctx, cons
     // read-only superfile enquiry operations.
     Owned<IDistributedFile> df = wsdfs::lookup(slfn, ctx->queryUserDescriptor(), AccessMode::readMeta, false, false, nullptr, defaultPrivilegedUser, INFINITE);
     if (!df)
-        throw makeStringExceptionV(0, "%s: Could not locate superfile: %s", caller, slfn.get());
+        throw makeStringExceptionV(PLUGINERR_SCouldNotLocateSuperfileS, "%s: Could not locate superfile: %s", caller, slfn.get());
     IDistributedSuperFile *superFile = df->querySuperFile();
     if (!superFile)
-        throw makeStringExceptionV(0, "%s: File is not a superfile: %s", caller, slfn.get());
+        throw makeStringExceptionV(PLUGINERR_SFileIsNotASuperfile, "%s: File is not a superfile: %s", caller, slfn.get());
     return LINK(superFile);
 }
 
@@ -1889,7 +1890,7 @@ FILESERVICES_API void FILESERVICES_CALL fslAddSuperFile(ICodeContext *ctx, const
     StringBuffer lfn;
     constructLogicalName(ctx, _lfn, lfn);
     if (stricmp(file->queryLogicalName(), lfn.str()) == 0) {
-        throw MakeStringException(0, "AddSuperFile: Adding super file %s to itself!", file->queryLogicalName());
+        throw MakeStringException(PLUGINERR_AddsuperfileAddingSuperFileSTo, "AddSuperFile: Adding super file %s to itself!", file->queryLogicalName());
     }
     IDistributedFileTransaction *transaction = ctx->querySuperFileTransaction();
     assertex(transaction);
@@ -1897,9 +1898,9 @@ FILESERVICES_API void FILESERVICES_CALL fslAddSuperFile(ICodeContext *ctx, const
         Owned<IDistributedSuperFile> subfile;
         subfile.setown(transaction->lookupSuperFile(lfn.str(), AccessMode::writeMeta));
         if (!subfile.get())
-            throw MakeStringException(0, "AddSuperFile%s: Could not locate super file %s", addcontents?"(addcontents)":"",lfn.str());
+            throw MakeStringException(PLUGINERR_AddsuperfileSCouldNotLocateSuper, "AddSuperFile%s: Could not locate super file %s", addcontents?"(addcontents)":"",lfn.str());
         if (strict&&(subfile->numSubFiles()<1))
-            throw MakeStringException(0, "AddSuperFile: Adding empty super file %s", lfn.str());
+            throw MakeStringException(PLUGINERR_AddsuperfileAddingEmptySuperFileS, "AddSuperFile: Adding empty super file %s", lfn.str());
     }
     StringBuffer other;
     if (atpos>1)
@@ -2276,7 +2277,7 @@ FILESERVICES_API void FILESERVICES_CALL fsSetFileDescription(ICodeContext *ctx, 
         lock.queryAttributes().setProp("@description",value);
     }
     else
-        throw MakeStringException(0, "SetFileDescription: Could not locate file %s", lfn.str());
+        throw MakeStringException(PLUGINERR_SetfiledescriptionCouldNotLocateFileS, "SetFileDescription: Could not locate file %s", lfn.str());
 }
 
 FILESERVICES_API char *  FILESERVICES_CALL fsGetFileDescription(ICodeContext *ctx, const char *logicalfilename)
@@ -2287,7 +2288,7 @@ FILESERVICES_API char *  FILESERVICES_CALL fsGetFileDescription(ICodeContext *ct
     Linked<IUserDescriptor> udesc = ctx->queryUserDescriptor();
     Owned<IDistributedFile> df = wsdfs::lookup(lfn.str(), udesc, AccessMode::tbdRead, false, false, nullptr, defaultPrivilegedUser, INFINITE);
     if (!df)
-        throw MakeStringException(0, "GetFileDescription: Could not locate file %s", lfn.str());
+        throw MakeStringException(PLUGINERR_GetfiledescriptionCouldNotLocateFileS, "GetFileDescription: Could not locate file %s", lfn.str());
     const char * ret = df->queryAttributes().queryProp("@description");
     if (ret)
         return CTXSTRDUP(parentCtx, ret);
@@ -2325,7 +2326,7 @@ FILESERVICES_API void FILESERVICES_CALL fsLogicalFileList(ICodeContext *ctx, siz
     IEngineContext *engineCtx = ctx->queryEngineContext();
     if (engineCtx && !engineCtx->allowDaliAccess())
     {
-        Owned<IException> e = MakeStringException(-1, "FileServices.LogicalFileList cannot access Dali in this context - this normally means it is being called from a thor slave");
+        Owned<IException> e = MakeStringException(PLUGINERR_FileservicesLogicalfilelistCannotAccessDaliIn, "FileServices.LogicalFileList cannot access Dali in this context - this normally means it is being called from a thor slave");
         EXCLOG(e, NULL);
         throw e.getClear();
     }
@@ -2450,11 +2451,11 @@ public:
         if (streq(field->name, "persistent"))
             return currentFile->getPropBool("@persistent", false);
 
-        throw makeStringExceptionV(-1, "FileListResultFieldSource: Unexpected boolean field '%s'", field->name);
+        throw makeStringExceptionV(PLUGINERR_FilelistresultfieldsourceUnexpectedBooleanFieldS, "FileListResultFieldSource: Unexpected boolean field '%s'", field->name);
     }
     virtual void getDataResult(const RtlFieldInfo *field, size32_t &len, void * &result) override
     {
-        throw makeStringExceptionV(-1, "FileListResultFieldSource: No data fields expected (field '%s')", field->name);
+        throw makeStringExceptionV(PLUGINERR_FilelistresultfieldsourceNoDataFieldsExpectedField, "FileListResultFieldSource: No data fields expected (field '%s')", field->name);
     }
     virtual double getRealResult(const RtlFieldInfo *field) override
     {
@@ -2466,7 +2467,7 @@ public:
         if (streq(field->name, "writecost"))
             return currentFile->getPropReal("@writeCost", 0.0);
 
-        throw makeStringExceptionV(-1, "FileListResultFieldSource: Unexpected real field '%s'", field->name);
+        throw makeStringExceptionV(PLUGINERR_FilelistresultfieldsourceUnexpectedRealFieldS, "FileListResultFieldSource: Unexpected real field '%s'", field->name);
     }
     virtual __int64 getSignedResult(const RtlFieldInfo *field) override
     {
@@ -2512,7 +2513,7 @@ public:
         if (streq(field->name, "expiredays"))
             return currentFile->getPropInt("@expireDays", 0);
 
-        throw makeStringExceptionV(-1, "FileListResultFieldSource: Unexpected signed field '%s'", field->name);
+        throw makeStringExceptionV(PLUGINERR_FilelistresultfieldsourceUnexpectedSignedFieldS, "FileListResultFieldSource: Unexpected signed field '%s'", field->name);
     }
     virtual unsigned __int64 getUnsignedResult(const RtlFieldInfo *field) override
     {
@@ -2520,7 +2521,7 @@ public:
         if (streq(field->name, "count"))
             return count;
 
-        throw makeStringExceptionV(-1, "FileListResultFieldSource: Unexpected unsigned field '%s'", field->name);
+        throw makeStringExceptionV(PLUGINERR_FilelistresultfieldsourceUnexpectedUnsignedFieldS, "FileListResultFieldSource: Unexpected unsigned field '%s'", field->name);
     }
     virtual void getStringResult(const RtlFieldInfo *field, size32_t &len, char * &result) override
     {
@@ -2558,26 +2559,26 @@ public:
             tempStr.padTo(19);
         }
         else
-            throw makeStringExceptionV(-1, "FileListResultFieldSource: Unexpected string field '%s'", field->name);
+            throw makeStringExceptionV(PLUGINERR_FilelistresultfieldsourceUnexpectedStringFieldS, "FileListResultFieldSource: Unexpected string field '%s'", field->name);
 
         len = tempStr.length();
         result = tempStr.detach();
     }
     virtual void getUTF8Result(const RtlFieldInfo *field, size32_t &chars, char * &result) override
     {
-        throw makeStringExceptionV(-1, "FileListResultFieldSource: No UTF8 fields expected (field '%s')", field->name);
+        throw makeStringExceptionV(PLUGINERR_FilelistresultfieldsourceNoUtf8FieldsExpectedField, "FileListResultFieldSource: No UTF8 fields expected (field '%s')", field->name);
     }
     virtual void getUnicodeResult(const RtlFieldInfo *field, size32_t &chars, UChar * &result) override
     {
-        throw makeStringExceptionV(-1, "FileListResultFieldSource: No Unicode fields expected (field '%s')", field->name);
+        throw makeStringExceptionV(PLUGINERR_FilelistresultfieldsourceNoUnicodeFieldsExpectedField, "FileListResultFieldSource: No Unicode fields expected (field '%s')", field->name);
     }
     virtual void getDecimalResult(const RtlFieldInfo *field, Decimal &value) override
     {
-        throw makeStringExceptionV(-1, "FileListResultFieldSource: No decimal fields expected (field '%s')", field->name);
+        throw makeStringExceptionV(PLUGINERR_FilelistresultfieldsourceNoDecimalFieldsExpectedField, "FileListResultFieldSource: No decimal fields expected (field '%s')", field->name);
     }
     virtual void processBeginSet(const RtlFieldInfo * field, bool &isAll) override
     {
-        throw makeStringExceptionV(-1, "FileListResultFieldSource: No set fields expected (field '%s')", field->name);
+        throw makeStringExceptionV(PLUGINERR_FilelistresultfieldsourceNoSetFieldsExpectedField, "FileListResultFieldSource: No set fields expected (field '%s')", field->name);
     }
     virtual void processBeginDataset(const RtlFieldInfo * field) override
     {
@@ -2590,7 +2591,7 @@ public:
     }
     virtual bool processNextSet(const RtlFieldInfo * field) override
     {
-        throw makeStringExceptionV(-1, "FileListResultFieldSource: No set fields expected (field '%s')", field->name);
+        throw makeStringExceptionV(PLUGINERR_FilelistresultfieldsourceNoSetFieldsExpectedField, "FileListResultFieldSource: No set fields expected (field '%s')", field->name);
     }
     virtual bool processNextRow(const RtlFieldInfo * field) override
     {
@@ -2607,7 +2608,7 @@ public:
     }
     virtual void processEndSet(const RtlFieldInfo * field) override
     {
-        throw makeStringExceptionV(-1, "FileListResultFieldSource: No set fields expected (field '%s')", field->name);
+        throw makeStringExceptionV(PLUGINERR_FilelistresultfieldsourceNoSetFieldsExpectedField, "FileListResultFieldSource: No set fields expected (field '%s')", field->name);
     }
     virtual void processEndDataset(const RtlFieldInfo * field) override
     {
@@ -2698,7 +2699,7 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
         {
             term++;
             if (isEmptyString(term))
-                throw makeStringException(-1, "Invalid filter syntax: '!' must be followed by a filter term");
+                throw makeStringException(PLUGINERR_InvalidFilterSyntaxMustBeFollowed, "Invalid filter syntax: '!' must be followed by a filter term");
         }
 
         // Parse has:property
@@ -2706,14 +2707,14 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
         {
             const char *prop = term + 4;
             if (isEmptyString(prop))
-                throw makeStringException(-1, "Invalid filter syntax: 'has:' requires a property name (e.g., 'has:description')");
+                throw makeStringException(PLUGINERR_InvalidFilterSyntaxHasRequiresA, "Invalid filter syntax: 'has:' requires a property name (e.g., 'has:description')");
 
             // Validate and convert field name
             StringBuffer attrName;
             DFUQResultField field;
             DFUQResultFieldType fieldType;
             if (!validateFileField(prop, attrName, field, fieldType))
-                throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - unknown field name '%s'", originalTerm, prop);
+                throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSUnknownField, "Invalid filter syntax: '%s' - unknown field name '%s'", originalTerm, prop);
 
             internalFilter.appendf("%u%c%s%c%s%c",
                 DFUQFThasProp, DFUQFilterSeparator,
@@ -2724,11 +2725,11 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
         else if (strncmp(term, "is:", 3) == 0)
         {
             if (negate)
-                throw makeStringExceptionV(-1, "Invalid filter syntax: negating 'is:' is not supported");
+                throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxNegatingIsIs, "Invalid filter syntax: negating 'is:' is not supported");
 
             const char *fileType = term + 3;
             if (isEmptyString(fileType))
-                throw makeStringException(-1, "Invalid filter syntax: 'is:' requires a file type (superfile, normal, or any)");
+                throw makeStringException(PLUGINERR_InvalidFilterSyntaxIsRequiresA, "Invalid filter syntax: 'is:' requires a file type (superfile, normal, or any)");
 
             DFUQFileTypeFilter fileTypeFilter = DFUQFFTall;
             if (strieq(fileType, "any"))
@@ -2738,7 +2739,7 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
             else if (strieq(fileType, "normal"))
                 fileTypeFilter = DFUQFFTnonsuperfileonly;
             else
-                throw makeStringExceptionV(-1, "Invalid filter syntax: 'is:%s' - must be superfile, normal, or any", fileType);
+                throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxIsSMust, "Invalid filter syntax: 'is:%s' - must be superfile, normal, or any", fileType);
 
             internalFilter.appendf("%u%c%u%c%u%c",
                 DFUQFTspecial, DFUQFilterSeparator, (char)DFUQSFFileType,
@@ -2748,7 +2749,7 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
         else if (const char *colon = strchr(term, ':'))
         {
             if (negate)
-                throw makeStringExceptionV(-1, "Invalid filter syntax: negating field:value filters is not supported");
+                throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxNegatingFieldValue, "Invalid filter syntax: negating field:value filters is not supported");
             StringBuffer fieldName;
             fieldName.append(colon - term, term).trim();
             StringBuffer valueStr(colon + 1);
@@ -2756,16 +2757,16 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
             const char *value = valueStr.str();
 
             if (fieldName.length() == 0)
-                throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - field name required before ':'", originalTerm);
+                throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSFieldName, "Invalid filter syntax: '%s' - field name required before ':'", originalTerm);
             if (isEmptyString(value))
-                throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - value required after ':'", originalTerm);
+                throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSValueRequired, "Invalid filter syntax: '%s' - value required after ':'", originalTerm);
 
             // Validate and convert field name
             StringBuffer attrName;
             DFUQResultField field;
             DFUQResultFieldType fieldType;
             if (!validateFileField(fieldName.str(), attrName, field, fieldType))
-                throw makeStringException(-1, VStringBuffer("Invalid filter syntax: '%s' - unknown field name '%s'", originalTerm, fieldName.str()).str());
+                throw makeStringException(PLUGINERR_VstringbufferInvalidFilterSyntaxSUnknown, VStringBuffer("Invalid filter syntax: '%s' - unknown field name '%s'", originalTerm, fieldName.str()).str());
 
             internalFilter.appendf("%u%c%s%c%s%c",
                 DFUQFTwildcardMatch, DFUQFilterSeparator,
@@ -2776,19 +2777,19 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
         else if (const char *op = strpbrk(term, "><"))
         {
             if (negate)
-                throw makeStringExceptionV(-1, "Invalid filter syntax: negating comparison filters is not supported");
+                throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxNegatingComparisonFilters, "Invalid filter syntax: negating comparison filters is not supported");
             StringBuffer fieldName;
             fieldName.append(op - term, term).trim();
 
             if (fieldName.length() == 0)
-                throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - field name required before comparison operator", originalTerm);
+                throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSFieldName_1, "Invalid filter syntax: '%s' - field name required before comparison operator", originalTerm);
 
             // Validate and convert field name
             StringBuffer attrName;
             DFUQResultField field;
             DFUQResultFieldType fieldType;
             if (!validateFileField(fieldName.str(), attrName, field, fieldType))
-                throw makeStringException(-1, VStringBuffer("Invalid filter syntax: '%s' - unknown field name '%s'", originalTerm, fieldName.str()).str());
+                throw makeStringException(PLUGINERR_VstringbufferInvalidFilterSyntaxSUnknown, VStringBuffer("Invalid filter syntax: '%s' - unknown field name '%s'", originalTerm, fieldName.str()).str());
 
             // Determine operator
             bool hasEquals = (op[1] == '=');
@@ -2797,7 +2798,7 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
             const char *value = valueStr.str();
 
             if (isEmptyString(value))
-                throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - value required after comparison operator", originalTerm);
+                throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSValueRequired_1, "Invalid filter syntax: '%s' - value required after comparison operator", originalTerm);
 
             // Check if field is numeric/float type
             bool isNumeric = (fieldType == DFUQResultFieldType::numericType);
@@ -2812,12 +2813,12 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
                     char *endptr;
                     __int64 minVal = (__int64) strtoll(value, &endptr, 10);
                     if (!isEmptyString(endptr))
-                        throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - value '%s' must be an integer", originalTerm, value);
+                        throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSValueS, "Invalid filter syntax: '%s' - value '%s' must be an integer", originalTerm, value);
 
                     if (!hasEquals)
                     {
                         if (minVal == I64C(0x7FFFFFFFFFFFFFFF))
-                            throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - value too large for > comparison (would overflow)", originalTerm);
+                            throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSValueToo, "Invalid filter syntax: '%s' - value too large for > comparison (would overflow)", originalTerm);
                         minVal++;
                     }
                     internalFilter.appendf("%u%c%s%c%lld%c%lld%c",
@@ -2831,11 +2832,11 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
                     char *endptr;
                     __int64 maxVal = (__int64) strtoll(value, &endptr, 10);
                     if (!isEmptyString(endptr))
-                        throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - value '%s' must be an integer", originalTerm, value);
+                        throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSValueS, "Invalid filter syntax: '%s' - value '%s' must be an integer", originalTerm, value);
                     if (!hasEquals)
                     {
                         if (maxVal == (-I64C(0x7FFFFFFFFFFFFFFF) - 1))
-                            throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - value too small for < comparison (would underflow)", originalTerm);
+                            throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSValueToo_1, "Invalid filter syntax: '%s' - value too small for < comparison (would underflow)", originalTerm);
                         maxVal--;
                     }
                     internalFilter.appendf("%u%c%s%c0%c%lld%c",
@@ -2852,7 +2853,7 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
                 if (op[0] == '>')
                 {
                     if (!hasEquals)
-                        throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - exclusive comparison (>) is not supported for string fields; use >= instead", originalTerm);
+                        throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSExclusiveComparison, "Invalid filter syntax: '%s' - exclusive comparison (>) is not supported for string fields; use >= instead", originalTerm);
                     internalFilter.appendf("%u%c%s%c%s%c~~~~~~~~~~%c",
                         DFUQFTstringRange, DFUQFilterSeparator,
                         attrName.str(), DFUQFilterSeparator,
@@ -2861,7 +2862,7 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
                 else // op[0] == '<'
                 {
                     if (!hasEquals)
-                        throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - exclusive comparison (<) is not supported for string fields; use <= instead", originalTerm);
+                        throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSExclusiveComparison_1, "Invalid filter syntax: '%s' - exclusive comparison (<) is not supported for string fields; use <= instead", originalTerm);
                     internalFilter.appendf("%u%c%s%c%c%s%c",
                         DFUQFTstringRange, DFUQFilterSeparator,
                         attrName.str(), DFUQFilterSeparator,
@@ -2873,7 +2874,7 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
         else if (const char *eq = strchr(term, '='))
         {
             if (negate)
-                throw makeStringExceptionV(-1, "Invalid filter syntax: negating equality filters is not supported");
+                throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxNegatingEqualityFilters, "Invalid filter syntax: negating equality filters is not supported");
             StringBuffer fieldName;
             fieldName.append(eq - term, term).trim();
             StringBuffer valueStr(eq + 1);
@@ -2881,16 +2882,16 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
             const char *value = valueStr.str();
 
             if (fieldName.length() == 0)
-                throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - field name required before '='", originalTerm);
+                throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSFieldName_2, "Invalid filter syntax: '%s' - field name required before '='", originalTerm);
             if (isEmptyString(value))
-                throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - value required after '='", originalTerm);
+                throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSValueRequired_2, "Invalid filter syntax: '%s' - value required after '='", originalTerm);
 
             // Validate and convert field name
             StringBuffer attrName;
             DFUQResultField field;
             DFUQResultFieldType fieldType;
             if (!validateFileField(fieldName.str(), attrName, field, fieldType))
-                throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - unknown field name '%s'", originalTerm, fieldName.str());
+                throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSUnknownField, "Invalid filter syntax: '%s' - unknown field name '%s'", originalTerm, fieldName.str());
 
             // Check if numeric or float field
             bool isNumeric = (fieldType == DFUQResultFieldType::numericType);
@@ -2924,7 +2925,7 @@ static void parseUserFilterSyntax(const char *userFilter, StringBuffer &internal
         else
         {
             // If nothing matched, throw an error
-            throw makeStringExceptionV(-1, "Invalid filter syntax: '%s' - unrecognized filter format. Use field:value, field>value, field=value, has:property, or is:filetype", originalTerm);
+            throw makeStringExceptionV(PLUGINERR_InvalidFilterSyntaxSUnrecognizedFilter, "Invalid filter syntax: '%s' - unrecognized filter format. Use field:value, field>value, field=value, has:property, or is:filetype", originalTerm);
         }
     }
 }
@@ -2934,7 +2935,7 @@ FILESERVICES_API const byte * FILESERVICES_CALL fsLogicalFileListFiltered(ICodeC
     IEngineContext *engineCtx = ctx->queryEngineContext();
     if (engineCtx && !engineCtx->allowDaliAccess())
     {
-        Owned<IException> e = makeStringException(-1, "FileServices.LogicalFileListFiltered cannot access Dali in this context - this normally means it is being called from a thor slave");
+        Owned<IException> e = makeStringException(PLUGINERR_FileservicesLogicalfilelistfilteredCannotAccessDaliIn, "FileServices.LogicalFileListFiltered cannot access Dali in this context - this normally means it is being called from a thor slave");
         EXCLOG(e, NULL);
         throw e.getClear();
     }
@@ -2943,7 +2944,7 @@ FILESERVICES_API const byte * FILESERVICES_CALL fsLogicalFileListFiltered(ICodeC
     constexpr __int64 CLIENT_MAX_LIMIT = 1000000;
     if (maxFileLimit > CLIENT_MAX_LIMIT)
     {
-        Owned<IException> e = makeStringExceptionV(-1, "FileServices.LogicalFileListFiltered: maxFileLimit (%lld) exceeds client maximum of %lld", maxFileLimit, CLIENT_MAX_LIMIT);
+        Owned<IException> e = makeStringExceptionV(PLUGINERR_FileservicesLogicalfilelistfilteredMaxfilelimitLldExceedsClient, "FileServices.LogicalFileListFiltered: maxFileLimit (%lld) exceeds client maximum of %lld", maxFileLimit, CLIENT_MAX_LIMIT);
         EXCLOG(e, NULL);
         throw e.getClear();
     }
@@ -2956,7 +2957,7 @@ FILESERVICES_API const byte * FILESERVICES_CALL fsLogicalFileListFiltered(ICodeC
     masklower.toLowerCase();
 
     if (!isEmptyString(remoteDfs))
-        throw makeStringException(-1, "FileServices.LogicalFileListFiltered: remoteDfs is not supported yet");
+        throw makeStringException(PLUGINERR_FileservicesLogicalfilelistfilteredRemotedfsIsNotSupported, "FileServices.LogicalFileListFiltered: remoteDfs is not supported yet");
 
 
     // Build filter string - translate user-friendly syntax to internal format
@@ -3017,7 +3018,7 @@ FILESERVICES_API const byte * FILESERVICES_CALL fsLogicalFileListFiltered(ICodeC
         DFUQResultField field;
         DFUQResultFieldType fieldType;
         if (!validateFileField(fieldName, attrPath, field, fieldType))
-            throw makeStringExceptionV(-1, "FileServices.LogicalFileListFiltered: Invalid field name '%s'", fieldName);
+            throw makeStringExceptionV(PLUGINERR_FileservicesLogicalfilelistfilteredInvalidFieldNameS, "FileServices.LogicalFileListFiltered: Invalid field name '%s'", fieldName);
 
         // Add field to list if not already present
         if (std::find(fields.begin(), fields.end(), field) == fields.end())
@@ -3132,7 +3133,7 @@ FILESERVICES_API void FILESERVICES_CALL fsLogicalFileSuperOwners(ICodeContext *c
             }
         }
         else
-            throw MakeStringException(0, "LogicalFileSuperOwners: Could not locate file %s", lfn.str());
+            throw MakeStringException(PLUGINERR_LogicalfilesuperownersCouldNotLocateFileS, "LogicalFileSuperOwners: Could not locate file %s", lfn.str());
     }
     __lenResult = mb.length();
     __result = mb.detach();
@@ -3281,11 +3282,11 @@ FILESERVICES_API char * FILESERVICES_CALL fsfRemotePull_impl(ICodeContext *ctx,
             {
                 StringBuffer errmsg;
                 excep->errorMessage(errmsg);
-                throw MakeStringExceptionDirect(0, errmsg.str());
+                throw MakeStringExceptionDirect(PLUGINERR_ErrmsgStr, errmsg.str());
             }
             else
             {
-                throw MakeStringExceptionDirect(0, "Result's dfu WUID is empty");
+                throw MakeStringExceptionDirect(PLUGINERR_ResultSDfuWuidIsEmpty, "Result's dfu WUID is empty");
             }
         }
 
@@ -3556,7 +3557,7 @@ FILESERVICES_API void FILESERVICES_CALL fsSetColumnMapping(ICodeContext * ctx,co
     if (df)
         df->setColumnMapping(mapping);
     else
-        throw MakeStringException(-1, "SetColumnMapping: Could not find logical file %s", lfn.str());
+        throw MakeStringException(PLUGINERR_SetcolumnmappingCouldNotFindLogicalFile, "SetColumnMapping: Could not find logical file %s", lfn.str());
 }
 
 FILESERVICES_API char *  FILESERVICES_CALL fsfGetColumnMapping(ICodeContext * ctx,const char *filename)
@@ -3569,7 +3570,7 @@ FILESERVICES_API char *  FILESERVICES_CALL fsfGetColumnMapping(ICodeContext * ct
         df->getColumnMapping(mapping);
         return mapping.detach();
     }
-    throw MakeStringException(-1, "GetColumnMapping: Could not find logical file %s", lfn.str());
+    throw MakeStringException(PLUGINERR_GetcolumnmappingCouldNotFindLogicalFile, "GetColumnMapping: Could not find logical file %s", lfn.str());
     return NULL;
 }
 
@@ -3581,7 +3582,7 @@ FILESERVICES_API char *  FILESERVICES_CALL fsfRfsQuery(const char *server, const
     CDfsLogicalFileName lfn;
     lfn.setQuery(server,query);
     if (!lfn.isSet())
-        throw MakeStringException(-1, "RfsQuery invalid parameter");
+        throw MakeStringException(PLUGINERR_RfsqueryInvalidParameter, "RfsQuery invalid parameter");
     return lfn.get(ret).detach();
 }
 
@@ -3590,7 +3591,7 @@ FILESERVICES_API void FILESERVICES_CALL fsRfsAction(const char *server, const ch
     CDfsLogicalFileName lfn;
     lfn.setQuery(server,query);
     if (!lfn.isSet())
-        throw MakeStringException(-1, "RfsAction invalid parameter");
+        throw MakeStringException(PLUGINERR_RfsactionInvalidParameter, "RfsAction invalid parameter");
     RemoteFilename rfn;
     lfn.getExternalFilename(rfn);
     Owned<IFile> file = createIFile(rfn);
@@ -3638,12 +3639,12 @@ static void checkExternalFileRights(ICodeContext *ctx,const char *scope,bool rd,
     SecAccessFlags perm = queryDistributedFileDirectory().getFScopePermissions(scope,udesc,auditflags);
     if (wr) {
         if (!HASWRITEPERMISSION(perm)) {
-            throw makeStringExceptionV(-1,"Write permission denied for scope %s", scope);
+            throw makeStringExceptionV(PLUGINERR_WritePermissionDeniedForScopeS, "Write permission denied for scope %s", scope);
         }
     }
     if (rd) {
         if (!HASREADPERMISSION(perm)) {
-            throw makeStringExceptionV(-1,"Read permission denied for scope %s", scope);
+            throw makeStringExceptionV(PLUGINERR_ReadPermissionDeniedForScopeS, "Read permission denied for scope %s", scope);
         }
     }
 }
@@ -3652,7 +3653,7 @@ static void checkExternalFilePath(ICodeContext *ctx,IPropertyTree *plane,const c
     const char *path,bool rd,bool wr,RemoteFilename &rfn)
 {
     if (containsRelPaths(path)) //Detect a path like: a/../../../f
-        throw makeStringExceptionV(-1,"Invalid file path %s",path);
+        throw makeStringExceptionV(PLUGINERR_InvalidFilePathS, "Invalid file path %s",path);
 
     CDfsLogicalFileName dlfn;
     if (plane)
@@ -3662,7 +3663,7 @@ static void checkExternalFilePath(ICodeContext *ctx,IPropertyTree *plane,const c
         {
             const char *relativePath = getRelativePath(path,plane->queryProp("@prefix"));
             if (nullptr == relativePath)
-                throw makeStringExceptionV(-1,"Invalid plane path %s.",path);
+                throw makeStringExceptionV(PLUGINERR_InvalidPlanePathS, "Invalid plane path %s.",path);
             path = relativePath;
         }
         dlfn.setPlaneExternal(plane->queryProp("@name"),path);
@@ -3688,7 +3689,7 @@ static IPropertyTree *checkPlaneOrHost(const char *planeName,const char *host,co
     {
         Owned<IPropertyTree> plane = getDropZonePlane(planeName); //Only support DropZone for now.
         if (!plane)
-            throw makeStringExceptionV(-1,"DropZone %s not found.",planeName);
+            throw makeStringExceptionV(PLUGINERR_DropzoneSNotFound, "DropZone %s not found.",planeName);
         return plane.getClear();
     }
 
@@ -3703,7 +3704,7 @@ static IPropertyTree *checkPlaneOrHost(const char *planeName,const char *host,co
     Owned<IEnvironmentFactory> factory = getEnvironmentFactory(true);
     Owned<IConstEnvironment> env = factory->openEnvironment();
     if (env->isDropZoneRestrictionEnabled())
-        throw makeStringExceptionV(-1,"DropZone Plane not found for host %s path %s.",host,path);
+        throw makeStringExceptionV(PLUGINERR_DropzonePlaneNotFoundForHost, "DropZone Plane not found for host %s path %s.",host,path);
 
     LOG(MCdebugInfo, "No matching drop zone path on '%s' to file path: '%s'",host,path);
 #endif
@@ -3721,7 +3722,7 @@ static void implementMoveExternalFile(ICodeContext *ctx,const char *location,
 
     Owned<IFile> fileto = createIFile(torfn);
     if (fileto->exists())
-        throw MakeStringException(-1,"fsMoveExternalFile: Destination %s already exists", topath);
+        throw MakeStringException(PLUGINERR_FsmoveexternalfileDestinationSAlreadyExists, "fsMoveExternalFile: Destination %s already exists", topath);
     fileto.clear();
     Owned<IFile> file = createIFile(fromrfn);
     file->move(topath);
@@ -3806,7 +3807,7 @@ static void implementListPlaneDirectory(ICodeContext *ctx,const char *planename,
         if (ep.isNull())
         {
             if (machine)
-                throw makeStringExceptionV(-1, "RemoteDirectory: Could not resolve host '%s'", machine);
+                throw makeStringExceptionV(PLUGINERR_RemotedirectoryCouldNotResolveHostS, "RemoteDirectory: Could not resolve host '%s'", machine);
             // This should probably throw an error, but keeping this way for backward compatibility (with old compiled queries)
             ep.setLocalHost(0);
         }
@@ -3872,7 +3873,7 @@ FILESERVICES_API char * FILESERVICES_CALL fsfGetLogicalFileAttribute(ICodeContex
         }
     }
     else
-        throw MakeStringException(0, "GetLogicalFileAttribute: Could not find logical file %s", lfn.str());
+        throw MakeStringException(PLUGINERR_GetlogicalfileattributeCouldNotFindLogicalFile, "GetLogicalFileAttribute: Could not find logical file %s", lfn.str());
     return ret.detach();
 }
 
@@ -3896,7 +3897,7 @@ FILESERVICES_API void FILESERVICES_CALL fsProtectLogicalFile(ICodeContext * ctx,
         }
     }
     else if (set)
-        throw MakeStringException(0, "ProtectLogicalFile: Could not find logical file %s", lfn.str());
+        throw MakeStringException(PLUGINERR_ProtectlogicalfileCouldNotFindLogicalFile, "ProtectLogicalFile: Could not find logical file %s", lfn.str());
 }
 
 static bool build_dfuplus_globals(int argc, const char *argv[], IProperties * globals)
@@ -3949,13 +3950,13 @@ FILESERVICES_API void FILESERVICES_CALL fsDfuPlusExec(ICodeContext * ctx,const c
     Owned<IProperties> globals = createProperties(true);
 
     if (!build_dfuplus_globals(argc, argv, globals))
-        throw MakeStringException(-1,"DfuPlusExec: invalid command line");
+        throw MakeStringException(PLUGINERR_DfuplusexecInvalidCommandLine, "DfuPlusExec: invalid command line");
     const char* server = globals->queryProp("server");
     if (!server || !*server)
-        throw MakeStringException(-1,"DfuPlusExec: server url not specified");
+        throw MakeStringException(PLUGINERR_DfuplusexecServerUrlNotSpecified, "DfuPlusExec: server url not specified");
     const char* action = globals->queryProp("action");
     if (!action || !*action)
-        throw MakeStringException(-1,"DfuPlusExec: no action specified");
+        throw MakeStringException(PLUGINERR_DfuplusexecNoActionSpecified, "DfuPlusExec: no action specified");
     if (ctx) {
         Linked<IUserDescriptor> udesc = ctx->queryUserDescriptor();
         StringBuffer tmp;
@@ -3984,7 +3985,7 @@ FILESERVICES_API void FILESERVICES_CALL fsDfuPlusExec(ICodeContext * ctx,const c
         }
         void err(const char *msg)
         {
-            throw MakeStringException(-1,"DfuPlusExec: %s",msg);
+            throw MakeStringException(PLUGINERR_DfuplusexecS, "DfuPlusExec: %s",msg);
         }
 
     } cmsg(ctx);
@@ -4186,13 +4187,13 @@ FILESERVICES_API int FILESERVICES_CALL fsGetExpireDays(ICodeContext * ctx, const
     if (df)
         return df->getExpire(nullptr);
     else
-        throw makeStringExceptionV(0, "GetExpireDays: Could not find logical file %s", lfn.str());
+        throw makeStringExceptionV(PLUGINERR_GetexpiredaysCouldNotFindLogicalFile, "GetExpireDays: Could not find logical file %s", lfn.str());
 }
 
 FILESERVICES_API void FILESERVICES_CALL fsSetExpireDays(ICodeContext * ctx, const char *_lfn, int expireDays)
 {
     if (expireDays < 0)
-        throw makeStringExceptionV(0, "SetExpireDays: expireDays parameter value should be >= 0 (%d)", expireDays);
+        throw makeStringExceptionV(PLUGINERR_SetexpiredaysExpiredaysParameterValueShouldBe, "SetExpireDays: expireDays parameter value should be >= 0 (%d)", expireDays);
 
     StringBuffer lfn;
     constructLogicalName(ctx, _lfn, lfn);
@@ -4201,7 +4202,7 @@ FILESERVICES_API void FILESERVICES_CALL fsSetExpireDays(ICodeContext * ctx, cons
     if (df)
         df->setExpire(expireDays);
     else
-        throw makeStringExceptionV(0, "SetExpireDays: Could not find logical file %s", lfn.str());
+        throw makeStringExceptionV(PLUGINERR_SetexpiredaysCouldNotFindLogicalFile, "SetExpireDays: Could not find logical file %s", lfn.str());
 }
 
 FILESERVICES_API void FILESERVICES_CALL fsClearExpireDays(ICodeContext * ctx, const char *_lfn)
@@ -4213,7 +4214,7 @@ FILESERVICES_API void FILESERVICES_CALL fsClearExpireDays(ICodeContext * ctx, co
     if (df)
         df->setExpire(-1);
     else
-        throw makeStringExceptionV(0, "ClearExpireDays: Could not find logical file %s", lfn.str());
+        throw makeStringExceptionV(PLUGINERR_ClearexpiredaysCouldNotFindLogicalFile, "ClearExpireDays: Could not find logical file %s", lfn.str());
 }
 
 static CriticalSection noCommonDefCrit;

@@ -18,6 +18,7 @@
 #pragma warning( disable : 4786)
 
 #include "esphttp.hpp"
+#include "esperr.hpp"
 
 #include <stdlib.h>
 
@@ -175,7 +176,7 @@ int CSoapClient::postRequest(const char* contenttype, const char* soapaction, IR
     }
 
     if (!soap_request.get() || !soap_response.get())
-        throw MakeStringException(-1, "request or response is NULL");
+        throw MakeStringException(ESPERR_RequestOrResponseIsNull, "request or response is NULL");
     m_transportclient->postRequest(*soap_request.get(), *soap_response.get());
 
     int retstatus = soap_response->get_status();
@@ -244,7 +245,7 @@ int CSoapClient::postRequest(const char* contenttype, const char* soapaction, IR
 
     if(responsebuf.length() == 0)
     {
-        throw MakeStringException(-1, "Empty SOAP message received");
+        throw MakeStringException(ESPERR_EmptySoapMessageReceived, "Empty SOAP message received");
     }
 
     return SOAP_OK;
@@ -383,7 +384,7 @@ int CSoapClient::postRequest(IRpcMessage & rpccall, StringBuffer & responsebuf, 
     }
 
     if (!soap_request.get() || !soap_response.get())
-        throw MakeStringException(-1, "request or response is NULL");
+        throw MakeStringException(ESPERR_RequestOrResponseIsNull, "request or response is NULL");
     m_transportclient->postRequest(*soap_request.get(), *soap_response.get());
 
     int retstatus = soap_response->get_status();
@@ -408,7 +409,7 @@ int CSoapClient::postRequest(IRpcMessage & rpccall, StringBuffer & responsebuf, 
 
     if(soap_response->get_text_length() == 0)
     {
-        throw MakeStringException(-1, "Empty SOAP message received");
+        throw MakeStringException(ESPERR_EmptySoapMessageReceived, "Empty SOAP message received");
     }
 
     StringBuffer& resptext = soap_response->query_text();

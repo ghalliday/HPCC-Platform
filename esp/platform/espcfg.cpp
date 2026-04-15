@@ -21,6 +21,7 @@
 //#define ESP_SUPPORT_DALI_CONFIG
 //CRT
 #include <process.h>
+#include "esperr.hpp"
 #endif
 
 //Jlib
@@ -103,7 +104,7 @@ int CSessionCleaner::run()
             {
                 Owned<IRemoteConnection> conn = getSDSConnectionWithRetry(espSessionSDSPath.get(), RTM_LOCK_WRITE, SDSSESSION_CONNECT_TIMEOUTMS);
                 if (!conn)
-                    throw MakeStringException(-1, "Failed to connect to %s.", PathSessionRoot);
+                    throw MakeStringException(ESPERR_FailedToConnectToS, "Failed to connect to %s.", PathSessionRoot);
 
                 CDateTime now;
                 now.setNow();
@@ -188,7 +189,7 @@ void CEspConfig::readSessionDomainsSetting()
         if (isEmptyString(authDomainName) || strieq(authDomainName, "default"))
         {
             if (hasDefaultSessionDomain)
-                throw MakeStringException(-1, ">1 AuthDomains are not named.");
+                throw MakeStringException(ESPERR_1AuthdomainsAreNotNamed, ">1 AuthDomains are not named.");
 
             hasDefaultSessionDomain = true;
         }
@@ -206,7 +207,7 @@ void CEspConfig::ensureBindingsInSDSSession()
     CriticalBlock block(bindingPortCrit);
     Owned<IRemoteConnection> conn = getSDSConnectionWithRetry(PathSessionRoot, RTM_LOCK_WRITE|RTM_CREATE_QUERY, SDSSESSION_CONNECT_TIMEOUTMS);
     if (!conn)
-        throw makeStringExceptionV(-1, "Failed to connect to %s.", PathSessionRoot);
+        throw makeStringExceptionV(ESPERR_FailedToConnectToS, "Failed to connect to %s.", PathSessionRoot);
 
     IPropertyTree* appSessionTree = querySDSSessionTree(conn);
     for (const auto port: bindingPortsNotInSDSSession)
@@ -273,7 +274,7 @@ void CEspConfig::addBindingForSDSSession(unsigned short port)
 
     Owned<IRemoteConnection> conn = getSDSConnectionWithRetry(PathSessionRoot, RTM_LOCK_WRITE|RTM_CREATE_QUERY, SDSSESSION_CONNECT_TIMEOUTMS);
     if (!conn)
-        throw makeStringExceptionV(-1, "Failed to connect to %s.", PathSessionRoot);
+        throw makeStringExceptionV(ESPERR_FailedToConnectToS, "Failed to connect to %s.", PathSessionRoot);
 
     ensureSDSSessionApplications(querySDSSessionTree(conn), port);
 }
@@ -573,11 +574,11 @@ void CEspConfig::initDali(const char *servers)
         Owned<IGroup> serverGroup = createIGroup(servers, DALI_SERVER_PORT);
 
         if (!serverGroup)
-            throw MakeStringException(0, "Could not instantiate dali IGroup");
+            throw MakeStringException(ESPERR_CouldNotInstantiateDaliIgroup, "Could not instantiate dali IGroup");
 
         // Initialize client process
         if (!initClientProcess(serverGroup, DCR_EspServer))
-            throw MakeStringException(0, "Could not initialize dali client");
+            throw MakeStringException(ESPERR_CouldNotInitializeDaliClient, "Could not initialize dali client");
 
         serverstatus = new CSDSServerStatus("ESPserver");
 
@@ -619,7 +620,7 @@ void CEspConfig::loadBinding(binding_cfg &xcfg)
 
     if(pit == m_protocols.end())
     {
-        throw MakeStringException(-1, "Protocol %s not found for binding %s", xcfg.protocol_name.str(), xcfg.name.str());
+        throw MakeStringException(ESPERR_ProtocolSNotFoundForBinding, "Protocol %s not found for binding %s", xcfg.protocol_name.str(), xcfg.name.str());
     }
     else
     {
@@ -668,11 +669,11 @@ void CEspConfig::loadBinding(binding_cfg &xcfg)
 
             }
             else
-                throw MakeStringException(-1, "procedure esp_binding_factory can't be loaded");
+                throw MakeStringException(ESPERR_ProcedureEspBindingFactoryCanT, "procedure esp_binding_factory can't be loaded");
         }
         else
         {
-            throw MakeStringException(-1, "Protocol %s wasn't loaded correctly for the binding", xcfg.protocol_name.str());
+            throw MakeStringException(ESPERR_ProtocolSWasnTLoadedCorrectly, "Protocol %s wasn't loaded correctly for the binding", xcfg.protocol_name.str());
         }   
    }
 }
@@ -699,7 +700,7 @@ void CEspConfig::loadProtocol(protocol_cfg &xcfg)
             xcfg.prot->init(m_envpt.get(), m_process.str(), xcfg.name.str());
     }
     else
-        throw MakeStringException(-1, "procedure esp_protocol_factory can't be loaded");
+        throw MakeStringException(ESPERR_ProcedureEspProtocolFactoryCanT, "procedure esp_protocol_factory can't be loaded");
 }
 
 void CEspConfig::loadService(srv_cfg &xcfg)
@@ -718,7 +719,7 @@ void CEspConfig::loadService(srv_cfg &xcfg)
     if (xproc)
         xcfg.srv.setown(xproc(xcfg.name.str(), xcfg.type.str(), m_envpt.get(), m_process.str()));
     else
-        throw MakeStringException(-1, "procedure esp_service_factory can't be loaded from %s", xcfg.plugin.str());
+        throw MakeStringException(ESPERR_ProcedureEspServiceFactoryCanT, "procedure esp_service_factory can't be loaded from %s", xcfg.plugin.str());
 }
 
 void CEspConfig::loadServices()
@@ -778,7 +779,7 @@ void CEspConfig::startEsdlMonitor()
         xproc = (start_esdl_monitor_t) pplg->getProcAddress("startEsdlMonitor");
     }
     else
-        throw MakeStringException(-1, "Plugin esdl_svc_engine can't be loaded");
+        throw MakeStringException(ESPERR_PluginEsdlSvcEngineCanT, "Plugin esdl_svc_engine can't be loaded");
 
     if (xproc)
     {
@@ -786,7 +787,7 @@ void CEspConfig::startEsdlMonitor()
         xproc();
     }
     else
-        throw MakeStringException(-1, "procedure startEsdlMonitor can't be loaded");
+        throw MakeStringException(ESPERR_ProcedureStartesdlmonitorCanTBeLoaded, "procedure startEsdlMonitor can't be loaded");
 }
 
 void CEspConfig::stopEsdlMonitor()
@@ -1060,7 +1061,7 @@ void CEspConfig::checkESPCache(IEspServer& server)
     if (!espCacheCfg)
     {
         if (!server.addCacheClient("default", cacheInitString))
-            throw MakeStringException(-1, "Failed in checking ESP cache service using %s", cacheInitString);
+            throw MakeStringException(ESPERR_FailedInCheckingEspCacheService, "Failed in checking ESP cache service using %s", cacheInitString);
         return;
     }
     Owned<IPropertyTreeIterator> iter = espCacheCfg->getElements("Group");
@@ -1070,11 +1071,11 @@ void CEspConfig::checkESPCache(IEspServer& server)
         const char* id = espCacheGroup.queryProp("@id");
         const char* initString = espCacheGroup.queryProp("@initString");
         if (isEmptyString(id))
-            throw MakeStringException(-1, "ESP cache ID not defined");
+            throw MakeStringException(ESPERR_EspCacheIdNotDefined, "ESP cache ID not defined");
         if (isEmptyString(initString))
-            throw MakeStringException(-1, "ESP cache initStrings not defined");
+            throw MakeStringException(ESPERR_EspCacheInitstringsNotDefined, "ESP cache initStrings not defined");
         if (!server.addCacheClient(id, initString))
-            throw MakeStringException(-1, "Failed in checking ESP cache service using %s", initString);
+            throw MakeStringException(ESPERR_FailedInCheckingEspCacheService, "Failed in checking ESP cache service using %s", initString);
     }
 }
 

@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "roxiecontrol.hpp"
+#include "esperr.hpp"
 #include "jmisc.hpp"
 #include "securesocket.hpp"
 
@@ -71,7 +72,7 @@ IPropertyTree *sendRoxieControlQuery(ISocket *sock, const char *msg, unsigned wa
         size32_t size_read;
         sock->read(resp.reserveTruncate(len), len, len, size_read, waitMsToSeconds(wait));
         if (size_read<len)
-            throw MakeStringException(-1, "Error reading roxie control message response");
+            throw MakeStringException(ESPERR_ErrorReadingRoxieControlMessageResponse, "Error reading roxie control message response");
     }
     if (resp.isEmpty())
         throw MakeStringException(EMPTY_RESULT_FAILURE, "Empty response string for roxie control request(%s) wait(%d)", msg, wait);
@@ -114,7 +115,7 @@ IPropertyTree *sendRoxieControlAllNodes(ISocket *sock, const char *msg, bool all
 {
     unsigned start = msTick();
     if (!sendRoxieControlLock(sock, allOrNothing, wait))
-        throw MakeStringException(-1, "Roxie is too busy (control:lock failed) - please try again later.");
+        throw MakeStringException(ESPERR_RoxieIsTooBusyControlLock, "Roxie is too busy (control:lock failed) - please try again later.");
     return sendRoxieControlQuery(sock, msg, remainingMsWaitX(wait, start));
 }
 

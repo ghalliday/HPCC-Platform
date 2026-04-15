@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include <string>
+#include "deployerr.hpp"
 #include "deploy.hpp"
 #include "jcrc.hpp"  
 #include "jexcept.hpp"
@@ -1203,7 +1204,7 @@ public:
                         if (pFile->exists())
                         {
                             if (pFile->isDirectory()!=fileBool::foundYes)
-                                throw MakeStringException(-1, "%s exists and is not a directory!", path);
+                                throw MakeStringException(DEPLOYERR_SExistsAndIsNotA, "%s exists and is not a directory!", path);
                         }
                         else
                             pFile->createDirectory();//throws
@@ -1276,7 +1277,7 @@ public:
             if (src.isDirectory()==fileBool::foundYes)
             {
                if (!dest.exists() && !dest.createDirectory())
-                  throw MakeStringException(-1, "Failed to create directory %s", dest.queryFilename());
+                  throw MakeStringException(DEPLOYERR_FailedToCreateDirectoryS, "Failed to create directory %s", dest.queryFilename());
 
                Owned<IDirectoryIterator> iSrcDirEntry = src.directoryFiles();
                ForEach(*iSrcDirEntry)
@@ -1406,7 +1407,7 @@ public:
          if (m_machineOS != MachineOsLinux)
          {
             if (!checkFileExists(".\\psexec.exe"))
-               throw MakeStringException(-1, "Configenv cannot find psexec.exe to execute the remote program!");
+               throw MakeStringException(DEPLOYERR_ConfigenvCannotFindPsexecExeTo, "Configenv cannot find psexec.exe to execute the remote program!");
 
                 cmdLine = modulePath;
                 cmdLine.append("psexec.exe \\\\%computer -u %user -p %pwd -i %dir\\%cmd %dir");
@@ -1414,7 +1415,7 @@ public:
          else
          {
             if (!checkFileExists(".\\plink.exe"))
-               throw MakeStringException(-1, "Configenv cannot find plink.exe to execute the remote program!");
+               throw MakeStringException(DEPLOYERR_ConfigenvCannotFindPlinkExeTo, "Configenv cannot find plink.exe to execute the remote program!");
 
             sUser = pathTail(user); //if user name is domain\user1 then just get user1
 
@@ -1512,7 +1513,7 @@ public:
       {
          if (bCD)
             _chdir(modulePath);
-         throw MakeStringException(-1, "Invalid exception!");
+         throw MakeStringException(DEPLOYERR_InvalidException, "Invalid exception!");
       }
 
       if (bCD)
@@ -1696,7 +1697,7 @@ public:
 #ifdef _WINDOWS
       IpAddress ip;
       if (!ip.ipset(remoteNameOrIp))
-         throw MakeStringException(-1, "Cannot resolve %s", remoteNameOrIp);
+         throw MakeStringException(DEPLOYERR_CannotResolveS, "Cannot resolve %s", remoteNameOrIp);
 
        StringBuffer remoteIP;
        ip.getHostText(remoteIP);
@@ -1706,7 +1707,7 @@ public:
       DWORD dwResult = WNetOpenEnum( RESOURCE_CONNECTED, RESOURCETYPE_ANY, 0, NULL, &hEnum );
 
       if (dwResult != NO_ERROR)
-         throw MakeStringException(-1, "Cannot enumerate existing network connections!" );
+         throw MakeStringException(DEPLOYERR_CannotEnumerateExistingNetworkConnections, "Cannot enumerate existing network connections!" );
       else
       {
          do
@@ -1733,7 +1734,7 @@ public:
                   {
                      GlobalFree( (HGLOBAL) lpnrDrv );
                      WNetCloseEnum(hEnum);
-                     throw MakeStringException(-1, "Cannot resolve host %s", nameOrIp);
+                     throw MakeStringException(DEPLOYERR_CannotResolveHostS, "Cannot resolve host %s", nameOrIp);
                   }
 
                    StringBuffer ipAddr;
@@ -1754,7 +1755,7 @@ public:
                         m_errorCode = dwResult;
                         m_errorString.appendf("Error disconnecting from %s: ", lpnrDrv[i].lpRemoteName);
                         formatSystemError(m_errorString, m_errorCode);
-                        throw MakeStringException(-1, m_errorString.str());
+                        throw MakeStringException(DEPLOYERR_MErrorstringStr, m_errorString.str());
                      }
 
                      m_pCallback->printStatus(this);
@@ -1769,7 +1770,7 @@ public:
                {
                   GlobalFree( (HGLOBAL) lpnrDrv );
                   WNetCloseEnum(hEnum);
-                  throw MakeStringException(-1, "Cannot complete enumeration for connections to \\%s", remoteNameOrIp);
+                  throw MakeStringException(DEPLOYERR_CannotCompleteEnumerationForConnectionsTo, "Cannot complete enumeration for connections to \\%s", remoteNameOrIp);
                }
             GlobalFree( (HGLOBAL) lpnrDrv );
 
@@ -2069,7 +2070,7 @@ public:
         if (m_pTask && m_pTask->getAbort())
         {
             m_pTask->getCallback().printStatus(STATUS_NORMAL, NULL, NULL, NULL, "Aborting, please wait...");
-            throw MakeStringException(0, "Abort");
+            throw MakeStringException(DEPLOYERR_Abort, "Abort");
         }
     }
 

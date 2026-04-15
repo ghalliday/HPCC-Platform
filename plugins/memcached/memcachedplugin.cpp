@@ -20,6 +20,7 @@
 static_assert(__cplusplus >= 201103L, "C++11 or newer is required for memcached plugin"); // March 2011 - C++11 standard was finalized (ISO/IEC 14882:2011).
 
 #include "platform.h"
+#include "pluginerr.hpp"
 #include "memcachedplugin.hpp"
 #include "eclrtl.hpp"
 #include "jexcept.hpp"
@@ -417,7 +418,7 @@ void MemCachedPlugin::MCached::clear(ICodeContext * ctx, unsigned when)
 bool MemCachedPlugin::MCached::exists(ICodeContext * ctx, const char * key, const char * partitionKey)
 {
 #if (LIBMEMCACHED_VERSION_HEX<0x53000)
-    throw makeStringException(0, "memcached_exist not supported in this version of libmemcached");
+    throw makeStringException(PLUGINERR_MemcachedExistNotSupportedInThis, "memcached_exist not supported in this version of libmemcached");
 #else
     memcached_return_t rc;
     size_t partitionKeyLength = strlen(partitionKey);

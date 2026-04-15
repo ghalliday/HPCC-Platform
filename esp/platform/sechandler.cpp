@@ -20,6 +20,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "sechandler.hpp"
+#include "esperr.hpp"
 #include "bindutil.hpp"
 #include <map>
 #include <string>
@@ -168,7 +169,7 @@ bool SecHandler::validateSecFeaturesAccess(MapStringTo<SecAccessFlags> & accessm
     StringArray features;
     unsigned reqarray[100];
     if (accessmap.ordinality() >= 100)
-        throw MakeStringException(-1, "Attempting to validate too many security features!");
+        throw MakeStringException(ESPERR_AttemptingToValidateTooManySecurity, "Attempting to validate too many security features!");
 
     HashIterator iter(accessmap);
     int index = 0;
@@ -191,7 +192,7 @@ bool SecHandler::validateSecFeaturesAccess(MapStringTo<SecAccessFlags> & accessm
             if ((accessAllowed == -1) || (reqarray[i] && ((unsigned)accessAllowed < reqarray[i])))
             {
                 if (throwExcpt)
-                    throw MakeStringException(-1, "Access Denied!");
+                    throw MakeStringException(ESPERR_AccessDenied, "Access Denied!");
                 return false;
             }
         }
@@ -200,7 +201,7 @@ bool SecHandler::validateSecFeaturesAccess(MapStringTo<SecAccessFlags> & accessm
     }
 
     if (throwExcpt)
-        throw MakeStringException(-1, "Access Denied!");
+        throw MakeStringException(ESPERR_AccessDenied, "Access Denied!");
 
     return false;
 }
@@ -316,14 +317,14 @@ bool SecHandler::validateSecFeatureAccess(const char* pszFeatureUrl, unsigned re
         if ((accessAllowed == -1) || (required && (accessAllowed < required)))
         {
             if (throwExcpt)
-                throw MakeStringException(-1, "Access Denied!");
+                throw MakeStringException(ESPERR_AccessDenied, "Access Denied!");
             return false;
         }
         else
             return true;
     }
     if (throwExcpt)
-        throw MakeStringException(-1, "Access Denied!");
+        throw MakeStringException(ESPERR_AccessDenied, "Access Denied!");
     
     return false;
 }

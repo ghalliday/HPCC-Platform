@@ -18,6 +18,7 @@
 #pragma warning(disable:4786)
 
 #include "http.hpp"
+#include "esperr.hpp"
 #include "msggenerator.hpp"
 
 #ifdef _WIN32
@@ -269,7 +270,7 @@ __int64 Http::receiveData(ISocket* socket, IByteOutputStream* ostream, bool isCl
 
         if(isRedirect)
         {
-            throw MakeStringException(-1, "The original url is redirected to %s, please change your url and try again.", location.str());
+            throw MakeStringException(ESPERR_TheOriginalUrlIsRedirectedTo, "The original url is redirected to %s, please change your url and try again.", location.str());
         }
 
         if(content_length > 0)
@@ -392,7 +393,7 @@ void Http::SplitURL(const char* url, StringBuffer& protocol,StringBuffer& UserNa
 {
     int protlen = 0;
     if(!url || strlen(url) <= 7)
-        throw MakeStringException(-1, "Invalid URL %s", url);
+        throw MakeStringException(ESPERR_InvalidUrlS, "Invalid URL %s", url);
     else if(strncmp(url, "HTTP://", 7) == 0 || strncmp(url, "http://", 7) == 0)
     {
         protocol.append("HTTP");
@@ -508,7 +509,7 @@ HttpClient::HttpClient(IProperties* globals, const char* url, const char* inname
                 m_ssctx.setown(createSecureSocketContextEx2(cfgtree, ClientSocket));
             }
 #else
-        throw MakeStringException(-1, "HttpClient: failure to create SSL socket - OpenSSL not enabled in build");
+        throw MakeStringException(ESPERR_HttpclientFailureToCreateSslSocket, "HttpClient: failure to create SSL socket - OpenSSL not enabled in build");
 #endif
         }
 
@@ -1583,7 +1584,7 @@ int HttpClient::sendRequest(StringBuffer& req, IFileIO* request_output, IFileIO*
     StringBuffer request;
     if(req.length() <= 2)
     {
-        throw MakeStringException(-1, "request too short");
+        throw MakeStringException(ESPERR_RequestTooShort, "request too short");
     }
 
     //Normalizing the headers

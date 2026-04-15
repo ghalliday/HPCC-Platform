@@ -1,4 +1,5 @@
 #include "util.hpp"
+#include "pluginerr.hpp"
 
 #include "jfile.hpp"
 
@@ -7,7 +8,7 @@ std::vector<uint8_t> readWasmBinaryToBuffer(const char *filename)
     Owned<IFile> file = createIFile(filename);
     Owned<IFileIO> fileIO = file->open(IFOread);
     if (!fileIO)
-        throw makeStringExceptionV(0, "Failed to open %s", filename);
+        throw makeStringExceptionV(PLUGINERR_FailedToOpenS, "Failed to open %s", filename);
 
     MemoryBuffer mb;
     size32_t count = read(fileIO, 0, (size32_t)-1, mb);

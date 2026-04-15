@@ -32,6 +32,7 @@ Persists changed?
 #pragma warning (disable : 4297)  // function assumed not to throw an exception but does
 
 #include "platform.h"
+#include "pluginerr.hpp"
 
 
 
@@ -196,7 +197,7 @@ static void getSashaWUArchiveNodes(SocketEndpointArray &epa, ICodeContext *ctx)
     IEngineContext *engineCtx = ctx->queryEngineContext();
     if (engineCtx && !engineCtx->allowSashaAccess())
     {
-        Owned<IException> e = makeStringException(-1, "workunitservices cannot access Sasha in this context - this normally means it is being called from a thor worker");
+        Owned<IException> e = makeStringException(PLUGINERR_WorkunitservicesCannotAccessSashaInThis, "workunitservices cannot access Sasha in this context - this normally means it is being called from a thor worker");
         EXCLOG(e, NULL);
         throw e.getClear();
     }
@@ -226,7 +227,7 @@ static IWorkUnitFactory * getWorkunitFactory(ICodeContext * ctx)
     IEngineContext *engineCtx = ctx->queryEngineContext();
     if (engineCtx && !engineCtx->allowDaliAccess())
     {
-        Owned<IException> e = makeStringException(-1, "workunitservices cannot access Dali in this context - this normally means it is being called from a thor worker");
+        Owned<IException> e = makeStringException(PLUGINERR_WorkunitservicesCannotAccessDaliInThis, "workunitservices cannot access Dali in this context - this normally means it is being called from a thor worker");
         EXCLOG(e, NULL);
         throw e.getClear();
     }
@@ -404,15 +405,15 @@ WORKUNITSERVICES_API void wsWorkunitList(
             if (cmd->send(sashanode,SASHA_TIMEOUT)) {
                 byte res = cmd->getWUSresult(mb);
                 if (res==WUS_STATUS_OVERFLOWED)
-                    throw MakeStringException(-1,"WORKUNITSERVICES: Result buffer overflowed");
+                    throw MakeStringException(PLUGINERR_WorkunitservicesResultBufferOverflowed, "WORKUNITSERVICES: Result buffer overflowed");
                 if (res!=WUS_STATUS_OK)
-                    throw MakeStringException(-1,"WORKUNITSERVICES: Sasha get results failed (%d)",(int)res);
+                    throw MakeStringException(PLUGINERR_WorkunitservicesSashaGetResultsFailedD, "WORKUNITSERVICES: Sasha get results failed (%d)",(int)res);
                 break;
             }
             if (i+1>=sashaeps.ordinality()) {
                StringBuffer ips;
                sashaeps.item(0).getHostText(ips);
-               throw MakeStringException(-1,"Time out to Sasha server on %s (server not running or query too complex)",ips.str());
+               throw MakeStringException(PLUGINERR_TimeOutToSashaServerOn, "Time out to Sasha server on %s (server not running or query too complex)",ips.str());
             }
         }
     }
@@ -464,13 +465,13 @@ WORKUNITSERVICES_API void wsWorkunitList(
                     appvalue = appFilter.item(1);
                     break;
                 default:
-                    throw MakeStringException(-1,"WORKUNITSERVICES: Invalid application value filter %s (expected format is 'appname/keyname=value')", appFilters.item(idx));
+                    throw MakeStringException(PLUGINERR_WorkunitservicesInvalidApplicationValueFilterS, "WORKUNITSERVICES: Invalid application value filter %s (expected format is 'appname/keyname=value')", appFilters.item(idx));
                 }
                 const char *appkey = appFilter.item(0);
                 if (!strchr(appkey, '/'))
-                    throw MakeStringException(-1,"WORKUNITSERVICES: Invalid application value filter %s (expected format is 'appname/keyname=value')", appFilters.item(idx));
+                    throw MakeStringException(PLUGINERR_WorkunitservicesInvalidApplicationValueFilterS, "WORKUNITSERVICES: Invalid application value filter %s (expected format is 'appname/keyname=value')", appFilters.item(idx));
                 if (filterCount>=MAX_FILTERS)
-                    throw MakeStringException(-1,"WORKUNITSERVICES: Too many filters");
+                    throw MakeStringException(PLUGINERR_WorkunitservicesTooManyFilters, "WORKUNITSERVICES: Too many filters");
                 filterbuf.append(appkey);
                 filterbuf.append(appvalue);
                 filters[filterCount++] = WUSFappvalue;
@@ -483,7 +484,7 @@ WORKUNITSERVICES_API void wsWorkunitList(
         ForEach(*it)
         {
             if (!serializeWUInfo(it->query(), mb))
-                throw MakeStringException(-1,"WORKUNITSERVICES: Result buffer overflowed");
+                throw MakeStringException(PLUGINERR_WorkunitservicesResultBufferOverflowed, "WORKUNITSERVICES: Result buffer overflowed");
         }
     }
     __lenResult = mb.length();

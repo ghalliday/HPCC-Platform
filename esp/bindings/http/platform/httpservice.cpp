@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include "esphttp.hpp"
+#include "esperr.hpp"
 
 //Jlib
 #include "jliball.hpp"
@@ -1268,10 +1269,10 @@ EspAuthState CEspHttpServer::checkUserAuth()
     EspAuthRequest authReq;
     readAuthRequest(authReq);
     if (authReq.httpPath.isEmpty())
-        throw MakeStringException(-1, "URL query string cannot be empty.");
+        throw MakeStringException(ESPERR_UrlQueryStringCannotBeEmpty, "URL query string cannot be empty.");
 
     if (!authReq.authBinding)
-        throw MakeStringException(-1, "Cannot find ESP HTTP Binding");
+        throw MakeStringException(ESPERR_CannotFindEspHttpBinding, "Cannot find ESP HTTP Binding");
 
     ESPLOG(LogMax, "checkUserAuth: %s %s", m_request->isSoapMessage() ? "SOAP" : "HTTP", authReq.httpMethod.isEmpty() ? "??" : authReq.httpMethod.str());
 
@@ -2668,7 +2669,7 @@ const char* CEspHttpServer::createHTTPSession(IEspContext* ctx, EspHttpBinding* 
     }
     
     // Failed to generate unique session ID after max retries
-    throw makeStringExceptionV(-1, "Failed to generate unique session ID after %d attempts", maxRetries);
+    throw makeStringExceptionV(ESPERR_FailedToGenerateUniqueSessionId, "Failed to generate unique session ID after %d attempts", maxRetries);
 }
 
 void CEspHttpServer::timeoutESPSessions(EspHttpBinding* authBinding, IPropertyTree* espSessions)
@@ -2707,7 +2708,7 @@ IRemoteConnection* CEspHttpServer::getSDSConnection(const char* xpath, unsigned 
 {
     Owned<IRemoteConnection> globalLock = querySDS().connect(xpath, myProcessSession(), RTM_LOCK_READ, SESSION_SDS_LOCK_TIMEOUT);
     if (!globalLock)
-        throw MakeStringException(-1, "Unable to connect to ESP Session information in dali %s", xpath);
+        throw MakeStringException(ESPERR_UnableToConnectToEspSession, "Unable to connect to ESP Session information in dali %s", xpath);
     return globalLock.getClear();
 }
 

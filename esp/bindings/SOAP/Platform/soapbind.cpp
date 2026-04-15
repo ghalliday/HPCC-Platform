@@ -19,6 +19,7 @@
 
 //Jlib
 #include "jliball.hpp"
+#include "esperr.hpp"
 
 //SCM Interfaces
 #include "esp.hpp"
@@ -200,7 +201,7 @@ int CHttpSoapBinding::HandleSoapRequest(CHttpRequest* request, CHttpResponse* re
     StringBuffer requeststr;
     request->getContent(requeststr);
     if (requeststr.length() == 0)
-        throw MakeStringException(-1, "Content read is empty");
+        throw MakeStringException(ESPERR_ContentReadIsEmpty, "Content read is empty");
 
     IEspContext* ctx = request->queryContext();
 

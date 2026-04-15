@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "httptest.hpp"
+#include "esperr.hpp"
 #include "jsocket.hpp"
 #include "jstream.ipp"
 
@@ -154,7 +155,7 @@ HttpClient::HttpClient(int threads, int times, const char* host, int port, FILE*
 #ifdef _USE_OPENSSL
         m_ssctx.setown(createSecureSocketContextEx2(sslconfig, ClientSocket));
 #else
-        throw MakeStringException(-1, "HttpClient: failure to create SSL connection to host '%s': OpenSSL not enabled in build", host);
+        throw MakeStringException(ESPERR_HttpclientFailureToCreateSslConnection, "HttpClient: failure to create SSL connection to host '%s': OpenSSL not enabled in build", host);
 #endif
     }
 }
@@ -187,7 +188,7 @@ int HttpClient::getUrl(const char* url)
         if(m_ssctx.get() == NULL)
             m_ssctx.setown(createSecureSocketContext(ClientSocket));
 #else
-        throw MakeStringException(-1, "HttpClient: failure to create SSL socket - OpenSSL not enabled in build");
+        throw MakeStringException(ESPERR_HttpclientFailureToCreateSslSocket, "HttpClient: failure to create SSL socket - OpenSSL not enabled in build");
 #endif
     }
 
@@ -284,7 +285,7 @@ int HttpClient::sendSoapRequest(const char* url, const char* soapaction, const c
         if(m_ssctx.get() == NULL)
             m_ssctx.setown(createSecureSocketContext(ClientSocket));
 #else
-        throw MakeStringException(-1, "HttpClient: failure to create SSL socket - OpenSSL not enabled in build");
+        throw MakeStringException(ESPERR_HttpclientFailureToCreateSslSocket, "HttpClient: failure to create SSL socket - OpenSSL not enabled in build");
 #endif
     }
 
@@ -448,7 +449,7 @@ int HttpClient::sendRequest(int times, HttpStat& stat, StringBuffer& req)
     StringBuffer request;
     if(req.length() <= 2)
     {
-        throw MakeStringException(-1, "request too short");
+        throw MakeStringException(ESPERR_RequestTooShort, "request too short");
     }
 
     bool endofheaders = false;
@@ -613,7 +614,7 @@ HttpServer::HttpServer(int port, const char* in, FILE* ofile, bool use_ssl, IPro
 #ifdef _USE_OPENSSL
         m_ssctx.setown(createSecureSocketContextEx2(sslconfig, ServerSocket));
 #else
-        throw MakeStringException(-1, "HttpServer: failure to create SSL socket - OpenSSL not enabled in build");
+        throw MakeStringException(ESPERR_HttpserverFailureToCreateSslSocket, "HttpServer: failure to create SSL socket - OpenSSL not enabled in build");
 #endif
     }
 }
@@ -1024,7 +1025,7 @@ int CHttpProxyThread::run()
                 http = strstr(oneline, "HTTP://");
 
             if(!http)
-                throw MakeStringException(-1, "protocol not recognized\n");
+                throw MakeStringException(ESPERR_ProtocolNotRecognizedN, "protocol not recognized\n");
 
             StringBuffer requestbuf;
             requestbuf.append(http - oneline, oneline);
@@ -1175,7 +1176,7 @@ HttpProxy::HttpProxy(int localport, const char* host, int port, FILE* ofile, boo
 #if _USE_OPENSSL
         m_ssctx.setown(createSecureSocketContextEx2(sslconfig, ClientSocket));
 #else
-        throw MakeStringException(-1, "HttpProxy: failure to create SSL connection to host '%s': OpenSSL not enabled in build", host);
+        throw MakeStringException(ESPERR_HttpproxyFailureToCreateSslConnection, "HttpProxy: failure to create SSL connection to host '%s': OpenSSL not enabled in build", host);
 #endif
     }
 }
@@ -1224,7 +1225,7 @@ void SplitURL(const char* url, StringBuffer& protocol,StringBuffer& UserName,Str
 {
     int protlen = 0;
     if(!url || strlen(url) <= 7)
-        throw MakeStringException(-1, "Invalid URL %s", url);
+        throw MakeStringException(ESPERR_InvalidUrlS, "Invalid URL %s", url);
     else if(strncmp(url, "HTTP://", 7) == 0 || strncmp(url, "http://", 7) == 0)
     {
         protocol.append("HTTP");

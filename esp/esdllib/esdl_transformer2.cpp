@@ -18,6 +18,7 @@
 #pragma warning(disable : 4786)
 
 #include "esdl_transformer2.ipp"
+#include "esperr.hpp"
 #include "xpp/xpputils.h"
 #include <memory>
 
@@ -473,7 +474,7 @@ void Esdl2Base::mergeBaseType(Esdl2Transformer *xformer, const char *base_type)
         {
             StringBuffer msg;
             msg.appendf("ESDL Initialization Error: BaseType=%s, not found for item %s", base_type, queryName());
-            throw MakeStringExceptionDirect(-1, msg.str());
+            throw MakeStringExceptionDirect(ESPERR_MsgStr, msg.str());
         }
 
         IEsdlDefObject*  base = esdlBase->queryEsdlDefObject();
@@ -554,7 +555,7 @@ void Esdl2Element::process(Esdl2TransformerContext &ctx, IPropertyTree *pt, cons
 
     if (data_for && data_for->checkVersion(ctx))
     {
-        throw MakeStringException(-1, "EsdlElement::process(pt):%s: IPTree version of data_for not implemented", queryName());
+        throw MakeStringException(ESPERR_EsdlelementProcessPtSIptreeVersion, "EsdlElement::process(pt):%s: IPTree version of data_for not implemented", queryName());
     }
     else if (!checkVersion(ctx))
     {
@@ -698,7 +699,7 @@ void Esdl2Array::process(Esdl2TransformerContext &ctx, IPropertyTree *pt, const 
 
     if (data_for && data_for->checkVersion(ctx))
     {
-        throw MakeStringException(-1, "EsdlElement::process(pt):%s: IPTree version of data_for not implemented", queryName());
+        throw MakeStringException(ESPERR_EsdlelementProcessPtSIptreeVersion, "EsdlElement::process(pt):%s: IPTree version of data_for not implemented", queryName());
     }
     else if (type_unknown)
     {
@@ -1236,7 +1237,7 @@ void Esdl2Struct::addChildren(Esdl2Transformer *xformer, IEsdlDefObjectIterator 
             {
                 VStringBuffer msg("Can not find element: %s for %s as data_for target", dataFrom, self ? self->queryName() : "UNKNOWN");
                 IERRLOG("%s", msg.str());
-                throw MakeStringException(-1, "Internal Error: %s", msg.str());
+                throw MakeStringException(ESPERR_InternalErrorS, "Internal Error: %s", msg.str());
             }
         }
     }
@@ -1590,7 +1591,7 @@ int Esdl2Transformer::process(IEspContext &ctx, EsdlProcessMode mode, const char
     int rc = 0;
     IEsdlMethodInfo *mi = queryMethodInfo(service,method);
     if (!mi)
-        throw MakeStringException(-1, "Error processing ESDL - method '%s'not found", method);
+        throw MakeStringException(ESPERR_ErrorProcessingEsdlMethodSNot, "Error processing ESDL - method '%s'not found", method);
 
     updateTransformFlags(mode, nullptr, mi, flags);
 
@@ -1607,11 +1608,11 @@ int Esdl2Transformer::process(IEspContext &ctx, EsdlProcessMode mode, const char
     }
 
     if (!root_type)
-        throw MakeStringException(-1, "Error processing ESDL - starting type not defined");
+        throw MakeStringException(ESPERR_ErrorProcessingEsdlStartingTypeNot, "Error processing ESDL - starting type not defined");
 
     Esdl2Base* root = queryType(root_type);
     if (!root)
-        throw MakeStringException(-1, "Error processing ESDL - root type '%s' not found", root_type);
+        throw MakeStringException(ESPERR_ErrorProcessingEsdlRootTypeS, "Error processing ESDL - root type '%s' not found", root_type);
 
     IProperties *param_groups = ctx.queryRequestParameters();
 
@@ -1675,7 +1676,7 @@ int Esdl2Transformer::process(IEspContext &ctx, EsdlProcessMode mode, const char
 {
     IEsdlMethodInfo *mi = queryMethodInfo(service,method);
     if (!mi)
-        throw MakeStringException(-1, "ESDL - method '%s::%s'not found", service, method);
+        throw MakeStringException(ESPERR_EsdlMethodSSNotFound, "ESDL - method '%s::%s'not found", service, method);
 
     updateTransformFlags(mode, nullptr, mi, flags);
 
@@ -1685,11 +1686,11 @@ int Esdl2Transformer::process(IEspContext &ctx, EsdlProcessMode mode, const char
     else if (mode==EsdlResponseMode)
         root_type=mi->queryResponseType();
     if (!root_type)
-        throw MakeStringException(-1, "ESDL - starting type not defined for method '%s::%s'", service, method);
+        throw MakeStringException(ESPERR_EsdlStartingTypeNotDefinedFor, "ESDL - starting type not defined for method '%s::%s'", service, method);
 
     Esdl2Base* root = queryType(root_type);
     if (!root)
-        throw MakeStringException(-1, "Error processing ESDL - root type '%s' not found", root_type);
+        throw MakeStringException(ESPERR_ErrorProcessingEsdlRootTypeS, "Error processing ESDL - root type '%s' not found", root_type);
 
     IPropertyTree *finger = &in;
     if (!(flags & ESDL_TRANS_START_AT_ROOT))
@@ -1704,7 +1705,7 @@ int Esdl2Transformer::process(IEspContext &ctx, EsdlProcessMode mode, const char
         if (!strieq(finger->queryName(), root_type))
         {
             if (!finger->hasProp(root_type))
-                throw MakeStringException(-1, "root element not found: %s", root_type);
+                throw MakeStringException(ESPERR_RootElementNotFoundS, "root element not found: %s", root_type);
             finger = finger->queryPropTree(root_type);
         }
     }
@@ -1736,7 +1737,7 @@ int Esdl2Transformer::processElement(IEspContext &ctx, const char* service, cons
 
     Esdl2Base* type = queryType(parentStructName);
     if (!type)
-        throw MakeStringException(-1, "Error processing ESDL - type '%s' not found", parentStructName);
+        throw MakeStringException(ESPERR_ErrorProcessingEsdlTypeSNot, "Error processing ESDL - type '%s' not found", parentStructName);
 
     try
     {
@@ -1830,15 +1831,15 @@ void Esdl2Transformer::processHPCCResult(IEspContext &ctx, IEsdlDefMethod &mthde
     IEsdlDefinition *esdl = m_def.get();
 
     if (!esdl)
-        throw MakeStringExceptionDirect(-1, "ESDL transformer error: could not access ESDL definition object");
+        throw MakeStringExceptionDirect(ESPERR_EsdlTransformerErrorCouldNotAccess, "ESDL transformer error: could not access ESDL definition object");
 
     const char *restype = mthdef.queryResponseType();
     if (!restype)
-        throw MakeStringException(-1, "ESDL method %s, response type not declared", mthdef.queryName());
+        throw MakeStringException(ESPERR_EsdlMethodSResponseTypeNot, "ESDL method %s, response type not declared", mthdef.queryName());
 
     IEsdlDefStruct *resdef = esdl->queryStruct(restype);
     if (!resdef)
-        throw MakeStringException(-1, "ESDL method %s, response type %s not defined", mthdef.queryName(), restype);
+        throw MakeStringException(ESPERR_EsdlMethodSResponseTypeS, "ESDL method %s, response type %s not defined", mthdef.queryName(), restype);
 
     const char *resdsname = restype;
     const char *subresdsname = NULL;

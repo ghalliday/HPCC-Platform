@@ -21,6 +21,7 @@
 #endif
 //Jlib
 #include "jliball.hpp"
+#include "esperr.hpp"
 #include "jstats.h"
 #include "jutil.hpp"
 
@@ -553,10 +554,10 @@ int init_main(int argc, const char* argv[])
             DBGLOG("Using ESP configuration section [%s]", xpath.str());
             procpt.set(envpt->queryPropTree(xpath.str()));
             if (!procpt)
-                throw MakeStringException(-1, "Config section [%s] not found", xpath.str());
+                throw MakeStringException(ESPERR_ConfigSectionSNotFound, "Config section [%s] not found", xpath.str());
         }
         else
-            throw MakeStringException(-1, "Failed to load config file %s", cfgfile);
+            throw MakeStringException(ESPERR_FailedToLoadConfigFileS, "Failed to load config file %s", cfgfile);
 
 #ifdef _CONTAINERIZED
         // TBD: Some esp services read daliServers from it's legacy config file

@@ -28,6 +28,7 @@
    Minor changes are made in the existing methods.
  */
 #include "LogFailSafe.hpp"
+#include "esperr.hpp"
 #include "jmisc.hpp"
 #include "soapbind.hpp"
 
@@ -287,7 +288,7 @@ void CLogFailSafe::Add(const char* GUID, IPropertyTree* scriptValues, IInterface
 {
     CSoapRequestBinding* reqObj = dynamic_cast<CSoapRequestBinding*>(&pIn);
     if (reqObj == 0)
-        throw MakeStringException(-1, "Unable to cast interface to SoapBindind");
+        throw MakeStringException(ESPERR_UnableToCastInterfaceToSoapbindind, "Unable to cast interface to SoapBindind");
 
     StringBuffer dataStr;
     reqObj->serializeContent(NULL,dataStr,NULL);

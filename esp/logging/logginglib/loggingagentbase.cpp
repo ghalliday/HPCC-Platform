@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "LoggingErrors.hpp"
+#include "esperr.hpp"
 #include "loggingagentbase.hpp"
 #include <set>
 
@@ -413,10 +414,10 @@ bool CEspLogAgentVariantIterator::isValid()
 const IEspLogAgentVariant& CEspLogAgentVariantIterator::query()
 {
     if (!isValid())
-        throw makeStringException(0, "CEspLogAgentVariantIterator::query called in invalid state");
+        throw makeStringException(ESPERR_CesplogagentvariantiteratorQueryCalledInInvalidState, "CEspLogAgentVariantIterator::query called in invalid state");
     IEspLogAgentVariant* entry = m_variantIt->get();
     if (nullptr == entry)
-        throw makeStringException(0, "CEspLogAgentVariantIterator::query encountered a NULL variant");
+        throw makeStringException(ESPERR_CesplogagentvariantiteratorQueryEncounteredANullVariant, "CEspLogAgentVariantIterator::query encountered a NULL variant");
     return *entry;
 }
 

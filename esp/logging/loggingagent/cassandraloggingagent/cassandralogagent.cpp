@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "LoggingErrors.hpp"
+#include "esperr.hpp"
 #include "cassandralogagent.hpp"
 
 static const int defaultMaxTriesGTS = -1;
@@ -38,20 +39,20 @@ static const CassValue* getSingleResult(const CassResult* result)
 bool CCassandraLogAgent::init(const char* name, const char* type, IPropertyTree* cfg, const char* process)
 {
     if (!name || !*name || !type || !*type)
-        throw MakeStringException(-1, "Name or type not specified for CassandraLogAgent");
+        throw MakeStringException(ESPERR_NameOrTypeNotSpecifiedFor, "Name or type not specified for CassandraLogAgent");
 
     if (!cfg)
-        throw MakeStringException(-1, "Unable to find configuration for log agent %s:%s", name, type);
+        throw MakeStringException(ESPERR_UnableToFindConfigurationForLog, "Unable to find configuration for log agent %s:%s", name, type);
 
     agentName.set(name);
     const char* servicesConfig = cfg->queryProp("@services");
     if (isEmptyString(servicesConfig))
-        throw MakeStringException(-1,"No Logging Service defined for %s", agentName.get());
+        throw MakeStringException(ESPERR_NoLoggingServiceDefinedForS, "No Logging Service defined for %s", agentName.get());
     setServices(servicesConfig);
 
     IPropertyTree* cassandra = cfg->queryBranch("Cassandra");
     if(!cassandra)
-        throw MakeStringException(-1, "Unable to find Cassandra settings for log agent %s:%s", name, type);
+        throw MakeStringException(ESPERR_UnableToFindCassandraSettingsFor, "Unable to find Cassandra settings for log agent %s:%s", name, type);
 
     readDBCfg(cassandra, dbServer, dbUserID, dbPassword);
 
@@ -60,7 +61,7 @@ bool CCassandraLogAgent::init(const char* name, const char* type, IPropertyTree*
         //Read information about data mapping for every log groups
         readLogGroupCfg(cfg, defaultLogGroup, logGroups);
         if (defaultLogGroup.isEmpty())
-            throw MakeStringException(-1,"LogGroup not defined");
+            throw MakeStringException(ESPERR_LoggroupNotDefined, "LogGroup not defined");
 
         //Read mapping between log sources and log groups
         readLogSourceCfg(cfg, logSourceCount, logSourcePath, logSources);
@@ -83,7 +84,7 @@ void CCassandraLogAgent::initKeySpace()
     //Initialize Cassandra Cluster Session
     cassSession.setown(new CassandraClusterSession(cass_cluster_new()));
     if (!cassSession)
-        throw MakeStringException(-1,"Unable to create cassandra cassSession session");
+        throw MakeStringException(ESPERR_UnableToCreateCassandraCasssessionSession, "Unable to create cassandra cassSession session");
 
     setSessionOptions(NULL);
 

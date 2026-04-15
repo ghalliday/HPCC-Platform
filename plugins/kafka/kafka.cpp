@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "kafka.hpp"
+#include "pluginerr.hpp"
 
 #include "rtlds_imp.hpp"
 #include "jlog.hpp"
@@ -275,7 +276,7 @@ namespace KafkaPlugin
                                 break;
 
                             case RdKafka::ERR__UNKNOWN_TOPIC:
-                                throw MakeStringException(-1, "Kafka: Error while reading message: '%s'", messageObjPtr->errstr().c_str());
+                                throw MakeStringException(PLUGINERR_KafkaErrorWhileReadingMessageS, "Kafka: Error while reading message: '%s'", messageObjPtr->errstr().c_str());
                                 break;
                         }
                     }
@@ -471,17 +472,17 @@ namespace KafkaPlugin
                         }
                         else
                         {
-                            throw MakeStringException(-1, "Kafka: Unable to create producer topic object for topic '%s'; error: '%s'", topic.c_str(), errStr.c_str());
+                            throw MakeStringException(PLUGINERR_KafkaUnableToCreateProducerTopic, "Kafka: Unable to create producer topic object for topic '%s'; error: '%s'", topic.c_str(), errStr.c_str());
                         }
                     }
                     else
                     {
-                        throw MakeStringException(-1, "Kafka: Unable to create producer object for brokers '%s'; error: '%s'", brokers.c_str(), errStr.c_str());
+                        throw MakeStringException(PLUGINERR_KafkaUnableToCreateProducerObject, "Kafka: Unable to create producer object for brokers '%s'; error: '%s'", brokers.c_str(), errStr.c_str());
                     }
                 }
                 else
                 {
-                    throw MakeStringException(-1, "Kafka: Unable to create producer global configuration object for brokers '%s'; error: '%s'", brokers.c_str(), errStr.c_str());
+                    throw MakeStringException(PLUGINERR_KafkaUnableToCreateProducerGlobal, "Kafka: Unable to create producer global configuration object for brokers '%s'; error: '%s'", brokers.c_str(), errStr.c_str());
                 }
             }
         }
@@ -513,12 +514,12 @@ namespace KafkaPlugin
                 }
                 else
                 {
-                    throw MakeStringException(-1, "Kafka: Unable to send message to topic '%s'; error: '%s'", topic.c_str(), RdKafka::err2str(resp).c_str());
+                    throw MakeStringException(PLUGINERR_KafkaUnableToSendMessageTo, "Kafka: Unable to send message to topic '%s'; error: '%s'", topic.c_str(), RdKafka::err2str(resp).c_str());
                 }
             }
             else
             {
-                throw MakeStringException(-1, "Kafka: Unable to send message to topic '%s'; error: '%s'", topic.c_str(), RdKafka::err2str(resp).c_str());
+                throw MakeStringException(PLUGINERR_KafkaUnableToSendMessageTo, "Kafka: Unable to send message to topic '%s'; error: '%s'", topic.c_str(), RdKafka::err2str(resp).c_str());
             }
         }
     }
@@ -575,7 +576,7 @@ namespace KafkaPlugin
             char cpath[_MAX_DIR];
 
             if (!GetCurrentDirectory(_MAX_DIR, cpath))
-                throw MakeStringException(-1, "Unable to determine current directory in order to save Kafka consumer offset file");
+                throw MakeStringException(PLUGINERR_UnableToDetermineCurrentDirectoryIn, "Unable to determine current directory in order to save Kafka consumer offset file");
             offsetPath.append(cpath);
             addPathSepChar(offsetPath);
 
@@ -686,17 +687,17 @@ namespace KafkaPlugin
 
                         if (!topicPtr)
                         {
-                            throw MakeStringException(-1, "Kafka: Unable to create consumer topic object for topic '%s'; error: '%s'", topic.c_str(), errStr.c_str());
+                            throw MakeStringException(PLUGINERR_KafkaUnableToCreateConsumerTopic, "Kafka: Unable to create consumer topic object for topic '%s'; error: '%s'", topic.c_str(), errStr.c_str());
                         }
                     }
                     else
                     {
-                        throw MakeStringException(-1, "Kafka: Unable to create consumer object for brokers '%s'; error: '%s'", brokers.c_str(), errStr.c_str());
+                        throw MakeStringException(PLUGINERR_KafkaUnableToCreateConsumerObject, "Kafka: Unable to create consumer object for brokers '%s'; error: '%s'", brokers.c_str(), errStr.c_str());
                     }
                 }
                 else
                 {
-                    throw MakeStringException(-1, "Kafka: Unable to create consumer global configuration object for brokers '%s'; error: '%s'", brokers.c_str(), errStr.c_str());
+                    throw MakeStringException(PLUGINERR_KafkaUnableToCreateConsumerGlobal, "Kafka: Unable to create consumer global configuration object for brokers '%s'; error: '%s'", brokers.c_str(), errStr.c_str());
                 }
             }
         }
@@ -724,7 +725,7 @@ namespace KafkaPlugin
         }
         else
         {
-            throw MakeStringException(-1, "Kafka: Failed to start Consumer read for %s:%d @ %s; error: %d", topic.c_str(), partitionNum, brokers.c_str(), startErr);
+            throw MakeStringException(PLUGINERR_KafkaFailedToStartConsumerRead, "Kafka: Failed to start Consumer read for %s:%d @ %s; error: %d", topic.c_str(), partitionNum, brokers.c_str(), startErr);
         }
     }
 
@@ -936,7 +937,7 @@ namespace KafkaPlugin
 
                 if (!pubObjPtr)
                 {
-                    throw MakeStringException(-1, "Kafka: Unable to create publisher for brokers '%s' and topic '%s'", brokers.c_str(), topic.c_str());
+                    throw MakeStringException(PLUGINERR_KafkaUnableToCreatePublisherFor, "Kafka: Unable to create publisher for brokers '%s' and topic '%s'", brokers.c_str(), topic.c_str());
                 }
 
                 return pubObjPtr;

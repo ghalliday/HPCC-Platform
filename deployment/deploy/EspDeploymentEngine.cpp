@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "jptree.hpp"
+#include "deployerr.hpp"
 #include "jmutex.hpp"
 #include "jexcept.hpp"
 #include "environment.hpp"
@@ -53,10 +54,10 @@ void CEspDeploymentEngine::check()
       if (service)
       {
          if (!lookupProcess("EspService", service))
-            throw MakeStringException(0, "Process %s references unknown service %s", m_name.get(), service);
+            throw MakeStringException(DEPLOYERR_ProcessSReferencesUnknownServiceS, "Process %s references unknown service %s", m_name.get(), service);
       }
       else
-         throw MakeStringException(-1, "The ESP binding %s for ESP %s has missing service information!", 
+         throw MakeStringException(DEPLOYERR_TheEspBindingSForEsp, "The ESP binding %s for ESP %s has missing service information!", 
                                    pBinding->queryProp("@name"), m_name.get());
    }
 
@@ -66,7 +67,7 @@ void CEspDeploymentEngine::check()
    {
       const char* name = iter->query().queryProp("@daliServers");
       if (name && *name && !lookupProcess("DaliServerProcess", name))
-            throw MakeStringException(0, "Process %s references unknown DaliServers %s", m_name.get(), name);
+            throw MakeStringException(DEPLOYERR_ProcessSReferencesUnknownDaliserversS, "Process %s references unknown DaliServers %s", m_name.get(), name);
    }
 
    // Make sure EclServer is valid
@@ -75,7 +76,7 @@ void CEspDeploymentEngine::check()
    {
       const char* name = iter->query().queryProp("@eclServer");
       if (name && *name && !lookupProcess("EclServerProcess", name))
-         throw MakeStringException(0, "Process %s references unknown EclServer %s", m_name.get(), name);
+         throw MakeStringException(DEPLOYERR_ProcessSReferencesUnknownEclserverS, "Process %s references unknown EclServer %s", m_name.get(), name);
    }
 
    // Make sure AttributeServer is valid
@@ -84,7 +85,7 @@ void CEspDeploymentEngine::check()
    {
       const char* name = iter->query().queryProp("@attributeServer");
       if (name && *name && !lookupProcess("AttrServerProcess", name))
-         throw MakeStringException(0, "Process %s references unknown AttributeServer %s", m_name.get(), name);
+         throw MakeStringException(DEPLOYERR_ProcessSReferencesUnknownAttributeserverS, "Process %s references unknown AttributeServer %s", m_name.get(), name);
    }
 }
 
@@ -108,11 +109,11 @@ int CEspDeploymentEngine::determineInstallFiles(IPropertyTree& node, CInstallFil
       // Lookup plugin process
       IPropertyTree* pService = lookupProcess("EspService", szService);
       if (!pService)
-         throw MakeStringException(0, "Process %s references unknown esp service '%s'", m_name.get(), szService);
+         throw MakeStringException(DEPLOYERR_ProcessSReferencesUnknownEspService, "Process %s references unknown esp service '%s'", m_name.get(), szService);
 
       const char* pszBuild = pService->queryProp("@build");
       if (!pszBuild || 0 != strcmp(pszBuild, myBuild))
-         throw MakeStringException(0, "ESP service '%s' used by ESP process '%s'\n has a different build (%s) to its ESP process!", 
+         throw MakeStringException(DEPLOYERR_EspServiceSUsedByEsp, "ESP service '%s' used by ESP process '%s'\n has a different build (%s) to its ESP process!", 
                                    szService, m_name.get(), pszBuild);
 
          // Get plugin file list from the plugin process

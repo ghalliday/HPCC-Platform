@@ -16,6 +16,7 @@ limitations under the License.
 ############################################################################## */
 
 #include "HPCCFileCache.hpp"
+#include "esperr.hpp"
 
 
 HPCCFileCache * HPCCFileCache::createFileCache(const char * username, const char * passwd)
@@ -129,7 +130,7 @@ bool HPCCFileCache::cacheAllHpccFiles(const char * filterby)
 
     Owned<IPropertyTreeIterator> fi = queryDistributedFileDirectory().getDFAttributesIterator(filter, userdesc.get(), true, true, nullptr);
     if(!fi)
-        throw MakeStringException(-1,"Cannot get information from file system.");
+        throw MakeStringException(ESPERR_CannotGetInformationFromFileSystem, "Cannot get information from file system.");
 
     success = true;
     ForEach(*fi)
@@ -204,20 +205,20 @@ HPCCFile * HPCCFileCache::fetchHpccFileByName(const char * filename, const char 
         Owned<IDistributedFile> df = dfd.lookup(filename, userdesc, AccessMode::tbdRead, false, false, nullptr, defaultPrivilegedUser);
 
         if(!df)
-            throw MakeStringException(-1,"Cannot find file %s.",filename);
+            throw MakeStringException(ESPERR_CannotFindFileS, "Cannot find file %s.",filename);
 
         const char* lname=df->queryLogicalName();
         if (lname && *lname)
         {
             const char* fname=strrchr(lname,':');
             if (!namevalidated && !HPCCFile::validateFileName(lname))
-                throw MakeStringException(-1,"Invalid SQL file name detected %s.", fname);
+                throw MakeStringException(ESPERR_InvalidSqlFileNameDetectedS, "Invalid SQL file name detected %s.", fname);
             file.setown(HPCCFile::createHPCCFile());
             file->setFullname(lname);
             file->setName(fname ? fname+1 : lname);
         }
         else
-            throw MakeStringException(-1,"Cannot find file %s.",filename);
+            throw MakeStringException(ESPERR_CannotFindFileS, "Cannot find file %s.",filename);
 
         file->setDescription(df->queryAttributes().queryProp("@description"));
 
@@ -241,7 +242,7 @@ HPCCFile * HPCCFileCache::fetchHpccFileByName(const char * filename, const char 
         if(properties.hasProp("ECL"))
             file->setEcl(properties.queryProp("ECL"));
         else if (!acceptrawfiles)
-            throw MakeStringException(-1,"File %s does not contain required ECL record layout.",filename);
+            throw MakeStringException(ESPERR_FileSDoesNotContainRequired, "File %s does not contain required ECL record layout.",filename);
 
         file->setOwner(properties.queryProp("@owner"));
         IDistributedSuperFile *sf = df->querySuperFile();
@@ -315,7 +316,7 @@ HPCCFile * HPCCFileCache::fetchHpccFileByName(const char * filename, const char 
         }
 
         if (file && (strncmp(file->getFormat(), "XML", 3)==0))
-            throw MakeStringException(-1,"Nested data files not supported: %s.",filename);
+            throw MakeStringException(ESPERR_NestedDataFilesNotSupportedS, "Nested data files not supported: %s.",filename);
     }
 
     catch (IException * se)

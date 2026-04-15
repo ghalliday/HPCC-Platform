@@ -16,6 +16,7 @@ limitations under the License.
 ############################################################################## */
 
 #include "ECLEngine.hpp"
+#include "esperr.hpp"
 #include <limits>       // std::numeric_limits
 
 const char * ECLEngine::SELECTOUTPUTNAME = "WSSQLSelectQueryResult";
@@ -142,10 +143,10 @@ void ECLEngine::generateCreateAndLoad(HPCCSQLTreeWalker * sqlobj, StringBuffer &
 {
         const char * targetTableName = sqlobj->getTableName();
         if (!targetTableName || !*targetTableName)
-            throw MakeStringException(-1, "Error: TableName cannot be empty.");
+            throw MakeStringException(ESPERR_ErrorTablenameCannotBeEmpty, "Error: TableName cannot be empty.");
 
         if (!HPCCFile::validateFileName(targetTableName))
-            throw MakeStringException(-1, "Error: Target TableName is invalid: %s.", targetTableName);
+            throw MakeStringException(ESPERR_ErrorTargetTablenameIsInvalidS, "Error: Target TableName is invalid: %s.", targetTableName);
 
         StringBuffer sourceFileName;
         sourceFileName.set(sqlobj->getSourceDataTableName()).trim();
@@ -291,10 +292,10 @@ void ECLEngine::generateSelectECL(HPCCSQLTreeWalker * selectsqlobj, StringBuffer
                     selectsqlobj->getWhereClause()->toECLStringTranslateSource(translatedAndFilteredOnClause, translator, true, true, false, false);
                 }
                 else
-                    throw MakeStringException(-1,"No join condition between tables %s, and earlier table", tname);
+                    throw MakeStringException(ESPERR_NoJoinConditionBetweenTablesS, "No join condition between tables %s, and earlier table", tname);
 
                 if (translatedAndFilteredOnClause.length() <= 0)
-                    throw MakeStringException(-1,"Join condition does not contain proper join condition between tables %s, and earlier table", tname);
+                    throw MakeStringException(ESPERR_JoinConditionDoesNotContainProper, "Join condition does not contain proper join condition between tables %s, and earlier table", tname);
 
                 out.appendf(", %s, %s, ", currntTblDS.str(), translatedAndFilteredOnClause.length() > 0 ? translatedAndFilteredOnClause.str() : "TRUE");
                 tablejoin->getECLTypeStr(out);

@@ -17,6 +17,7 @@
 
 
 #include <string>
+#include "deployerr.hpp"
 #include "jliball.hpp"
 #include "XMLTags.h"
 #include "configengcallback.hpp"
@@ -151,7 +152,7 @@ void copyDirectoryRecursive(const char *source, const char *target)
       if (first)
       {
         if (!recursiveCreateDirectory(target))
-          throw MakeStringException(-1,"Cannot create directory %s",target);
+          throw MakeStringException(DEPLOYERR_CannotCreateDirectoryS, "Cannot create directory %s",target);
 
         first = false;
       }

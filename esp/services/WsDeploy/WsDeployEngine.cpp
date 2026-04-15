@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "WsDeployService.hpp"
+#include "esperr.hpp"
 #include "WsDeployEngine.hpp"
 
 class CWsGenerateJSFromXsdThread : public CInterface, 
@@ -54,7 +55,7 @@ public:
     if (m_pTask && m_pTask->getAbort())
     {
       m_pTask->getCallback().printStatus(STATUS_NORMAL, NULL, NULL, NULL, "Aborting, please wait...");
-      throw MakeStringException(0, "Abort");
+      throw MakeStringException(ESPERR_Abort, "Abort");
     }
   }
 
@@ -130,7 +131,7 @@ m_errorCount(0)
   IArrayOf<IConstComponent>& components = deployInfo.getComponents();
   unsigned int nComps = components.ordinality();
   if (nComps == 0)
-    throw MakeStringException(-1, "No components were selected for deployment!");
+    throw MakeStringException(ESPERR_NoComponentsWereSelectedForDeployment, "No components were selected for deployment!");
 
 
   StringBuffer xml;
@@ -183,7 +184,7 @@ void CWsDeployEngine::initComponents(IArrayOf<IConstComponent>& components)
     const char* name = comp.getName();
 
     if (!(type && *type && name && *name))
-      throw MakeStringException(-1, "Invalid component specified!");
+      throw MakeStringException(ESPERR_InvalidComponentSpecified, "Invalid component specified!");
 
     StringBuffer xpath;
     xpath.appendf("%s[@name='%s']", type, name);
@@ -266,7 +267,7 @@ void CWsDeployEngine::deploy(CDeployOptions& pOptions)
       if (options.getArchiveEnv() || options.getLog())
       {
         if (!archiveLogPath || !*archiveLogPath)
-          throw MakeStringExceptionDirect(-1, "Cannot archive or log without a path!");
+          throw MakeStringExceptionDirect(ESPERR_CannotArchiveOrLogWithoutA, "Cannot archive or log without a path!");
 
         Owned<IFile> pIFile = createIFile(archiveLogPath);
         if (!pIFile->exists())
@@ -275,7 +276,7 @@ void CWsDeployEngine::deploy(CDeployOptions& pOptions)
           task->createDirectory();
         }
         else if (pIFile->isDirectory()!=fileBool::foundYes)
-            throw MakeStringException(-1, "The specified log/archive path '%s' is invalid!", archiveLogPath);
+            throw MakeStringException(ESPERR_TheSpecifiedLogArchivePathS, "The specified log/archive path '%s' is invalid!", archiveLogPath);
       }
 
       StringBuffer archiveFile;
@@ -413,7 +414,7 @@ void CWsDeployEngine::deploy()
       if (options.getArchiveEnv() || options.getLog())
       {
         if (!archiveLogPath || !*archiveLogPath)
-          throw MakeStringExceptionDirect(-1, "Cannot archive or log without a path!");
+          throw MakeStringExceptionDirect(ESPERR_CannotArchiveOrLogWithoutA, "Cannot archive or log without a path!");
 
         Owned<IFile> pIFile = createIFile(archiveLogPath);
         if (!pIFile->exists())
@@ -422,7 +423,7 @@ void CWsDeployEngine::deploy()
           task->createDirectory();
         }
         else if (pIFile->isDirectory()!=fileBool::foundYes)
-            throw MakeStringException(-1, "The specified log/archive path '%s' is invalid!", archiveLogPath);
+            throw MakeStringException(ESPERR_TheSpecifiedLogArchivePathS, "The specified log/archive path '%s' is invalid!", archiveLogPath);
       }
 
       StringBuffer archiveFile;
@@ -523,7 +524,7 @@ IPropertyTree* CWsDeployEngine::findTasksForComponent(const char* comp, const ch
     if (!inst)
       return NULL;
     else
-      throw MakeStringException(-1, "Internal error in cache management!");
+      throw MakeStringException(ESPERR_InternalErrorInCacheManagement, "Internal error in cache management!");
   }
 
   return (*it).second;
@@ -624,7 +625,7 @@ bool CWsDeployEngine::processException(const char* processType, const char* proc
                                        IDeployTask* pTask /*=NULL*/ )
 {
   if (getAbortStatus() || (pTask && pTask->getAbort()))
-    throw MakeStringException(0, "User abort");
+    throw MakeStringException(ESPERR_UserAbort, "User abort");
 
   StringBuffer msg;
 

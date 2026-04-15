@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include <stdlib.h>
+#include "esperr.hpp"
 
 #include "ws_accessService.hpp"
 #include "exception_util.hpp"
@@ -94,7 +95,7 @@ ILdapSecManager* Cws_accessEx::queryLDAPSecurityManagerAndCheckUser(IEspContext&
 void Cws_accessEx::init(IPropertyTree *cfg, const char *process, const char *service)
 {
     if(cfg == NULL)
-        throw MakeStringException(-1, "can't initialize Cws_accessEx, cfg is NULL");
+        throw MakeStringException(ESPERR_CanTInitializeCwsAccessexCfg, "can't initialize Cws_accessEx, cfg is NULL");
 
     StringBuffer xpath;
     xpath.appendf("Software/EspProcess[@name=\"%s\"]/EspService[@name=\"%s\"]", process, service);
@@ -812,7 +813,7 @@ bool Cws_accessEx::onGroups(IEspContext &context, IEspGroupRequest &req, IEspGro
         {
             if(secmgr0 == NULL)
             {
-                //throw MakeStringException(-1, "SecManager is NULL, please check if the binding's authentication is set up correctly");
+                //throw MakeStringException(ESPERR_SecmanagerIsNullPleaseCheckIf, "SecManager is NULL, please check if the binding's authentication is set up correctly");
                 resp.setNoSecMngr(true);
                 return true;
             }

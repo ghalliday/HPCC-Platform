@@ -21,6 +21,7 @@
 
 //Jlib
 #include "jliball.hpp"
+#include "esperr.hpp"
 
 //CRT
 #include <stdio.h>
@@ -77,7 +78,7 @@ IClientWsEclResp* CClientWsEclService::search(IClientWsEclRequest* request)
 {
     if(strlen(m_url) == 0)
     {
-        throw MakeStringException(-1, "url not set");
+        throw MakeStringException(ESPERR_UrlNotSet, "url not set");
     }
 
     CClientWsEclRequest* eclrequest = dynamic_cast<CClientWsEclRequest*>(request);
@@ -100,7 +101,7 @@ IClientWsEclResp* CClientWsEclService::searchEx(IClientWsEclRequest* request, co
 IClientWsEclResp* CClientWsEclService::searchEx(IClientWsEclRequest* request,const char* URL, const char *user, const char *pw, const char *realm)
 {
     if(strlen(URL) == 0)
-        throw MakeStringException(-1, "url not set");
+        throw MakeStringException(ESPERR_UrlNotSet, "url not set");
 
     CClientWsEclRequest* eclrequest = dynamic_cast<CClientWsEclRequest*>(request);
     Owned<CClientWsEclResponse> eclresponse = new CClientWsEclResponse;
@@ -117,7 +118,7 @@ IClientWsEclResp* CClientWsEclService::sendHttpRequest(IClientWsEclRequest* requ
                                                                                     const char* httpPostVariableName, bool encodeHttpPostBody)
 {
     if(strlen(URL) == 0)
-        throw MakeStringException(-1, "url not set");
+        throw MakeStringException(ESPERR_UrlNotSet, "url not set");
 
     CClientWsEclRequest* eclrequest = dynamic_cast<CClientWsEclRequest*>(request);
     Owned<CClientWsEclResponse> eclresponse = new CClientWsEclResponse;
@@ -132,7 +133,7 @@ void CClientWsEclService::searchAsync(IClientWsEclRequest* request, IClientWsEcl
 {
     if(strlen(m_url) == 0)
     {
-        throw MakeStringException(-1, "url not set");
+        throw MakeStringException(ESPERR_UrlNotSet, "url not set");
     }
 
     CClientWsEclRequest* eclrequest = dynamic_cast<CClientWsEclRequest*>(request);

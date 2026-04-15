@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "systemerr.hpp"
 #include "jlzw.hpp"
 #include "jlzma.hpp"
 #include "jexcept.hpp"
@@ -221,7 +222,7 @@ public:
         keyFile.setown(createIFile(filename));
         keyFileIO.setown(keyFile->open(IFOread));
         if(!keyFileIO)
-            throw MakeStringException(0, "Could not read index file %s", filename);
+            throw MakeStringException(SYSTEMERR_CouldNotReadIndexFileS, "Could not read index file %s", filename);
         keyIndex.setown(createKeyIndex(filename, 0, *keyFileIO, (unsigned) -1, false, 0)); // MORE - should we care about crc?
         unsigned flags = keyIndex->getFlags();
         variableWidth = ((flags & HTREE_VARSIZE) == HTREE_VARSIZE);
@@ -230,7 +231,7 @@ public:
         else if((flags & HTREE_COMPRESSED_KEY) == HTREE_COMPRESSED_KEY)
             quickCompressed = false;
         else
-            throw MakeStringException(0, "Index file %s did not have compression flags set, unsupported", filename);
+            throw MakeStringException(SYSTEMERR_IndexFileSDidNotHave, "Index file %s did not have compression flags set, unsupported", filename);
         unsigned optionalFlags = (HTREE_VARSIZE | HTREE_QUICK_COMPRESSED_KEY | HTREE_TOPLEVEL_KEY | HTREE_FULLSORT_KEY | TRAILING_HEADER_ONLY | USE_TRAILING_HEADER);
         unsigned requiredFlags = COL_PREFIX;
 #ifdef _DEBUG
@@ -238,13 +239,13 @@ public:
             ERRLOG("Index file %s did not have expected index flags set (%x)", filename, (flags & ~optionalFlags) );
 #else
         if((flags & ~optionalFlags) != requiredFlags)
-            throw MakeStringException(0, "Index file %s did not have expected index flags set (%x)", filename, (flags & ~optionalFlags) );
+            throw MakeStringException(SYSTEMERR_IndexFileSDidNotHave_1, "Index file %s did not have expected index flags set (%x)", filename, (flags & ~optionalFlags) );
 #endif
         offset_t blobHead = keyIndex->queryBlobHead();
         if(blobHead == static_cast<offset_t>(-1))
             WARNLOG("Index part %s does not declare blob status: if it contains blobs, they will be lost", filename);
         else if(blobHead != 0)
-            throw MakeStringException(0, "Index contains BLOBs, which are currently not supported by keydiff/patch");
+            throw MakeStringException(SYSTEMERR_IndexContainsBlobsWhichAreCurrently, "Index contains BLOBs, which are currently not supported by keydiff/patch");
         if(keyIndex->queryMetadataHead())
             WARNLOG("Index contains metadata, which will be ignored by keydiff/patch");
         keyCursor.setown(keyIndex->getCursor(NULL, false));
@@ -357,10 +358,10 @@ public:
         reccount = 0;
         keyFile.setown(createIFile(filename));
         if(!overwrite && (keyFile->isFile() != fileBool::notFound))
-            throw MakeStringException(0, "Found preexisting index file %s (overwrite not selected)", filename);
+            throw MakeStringException(SYSTEMERR_FoundPreexistingIndexFileSOverwrite, "Found preexisting index file %s (overwrite not selected)", filename);
         keyFileIO.setown(keyFile->openShared(IFOcreate, IFSHfull)); // not sure if needs shared here
         if(!keyFileIO)
-            throw MakeStringException(0, "Could not write index file %s", filename);
+            throw MakeStringException(SYSTEMERR_CouldNotWriteIndexFileS, "Could not write index file %s", filename);
         keyStream.setown(createIOStream(keyFileIO));
         if (noSeek)
             keyStream.setown(createNoSeekIOStream(keyStream));
@@ -520,7 +521,7 @@ public:
         char signature[7];
         buff.read(7, signature);
         if(strncmp(signature, KEYDIFFSIG, 7) != 0)
-            throw MakeStringException(0, "Bad format in file %s, did not appear to be key patch file", patchName);
+            throw MakeStringException(SYSTEMERR_BadFormatInFileSDid, "Bad format in file %s, did not appear to be key patch file", patchName);
         version.deserialize(buff);
         minPatchVersion.deserialize(buff);
     }
@@ -646,10 +647,10 @@ public:
     {
         file.setown(createIFile(filename));
         if(!overwrite && (file->isFile() != fileBool::notFound))
-            throw MakeStringException(0, "Found preexisting key patch file %s (overwrite not selected)", filename);
+            throw MakeStringException(SYSTEMERR_FoundPreexistingKeyPatchFileS, "Found preexisting key patch file %s (overwrite not selected)", filename);
         fileIO.setown(file->open(IFOcreate));
         if(!fileIO)
-            throw MakeStringException(0, "Could not write key patch file %s", filename);
+            throw MakeStringException(SYSTEMERR_CouldNotWriteKeyPatchFile, "Could not write key patch file %s", filename);
         stream.setown(createIOStream(fileIO));
         compmode = _compmode;
         datasize = 0;
@@ -762,7 +763,7 @@ private:
                 }
             }
             else
-                throw MakeStringException(-1,"Unknown compression mode (%d)",compmode);
+                throw MakeStringException(SYSTEMERR_UnknownCompressionModeD, "Unknown compression mode (%d)",compmode);
         }
         stream->write(sizeof(outsize), &outsize);
         stream->write(sizeof(wrflag), &wrflag);
@@ -792,7 +793,7 @@ public:
         file.setown(createIFile(filename));
         fileIO.setown(file->open(IFOread));
         if(!fileIO)
-            throw MakeStringException(0, "Could not read key patch file %s", filename);
+            throw MakeStringException(SYSTEMERR_CouldNotReadKeyPatchFile, "Could not read key patch file %s", filename);
         stream.setown(createIOStream(fileIO));
         inbuff.reserve(streambuffsize + 2*sizeof(size32_t));
         inbuff.rewrite(0);
@@ -949,7 +950,7 @@ private:
                 Owned<IExpander> expander = createLZWExpander(false);
                 size32_t expsize = expander->init(buf);
                 if(expsize != insize) 
-                    throw MakeStringException(0, "LZW compression/expansion error");
+                    throw MakeStringException(SYSTEMERR_LzwCompressionExpansionError, "LZW compression/expansion error");
                 expander->expand(inbuff.reserve(insize));
             }
             stream->read(2*sizeof(size32_t), inbuff.reserve(2*sizeof(size32_t)));
@@ -977,11 +978,11 @@ public:
         : oldInput(oldIndex), newInput(newIndex), keydiff(patch, overwrite, oldIndex, newIndex, newTLK, compmode), keyedsize(oldInput.queryKeyedSize()), rowsize(oldInput.queryRowSize())
     {
         if((newInput.queryKeyedSize() != keyedsize) || (newInput.queryRowSize() != rowsize))
-            throw MakeStringException(0, "Cannot generate diff for keys with different record sizes");
+            throw MakeStringException(SYSTEMERR_CannotGenerateDiffForKeysWith, "Cannot generate diff for keys with different record sizes");
         if(newInput.isVariableWidth() != oldInput.isVariableWidth())
-            throw MakeStringException(0, "Old and new keys are of different types (%s is variable width)", (oldInput.isVariableWidth() ? "old" : "new"));
+            throw MakeStringException(SYSTEMERR_OldAndNewKeysAreOf, "Old and new keys are of different types (%s is variable width)", (oldInput.isVariableWidth() ? "old" : "new"));
         if(newInput.isQuickCompressed() != oldInput.isQuickCompressed())
-            throw MakeStringException(0, "Old and new keys are of different types (%s is quick compressed)", (oldInput.isQuickCompressed() ? "old" : "new"));
+            throw MakeStringException(SYSTEMERR_OldAndNewKeysAreOf_1, "Old and new keys are of different types (%s is quick compressed)", (oldInput.isQuickCompressed() ? "old" : "new"));
         newcurr.init(rowsize, oldInput.isVariableWidth());
         newprev.init(rowsize, oldInput.isVariableWidth());
         oldcurr.init(rowsize, oldInput.isVariableWidth());
@@ -1314,7 +1315,7 @@ private:
         keydiff.readHeaderVersionInfo();
         StringBuffer versionError;
         if(!keydiff.compatibleVersions(versionError))
-            throw MakeStringExceptionDirect(0, versionError.str());
+            throw MakeStringExceptionDirect(SYSTEMERR_VersionerrorStr, versionError.str());
         keydiff.readHeaderFileInfo();
         if(!oldIndex.get())
             oldIndex.set(keydiff.queryHeader().queryOldIndex());
@@ -1327,11 +1328,11 @@ private:
                 if(keydiff.queryHeader().hasTLKInfo())
                     newTLK.set(keydiff.queryHeader().queryNewTLK());
                 else
-                    throw MakeStringException(0, "Trying to generate TLK using filename from patch, but patch does not include TLK header information");
+                    throw MakeStringException(SYSTEMERR_TryingToGenerateTlkUsingFilename, "Trying to generate TLK using filename from patch, but patch does not include TLK header information");
             }
         }
         else if(keydiff.queryHeader().hasTLKInfo() && !ignoreTLK)
-            throw MakeStringException(0, "Patch includes TLK header information, but TLK generation not enabled --- aborting, invoke with warning suppressed to go ahead");
+            throw MakeStringException(SYSTEMERR_PatchIncludesTlkHeaderInformationBut, "Patch includes TLK header information, but TLK generation not enabled --- aborting, invoke with warning suppressed to go ahead");
         oldInput.setown(new CKeyReader(oldIndex));
         keyedsize = oldInput->queryKeyedSize();
         if(progressCallback)
@@ -1368,7 +1369,7 @@ private:
     {
         bool ok = keydiff.readDiffAndExpand(prev, newcurr);
         if(!ok)
-            throw MakeStringException(0, "Error in patch file");
+            throw MakeStringException(SYSTEMERR_ErrorInPatchFile, "Error in patch file");
         writeNew();
     }
 

@@ -19,6 +19,7 @@
 
 //Jlib
 #include "jliball.hpp"
+#include "esperr.hpp"
 
 //SCM Interfaces
 #include "esp.hpp"
@@ -54,7 +55,7 @@ ESP_FACTORY IEspService * ia_service_factory(const char *name, const char* type,
    }
     else
     {
-        throw MakeStringException(-1, "Unknown service %s", type);
+        throw MakeStringException(ESPERR_UnknownServiceS, "Unknown service %s", type);
     }
 
    return NULL;
@@ -91,7 +92,7 @@ ESP_FACTORY IEspRpcBinding * ia_binding_factory(const char *name, const char* ty
    }
     else
     {
-        throw MakeStringException(-1, "Unknown binding %s", type);
+        throw MakeStringException(ESPERR_UnknownBindingS, "Unknown binding %s", type);
     }
 
    return NULL;
@@ -120,12 +121,12 @@ ESP_FACTORY IEspProtocol * ia_protocol_factory(const char *name, const char* typ
         }
         else
         {
-            throw MakeStringException(-1, "can't find ssl settings in the config file");
+            throw MakeStringException(ESPERR_CanTFindSslSettingsIn, "can't find ssl settings in the config file");
         }
     }
     else
     {
-        throw MakeStringException(-1, "Unknown protocol %s", type);
+        throw MakeStringException(ESPERR_UnknownProtocolS, "Unknown protocol %s", type);
     }
 
    return NULL;

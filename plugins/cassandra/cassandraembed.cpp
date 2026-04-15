@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "pluginerr.hpp"
 #include "cassandra.h"
 #include "jexcept.hpp"
 #include "jthread.hpp"
@@ -60,7 +61,7 @@ namespace cassandraembed {
 
 extern void UNSUPPORTED(const char *feature)
 {
-    throw MakeStringException(-1, "UNSUPPORTED feature: %s not supported in Cassandra plugin", feature);
+    throw MakeStringException(PLUGINERR_UnsupportedFeatureSNotSupportedIn, "UNSUPPORTED feature: %s not supported in Cassandra plugin", feature);
 }
 
 static void logCallBack(const CassLogMessage *message, void *data)

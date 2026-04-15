@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "jexcept.hpp"
+#include "deployerr.hpp"
 #include "jfile.hpp"
 #include "jptree.hpp"
 #include "xslprocessor.hpp"
@@ -42,5 +43,5 @@ void CThorConfigGenEngine::check()
 
    const char* dali  = m_process.queryProp("@daliServers");
    if (!dali || !*dali )
-      throw MakeStringException(0, "No dali server is defined for thor %s", m_process.queryProp("@name"));
+      throw MakeStringException(DEPLOYERR_NoDaliServerIsDefinedFor, "No dali server is defined for thor %s", m_process.queryProp("@name"));
 }

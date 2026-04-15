@@ -1,4 +1,5 @@
 #include "jexcept.hpp"
+#include "deployerr.hpp"
 #include "jfile.hpp"
 #include "jmutex.hpp"
 #include "jprop.hpp"
@@ -94,7 +95,7 @@ CConfigHelper* CConfigHelper::getInstance(const IPropertyTree *cfg, const char* 
                 }
                 else
                 {
-                    throw MakeStringException(-1, "Failed create PTree from buildset.xml file %s with error %s", p_sConfigHelper->m_strBuildSetFilePath.str(), msg.str());
+                    throw MakeStringException(DEPLOYERR_FailedCreatePtreeFromBuildsetXml, "Failed create PTree from buildset.xml file %s with error %s", p_sConfigHelper->m_strBuildSetFilePath.str(), msg.str());
                 }
             }
 
@@ -124,7 +125,7 @@ CConfigHelper* CConfigHelper::getInstance(const IPropertyTree *cfg, const char* 
             delete p_sConfigHelper;
             p_sConfigHelper = NULL;
 
-            throw MakeStringException(-1, "Config file does not define values for %s and %s", xpath1.str(), xpath2.str());
+            throw MakeStringException(DEPLOYERR_ConfigFileDoesNotDefineValues, "Config file does not define values for %s and %s", xpath1.str(), xpath2.str());
         }
     }
 

@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include "jliball.hpp"
+#include "esperr.hpp"
 
 // We can use "work" as the first parameter when debugging.
 #define ESP_SINGLE_PROCESS
@@ -59,7 +60,7 @@ IPropertyTree *loadApplicationConfig(const char *application, const char* argv[]
     path.set(hpccBuildInfo.componentDir);
     addPathSepChar(path, sepchar).append("applications").append(sepchar).append(application).append(sepchar);
     if (!checkDirExists(path))
-        throw MakeStringException(-1, "Can't find esp application %s (dir %s)", application, path.str());
+        throw MakeStringException(ESPERR_CanTFindEspApplicationS, "Can't find esp application %s (dir %s)", application, path.str());
     Owned<IDirectoryIterator> application_dir = createDirectoryIterator(path, "*.yaml", false, false);
     ForEach(*application_dir)
         appendPTreeFromYamlFile(defaultConfig, application_dir->query().queryFilename(), true);
@@ -121,10 +122,10 @@ bool addLdapSecurity(IPropertyTree *legacyEsp, IPropertyTree *appEsp, StringBuff
 
     IPropertyTree *appLdap = appEsp->queryPropTree("ldap");
     if (!appLdap)
-        throw MakeStringException(-1, "Can't find application LDAP settings.  To run without security set 'auth: none'");
+        throw MakeStringException(ESPERR_CanTFindApplicationLdapSettings, "Can't find application LDAP settings.  To run without security set 'auth: none'");
 
     if (!appLdap->hasProp("@ldapAddress"))
-        throw MakeStringException(-1, "LDAP not configured (Missing 'ldapAddress').  To run without security set 'auth: none'");
+        throw MakeStringException(ESPERR_LdapNotConfiguredMissingLdapaddressTo, "LDAP not configured (Missing 'ldapAddress').  To run without security set 'auth: none'");
 
     IPropertyTree *legacyLdap = legacyEsp->addPropTree("ldapSecurity");
     copyAttributes(legacyLdap, appLdap);
@@ -146,10 +147,10 @@ bool addAuthNZSecurity(const char *name, IPropertyTree *legacyEsp, IPropertyTree
 {
     IPropertyTree *authNZ = appEsp->queryPropTree("authNZ");
     if (!authNZ)
-        throw MakeStringException(-1, "Can't find application AuthNZ section.  To run without security set 'auth: none'");
+        throw MakeStringException(ESPERR_CanTFindApplicationAuthnzSection, "Can't find application AuthNZ section.  To run without security set 'auth: none'");
     authNZ = authNZ->queryPropTree(name);
     if (!authNZ)
-        throw MakeStringException(-1, "Can't find application %s AuthNZ settings.  To run without security set 'auth: none'", name);
+        throw MakeStringException(ESPERR_CanTFindApplicationSAuthnz, "Can't find application %s AuthNZ settings.  To run without security set 'auth: none'", name);
     IPropertyTree *appSecMgr = authNZ->queryPropTree("SecurityManager");
     if (!appSecMgr)
     {
@@ -157,10 +158,10 @@ bool addAuthNZSecurity(const char *name, IPropertyTree *legacyEsp, IPropertyTree
     }
     const char *method = appSecMgr->queryProp("@name");
     if (isEmptyString(method))
-        throw MakeStringException(-1, "SecurityManager name attribute required.  To run without security set 'auth: none'");
+        throw MakeStringException(ESPERR_SecuritymanagerNameAttributeRequiredToRun, "SecurityManager name attribute required.  To run without security set 'auth: none'");
     const char *tag = appSecMgr->queryProp("@type");
     if (isEmptyString(tag))
-        throw MakeStringException(-1, "SecurityManager type attribute required.  To run without security set 'auth: none'");
+        throw MakeStringException(ESPERR_SecuritymanagerTypeAttributeRequiredToRun, "SecurityManager type attribute required.  To run without security set 'auth: none'");
 
     IPropertyTree *legacy = legacyEsp->addPropTree("SecurityManagers");
     legacy = legacy->addPropTree("SecurityManager");
@@ -178,7 +179,7 @@ bool addSecurity(IPropertyTree *legacyEsp, IPropertyTree *appEsp, StringBuffer &
 {
     const char *auth = appEsp->queryProp("@auth");
     if (isEmptyString(auth))
-        throw MakeStringException(-1, "'auth' attribute required.  To run without security set 'auth: none'");
+        throw MakeStringException(ESPERR_AuthAttributeRequiredToRunWithout, "'auth' attribute required.  To run without security set 'auth: none'");
     if (streq(auth, "none"))
         return false;
 
@@ -211,7 +212,7 @@ void bindAuthResources(IPropertyTree *legacyAuthenticate, IPropertyTree *app, co
             appAuth= app->queryPropTree(useResourceMapsFrom);
     }
     if (!appAuth)
-        throw MakeStringException(-1, "Can't find application Auth settings.  To run without security set 'auth: none'");
+        throw MakeStringException(ESPERR_CanTFindApplicationAuthSettings, "Can't find application Auth settings.  To run without security set 'auth: none'");
     IPropertyTree *root_access = appAuth->queryPropTree("root_access");
     if (root_access)//root_access (feature map, auth map) not required for simple security managers
     {
@@ -388,11 +389,11 @@ void setLDAPSecurityInWSAccess(IPropertyTree *legacyEsp, IPropertyTree *legacyLd
 {
     IPropertyTree *wsAccessService = legacyEsp->queryPropTree("EspService[@type='ws_access']");
     if (!wsAccessService)
-        throw makeStringException(-1, "Missing configuration for EspService 'ws_access'");
+        throw makeStringException(ESPERR_MissingConfigurationForEspserviceWsAccess, "Missing configuration for EspService 'ws_access'");
 
     IPropertyTree *wsSMCService = legacyEsp->queryPropTree("EspService[@type='WsSMC']");
     if (!wsSMCService)
-        throw makeStringException(-1, "Missing configuration for EspService 'WsSMC'");
+        throw makeStringException(ESPERR_MissingConfigurationForEspserviceWssmc, "Missing configuration for EspService 'WsSMC'");
 
     const char *fileBaseDN = legacyLdap->queryProp("@filesBasedn");
     if (!isEmptyString(fileBaseDN))

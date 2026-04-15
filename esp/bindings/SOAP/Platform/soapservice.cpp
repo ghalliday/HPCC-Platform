@@ -18,6 +18,7 @@
 #pragma warning( disable : 4786)
 
 #include "esphttp.hpp"
+#include "esperr.hpp"
 
 //ESP Bindings
 #include "platform.h"
@@ -156,11 +157,11 @@ int CSoapService::processRequest(ISoapMessage &req, ISoapMessage& resp)
         if(rootpart != NULL)
             rootpart->getContent(requeststr);
         else
-            throw MakeStringException(-1, "MultiPart root is NULL");
+            throw MakeStringException(ESPERR_MultipartRootIsNull, "MultiPart root is NULL");
     }
     else
     {
-        throw MakeStringException(-1, "Request type %s not supported", request.get_content_type());
+        throw MakeStringException(ESPERR_RequestTypeSNotSupported, "Request type %s not supported", request.get_content_type());
     }
     
     OwnedPtr<XJXPullParser> xpp;

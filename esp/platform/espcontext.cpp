@@ -18,6 +18,7 @@
 #pragma warning( disable : 4786 )
 
 #include "esphttp.hpp"
+#include "esperr.hpp"
 
 #include "jliball.hpp"
 #include "espcontext.hpp"
@@ -484,7 +485,7 @@ public:
     void addCustomerHeader(const char* name, const char* val)
     {
         if(!name || !*name)
-            throw MakeStringException(-1, "Header name can't be empty");
+            throw MakeStringException(ESPERR_HeaderNameCanTBeEmpty, "Header name can't be empty");
         m_custom_headers.append(StringBuffer(name).appendf(": %s", val?val:"").str());
     }
 
@@ -1123,7 +1124,7 @@ IRemoteConnection* getSDSConnectionWithRetry(const char* xpath, unsigned mode, u
             unsigned connTimeoutMs = remaining > SESSION_SDS_LOCK_TIMEOUT ? SESSION_SDS_LOCK_TIMEOUT : remaining;
             Owned<IRemoteConnection> conn = querySDS().connect(xpath, myProcessSession(), mode, connTimeoutMs);
             if (!conn)
-                throw MakeStringException(-1, "getSDSConnectionWithRetry() : unabled to establish connection to : %s", xpath);
+                throw MakeStringException(ESPERR_GetsdsconnectionwithretryUnabledToEstablishConnectionTo, "getSDSConnectionWithRetry() : unabled to establish connection to : %s", xpath);
             return conn.getClear();
         }
         catch (ISDSException* e)

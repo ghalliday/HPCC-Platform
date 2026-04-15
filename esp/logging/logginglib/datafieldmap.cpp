@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "datafieldmap.hpp"
+#include "esperr.hpp"
 static const char* const defaultLogSourcePath = "Source";
 
 void ensureInputString(const char* input, bool lowerCase, StringBuffer& outputStr, int code, const char* msg)
@@ -96,7 +97,7 @@ void CLogGroup::loadMappings(IPropertyTree& fieldList)
         table->loadMappings(itr->query());
         CIArrayOf<CLogField>& logFields = table->getLogFields();
         if (logFields.length() < 1)
-            throw MakeStringException(-1,"No Fieldmap for %s", tableName.str());
+            throw MakeStringException(ESPERR_NoFieldmapForS, "No Fieldmap for %s", tableName.str());
 
         logTables.append(*table.getClear());
     }

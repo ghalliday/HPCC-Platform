@@ -1,4 +1,5 @@
 #include <ws_logaccess/WsLogAccessService.hpp>
+#include "esperr.hpp"
 #include "jerror.hpp"
 
 Cws_logaccessEx::Cws_logaccessEx()
@@ -127,14 +128,14 @@ LogAccessFilterType cLogAccessFilterOperator2LogAccessFilterType(CLogAccessFilte
         return LOGACCESS_FILTER_or;
     case LogAccessFilterOperator_Undefined:
     default:
-        throw makeStringException(-1, "WsLogAccess: Cannot convert log filter operator!");
+        throw makeStringException(ESPERR_WslogaccessCannotConvertLogFilterOperator, "WsLogAccess: Cannot convert log filter operator!");
     }
 }
 
 ILogAccessFilter * buildLogFilterByFields(CLogAccessType searchByCategory, const char * searchByValue, const char * serchField)
 {
     if (isEmptyString(searchByValue) && searchByCategory != CLogAccessType_All)
-       throw makeStringException(-1, "WsLogAccess: Empty searchByValue detected");
+       throw makeStringException(ESPERR_WslogaccessEmptySearchbyvalueDetected, "WsLogAccess: Empty searchByValue detected");
 
     switch (searchByCategory)
     {
@@ -150,7 +151,7 @@ ILogAccessFilter * buildLogFilterByFields(CLogAccessType searchByCategory, const
         {
             LogMsgClass logType = LogMsgClassFromAbbrev(searchByValue);
             if (logType == MSGCLS_unknown)
-                throw makeStringExceptionV(-1, "Invalid Log Type 3-letter code encountered: '%s' - Available values: 'DIS,ERR,WRN,INF,PRO,MET'", searchByValue);
+                throw makeStringExceptionV(ESPERR_InvalidLogType3LetterCode, "Invalid Log Type 3-letter code encountered: '%s' - Available values: 'DIS,ERR,WRN,INF,PRO,MET'", searchByValue);
 
             return getClassLogAccessFilter(logType);
         }
@@ -158,7 +159,7 @@ ILogAccessFilter * buildLogFilterByFields(CLogAccessType searchByCategory, const
         {
             MessageAudience targetAud = LogMsgAudFromAbbrev(searchByValue);
             if (targetAud == MSGAUD_unknown || targetAud == MSGAUD_all)
-                throw makeStringExceptionV(-1, "Invalid Target Audience 3-letter code encountered: '%s' - Available values: 'OPR,USR,PRO,ADT'", searchByValue);
+                throw makeStringExceptionV(ESPERR_InvalidTargetAudience3LetterCode, "Invalid Target Audience 3-letter code encountered: '%s' - Available values: 'OPR,USR,PRO,ADT'", searchByValue);
 
             return getAudienceLogAccessFilter(targetAud);
         }
@@ -184,7 +185,7 @@ ILogAccessFilter * buildLogFilterByFields(CLogAccessType searchByCategory, const
         }
         case LogAccessType_Undefined:
         default:
-            throw makeStringException(-1, "Invalid remote log access request type");
+            throw makeStringException(ESPERR_InvalidRemoteLogAccessRequestType, "Invalid remote log access request type");
     }
 }
 
@@ -217,16 +218,16 @@ ILogAccessFilter * buildBinaryLogFilter(IConstBinaryLogFilter * binaryfilter)
     else
     {
         if (binaryfilter->getLeftBinaryFilter().ordinality() > 1)
-            throw makeStringException(-1, "WsLogAccess: LeftBinaryFilter cannot contain multiple entries!");
+            throw makeStringException(ESPERR_WslogaccessLeftbinaryfilterCannotContainMultipleEntries, "WsLogAccess: LeftBinaryFilter cannot contain multiple entries!");
 
         if (!isLogFilterEmpty(&binaryfilter->getLeftFilter()))
-            throw makeStringException(-1, "WsLogAccess: Cannot submit leftFilter and leftBinaryFilter!");
+            throw makeStringException(ESPERR_WslogaccessCannotSubmitLeftfilterAndLeftbinaryfilter, "WsLogAccess: Cannot submit leftFilter and leftBinaryFilter!");
 
         leftFilter.setown(buildBinaryLogFilter(&binaryfilter->getLeftBinaryFilter().item(0)));
     }
 
     if (!leftFilter)
-        throw makeStringExceptionV(-1, "WsLogAccess: Empty LEFT filter encountered");
+        throw makeStringExceptionV(ESPERR_WslogaccessEmptyLeftFilterEncountered, "WsLogAccess: Empty LEFT filter encountered");
 
     switch (binaryfilter->getOperator())
     {
@@ -246,29 +247,29 @@ ILogAccessFilter * buildBinaryLogFilter(IConstBinaryLogFilter * binaryfilter)
         else
         {
             if (binaryfilter->getRightBinaryFilter().ordinality() > 1)
-                throw makeStringException(-1, "WsLogAccess: RightBinaryFilter cannot contain multiple entries!");
+                throw makeStringException(ESPERR_WslogaccessRightbinaryfilterCannotContainMultipleEntries, "WsLogAccess: RightBinaryFilter cannot contain multiple entries!");
 
             if (!isLogFilterEmpty(&binaryfilter->getRightFilter()))
-                throw makeStringException(-1, "WsLogAccess: Cannot submit rightFilter and rightBinaryFilter!");
+                throw makeStringException(ESPERR_WslogaccessCannotSubmitRightfilterAndRightbinaryfilter, "WsLogAccess: Cannot submit rightFilter and rightBinaryFilter!");
 
             rightFilter.setown(buildBinaryLogFilter(&binaryfilter->getRightBinaryFilter().item(0)));
         }
 
         if (!rightFilter)
-            throw makeStringExceptionV(-1, "WsLogAccess: Empty RIGHT filter encountered");
+            throw makeStringExceptionV(ESPERR_WslogaccessEmptyRightFilterEncountered, "WsLogAccess: Empty RIGHT filter encountered");
 
         return getBinaryLogAccessFilter(leftFilter, rightFilter, cLogAccessFilterOperator2LogAccessFilterType(binaryfilter->getOperator()));
     }
 
     default:
-        throw makeStringExceptionV(-1, "WsLogAccess: Invalid log access filter operator encountered '%d'", binaryfilter->getOperator());
+        throw makeStringExceptionV(ESPERR_WslogaccessInvalidLogAccessFilterOperator, "WsLogAccess: Invalid log access filter operator encountered '%d'", binaryfilter->getOperator());
     }
 }
 
 bool Cws_logaccessEx::onGetLogs(IEspContext &context, IEspGetLogsRequest &req, IEspGetLogsResponse & resp)
 {
     if (!queryRemoteLogAccessor())
-        throw makeStringException(-1, "WsLogAccess: Remote Log Access plug-in not available!");
+        throw makeStringException(ESPERR_WslogaccessRemoteLogAccessPlugIn, "WsLogAccess: Remote Log Access plug-in not available!");
 
     double version = context.getClientVersion();
     LogAccessConditions logFetchOptions;
@@ -306,7 +307,7 @@ bool Cws_logaccessEx::onGetLogs(IEspContext &context, IEspGetLogsRequest &req, I
 
     __int64 startFrom = req.getLogLineStartFrom();
     if (startFrom < 0)
-        throw makeStringExceptionV(-1, "WsLogAccess: Encountered invalid LogLineStartFrom value: '%lld'", startFrom);
+        throw makeStringExceptionV(ESPERR_WslogaccessEncounteredInvalidLoglinestartfromValueLld, "WsLogAccess: Encountered invalid LogLineStartFrom value: '%lld'", startFrom);
 
     logFetchOptions.setTimeRange(range);
     logFetchOptions.setLimit(limit);
@@ -326,10 +327,10 @@ bool Cws_logaccessEx::onGetLogs(IEspContext &context, IEspGetLogsRequest &req, I
                 direction = SORTBY_DIRECTION_descending;
 
             if (condition.getBySortType() <= -1) //only known sortby types processed
-                throw makeStringExceptionV(-1, "WsLogAccess: Unknown SortType encountered!");
+                throw makeStringExceptionV(ESPERR_WslogaccessUnknownSorttypeEncountered, "WsLogAccess: Unknown SortType encountered!");
 
             if (condition.getBySortType() != CSortColumType_ByFieldName && !isEmptyString(condition.getColumnName()))
-                throw makeStringExceptionV(-1, "WsLogAccess: SortBy ColumnName not allowed unless coupled with ByFieldName BySortType!");
+                throw makeStringExceptionV(ESPERR_WslogaccessSortbyColumnnameNotAllowedUnless, "WsLogAccess: SortBy ColumnName not allowed unless coupled with ByFieldName BySortType!");
 
             LogAccessMappedField mappedField = LOGACCESS_MAPPEDFIELD_unmapped;
             switch (condition.getBySortType())
@@ -363,10 +364,10 @@ bool Cws_logaccessEx::onGetLogs(IEspContext &context, IEspGetLogsRequest &req, I
                 break;
             case CSortColumType_ByFieldName:
                 if (isEmptyString(condition.getColumnName()))
-                    throw makeStringExceptionV(-1, "WsLogAccess: SortByFieldName option requires ColumnName!");
+                    throw makeStringExceptionV(ESPERR_WslogaccessSortbyfieldnameOptionRequiresColumnname, "WsLogAccess: SortByFieldName option requires ColumnName!");
                 break;
             default:
-                throw makeStringExceptionV(-1, "WsLogAccess: Unknown SortType encountered!");
+                throw makeStringExceptionV(ESPERR_WslogaccessUnknownSorttypeEncountered, "WsLogAccess: Unknown SortType encountered!");
             }
 
             logFetchOptions.addSortByCondition(mappedField, condition.getColumnName(), direction);

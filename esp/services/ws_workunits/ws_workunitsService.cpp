@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "ws_workunitsService.hpp"
+#include "esperr.hpp"
 #include "ws_fs.hpp"
 
 #include "jlib.hpp"
@@ -390,7 +391,7 @@ void CWsWorkunitsEx::init(IPropertyTree *cfg, const char *process, const char *s
     if (!daliClientActive())
     {
         OERRLOG("No Dali Connection Active.");
-        throw MakeStringException(-1, "No Dali Connection Active. Please Specify a Dali to connect to in you configuration file");
+        throw MakeStringException(ESPERR_NoDaliConnectionActivePleaseSpecify, "No Dali Connection Active. Please Specify a Dali to connect to in you configuration file");
     }
 
     DBGLOG("Initializing %s service [process = %s]", service, process);
@@ -444,13 +445,13 @@ void CWsWorkunitsEx::init(IPropertyTree *cfg, const char *process, const char *s
     {
         zapEmailTo = zapEmail->queryProp("@to");
         if (zapEmailTo.isEmpty())
-            throw MakeStringException(-1, "ZAPEmail: EmailTo not specified.");
+            throw MakeStringException(ESPERR_ZapemailEmailtoNotSpecified, "ZAPEmail: EmailTo not specified.");
         zapEmailFrom = zapEmail->queryProp("@from");
         if (zapEmailFrom.isEmpty())
-            throw MakeStringException(-1, "ZAPEmail: EmailFrom not specified.");
+            throw MakeStringException(ESPERR_ZapemailEmailfromNotSpecified, "ZAPEmail: EmailFrom not specified.");
         zapEmailServer = zapEmail->queryProp("@serverURL");
         if (zapEmailServer.isEmpty())
-            throw MakeStringException(-1, "ZAPEmail: EmailServer not specified.");
+            throw MakeStringException(ESPERR_ZapemailEmailserverNotSpecified, "ZAPEmail: EmailServer not specified.");
 
         zapEmailServerPort = zapEmail->getPropInt("@serverPort", WUDEFAULT_ZAPEMAILSERVER_PORT);
         zapEmailMaxAttachmentSize = zapEmail->getPropInt("@maxAttachmentSize", MAX_ZAP_BUFFER_SIZE);
@@ -875,7 +876,7 @@ bool CWsWorkunitsEx::onWUResubmit(IEspContext &context, IEspWUResubmitRequest &r
             }
             catch (...)
             {
-                me->append(*MakeStringException(0,"Unknown exception submitting %s",wuid.str()));
+                me->append(*MakeStringException(ESPERR_UnknownExceptionSubmittingS, "Unknown exception submitting %s",wuid.str()));
             }
         }
 
@@ -3814,7 +3815,7 @@ bool CWsWorkunitsEx::onWUExport(IEspContext &context, IEspWUExportRequest &req, 
     try
     {
         if (req.getECL() && *req.getECL())
-            throw makeStringException(0, "WUExport no longer supports filtering by ECL text");
+            throw makeStringException(ESPERR_WuexportNoLongerSupportsFilteringBy, "WUExport no longer supports filtering by ECL text");
         Owned<IWorkUnitFactory> factory = getWorkUnitFactory(context.querySecManager(), context.queryUser());
         WsWuSearch ws(context, req.getOwner(), req.getState(), req.getCluster(), req.getStartDate(), req.getEndDate(), req.getJobname());
 
@@ -4624,7 +4625,7 @@ int CWsWorkunitsSoapBindingEx::onStartUpload(IEspContext &ctx, CHttpRequest* req
             SecAccessFlags accessOwn, accessOthers;
             getUserWuAccessFlags(ctx, accessOwn, accessOthers, false);
             if ((accessOwn != SecAccess_Full) || (accessOthers != SecAccess_Full))
-                throw makeStringExceptionV(-1, "Resources %s and/or %s : Permission denied. Full Access Required.", OWN_WU_ACCESS, OTHERS_WU_ACCESS);
+                throw makeStringExceptionV(ESPERR_ResourcesSAndOrSPermission, "Resources %s and/or %s : Permission denied. Full Access Required.", OWN_WU_ACCESS, OTHERS_WU_ACCESS);
     
             StringBuffer password;
             request->getParameter("Password", password);

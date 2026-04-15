@@ -21,6 +21,7 @@
 //
 /////////////////////////////////////////////////////////////////////////////
 #include "wizardInputs.hpp"
+#include "deployerr.hpp"
 #include "XMLTags.h"
 #include "jencrypt.hpp"
 #include "buildset.hpp"
@@ -159,14 +160,14 @@ void CWizardInputs::setEnvironment()
 
      if (pConfigHelper == NULL)
      {
-         throw MakeStringException( -1 , "Error loading buildset from configuration");
+         throw MakeStringException(DEPLOYERR_ErrorLoadingBuildsetFromConfiguration, "Error loading buildset from configuration");
      }
 
      IPropertyTree* pBuildSet = pConfigHelper->getBuildSetTree();
 
      if (strlen(pConfigHelper->getBuildSetFileName()) == 0 || pBuildSet == NULL)
      {
-         throw MakeStringException( -1 , "The buildset file %s/%s does not exist", pConfigHelper->getBuildSetFilePath(), pConfigHelper->getBuildSetFileName());
+         throw MakeStringException(DEPLOYERR_TheBuildsetFileSSDoes, "The buildset file %s/%s does not exist", pConfigHelper->getBuildSetFilePath(), pConfigHelper->getBuildSetFileName());
      }
 
      m_buildSetTree.setown(pBuildSet);
@@ -177,7 +178,7 @@ void CWizardInputs::setEnvironment()
      if(fileName.length() && checkFileExists(fileName.str()))
        m_algProp.setown(createProperties(fileName.str()));
      else
-       throw MakeStringException( -1 , "The algorithm file %s does not exists", fileName.str());
+       throw MakeStringException(DEPLOYERR_TheAlgorithmFileSDoesNot, "The algorithm file %s does not exists", fileName.str());
   }
   setWizardRules();
   setTopologyParam();
@@ -372,11 +373,11 @@ CInstDetails* CWizardInputs::getServerIPMap(const char* compName, const char* bu
             sb.clear().append("non-support ");
 
           if (m_arrBuildSetsWithAssignedIPs.find(buildSetName) == NotFound)
-             throw MakeStringException(-1, \
+             throw MakeStringException(DEPLOYERR_TotalNodesDDSupportNodes, \
                 "Total nodes: %d (%d Support Nodes + %d Non-support Nodes)\nError: Cannot assign %d number of nodes for %s due to insufficient %s nodes available. Please enter different values", \
                 ips + ipns, ips, ipns, numOfNodes, sbBuildSet.str(), sb.str());
           else
-              throw MakeStringException(-1, "Total nodes required: %d\nError: Unable to assign %d nodes, no more assigned ip nodes available for %s", origNumOfNodes, origNumOfNodes - getCntForAlreadyAssignedIPS(buildSetName), buildSetName);
+              throw MakeStringException(DEPLOYERR_TotalNodesRequiredDNerrorUnable, "Total nodes required: %d\nError: Unable to assign %d nodes, no more assigned ip nodes available for %s", origNumOfNodes, origNumOfNodes - getCntForAlreadyAssignedIPS(buildSetName), buildSetName);
         }
         else{
           return m_compIpMap.getValue(buildSetName);

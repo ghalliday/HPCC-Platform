@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "pluginerr.hpp"
 #include "sqlite3.h"
 #include "jexcept.hpp"
 #include "jthread.hpp"
@@ -33,7 +34,7 @@ __declspec(noreturn) static void UNSUPPORTED(const char *feature) __attribute__(
 
 static void UNSUPPORTED(const char *feature)
 {
-    throw MakeStringException(-1, "UNSUPPORTED feature: %s not supported in sqlite3 plugin", feature);
+    throw MakeStringException(PLUGINERR_UnsupportedFeatureSNotSupportedIn_4, "UNSUPPORTED feature: %s not supported in sqlite3 plugin", feature);
 }
 
 static const char * compatibleVersions[] = {

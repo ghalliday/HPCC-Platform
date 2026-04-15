@@ -19,6 +19,7 @@
 #pragma warning( disable : 4786 )
 
 #include "jliball.hpp"
+#include "deployerr.hpp"
 #include "environment.hpp"
 #include "XMLTags.h"
 #include "buildset.hpp"
@@ -44,7 +45,7 @@ static set<string> s_failedConnections;
 void getAccountInfo(const char* computer, StringAttr& user, StringAttr& pwd, IConstEnvironment* pConstEnv) 
 {
   if (!pConstEnv)
-    throw MakeStringException(-1, "No environment is available!");
+    throw MakeStringException(DEPLOYERR_NoEnvironmentIsAvailable, "No environment is available!");
 
   Owned<IConstMachineInfo> machine = pConstEnv->getMachine(computer);
   if (!machine)
@@ -55,12 +56,12 @@ void getAccountInfo(const char* computer, StringAttr& user, StringAttr& pwd, ICo
       machine.setown( pConstEnv->getMachineByAddress(computer) );
 
     if (!machine)
-      throw MakeStringException(-1, "The computer '%s' is undefined!", computer);
+      throw MakeStringException(DEPLOYERR_TheComputerSIsUndefined, "The computer '%s' is undefined!", computer);
   }
 
   Owned<IConstDomainInfo> domain = machine->getDomain();
   if (!domain)
-    throw MakeStringException(-1, "The computer '%s' does not have any domain information!", computer);
+    throw MakeStringException(DEPLOYERR_TheComputerSDoesNotHave, "The computer '%s' does not have any domain information!", computer);
 
   StringBuffer x;
   domain->getName(StringBufferAdaptor(x));

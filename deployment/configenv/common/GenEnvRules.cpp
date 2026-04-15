@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jiface.hpp"
+#include "deployerr.hpp"
 #include "jliball.hpp"
 #include "GenEnvRules.hpp"
 
@@ -27,7 +28,7 @@ void GenEnvRules::loadFile(const char* filename)
   rules.setown(createProperties(filename));
 
   if (rules == NULL)
-    MakeStringException(-1, "Cannot load file %s", filename);
+    MakeStringException(DEPLOYERR_CannotLoadFileS, "Cannot load file %s", filename);
 
   const char* roxieRedTypes[] = {"Full", "Circular", "None", "Overloaded"};
   roxieAgentRedType.clear().append("Circular");

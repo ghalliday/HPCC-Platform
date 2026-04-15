@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "esdl_monitor.hpp"
+#include "esperr.hpp"
 #include "jmd5.hpp"
 #include "esdl_binding.hpp"
 #include "esdl_svc_engine.hpp"
@@ -288,7 +289,7 @@ public:
             return;
         Owned<IPropertyTree> esdlBindings = m_pCentralStore->getBindings();
         if (!esdlBindings)
-           throw MakeStringException(-1, "Unable to retrieve ESDL bindings information");
+           throw MakeStringException(ESPERR_UnableToRetrieveEsdlBindingsInformation, "Unable to retrieve ESDL bindings information");
 
         Owned<IPropertyTreeIterator> iter = esdlBindings->getElements("Binding");
         ForEach (*iter)
@@ -562,7 +563,7 @@ private:
                 }
             }
         }
-        throw MakeStringException(-1, "There's no template esp binding configured on port %s, or port 0.", port);
+        throw MakeStringException(ESPERR_ThereSNoTemplateEspBinding, "There's no template esp binding configured on port %s, or port 0.", port);
     }
 };
 

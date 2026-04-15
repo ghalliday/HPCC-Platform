@@ -17,6 +17,7 @@
 #pragma warning(disable:4786)
 
 #include "msggenerator.hpp"
+#include "esperr.hpp"
 #include "http.hpp"
 #include <set>
 #include <string>
@@ -70,7 +71,7 @@ MessageGenerator::MessageGenerator(const char* path, bool keepfile, SchemaType s
 
     if(!path || !*path)
     {
-        throw MakeStringException(-1, "please provide the path of wsdl");
+        throw MakeStringException(ESPERR_PleaseProvideThePathOfWsdl, "please provide the path of wsdl");
     }
     
     m_path.append(path);
@@ -104,7 +105,7 @@ MessageGenerator::MessageGenerator(const char* path, bool keepfile, SchemaType s
 
     if(m_schema.length() == 0)
     {
-        throw MakeStringException(-1, "wsdl is empty");
+        throw MakeStringException(ESPERR_WsdlIsEmpty, "wsdl is empty");
     }
 
     Owned<IPropertyTree> schema = createPTreeFromXMLString(m_schema.str());
@@ -114,7 +115,7 @@ MessageGenerator::MessageGenerator(const char* path, bool keepfile, SchemaType s
         m_schemaTree.set(schema);
 
     if(!m_schemaTree.get() && !m_roxieSchemaRoot.get())
-        throw MakeStringException(-1, "can't generate property tree from schema");
+        throw MakeStringException(ESPERR_CanTGeneratePropertyTreeFrom, "can't generate property tree from schema");
 
     setXsdNamespace();
 
@@ -136,7 +137,7 @@ MessageGenerator::MessageGenerator(const char* path, bool keepfile, SchemaType s
                     xpath.clear().append("portType/operation[@name='").append(name).append("']/input/@message");
                     const char* input = m_schemaTree->queryProp(xpath.str());
                     if(!input || !*input)
-                        throw MakeStringException(-1, "can't find input message for method %s", name);
+                        throw MakeStringException(ESPERR_CanTFindInputMessageFor, "can't find input message for method %s", name);
             
                     if(strncmp(input, "tns:", 4) == 0)
                         input += 4;
@@ -144,7 +145,7 @@ MessageGenerator::MessageGenerator(const char* path, bool keepfile, SchemaType s
                     xpath.clear().append("message[@name='").append(input).append("']/part/@element");
                     const char* element = m_schemaTree->queryProp(xpath.str());
                     if(!element || !*element)
-                        throw MakeStringException(-1, "can't find message %s\n", input);
+                        throw MakeStringException(ESPERR_CanTFindMessageSN, "can't find message %s\n", input);
 
                     if(strncmp(element, "tns:", 4) == 0)
                         element += 4;
@@ -158,7 +159,7 @@ MessageGenerator::MessageGenerator(const char* path, bool keepfile, SchemaType s
                     xpath.clear().append("portType/operation[@name='").append(name).append("']/output/@message");
                     const char* output = m_schemaTree->queryProp(xpath.str());
                     if(!output || !*output)
-                        throw MakeStringException(-1, "can't find output message for method %s", name);
+                        throw MakeStringException(ESPERR_CanTFindOutputMessageFor, "can't find output message for method %s", name);
             
                     if(strncmp(output, "tns:", 4) == 0)
                         output += 4;
@@ -166,7 +167,7 @@ MessageGenerator::MessageGenerator(const char* path, bool keepfile, SchemaType s
                     xpath.clear().append("message[@name='").append(output).append("']/part/@element");
                     element = m_schemaTree->queryProp(xpath.str());
                     if(!element || !*element)
-                        throw MakeStringException(-1, "can't find message %s\n", output);
+                        throw MakeStringException(ESPERR_CanTFindMessageSN, "can't find message %s\n", output);
 
                     if(strncmp(element, "tns:", 4) == 0)
                         element += 4;
@@ -365,7 +366,7 @@ void MessageGenerator::genNonRoxieMessage(const char* method, const char* templa
                 {
                     Owned<IPropertyTree> tmplat = createPTreeFromXMLString(templatemsg);
                     if(!tmplat.get())
-                        throw MakeStringException(-1, "can't generate property tree from input, please make sure it's valid xml.");
+                        throw MakeStringException(ESPERR_CanTGeneratePropertyTreeFrom_1, "can't generate property tree from input, please make sure it's valid xml.");
                     IPropertyTree* tmp = NULL;
                     if (strcmp(tmplat->queryName(),element)==0)
                         tmp = tmplat;
@@ -397,11 +398,11 @@ void MessageGenerator::genRoxieMessage(const char* templatemsg, StringBuffer& me
     {
         tmplat.setown(createPTreeFromXMLString(templatemsg));
         if(!tmplat.get())
-            throw MakeStringException(-1, "can't generate property tree from input, please make sure it's valid xml.");
+            throw MakeStringException(ESPERR_CanTGeneratePropertyTreeFrom_1, "can't generate property tree from input, please make sure it's valid xml.");
         root = tmplat->queryName();
         tmplat.setown(tmplat->getPropTree(VStringBuffer("//Results/Result")));
         if (!tmplat.get())
-            throw MakeStringException(-1, "can't find Results/Result in input XML");
+            throw MakeStringException(ESPERR_CanTFindResultsResultIn, "can't find Results/Result in input XML");
     }
     else 
         root = "Unknown"; // TODO: find out the root?
@@ -545,7 +546,7 @@ StringBuffer& MessageGenerator::generateMessage(const char* method, const char* 
 #else
                 cmdline.appendf("vi %s", tmpfname.str());
                 if (system(cmdline.str()) == -1)
-                    throw MakeStringException(-1, "MessageGenerator::generateMessage: could not execute command %s", cmdline.str());
+                    throw MakeStringException(ESPERR_MessagegeneratorGeneratemessageCouldNotExecuteCommand, "MessageGenerator::generateMessage: could not execute command %s", cmdline.str());
 #endif
                 message.clear().loadFile(tmpfname.str(), true);
             }

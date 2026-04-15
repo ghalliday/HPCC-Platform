@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include "esdl_binding.hpp"
+#include "esperr.hpp"
 #include "params2xml.hpp"
 #include "wsexcept.hpp"
 #include "httpclient.hpp"
@@ -200,7 +201,7 @@ bool EsdlServiceImpl::loadLoggingManager(Owned<ILoggingManager>& manager, IPTree
     {
         manager.setown(loader.create(*configuration));
         if (!manager)
-            throw MakeStringException(-1, "ESDL Service %s could not load logging manager", m_espServiceName.str());
+            throw MakeStringException(ESPERR_EsdlServiceSCouldNotLoad, "ESDL Service %s could not load logging manager", m_espServiceName.str());
         manager->init(configuration, m_espServiceName);
     }
     m_bGenerateLocalTrxId = (!loggingManager() || !loggingManager()->hasService(LGSTGetTransactionID));
@@ -283,7 +284,7 @@ void EsdlServiceImpl::init(const IPropertyTree *cfg,
         //This is treated as the actual service name -sigh
         m_espServiceType.set(srvcfg->queryProp("@type"));
         if (m_espServiceType.length() <= 0)
-            throw MakeStringException(-1, "Could not determine ESDL service configuration type: esp process '%s' service name '%s'", process, service);
+            throw MakeStringException(ESPERR_CouldNotDetermineEsdlServiceConfiguration, "Could not determine ESDL service configuration type: esp process '%s' service name '%s'", process, service);
 
         loadLoggingManager(m_oStaticLoggingManager, srvcfg->queryPropTree("LoggingManager"));
 
@@ -293,7 +294,7 @@ void EsdlServiceImpl::init(const IPropertyTree *cfg,
         if (!initMaskingEngineEmbedded(m_oStaticMaskingEngine, srvcfg, false))
             initMaskingFailed = true;
         if (initMaskingFailed)
-            throw makeStringExceptionV(-1, "ESDL service '%s' failed to load masking configuration", m_espServiceName.str());
+            throw makeStringExceptionV(ESPERR_EsdlServiceSFailedToLoad, "ESDL service '%s' failed to load masking configuration", m_espServiceName.str());
 
         m_usesURLNameSpace = false;
         m_namespaceScheme.set(srvcfg->queryProp("@namespaceScheme"));
@@ -325,7 +326,7 @@ void EsdlServiceImpl::init(const IPropertyTree *cfg,
             m_txSummaryProfile.setown(new CTxSummaryProfileEsdl);
     }
     else
-        throw MakeStringException(-1, "Could not access ESDL service configuration: esp process '%s' service name '%s'", process, service);
+        throw MakeStringException(ESPERR_CouldNotAccessEsdlServiceConfiguration, "Could not access ESDL service configuration: esp process '%s' service name '%s'", process, service);
 }
 
 void EsdlServiceImpl::configureJavaMethod(const char *method, IPropertyTree &entry, const char *classPath)
@@ -613,7 +614,7 @@ void EsdlServiceImpl::configureTargets(IPropertyTree *cfg, const char *service)
 
     IEsdlDefService* svcDef = m_esdl->queryService(service);
     if (!svcDef)
-        throw MakeStringException(-1, "ESDL binding - service '%s' not in definition!", service);
+        throw MakeStringException(ESPERR_EsdlBindingServiceSNotIn, "ESDL binding - service '%s' not in definition!", service);
 
     // The static configuration defines a default namespace generator.
     // The ESDL definition may override the default with an explicit pattern.
@@ -680,10 +681,10 @@ void EsdlServiceImpl::configureTargets(IPropertyTree *cfg, const char *service)
             IPropertyTree &methodCfg = iter->query();
             const char *method = methodCfg.queryProp("@name");
             if (!method || !*method)
-                throw MakeStringException(-1, "ESDL binding - found %s target method entry without name!", service);
+                throw MakeStringException(ESPERR_EsdlBindingFoundSTargetMethod, "ESDL binding - found %s target method entry without name!", service);
             IEsdlDefMethod* mthDef = svcDef->queryMethodByName(method);
             if (!mthDef)
-                throw MakeStringException(-1, "ESDL binding - found %s target method entry '%s' not in definition!", service, method);
+                throw MakeStringException(ESPERR_EsdlBindingFoundSTargetMethod_1, "ESDL binding - found %s target method entry '%s' not in definition!", service, method);
 
             StringBuffer key(method);
             key.toLowerCase();
@@ -751,7 +752,7 @@ void EsdlServiceImpl::configureMasking(IPropertyTree* cfg)
 {
     m_oDynamicMaskingEngine.clear();
     if (!initMaskingEngineEmbedded(m_oDynamicMaskingEngine, cfg, false))
-        throw makeStringException(-1, "failure loading masking configuration");
+        throw makeStringException(ESPERR_FailureLoadingMaskingConfiguration, "failure loading masking configuration");
 }
 
 String* EsdlServiceImpl::getExplicitNamespace(const char* method) const
@@ -1489,13 +1490,13 @@ void EsdlServiceImpl::generateTargetURL(IEspContext & context,
                                      )
 {
     if (!srvinfo)
-        throw MakeStringException(-1, "Could not generate target URL, invalid service info.");
+        throw MakeStringException(ESPERR_CouldNotGenerateTargetUrlInvalid, "Could not generate target URL, invalid service info.");
 
     StringBuffer name(srvinfo->queryProp("@name"));
 
     ISmartSocketFactory *sconn = connMap.getValue(name);
     if (!sconn)
-        throw MakeStringException(-1, "Could not create smartsocket.");
+        throw MakeStringException(ESPERR_CouldNotCreateSmartsocket, "Could not create smartsocket.");
 
     url.set(srvinfo->queryProp("@prot"));
     if (url.length() <= 0)
@@ -1539,7 +1540,7 @@ void EsdlServiceImpl::sendTargetSOAP(IEspContext & context,
     StringBuffer url;
 
     if (!srvinfo)
-        throw MakeStringException(-1, "Empty method config detected.");
+        throw MakeStringException(ESPERR_EmptyMethodConfigDetected, "Empty method config detected.");
 
     if (!targeturl || !*targeturl)
         generateTargetURL(context, srvinfo,url, isproxy);
@@ -1547,7 +1548,7 @@ void EsdlServiceImpl::sendTargetSOAP(IEspContext & context,
         url.set(targeturl);
 
     if (url.length() <= 0)
-        throw MakeStringException(-1, "Empty URL detected.");
+        throw MakeStringException(ESPERR_EmptyUrlDetected, "Empty URL detected.");
 
     const char * querytype = srvinfo->queryProp("@querytype");
     const char * pw = srvinfo->queryProp("@password");
@@ -1887,7 +1888,7 @@ bool EsdlBindingImpl::loadLocalDefinitions(IPropertyTree *esdlArchive, const cha
             {
                 esdlXML.set(esdlArchive->queryProp("Definitions"));
                 if (esdlXML.isEmpty())
-                    throw MakeStringException(-1, "Could not load ESDL definition: '%s' assigned to esp service name '%s'", id, espServiceName);
+                    throw MakeStringException(ESPERR_CouldNotLoadEsdlDefinitionS, "Could not load ESDL definition: '%s' assigned to esp service name '%s'", id, espServiceName);
             }
 
 #ifdef _DEBUG
@@ -1958,7 +1959,7 @@ bool EsdlBindingImpl::loadStoredDefinitions(const char * espServiceName, Owned<I
                     esdlDefintion.set(pt->queryPropTree("EsdlDefinition"));
 
                 if (!esdlDefintion)
-                    throw MakeStringException(-1, "Could not load ESDL definition: '%s' assigned to esp service name '%s'", id, espServiceName);
+                    throw MakeStringException(ESPERR_CouldNotLoadEsdlDefinitionS, "Could not load ESDL definition: '%s' assigned to esp service name '%s'", id, espServiceName);
 
                 stateRestored = true;
                 toXML(esdlDefintion, esdlXML);
@@ -2322,19 +2323,19 @@ int EsdlBindingImpl::onGetInstantQuery(IEspContext &context,
     IEsdlDefMethod *mthdef = NULL;
     if (!m_esdl)
     {
-        me->append(*MakeStringException(-1, "ESDL definition for service %s has not been loaded", serviceName));
+        me->append(*MakeStringException(ESPERR_EsdlDefinitionForServiceSHas, "ESDL definition for service %s has not been loaded", serviceName));
     }
     else
     {
         IEsdlDefService *srvdef = m_esdl->queryService(serviceName);
         context.addTraceSummaryTimeStamp(LogMax, "esdlServDefCrtd");
         if (!srvdef)
-            me->append(*MakeStringException(-1, "Service %s definiton not found", serviceName));
+            me->append(*MakeStringException(ESPERR_ServiceSDefinitonNotFound, "Service %s definiton not found", serviceName));
         else
         {
             mthdef = srvdef->queryMethodByName(methodName);
             if (!mthdef)
-                me->append(*MakeStringException(-1, "Method %s definiton not found", methodName));
+                me->append(*MakeStringException(ESPERR_MethodSDefinitonNotFound, "Method %s definiton not found", methodName));
             else
             {
                 try
@@ -2394,7 +2395,7 @@ int EsdlBindingImpl::onGetInstantQuery(IEspContext &context,
                 }
                 catch (...)
                 {
-                    me->append(*MakeStringException(-1, "Unknown Exception"));
+                    me->append(*MakeStringException(ESPERR_UnknownException, "Unknown Exception"));
                 }
             }
         }
@@ -3010,12 +3011,12 @@ int EsdlBindingImpl::onGet(CHttpRequest* request, CHttpResponse* response)
         StringBuffer language;
         nextPathNode(thepath, language);
         if (!strieq(language, "java"))
-            throw MakeStringException(-1, "Unsupported embedded language %s", language.str());
+            throw MakeStringException(ESPERR_UnsupportedEmbeddedLanguageS, "Unsupported embedded language %s", language.str());
 
         StringBuffer servicename;
         nextPathNode(thepath, servicename);
         if (!servicename.length())
-            throw MakeStringExceptionDirect(-1, "Service name required to generate Java plugin code");
+            throw MakeStringExceptionDirect(ESPERR_ServiceNameRequiredToGenerateJava, "Service name required to generate Java plugin code");
 
         StringBuffer methodname;
         nextPathNode(thepath, methodname);
@@ -3033,7 +3034,7 @@ int EsdlBindingImpl::onGet(CHttpRequest* request, CHttpResponse* response)
     }
     catch (...)
     {
-        me->append(*MakeStringExceptionDirect(-1, "Unknown Exception"));
+        me->append(*MakeStringExceptionDirect(ESPERR_UnknownException, "Unknown Exception"));
     }
 
     response->handleExceptions(getXslProcessor(), me, "DynamicESDL", "", StringBuffer(getCFD()).append("./smc_xslt/exceptions.xslt").str(), false);
@@ -3467,7 +3468,7 @@ void EsdlBindingImpl::handleJSONPost(CHttpRequest *request, CHttpResponse *respo
 
         Owned<IPropertyTree> contentTree = createPTreeFromJSONString(content.str());
         if (!contentTree)
-            throw MakeStringException(-1, "EsdlBinding::%s::%s: Could not process JSON request", serviceName, methodName);
+            throw MakeStringException(ESPERR_EsdlbindingSSCouldNotProcess, "EsdlBinding::%s::%s: Could not process JSON request", serviceName, methodName);
 
         StringBuffer requestName;
         if (stricmp(methodName, "ping") == 0)
@@ -3476,17 +3477,17 @@ void EsdlBindingImpl::handleJSONPost(CHttpRequest *request, CHttpResponse *respo
 
         Owned<IPropertyTree> reqTree = contentTree->getBranch(requestName.str());
         if (!reqTree)
-            throw MakeStringException(-1, "EsdlBinding::%s::%s: Could not find \"%s\" section in JSON request", serviceName, methodName, requestName.str());
+            throw MakeStringException(ESPERR_EsdlbindingSSCouldNotFind, "EsdlBinding::%s::%s: Could not find \"%s\" section in JSON request", serviceName, methodName, requestName.str());
 
         if (!m_esdl)
-            throw MakeStringException(-1, "EsdlBinding::%s: Service definition has not been loaded", serviceName);
+            throw MakeStringException(ESPERR_EsdlbindingSServiceDefinitionHasNot, "EsdlBinding::%s: Service definition has not been loaded", serviceName);
         IEsdlDefService *srvdef = m_esdl->queryService(serviceName);
 
         if (!srvdef)
-            throw MakeStringException(-1, "EsdlBinding::%s: Service definition not found", serviceName);
+            throw MakeStringException(ESPERR_EsdlbindingSServiceDefinitionNotFound, "EsdlBinding::%s: Service definition not found", serviceName);
         IEsdlDefMethod *mthdef = srvdef->queryMethodByName(methodName);
         if (!mthdef)
-            throw MakeStringException(-1, "EsdlBinding::%s::%s: Method definition not found", serviceName, methodName);
+            throw MakeStringException(ESPERR_EsdlbindingSSMethodDefinitionNot, "EsdlBinding::%s::%s: Method definition not found", serviceName, methodName);
         jsonresp.append("{");
         StringBuffer logdata; //RODRIGO: What are we doing w/ the logdata?
 
@@ -3664,7 +3665,7 @@ int EsdlBindingImpl::onRoxieRequest(CHttpRequest* request, CHttpResponse* respon
     }
     catch(...)
     {
-        me->append(*MakeStringException(-1, "ESP could not process SOAP request"));
+        me->append(*MakeStringException(ESPERR_EspCouldNotProcessSoapRequest, "ESP could not process SOAP request"));
     }
 
     if (me->ordinality())

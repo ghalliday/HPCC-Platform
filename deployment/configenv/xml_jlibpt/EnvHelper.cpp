@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <string>
+#include "deployerr.hpp"
 #include "EnvHelper.hpp"
 #include "Hardware.hpp"
 #include "Programs.hpp"
@@ -147,7 +148,7 @@ void EnvHelper::init(IPropertyTree *config)
       CConfigHelper *pch = CConfigHelper::getInstance(espCfg, espServiceName);
       if (pch == NULL)
       {
-        throw MakeStringException( -1 , "Error loading buildset from configuration");
+        throw MakeStringException(DEPLOYERR_ErrorLoadingBuildsetFromConfiguration, "Error loading buildset from configuration");
       }
    }
 

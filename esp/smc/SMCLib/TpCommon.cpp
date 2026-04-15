@@ -21,6 +21,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "TpWrapper.hpp"
+#include "esperr.hpp"
 #include <stdio.h>
 #include "workunit.hpp"
 #include "exception_util.hpp"
@@ -150,7 +151,7 @@ static SecAccessFlags getDropZoneScopePermissions(IEspContext& context, const IP
     {
         const char* relativePath = getRelativePath(dropZonePath, dropZone->queryProp("@prefix"));
         if (nullptr == relativePath)
-            throw makeStringExceptionV(-1, "Invalid DropZone path %s.", dropZonePath);
+            throw makeStringExceptionV(ESPERR_InvalidDropzonePathS, "Invalid DropZone path %s.", dropZonePath);
         dropZonePath = relativePath;
     }
 

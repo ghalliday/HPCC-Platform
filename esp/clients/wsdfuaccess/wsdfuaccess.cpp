@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <vector>
+#include "esperr.hpp"
 
 #include "jliball.hpp"
 #include "jflz.hpp"
@@ -61,7 +62,7 @@ static void ensureAccessibleDfuServiceURLList()
     {
         getAccessibleServiceURLList("WsSMC", dfuServiceUrls);
         if (0 == dfuServiceUrls.size())
-            throw MakeStringException(-1, "Could not find any DFU services in the target HPCC configuration.");
+            throw MakeStringException(ESPERR_CouldNotFindAnyDfuServices, "Could not find any DFU services in the target HPCC configuration.");
 
         for (auto &s: dfuServiceUrls)
             s = s + "/WsDfu/";
@@ -174,7 +175,7 @@ static IDFUFileAccess *doLookupDFUFileHandleLegacy(const char *serviceUrl, const
     {
         const MemoryBuffer &binLayout = dfuResp->getAccessInfo().getRecordTypeInfoBin();
         if (0 == binLayout.length())
-            throw makeStringExceptionV(0, "lookupDFUFile(%s) - layout missing", logicalName);
+            throw makeStringExceptionV(ESPERR_LookupdfufileSLayoutMissing, "lookupDFUFile(%s) - layout missing", logicalName);
         ret->queryEngineInterface()->setLayoutBin(binLayout.length(), binLayout.bytes());
     }
     return ret.getClear();
@@ -267,7 +268,7 @@ static IDFUFileAccess *doCreateDFUFileHandleLegacy(const char *serviceUrl, const
     {
         const MemoryBuffer &binLayout = dfuResp->getAccessInfo().getRecordTypeInfoBin();
         if (0 == binLayout.length())
-            throw makeStringExceptionV(0, "createDFUFile(%s) - layout missing", logicalName);
+            throw makeStringExceptionV(ESPERR_CreatedfufileSLayoutMissing, "createDFUFile(%s) - layout missing", logicalName);
         ret->queryEngineInterface()->setLayoutBin(binLayout.length(), binLayout.bytes());
     }
 
@@ -349,7 +350,7 @@ IDFUFileAccess *lookupDFUFile(const char *logicalName, const char *requestId, un
     for (auto &url: dfuServiceUrls)
         msg.append(url.c_str());
     msg.append("}");
-    throw makeStringException(0, msg.str());
+    throw makeStringException(ESPERR_MsgStr, msg.str());
 }
 
 IDFUFileAccess *lookupDFUFile(const char *logicalName, const char *requestId, unsigned expirySecs, IUserDescriptor *userDesc)
@@ -389,7 +390,7 @@ IDFUFileAccess *createDFUFile(const char *logicalName, const char *cluster, DFUF
     for (auto &url: dfuServiceUrls)
         msg.append(url.c_str());
     msg.append("}");
-    throw makeStringException(0, msg.str());
+    throw makeStringException(ESPERR_MsgStr, msg.str());
 }
 
 // NB: no way to create grouped flat file output at the moment, but not sure would ever want to support that.
@@ -427,7 +428,7 @@ void publishDFUFile(IDFUFileAccess *dfuFile, bool overwrite, const char *user, c
     for (auto &url: dfuServiceUrls)
         msg.append(url.c_str());
     msg.append("}");
-    throw makeStringException(0, msg.str());
+    throw makeStringException(ESPERR_MsgStr, msg.str());
 }
 
 void publishDFUFile(IDFUFileAccess *dfuFile, bool overwrite, IUserDescriptor *userDesc)
@@ -549,12 +550,12 @@ StringBuffer &encodeDFUFileMeta(StringBuffer &metaInfoBlob, IPropertyTree *metaI
          */
         Owned<const ISyncedPropertyTree> config = getIssuerTlsSyncedConfig(keyPairName);
         if (!config || !config->isValid())
-            throw makeStringExceptionV(-1, "encodeDFUFileMeta: No '%s' MTLS certificate detected.", keyPairName);
+            throw makeStringExceptionV(ESPERR_EncodedfufilemetaNoSMtlsCertificateDetected, "encodeDFUFileMeta: No '%s' MTLS certificate detected.", keyPairName);
 
         Owned<const IPropertyTree> info = config->getTree();
         const char *privateKeyText = info->queryProp("privatekey");
         if (isEmptyString(privateKeyText))
-            throw makeStringException(-1, "encodeDFUFileMeta: MTLS - private key missing");
+            throw makeStringException(ESPERR_EncodedfufilemetaMtlsPrivateKeyMissing, "encodeDFUFileMeta: MTLS - private key missing");
         const char *certificate = info->queryProp("certificate");
         verifyex(certificate);
         metaInfoEnvelope->setProp("certificate", certificate);
@@ -562,7 +563,7 @@ StringBuffer &encodeDFUFileMeta(StringBuffer &metaInfoBlob, IPropertyTree *metaI
 #else
         const char *privateKeyFName = environment->getPrivateKeyPath(keyPairName);
         if (isEmptyString(privateKeyFName))
-            throw makeStringExceptionV(-1, "Key name '%s' is not found in environment settings: /EnvSettings/Keys/KeyPair.", keyPairName);
+            throw makeStringExceptionV(ESPERR_KeyNameSIsNotFound, "Key name '%s' is not found in environment settings: /EnvSettings/Keys/KeyPair.", keyPairName);
         Owned<CLoadedKey> privateKey = loadPrivateKeyFromFile(privateKeyFName, nullptr);
 #endif
         StringBuffer metaInfoSignature;

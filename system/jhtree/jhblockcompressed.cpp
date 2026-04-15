@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jhblockcompressed.hpp"
+#include "systemerr.hpp"
 
 #include "platform.h"
 #include <string.h>
@@ -361,7 +362,7 @@ bool CBlockCompressedWriteNode::add(offset_t pos, const void *indata, size32_t i
         return false;
 
     if (insize>keyLen)
-        throw MakeStringException(0, "key+payload (%u) exceeds max length (%u)", insize, keyLen);
+        throw MakeStringException(SYSTEMERR_KeyPayloadUExceedsMaxLength, "key+payload (%u) exceeds max length (%u)", insize, keyLen);
 
     memcpy(lastKeyValue, indata, insize);
     lastSequence = sequence;
@@ -383,7 +384,7 @@ void CBlockCompressedBuildContext::initCompressor()
 {
     compressionHandler = queryCompressHandler(compressionMethod);
     if (!compressionHandler)
-        throw MakeStringException(0, "Unknown compression method %d", (int)compressionMethod);
+        throw MakeStringException(SYSTEMERR_UnknownCompressionMethodD, "Unknown compression method %d", (int)compressionMethod);
 
     compressor.setown(compressionHandler->getCompressor(compressionOptions.str()));
 }

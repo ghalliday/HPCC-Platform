@@ -1,4 +1,5 @@
 #include "jliball.hpp"
+#include "esperr.hpp"
 #include "ws_ecl_wuinfo.hpp"
 #include "fileview.hpp"
 
@@ -15,18 +16,18 @@ const char *WsEclWuInfo::ensureWuid()
     {
         Owned<IPropertyTree> qstree = getQueryRegistry(qsetname, true);
         if (!qstree)
-            throw MakeStringException(-1, "QuerySet %s not found", qsetname.get());
+            throw MakeStringException(ESPERR_QuerysetSNotFound, "QuerySet %s not found", qsetname.get());
 
         Owned<IPropertyTree> query = resolveQueryAlias(qstree, queryname);
         if (!query)
-            throw MakeStringException(-1, "Query %s/%s not found", qsetname.get(), queryname.get());
+            throw MakeStringException(ESPERR_QuerySSNotFound, "Query %s/%s not found", qsetname.get(), queryname.get());
         if (query->getPropBool("@suspended"))
-            throw MakeStringException(-1, "Query %s/%s is currently suspended", qsetname.get(), queryname.get());
+            throw MakeStringException(ESPERR_QuerySSIsCurrentlySuspended, "Query %s/%s is currently suspended", qsetname.get(), queryname.get());
 
         wuid.set(query->queryProp("@wuid"));
     }
     if (!wuid.length())
-        throw MakeStringException(-1, "Workunit not specified");
+        throw MakeStringException(ESPERR_WorkunitNotSpecified, "Workunit not specified");
     return wuid.get();
 }
 
@@ -39,9 +40,9 @@ IConstWorkUnit *WsEclWuInfo::ensureWorkUnit()
     Owned<IWorkUnitFactory> wf = getWorkUnitFactory();
     wu.setown(wf->openWorkUnit(wuid.str()));
     if (!wu)
-        throw MakeStringException(-1, "Could not open workunit: %s", wuid.str());
+        throw MakeStringException(ESPERR_CouldNotOpenWorkunitS, "Could not open workunit: %s", wuid.str());
     if (isLibrary(wu))
-        throw MakeStringException(-1, "%s/%s %s is a library", qsetname.str(), queryname.str(), wuid.str());
+        throw MakeStringException(ESPERR_SSSIsALibrary, "%s/%s %s is a library", qsetname.str(), queryname.str(), wuid.str());
     return wu;
 }
 

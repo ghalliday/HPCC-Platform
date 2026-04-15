@@ -19,6 +19,7 @@
 #define _ESPWIZ_WsDeploy_HPP__
 
 #include "WsDeploy_esp.ipp"
+#include "esperr.hpp"
 #include "environment.hpp"
 #include "jmutex.hpp"
 #include "dasds.hpp"
@@ -645,7 +646,7 @@ public:
                 expandRange(pComputers);
 
             if (!pComputers)
-                throw MakeStringException(-1, "No computers found for Cloud Operation %s", getFnString(m_eA));
+                throw MakeStringException(ESPERR_NoComputersFoundForCloudOperation, "No computers found for Cloud Operation %s", getFnString(m_eA));
 
             if (m_threadPool == NULL)
             {

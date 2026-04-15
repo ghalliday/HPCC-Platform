@@ -18,6 +18,7 @@
 #pragma warning (disable : 4786)
 
 #include "jcontainerized.hpp"
+#include "esperr.hpp"
 
 #ifdef _USE_OPENLDAP
 #include "ldapsecurity.ipp"
@@ -128,7 +129,7 @@ void CWsSMCEx::init(IPropertyTree *cfg, const char *process, const char *service
     if (!daliClientActive())
     {
         OERRLOG("No Dali Connection Active.");
-        throw MakeStringException(-1, "No Dali Connection Active. Please Specify a Dali to connect to in you configuration file");
+        throw MakeStringException(ESPERR_NoDaliConnectionActivePleaseSpecify, "No Dali Connection Active. Please Specify a Dali to connect to in you configuration file");
     }
 
     espInstance.set(process);

@@ -18,6 +18,7 @@
 #pragma warning(disable: 4786)
 
 #include "xslprocessor.hpp"
+#include "esperr.hpp"
 #include "esdl_def.hpp"
 #include "esdl_def_helper.hpp"
 
@@ -198,7 +199,7 @@ void EsdlDefinitionHelper::toXML( IEsdlDefObjectIterator& objs, StringBuffer &xm
             IEsdlDefObjectIterator* baseTypes = objs.queryBaseTypesIterator();
 
             if( baseTypes == NULL )
-                throw MakeStringException(0, "EsdlDefinitionHelper::toXML - Collapsed flag enabled, but unable to query the base types iterator");
+                throw MakeStringException(ESPERR_EsdldefinitionhelperToxmlCollapsedFlagEnabledBut, "EsdlDefinitionHelper::toXML - Collapsed flag enabled, but unable to query the base types iterator");
 
             ForEach( *baseTypes )
             {
@@ -281,7 +282,7 @@ void EsdlDefinitionHelper::toXSD( IEsdlDefObjectIterator &objs, StringBuffer &xs
         trans->transform(xsd);
 
     } else {
-        throw (MakeStringException( 0, "Unable to find transform for EsdlXslTypeId=%d", xslId ));
+        throw (MakeStringException(ESPERR_UnableToFindTransformForEsdlxsltypeid, "Unable to find transform for EsdlXslTypeId=%d", xslId ));
     }
 
     return;
@@ -309,7 +310,7 @@ void EsdlDefinitionHelper::toWSDL( IEsdlDefObjectIterator &objs, StringBuffer &x
         trans->transform(xsd);
 
     } else {
-        throw (MakeStringException( 0, "Unable to find transform for EsdlXslTypeId=%d", xslId ));
+        throw (MakeStringException(ESPERR_UnableToFindTransformForEsdlxsltypeid, "Unable to find transform for EsdlXslTypeId=%d", xslId ));
     }
 
     return;
@@ -328,7 +329,7 @@ void EsdlDefinitionHelper::loadTransformParams( EsdlXslTypeId xslId, IProperties
 
     if( !trans )
     {
-        throw (MakeStringException( 0, "Unable to find transform for EsdlXslTypeId=%d", xslId ));
+        throw (MakeStringException(ESPERR_UnableToFindTransformForEsdlxsltypeid, "Unable to find transform for EsdlXslTypeId=%d", xslId ));
     }
 
     // All setParameter() calls are bare- no implicit quoting-
@@ -387,7 +388,7 @@ void EsdlDefinitionHelper::toMicroService( IEsdlDefObjectIterator& objs, StringB
     }
     else
     {
-        throw (MakeStringExceptionDirect( 0, "Unable to find transform for creating java service plugin"));
+        throw (MakeStringExceptionDirect(ESPERR_UnableToFindTransformForCreating, "Unable to find transform for creating java service plugin"));
     }
 
     return;

@@ -17,6 +17,7 @@
 
 #pragma warning(disable : 4786)
 #include "LogSerializer.hpp"
+#include "esperr.hpp"
 #include "jexcept.hpp"
 #include "jfile.hpp"
 #include "jlog.hpp"
@@ -118,7 +119,7 @@ void CLogSerializer::Open(const char*Directory,const char* NewFileName,const cha
     m_FilePath.clear();
     m_FilePath.append(Directory);
     if (!EnsureDirectory(m_FilePath))
-        throw MakeStringException(-1,"Unable to create directory at %s.",m_FilePath.str());
+        throw MakeStringException(ESPERR_UnableToCreateDirectoryAtS, "Unable to create directory at %s.",m_FilePath.str());
 
     m_FilePath.append("/");
 
@@ -131,7 +132,7 @@ void CLogSerializer::Open(const char*Directory,const char* NewFileName,const cha
     m_file = createIFile(m_FilePath.str());
     m_fileio  =  m_file->open(IFOcreate);
     if (m_fileio == 0)
-        throw MakeStringException(-1, "Unable to open logging file %s",m_FilePath.str());
+        throw MakeStringException(ESPERR_UnableToOpenLoggingFileS, "Unable to open logging file %s",m_FilePath.str());
     else
         DBGLOG("Tank file %s successfully created", m_FilePath.str());
 }
@@ -312,7 +313,7 @@ void CLogSerializer::loadSendLogs(GuidSet& ackSet, GuidMap& missedLogs, unsigned
         m_file = createIFile(m_FilePath.str());
         m_fileio = m_file->open(IFOread);
         if (m_fileio == 0)
-            throw MakeStringException(-1, "Unable to open logging file %s",m_FilePath.str());
+            throw MakeStringException(ESPERR_UnableToOpenLoggingFileS, "Unable to open logging file %s",m_FilePath.str());
 
         offset_t finger = 0;
         total_missed = 0;
@@ -356,7 +357,7 @@ void CLogSerializer::loadAckedLogs(GuidSet& ackedLogs)//
         m_file = createIFile(m_FilePath.str());
         m_fileio = m_file->open(IFOread);
         if (m_fileio == 0)
-            throw MakeStringException(-1, "Unable to open logging file %s",m_FilePath.str());
+            throw MakeStringException(ESPERR_UnableToOpenLoggingFileS, "Unable to open logging file %s",m_FilePath.str());
 
         offset_t finger = 0;
         m_ItemCount = 0;
@@ -416,7 +417,7 @@ void CSendLogSerializer::LoadDataMap(GuidMap& ACKMap,StringArray& MissedLogs)
         m_file = createIFile(m_FilePath.str());
         m_fileio = m_file->open(IFOread);
         if (m_fileio == 0)
-            throw MakeStringException(-1, "Unable to open logging file %s",m_FilePath.str());
+            throw MakeStringException(ESPERR_UnableToOpenLoggingFileS, "Unable to open logging file %s",m_FilePath.str());
         else
             DBGLOG("File %s successfully opened", m_FilePath.str());
 
@@ -530,7 +531,7 @@ void CRecieveLogSerializer::LoadDataMap(GuidMap& GUIDmap)
         m_file = createIFile(m_FilePath.str());
         m_fileio = m_file->open(IFOread);
         if (m_fileio == 0)
-            throw MakeStringException(-1, "Unable to open logging file %s",m_FilePath.str());
+            throw MakeStringException(ESPERR_UnableToOpenLoggingFileS, "Unable to open logging file %s",m_FilePath.str());
         else
             DBGLOG("File %s successfully opened", m_FilePath.str());
 

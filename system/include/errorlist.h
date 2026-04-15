@@ -105,11 +105,11 @@
 #define COMMON_ERROR_START      8100
 #define COMMON_ERROR_END        8399
 
-#define ECLERR_START            8400
-#define ECLERR_END              8599
+#define ECLERR_START            8700
+#define ECLERR_END              8799
 
-#define FSERR_START             8600
-#define FSERR_END               8699
+#define FSERR_START             8800
+#define FSERR_END               8899
 
 #define JHTREE_ERROR_START      8500
 #define JHTREE_ERROR_END        8699
@@ -139,5 +139,24 @@
 
 #define CODESIGNER_ERROR_START  32000
 #define CODESIGNER_ERROR_END    32999
+
+#define DEPLOY_ERROR_START      34000
+#define DEPLOY_ERROR_END        34099
+
+#define ECL_ERROR_START         34100
+#define ECL_ERROR_END           34199
+
+#define ESP_ERROR_START         34200
+#define ESP_ERROR_END           34999
+
+#define PLUGINS_ERROR_START     35000
+#define PLUGINS_ERROR_END       35999
+
+#define SYSTEM_ERROR_START      36000
+#define SYSTEM_ERROR_END        36999
+
+#define TOOLS_ERROR_START       37000
+#define TOOLS_ERROR_END         37999
+
 #endif
 

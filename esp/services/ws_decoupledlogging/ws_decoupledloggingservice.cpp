@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "ws_decoupledloggingservice.hpp"
+#include "esperr.hpp"
 
 #include "jlib.hpp"
 
@@ -44,7 +45,7 @@ IEspLogAgent* CWSDecoupledLogEx::loadLoggingAgent(const char* name, const char* 
 void CWSDecoupledLogEx::init(IPropertyTree* cfg, const char* process, const char* service)
 {
     if (!cfg)
-        throw MakeStringException(-1, "Can't initialize CWSDecoupledLogEx, cfg is NULL");
+        throw MakeStringException(ESPERR_CanTInitializeCwsdecoupledlogexCfgIs, "Can't initialize CWSDecoupledLogEx, cfg is NULL");
 
     espProcess.set(process);
 
@@ -61,7 +62,7 @@ void CWSDecoupledLogEx::init(IPropertyTree* cfg, const char* process, const char
 
         const char* tankFileDir = agentGroupTree.queryProp("FailSafeLogsDir");
         if (isEmptyString(tankFileDir))
-            throw MakeStringException(-1, "Can't initialize CWSDecoupledLogEx, FailSafeLogsDir is NULL for LoggingAgentGroup %s", groupName);
+            throw MakeStringException(ESPERR_CanTInitializeCwsdecoupledlogexFailsafelogsdirIs, "Can't initialize CWSDecoupledLogEx, FailSafeLogsDir is NULL for LoggingAgentGroup %s", groupName);
 
         Owned<WSDecoupledLogAgentGroup> group = new WSDecoupledLogAgentGroup(groupName, tankFileDir, agentGroupTree.queryProp("FailSafeLogsMask"));
         Owned<IPTreeIterator> loggingAgentSettings = agentGroupTree.getElements("LogAgent");
@@ -84,14 +85,14 @@ void CWSDecoupledLogEx::init(IPropertyTree* cfg, const char* process, const char
             loggingAgent->initVariants(&loggingAgentTree);
             Owned<IUpdateLogThread> logThread = createUpdateLogThread(&loggingAgentTree, service, agentName, tankFileDir, loggingAgent);
             if(!logThread)
-                throw MakeStringException(-1, "Failed to create update log thread for %s", agentName);
+                throw MakeStringException(ESPERR_FailedToCreateUpdateLogThread, "Failed to create update log thread for %s", agentName);
 
             ILogRequestReader* logRequestReader = logThread->getLogRequestReader();
             if (!logRequestReader)
-                throw MakeStringException(-1, "CLogRequestReader not found for %s.", agentName);
+                throw MakeStringException(ESPERR_ClogrequestreaderNotFoundForS, "CLogRequestReader not found for %s.", agentName);
 
             if (group->getLoggingAgentThread(agentName))
-                throw MakeStringException(-1, "%s: >1 logging agents are named as %s.", groupName, agentName);
+                throw MakeStringException(ESPERR_S1LoggingAgentsAreNamed, "%s: >1 logging agents are named as %s.", groupName, agentName);
             group->addLoggingAgentThread(agentName, logThread);
         }
         logGroups.insert({groupName, group});

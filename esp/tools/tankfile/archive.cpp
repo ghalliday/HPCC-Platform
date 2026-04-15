@@ -18,16 +18,17 @@
 #pragma warning(disable:4786)
 
 #include "archive.hpp"
+#include "esperr.hpp"
 
 CArchiveTankFileHelper::CArchiveTankFileHelper(IProperties* input)
 {
     logServer.set(input->queryProp("server"));
     if (logServer.isEmpty())
-        throw makeStringException(-1, "Please specify url.");
+        throw makeStringException(ESPERR_PleaseSpecifyUrl, "Please specify url.");
     groupName.set(input->queryProp("group"));
     archiveToDir.set(input->queryProp("dir"));
     if (archiveToDir.isEmpty())
-        throw makeStringException(-1, "Please specify archive dir.");
+        throw makeStringException(ESPERR_PleaseSpecifyArchiveDir, "Please specify archive dir.");
     client.setown(createLogServerClient(input));
 }
 
@@ -75,14 +76,14 @@ IClientGetAckedLogFilesResponse* CArchiveTankFileHelper::getAckedLogFiles()
     }
     Owned<IClientGetAckedLogFilesResponse> resp = client->GetAckedLogFiles(req);
     if (!resp)
-        throw makeStringException(-1, "Failed in GetAckedLogFiles.");
+        throw makeStringException(ESPERR_FailedInGetackedlogfiles, "Failed in GetAckedLogFiles.");
 
     const IMultiException* excep = &resp->getExceptions();
     if (excep != nullptr && excep->ordinality() > 0)
     {
         StringBuffer msg;
         printf("%s\n", excep->errorMessage(msg).str());
-        throw makeStringException(-1, "Cannot archiveTankFiles.");
+        throw makeStringException(ESPERR_CannotArchivetankfiles, "Cannot archiveTankFiles.");
     }
     return resp.getClear();
 }
@@ -169,7 +170,7 @@ void CArchiveTankFileHelper::cleanAckedLogFilesForLogAgentGroup(const char* grou
 
     Owned<IClientCleanAckedFilesResponse> resp = client->CleanAckedFiles(req);
     if (!resp)
-        throw makeStringException(-1, "Failed in CleanAckedFiles.");
+        throw makeStringException(ESPERR_FailedInCleanackedfiles, "Failed in CleanAckedFiles.");
 
     const IMultiException* excep = &resp->getExceptions();
     if (excep != nullptr && excep->ordinality() > 0)
@@ -185,7 +186,7 @@ IClientWSDecoupledLog* createLogServerClient(IProperties* input)
 
     const char* server = input->queryProp("server");
     if (isEmptyString(server))
-        throw MakeStringException(0, "Server url not defined");
+        throw MakeStringException(ESPERR_ServerUrlNotDefined, "Server url not defined");
 
     StringBuffer url(server);
     addPathSepChar(url);

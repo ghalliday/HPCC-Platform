@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "pluginerr.hpp"
 #include <jni.h>
 #include "jexcept.hpp"
 #include "jthread.hpp"
@@ -79,7 +80,7 @@ __declspec(noreturn) static void UNSUPPORTED(const char *feature) __attribute__(
 
 static void UNSUPPORTED(const char *feature)
 {
-    throw MakeStringException(-1, "UNSUPPORTED feature: %s not supported in java plugin", feature);
+    throw MakeStringException(PLUGINERR_UnsupportedFeatureSNotSupportedIn_2, "UNSUPPORTED feature: %s not supported in java plugin", feature);
 }
 
 namespace javaembed {
@@ -1057,7 +1058,7 @@ public:
         delete [] options;
 
         if (createResult != 0)
-            throw MakeStringException(0, "javaembed: Unable to initialize JVM (%d)",createResult);
+            throw MakeStringException(PLUGINERR_JavaembedUnableToInitializeJvmD, "javaembed: Unable to initialize JVM (%d)",createResult);
         setupGlobals((CheckedJNIEnv *) env);
         // DBGLOG("JNI environment version %x loaded", env->GetVersion()); // Comes out a bit too early
     }
@@ -1149,7 +1150,7 @@ MODULE_EXIT()
 static void checkType(type_t javatype, size32_t javasize, type_t ecltype, size32_t eclsize)
 {
     if (javatype != ecltype || javasize != eclsize)
-        throw MakeStringException(0, "javaembed: Type mismatch"); // MORE - could provide some details!
+        throw MakeStringException(PLUGINERR_JavaembedTypeMismatch, "javaembed: Type mismatch"); // MORE - could provide some details!
 }
 
 enum PersistMode
@@ -1261,7 +1262,7 @@ protected:
         catch (IException *E)
         {
             ::Release(E);
-            throw MakeStringException(0, "javaembed: Unable to retrieve field %s of type %s", field->name, expected);
+            throw MakeStringException(PLUGINERR_JavaembedUnableToRetrieveFieldS, "javaembed: Unable to retrieve field %s of type %s", field->name, expected);
         }
     }
 
@@ -3154,7 +3155,7 @@ public:
     StringBuffer & getSignature(StringBuffer &ret, unsigned idx) const
     {
         if (!methodNames.isItem(idx))
-            throw makeStringException(0, "No public static method found");
+            throw makeStringException(PLUGINERR_NoPublicStaticMethodFound, "No public static method found");
         ret.appendf("%s.%s:", className.get(), methodNames.item(idx));
         if ((methodFlags[idx] & ACC_STATIC) == 0)
             ret.append('@');
@@ -3224,12 +3225,12 @@ private:
             if (streq(funcName, methodNames[idx]))
             {
                 if (methodIdx != (unsigned) -1)
-                    throw makeStringExceptionV(0, "Embedded java has multiple public methods called %s", funcName);
+                    throw makeStringExceptionV(PLUGINERR_EmbeddedJavaHasMultiplePublicMethods, "Embedded java has multiple public methods called %s", funcName);
                 methodIdx = idx;
             }
         }
         if (methodIdx == (unsigned) -1)
-            throw makeStringExceptionV(0, "Embedded java should export a public method %s", funcName);
+            throw makeStringExceptionV(PLUGINERR_EmbeddedJavaShouldExportAPublic, "Embedded java should export a public method %s", funcName);
         return methodIdx;
     }
     uint16_t readIdx()
@@ -3366,7 +3367,7 @@ public:
                     }
                 }
                 else
-                    throw MakeStringException(0, "javaembed: Unknown option %s", optName.str());
+                    throw MakeStringException(PLUGINERR_JavaembedUnknownOptionS, "javaembed: Unknown option %s", optName.str());
             }
         }
         if (lclassPath.length())
@@ -3597,7 +3598,7 @@ public:
                 // we COULD map to a set of string1, but is there any point?
             {
                 StringBuffer s;
-                throw MakeStringException(0, "javaembed: In method %s: Return type mismatch (char[] not supported)", getReportName(s).str());
+                throw MakeStringException(PLUGINERR_JavaembedInMethodSReturnType, "javaembed: In method %s: Return type mismatch (char[] not supported)", getReportName(s).str());
                 break;
             }
             case 'S':
@@ -3689,7 +3690,7 @@ public:
                         default:
                             JNIenv->ReleaseStringUTFChars(elem, text);
                             StringBuffer s;
-                            throw MakeStringException(0, "javaembed: In method %s: Return type mismatch (ECL string type expected)", getReportName(s).str());
+                            throw MakeStringException(PLUGINERR_JavaembedInMethodSReturnType_1, "javaembed: In method %s: Return type mismatch (ECL string type expected)", getReportName(s).str());
                         }
                         JNIenv->ReleaseStringUTFChars(elem, text);
                         JNIenv->DeleteLocalRef(elem);
@@ -3700,7 +3701,7 @@ public:
                 else
                 {
                     StringBuffer s;
-                    throw MakeStringException(0, "javaembed: In method %s: Return type mismatch (%s[] not supported)", getReportName(s).str(), returnType+2);
+                    throw MakeStringException(PLUGINERR_JavaembedInMethodSReturnType_2, "javaembed: In method %s: Return type mismatch (%s[] not supported)", getReportName(s).str(), returnType+2);
                 }
                 break;
             }
@@ -3721,7 +3722,7 @@ public:
             else
             {
                 StringBuffer s;
-                throw MakeStringException(0, "javaembed: In method %s: Java code should return an iterator or iterable object", getReportName(s).str());
+                throw MakeStringException(PLUGINERR_JavaembedInMethodSJavaCode, "javaembed: In method %s: Java code should return an iterator or iterable object", getReportName(s).str());
             }
         }
         return new JavaRowStream(result.l, _resultAllocator);
@@ -4140,7 +4141,7 @@ public:
     {
         JavaXmlBuilder *javaWriter = dynamic_cast<JavaXmlBuilder*>(writer);
         if (!javaWriter)
-            throw MakeStringException(0, "javaembed: Invalid object writer for %s", signature.get());
+            throw MakeStringException(PLUGINERR_JavaembedInvalidObjectWriterForS, "javaembed: Invalid object writer for %s", signature.get());
         jvalue v;
         v.l = javaWriter->getObject();
         addArg(v);
@@ -4265,7 +4266,7 @@ public:
     IException *resultMismatchException(const char *expected)
     {
         StringBuffer s;
-        return makeStringExceptionV(0, "javaembed: In method %s: Type mismatch on result (%s expected)", getReportName(s).str(), expected);
+        return makeStringExceptionV(PLUGINERR_JavaembedInMethodSTypeMismatch, "javaembed: In method %s: Type mismatch on result (%s expected)", getReportName(s).str(), expected);
     }
 
     virtual void callFunction()
@@ -4273,7 +4274,7 @@ public:
         try
         {
             if (*argsig != ')')
-                throw MakeStringException(0, "Too few ECL parameters passed for Java signature %s", signature.get());
+                throw MakeStringException(PLUGINERR_TooFewEclParametersPassedFor, "Too few ECL parameters passed for Java signature %s", signature.get());
             JNIenv->ExceptionClear();
             if (nonStatic)
             {
@@ -4282,7 +4283,7 @@ public:
                     if (!instance)
                     {
                         if (persistMode == persistNone)
-                            throw MakeStringException(0, "Cannot return object without persist");
+                            throw MakeStringException(PLUGINERR_CannotReturnObjectWithoutPersist, "Cannot return object without persist");
                         StringBuffer scopeKey;
                         getScopeKey(scopeKey);
                         PersistedObjectCriticalBlock persistBlock;
@@ -4389,7 +4390,7 @@ public:
         else if (flags & EFthreadlocal && persistMode > persistThread)
         {
             StringBuffer s;
-            throw MakeStringException(0, "javaembed: In method %s: Workunit must be recompiled to support this persist mode", getReportName(s).str());
+            throw MakeStringException(PLUGINERR_JavaembedInMethodSWorkunitMust, "javaembed: In method %s: Workunit must be recompiled to support this persist mode", getReportName(s).str());
         }
 
         // Create a new frame for local references and increase the capacity
@@ -4435,16 +4436,16 @@ protected:
         case ')':
         {
             StringBuffer s;
-            throw MakeStringException(0, "javaembed: In method %s: Too many ECL parameters passed for Java signature", getReportName(s).str());
+            throw MakeStringException(PLUGINERR_JavaembedInMethodSTooMany, "javaembed: In method %s: Too many ECL parameters passed for Java signature", getReportName(s).str());
         }
         default:
             StringBuffer s;
-            throw MakeStringException(0, "javaembed: In method %s: Unrecognized character %c in Java signature", getReportName(s).str(), *argsig);
+            throw MakeStringException(PLUGINERR_JavaembedInMethodSUnrecognizedCharacter, "javaembed: In method %s: Unrecognized character %c in Java signature", getReportName(s).str(), *argsig);
         }
         if (!javaLen)
             javaLen = strlen(javaType);
         StringBuffer s;
-        throw MakeStringException(0, "javaembed: In Method %s: ECL type %s cannot be passed to Java type %.*s", getReportName(s).str(), ECLtype, javaLen, javaType);
+        throw MakeStringException(PLUGINERR_JavaembedInMethodSEclType, "javaembed: In Method %s: ECL type %s cannot be passed to Java type %.*s", getReportName(s).str(), ECLtype, javaLen, javaType);
     }
     void addArg(jvalue &arg)
     {
@@ -4501,7 +4502,7 @@ protected:
         catch (IException *E)
         {
             Owned<IException> e = E;
-            throw MakeStringException(0, "parameterless constructor required");
+            throw MakeStringException(PLUGINERR_ParameterlessConstructorRequired, "parameterless constructor required");
         }
         return JNIenv->NewObject(javaClass, constructor);
     }
@@ -4636,7 +4637,7 @@ protected:
                 else
                     shortClassName = myClassName;
                 if (!streq(checkedClassName, shortClassName))
-                    throw MakeStringException(0, "Object class %s does not match expected class name %s", shortClassName, checkedClassName.str());
+                    throw MakeStringException(PLUGINERR_ObjectClassSDoesNotMatch, "Object class %s does not match expected class name %s", shortClassName, checkedClassName.str());
             }
             returnType = strrchr(signature, ')');
             assertex(returnType);  // Otherwise how did Java accept it??
@@ -4794,7 +4795,7 @@ public:
                 if (strieq(optName, "classpath"))
                     classpath.set(val);
                 else
-                    throw MakeStringException(0, "javaembed: Unknown option %s", optName.str());
+                    throw MakeStringException(PLUGINERR_JavaembedUnknownOptionS, "javaembed: Unknown option %s", optName.str());
             }
         }
     }
@@ -5021,7 +5022,7 @@ void doPrecompile(size32_t & __lenResult, void * & __result, const char *funcNam
     getTempFilePath(tmpDirName, "javaembed", nullptr);
     tmpDirName.append(PATHSEPCHAR).append("tmp.XXXXXX");
     if (!mkdtemp((char *) tmpDirName.str()))
-        throw makeStringExceptionV(0, "Failed to create temporary directory %s (error %d)", tmpDirName.str(), errno);
+        throw makeStringExceptionV(PLUGINERR_FailedToCreateTemporaryDirectoryS, "Failed to create temporary directory %s (error %d)", tmpDirName.str(), errno);
     Owned<IFile> tempDir = createIFile(tmpDirName);
     StringBuffer classname;
     bool seenPublic = false;
@@ -5062,7 +5063,7 @@ void doPrecompile(size32_t & __lenResult, void * & __result, const char *funcNam
     VStringBuffer javac("javac %s %s", options.str(), javafile.str());
     if (!pipe->run("javac", javac, tmpDirName, false, false, true, 0, false))
     {
-        throw makeStringException(0, "Failed to run javac");
+        throw makeStringException(PLUGINERR_FailedToRunJavac, "Failed to run javac");
     }
     else
     {
@@ -5073,7 +5074,7 @@ void doPrecompile(size32_t & __lenResult, void * & __result, const char *funcNam
         unsigned retcode = pipe->wait();
         cleanupJavaErrors(errors, javaErrors, lineNumberOffset);
         if (retcode)
-            throw makeStringException(0, "Failed to precompile java code");
+            throw makeStringException(PLUGINERR_FailedToPrecompileJavaCode, "Failed to precompile java code");
         VStringBuffer mainfile("%s" PATHSEPSTR "%s.class", tmpDirName.str(), classname.str());
         JavaClassReader reader(mainfile);
         DBGLOG("Analysing generated class %s", reader.queryClassName());
@@ -5141,7 +5142,7 @@ extern DECL_EXPORT void checkImport(size32_t & __lenResult, char * & __result, c
             StringBuffer b(rtlUtf8Size(charsImport, import), import);
             const char *dotpos = strrchr(b, '.');
             if (!dotpos)
-                throw MakeStringException(0, "javaembed: cannot determine key for persist in function %s", b.str());
+                throw MakeStringException(PLUGINERR_JavaembedCannotDetermineKeyForPersist, "javaembed: cannot determine key for persist in function %s", b.str());
         }
     }
     catch (IException *E)
