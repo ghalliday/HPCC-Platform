@@ -617,7 +617,7 @@ public:
         }
 
         if (!lower->isLowerBound() || !upper->isUpperBound())
-            throw MakeStringException(1, "Invalid range bounds");
+            throw MakeStringException(RTLERR_InvalidRangeBounds, "Invalid range bounds");
 
         //If lower > upper then it is an empty range
         int rc = lower->compareRaw(type, *upper);
@@ -758,7 +758,7 @@ public:
         }
 
         if (!lower->isLowerBound() || !upper->isUpperBound())
-            throw MakeStringException(1, "Invalid range bounds");
+            throw MakeStringException(RTLERR_InvalidRangeBounds, "Invalid range bounds");
 
         //If lower > upper then it is an empty range
         int rc = lower->compareRaw(type, *upper);

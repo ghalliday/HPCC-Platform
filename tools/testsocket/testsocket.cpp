@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <platform.h>
+#include "toolserr.hpp"
 #include <stdio.h>
 #include "jmisc.hpp"
 #include "jlib.hpp"
@@ -374,7 +375,7 @@ int readResults(ISocket * socket, bool readBlocked, bool useHTTP, StringBuffer &
                 assertex(responseTree);
             }
             else if (!strieq("binary", outputFmtStr))
-                throw MakeStringException(0, "Unknown output format: %s", outputFmtStr);
+                throw MakeStringException(TOOLSERR_UnknownOutputFormatS, "Unknown output format: %s", outputFmtStr);
             unsigned cursorHandle;
             if (responseTree)
                 cursorHandle = responseTree->getPropInt("handle");
@@ -590,10 +591,10 @@ retry:
                         persistSSock.setown(persistSecureContext->createSecureSocket(persistSocket.getClear(), SSLogNormal, ip));
                         int res = persistSSock->secure_connect();
                         if (res < 0)
-                            throw MakeStringException(-1, "doSendQuery : Failed to establish secure connection");
+                            throw MakeStringException(TOOLSERR_DosendqueryFailedToEstablishSecureConnection, "doSendQuery : Failed to establish secure connection");
                         persistSocket.setown(persistSSock.getClear());
 #else
-                        throw MakeStringException(-1, "OpenSSL disabled in build");
+                        throw MakeStringException(TOOLSERR_OpensslDisabledInBuild, "OpenSSL disabled in build");
 #endif
                     }
                 }
@@ -610,10 +611,10 @@ retry:
                     Owned<ISecureSocket> ssock = secureContext->createSecureSocket(socket.getClear(), SSLogNormal, ip);
                     int res = ssock->secure_connect();
                     if (res < 0)
-                        throw MakeStringException(-1, "doSendQuery : Failed to establish secure connection");
+                        throw MakeStringException(TOOLSERR_DosendqueryFailedToEstablishSecureConnection, "doSendQuery : Failed to establish secure connection");
                     socket.setown(ssock.getClear());
 #else
-                    throw MakeStringException(1, "OpenSSL disabled in build");
+                    throw MakeStringException(TOOLSERR_OpensslDisabledInBuild, "OpenSSL disabled in build");
 #endif
                 }
             }

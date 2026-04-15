@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jliball.hpp"
+#include "toolserr.hpp"
 #include "xslprocessor.hpp"
 
 #include "esdlcmd_core.hpp"
@@ -89,7 +90,7 @@ public:
     void loadFile(const char *srcpath, const char *srcfile, const char *srcext="", IProperties *versions=NULL, bool loadincludes=false, bool isIncludedESDL=false, bool rollUp=false, const char* includePath=NULL)
     {
         if (!srcfile || !*srcfile)
-            throw MakeStringException(-1, "EsdlInclude no file name");
+            throw MakeStringException(TOOLSERR_EsdlincludeNoFileName, "EsdlInclude no file name");
 
         if (!included.getValue(srcfile))
         {
@@ -117,14 +118,14 @@ public:
                 StringBuffer msg("Unsupported file type: ");
                 msg.append(srcfile);
                 msg.append(srcext);
-                throw MakeStringExceptionDirect(-1, msg.str());
+                throw MakeStringExceptionDirect(TOOLSERR_MsgStr, msg.str());
             }
 
             if (!src)
             {
                 StringBuffer msg("EsdlInclude file not found - ");
                 msg.append(fileName);
-                throw MakeStringExceptionDirect(-1, msg.str());
+                throw MakeStringExceptionDirect(TOOLSERR_MsgStr, msg.str());
             }
 
             included.setValue(srcfile, src);

@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <chrono>
+#include "systemerr.hpp"
 #include <curl/curl.h>
 #include <iostream>
 #include <mutex>
@@ -115,16 +116,16 @@ public:
         }
 
         if (clientID.empty())
-            throw makeStringException(-1, "CJwtSecurityManager: clientID not found in configuration");
+            throw makeStringException(SYSTEMERR_CjwtsecuritymanagerClientidNotFoundInConfiguration, "CJwtSecurityManager: clientID not found in configuration");
 
         if (loginEndpoint.empty())
-            throw makeStringException(-1, "CJwtSecurityManager: loginEndpoint not found in configuration");
+            throw makeStringException(SYSTEMERR_CjwtsecuritymanagerLoginendpointNotFoundInConfiguration, "CJwtSecurityManager: loginEndpoint not found in configuration");
 
         if (refreshEndpoint.empty())
-            throw makeStringException(-1, "CJwtSecurityManager: refreshEndpoint not found in configuration");
+            throw makeStringException(SYSTEMERR_CjwtsecuritymanagerRefreshendpointNotFoundInConfiguration, "CJwtSecurityManager: refreshEndpoint not found in configuration");
 
         if (secretsName.empty())
-            throw makeStringException(-1, "CJwtSecurityManager: secretsName not found in configuration");
+            throw makeStringException(SYSTEMERR_CjwtsecuritymanagerSecretsnameNotFoundInConfiguration, "CJwtSecurityManager: secretsName not found in configuration");
 
         // Grab a copy of the name of the internal file scope
         hpccInternalScope = queryDfsXmlBranchName(DXB_Internal);
@@ -352,7 +353,7 @@ private:
                     else if (included_algo == "PS512")
                         jwtVerifier = jwtVerifier.allow_algorithm(jwt::algorithm::ps512(keyContents, "", "", ""));
                     else
-                        throw makeStringExceptionV(-1, "CJwtSecurityManager error: Unknown token algorithm for public key: %s", included_algo.c_str());
+                        throw makeStringExceptionV(SYSTEMERR_CjwtsecuritymanagerErrorUnknownTokenAlgorithmFor, "CJwtSecurityManager error: Unknown token algorithm for public key: %s", included_algo.c_str());
                 }
                 else
                 {
@@ -363,7 +364,7 @@ private:
                     else if (included_algo == "HS512")
                         jwtVerifier = jwtVerifier.allow_algorithm(jwt::algorithm::hs512(keyContents));
                     else
-                        throw makeStringExceptionV(-1, "CJwtSecurityManager error: Unknown token algorithm for hash key: %s", included_algo.c_str());
+                        throw makeStringExceptionV(SYSTEMERR_CjwtsecuritymanagerErrorUnknownTokenAlgorithmFor_1, "CJwtSecurityManager error: Unknown token algorithm for hash key: %s", included_algo.c_str());
                 }
             }
 
@@ -538,7 +539,7 @@ private:
                 getSecretValue(rawKeyContents, "esp", secretsName.c_str(), "key", true);
 
                 if (rawKeyContents.isEmpty())
-                    throw makeStringExceptionV(-1, "CJwtSecurityManager: Key at path '%s' is empty", secretsName.c_str());
+                    throw makeStringExceptionV(SYSTEMERR_CjwtsecuritymanagerKeyAtPathSIs, "CJwtSecurityManager: Key at path '%s' is empty", secretsName.c_str());
 
                 keyContents = trailingStringTrim(leadingStringTrim(rawKeyContents.str()));
                 keyIsPublicKey = isPrefixString("-----BEGIN PUBLIC KEY-----", keyContents);
@@ -699,7 +700,7 @@ private:
         std::string username = user.getName();
 
         if (username.length() == 0)
-            throw makeStringException(-1, "CJwtSecurityManager: Username is empty");
+            throw makeStringException(SYSTEMERR_CjwtsecuritymanagerUsernameIsEmpty, "CJwtSecurityManager: Username is empty");
 
         // Already authenticated if token or status set to authenticated
         if (user.credentials().getSessionToken() != 0 || user.getAuthenticateStatus() == AS_AUTHENTICATED)

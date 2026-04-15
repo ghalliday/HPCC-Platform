@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jliball.hpp"
+#include "systemerr.hpp"
 #include "securesocket.hpp"
 #ifdef _WIN32
 #include <conio.h>
@@ -402,7 +403,7 @@ int main(int argc, char* argv[])
                 if(pbuf.length() > 0)
                     cc->setPassphrase(pbuf.str());
                 else
-                    throw MakeStringException(-1, "passphrase not specified.");
+                    throw MakeStringException(SYSTEMERR_PassphraseNotSpecified, "passphrase not specified.");
 
                 StringBuffer csrbuf, privkey;
                 if(pfbuf.length() == 0)
@@ -442,7 +443,7 @@ int main(int argc, char* argv[])
                 if(pbuf.length() > 0)
                     cc->setPassphrase(pbuf.str());
                 else
-                    throw MakeStringException(-1, "passphrase not specified.");
+                    throw MakeStringException(SYSTEMERR_PassphraseNotSpecified, "passphrase not specified.");
 
                 StringBuffer certbuf, privkey;
                 if(pfbuf.length() == 0)
@@ -477,14 +478,14 @@ int main(int argc, char* argv[])
             StringBuffer csrbuf, ca_cert, ca_privkey, certbuf;
             
             if(rfbuf.length() == 0 || cfbuf.length() == 0 || pfbuf.length() == 0)
-                throw MakeStringException(-1, "You need to specify csr file, certificate file and privatekey file");
+                throw MakeStringException(SYSTEMERR_YouNeedToSpecifyCsrFile, "You need to specify csr file, certificate file and privatekey file");
 
             csrbuf.loadFile(rfbuf.str());
             ca_cert.loadFile(cfbuf.str());
             ca_privkey.loadFile(pfbuf.str());
 
             if(pbuf.length() == 0)
-                throw MakeStringException(-1, "passphrase not specified.");
+                throw MakeStringException(SYSTEMERR_PassphraseNotSpecified, "passphrase not specified.");
 
             int days = 365;
             if(daysbuf.length() > 0)

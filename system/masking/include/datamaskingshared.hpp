@@ -14,6 +14,7 @@
 #pragma once
 
 #include "jexcept.hpp"
+#include "systemerr.hpp"
 #include "jiface.hpp"
 #include "datamasking.h"
 #include <functional>
@@ -102,7 +103,7 @@ namespace DataMasking
         virtual bool first() override { return false; }
         virtual bool next() override { return false; }
         virtual bool isValid() override { return false; }
-        virtual const value_t& query() override { throw makeStringException(-1, "invalid query of EmptyScalarIteratorOf"); }
+        virtual const value_t& query() override { throw makeStringException(SYSTEMERR_InvalidQueryOfEmptyscalariteratorof, "invalid query of EmptyScalarIteratorOf"); }
     };
 
     /**
@@ -148,7 +149,7 @@ namespace DataMasking
         const value_t& query() override
         {
             if (!isValid())
-                throw makeStringException(-1, "invalid TIteratorOf iterator query");
+                throw makeStringException(SYSTEMERR_InvalidTiteratorofIteratorQuery, "invalid TIteratorOf iterator query");
             return extractor(cur);
         }
     protected:
@@ -165,7 +166,7 @@ namespace DataMasking
             , extractor(_extractor)
         {
             if (!extractor)
-                throw makeStringException(-1, "missing TIteratorOf value extractor");
+                throw makeStringException(SYSTEMERR_MissingTiteratorofValueExtractor, "missing TIteratorOf value extractor");
         }
         TIteratorOfScalar(src_iterator_t _begin, src_iterator_t _end, value_extractor_t _extractor, value_filter_t _filter)
             : begin(_begin)
@@ -175,7 +176,7 @@ namespace DataMasking
             , filter(_filter)
         {
             if (!extractor)
-                throw makeStringException(-1, "missing TIteratorOf value extractor");
+                throw makeStringException(SYSTEMERR_MissingTiteratorofValueExtractor, "missing TIteratorOf value extractor");
         }
     protected:
         TIteratorOfScalar()
@@ -228,7 +229,7 @@ namespace DataMasking
         void init(src_iterator_t _begin, src_iterator_t _end, src_value_extractor_t _extractor, src_value_filter_t _filter)
         {
             if (!_extractor)
-                throw makeStringException(-1, "missing TIteratorOfShared value extractor");
+                throw makeStringException(SYSTEMERR_MissingTiteratorofsharedValueExtractor, "missing TIteratorOfShared value extractor");
             if (_filter)
             {
                 for (src_iterator_t it = _begin; it != _end; ++it)

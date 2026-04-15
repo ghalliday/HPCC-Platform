@@ -19,6 +19,7 @@
 #define ESDLCMD_COMMON_HPP
 
 #include "jprop.hpp"
+#include "toolserr.hpp"
 #include "jargv.hpp"
 #include "common.hpp"
 #include "esdl_def.hpp"
@@ -283,7 +284,7 @@ public:
                 xmlOut.append("</esxdl>");
             }
             else
-                throw( MakeStringException(0, "Could not get ESDL structure") );
+                throw( MakeStringException(TOOLSERR_CouldNotGetEsdlStructure, "Could not get ESDL structure") );
         }
     }
 
@@ -315,7 +316,7 @@ public:
     static IClientWsESDLConfig * getWsESDLConfigSoapService(bool https, const char *server, const char *port, const char *username, const char *password)
     {
         if(server == NULL)
-            throw MakeStringException(-1, "Server url not specified");
+            throw MakeStringException(TOOLSERR_ServerUrlNotSpecified, "Server url not specified");
 
         VStringBuffer url("%s://%s:%s/WsESDLConfig/?ver_=%s", https ? "https" : "http", server, port, VERSION_FOR_ESDLCMD);
 
@@ -351,18 +352,18 @@ protected:
                 }
                 else
                 {
-                    throw( MakeStringException(0, "ESDL definition file source %s is empty", sourceFileName) );
+                    throw( MakeStringException(TOOLSERR_EsdlDefinitionFileSourceSIs, "ESDL definition file source %s is empty", sourceFileName) );
                 }
 
             }
             else
             {
-                throw( MakeStringException(0, "ESDL definition file source %s is not a file", sourceFileName) );
+                throw( MakeStringException(TOOLSERR_EsdlDefinitionFileSourceSIs_1, "ESDL definition file source %s is not a file", sourceFileName) );
             }
         }
         else
         {
-            throw( MakeStringException(0, "ESDL definition file source %s does not exist", sourceFileName) );
+            throw( MakeStringException(TOOLSERR_EsdlDefinitionFileSourceSDoes, "ESDL definition file source %s does not exist", sourceFileName) );
         }
     }
 };

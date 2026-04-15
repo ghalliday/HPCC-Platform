@@ -17,6 +17,7 @@
 
 #ifdef _USE_CPPUNIT
 #include "unittests.hpp"
+#include "testingerr.hpp"
 #include "jsocket.hpp"
 #include "jiouring.hpp"
 #include "jthread.hpp"
@@ -121,7 +122,7 @@ TestConnectionListener* createTestListener(unsigned short &port, bool useTLS = f
         msg.append(": ");
         lastException->errorMessage(msg);
     }
-    throw makeStringExceptionV(-1, "%s", msg.str());
+    throw makeStringExceptionV(TESTINGERR_S, "%s", msg.str());
 }
 
 // Simple client that connects and sends a message

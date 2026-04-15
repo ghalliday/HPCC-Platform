@@ -18,6 +18,7 @@
 #pragma warning( disable : 4786 )
 
 #include "basesecurity.hpp"
+#include "systemerr.hpp"
 #include "authmap.ipp"
 #include <apr_md5.h>
 #include "htpasswdSecurity.hpp"
@@ -30,7 +31,7 @@ public:
         if (secMgrCfg)
             pwFile.set(secMgrCfg->queryProp("@htpasswdFile"));
         if(pwFile.isEmpty())
-            throw MakeStringException(-1, "htpasswdFile not found in configuration");
+            throw MakeStringException(SYSTEMERR_HtpasswdfileNotFoundInConfiguration, "htpasswdFile not found in configuration");
 
         {
             Owned<IPropertyTree> authcfg = bindConfig->getPropTree("Authenticate");
@@ -113,7 +114,7 @@ protected:
 		StringBuffer user;
 		user.append(sec_user.getName());
 		if (0 == user.length())
-			throw MakeStringException(-1, "htpasswd User name is NULL");
+			throw MakeStringException(SYSTEMERR_HtpasswdUserNameIsNull, "htpasswd User name is NULL");
 
         if (sec_user.credentials().getSessionToken() != 0 || sec_user.getAuthenticateStatus()==AS_AUTHENTICATED)//Already authenticated if token or status set to authenticated
 		    return true;
@@ -206,12 +207,12 @@ private:
 		{
 			apr_status_t rc = apr_md5_init(&md5_ctx);
 			if (rc != APR_SUCCESS)
-				throw MakeStringException(-1, "htpasswd apr_md5_init returns error %d", rc );
+				throw MakeStringException(SYSTEMERR_HtpasswdAprMd5InitReturnsError, "htpasswd apr_md5_init returns error %d", rc );
 			apr_initialized = true;
 		}
 		catch (...)
 		{
-			throw MakeStringException(-1, "htpasswd exception calling apr_md5_init");
+			throw MakeStringException(SYSTEMERR_HtpasswdExceptionCallingAprMd5Init, "htpasswd exception calling apr_md5_init");
 		}
 	}
 
@@ -220,13 +221,13 @@ private:
 		try
 		{
 			if (!pwFile.length())
-				throw MakeStringException(-1, "htpasswd Password file not specified");
+				throw MakeStringException(SYSTEMERR_HtpasswdPasswordFileNotSpecified, "htpasswd Password file not specified");
 
 			Owned<IFile> file = createIFile(pwFile.str());
 			if (!file->exists())
 			{
 				userMap.kill();
-				throw MakeStringException(-1, "htpasswd Password file does not exist");
+				throw MakeStringException(SYSTEMERR_HtpasswdPasswordFileDoesNotExist, "htpasswd Password file does not exist");
 			}
 
 			bool isDir;
@@ -236,19 +237,19 @@ private:
 			if (isDir)
 			{
 				userMap.kill();
-				throw MakeStringException(-1, "htpasswd Password file specifies a directory");
+				throw MakeStringException(SYSTEMERR_HtpasswdPasswordFileSpecifiesADirectory, "htpasswd Password file specifies a directory");
 			}
 			if (0 == whenChanged.compare(pwFileLastMod))
 				return true;//Don't reload if file unchanged
 			userMap.kill();
 			OwnedIFileIO io = file->open(IFOread);
 			if (!io)
-				throw MakeStringException(-1, "htpasswd Unable to open Password file");
+				throw MakeStringException(SYSTEMERR_HtpasswdUnableToOpenPasswordFile, "htpasswd Unable to open Password file");
 
 			MemoryBuffer mb;
 			size32_t count = read(io, 0, (size32_t)-1, mb);
 			if (0 == count)
-				throw MakeStringException(-1, "htpasswd Password file is empty");
+				throw MakeStringException(SYSTEMERR_HtpasswdPasswordFileIsEmpty, "htpasswd Password file is empty");
 
 			mb.append((char)NULL);
 			char * p = (char*)mb.toByteArray();
@@ -261,7 +262,7 @@ private:
 				{
 					char * colon = strchr(next,':');
 					if (NULL == colon)
-						throw MakeStringException(-1, "htpasswd Password file appears malformed");
+						throw MakeStringException(SYSTEMERR_HtpasswdPasswordFileAppearsMalformed, "htpasswd Password file appears malformed");
 					*colon = (char)NULL;
 					userMap.setValue(next, colon+1);//username, encrypted password
 					next = strtok_r(NULL, seps, &saveptr);

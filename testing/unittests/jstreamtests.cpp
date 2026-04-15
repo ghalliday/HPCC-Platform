@@ -22,6 +22,7 @@
 
 #ifdef _USE_CPPUNIT
 #include <memory>
+#include "testingerr.hpp"
 #include <chrono>
 #include <algorithm>
 #include <random>
@@ -94,7 +95,7 @@ public:
         }
         for (size32_t i=0; i < len; i++)
             if (next[i] != (byte)(i * row))
-                throw MakeStringException(0, "Mismatch at %u,%u", i, row);
+                throw MakeStringException(TESTINGERR_MismatchAtUU, "Mismatch at %u,%u", i, row);
         if (!useRead)
             source->skip(len);
         return len;
@@ -122,7 +123,7 @@ public:
         const byte * next = (const byte *)source->peek(1, available);
         assertex(available >= 1);
         if (next[0] != (byte)(checkByte * row))
-            throw MakeStringException(0, "Skip mismatch at %u", row);
+            throw MakeStringException(TESTINGERR_SkipMismatchAtU, "Skip mismatch at %u", row);
         source->skip(len-checkByte);
         return len;
     }
@@ -174,7 +175,7 @@ public:
         assertex(read == len);
         for (size32_t i=0; i < len; i++)
             if (next[i] != (byte)(i * row + (row >> 3)))
-                throw MakeStringException(0, "Mismatch at %u,%u", i, row);
+                throw MakeStringException(TESTINGERR_MismatchAtUU, "Mismatch at %u,%u", i, row);
         return len;
     }
 

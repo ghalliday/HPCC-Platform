@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "AzureLogAnalyticsCurlClient.hpp"
+#include "systemerr.hpp"
 
 #include "platform.h"
 #include <curl/curl.h>
@@ -74,13 +75,13 @@ static size_t captureIncomingCURLReply(void* contents, size_t size, size_t nmemb
 static void requestLogAnalyticsAccessToken(StringBuffer & token, const char * clientID, const char * clientSecret, const char * tenantID)
 {
     if (isEmptyString(clientID))
-        throw makeStringExceptionV(-1, "%s Access token request: Azure Active Directory Application clientID is required!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestAzureActive, "%s Access token request: Azure Active Directory Application clientID is required!", COMPONENT_NAME);
 
     if (isEmptyString(tenantID))
-        throw makeStringExceptionV(-1, "%s Access token request: Azure tenantID is required!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestAzureTenantid, "%s Access token request: Azure tenantID is required!", COMPONENT_NAME);
 
     if (isEmptyString(clientSecret))
-        throw makeStringExceptionV(-1, "%s Access token request: Azure Active Directory Application Secret is required!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestAzureActive_1, "%s Access token request: Azure Active Directory Application Secret is required!", COMPONENT_NAME);
 
     OwnedPtrCustomFree<CURL, curl_easy_cleanup> curlHandle = curl_easy_init();
     if (curlHandle)
@@ -97,28 +98,28 @@ static void requestLogAnalyticsAccessToken(StringBuffer & token, const char * cl
             "*/
 
         if (curl_easy_setopt(curlHandle, CURLOPT_URL, tokenRequestURL.str()) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Access token request: Could not set 'CURLOPT_URL' (%s)!", COMPONENT_NAME,  tokenRequestURL.str());
+            throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestCouldNot, "%s: Access token request: Could not set 'CURLOPT_URL' (%s)!", COMPONENT_NAME,  tokenRequestURL.str());
 
         if (curl_easy_setopt(curlHandle, CURLOPT_POST, 1) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s Access token request: Could not set 'CURLOPT_POST' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestCouldNot_1, "%s Access token request: Could not set 'CURLOPT_POST' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_POSTFIELDS, tokenRequestFields.str()) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s Access token request: Could not set 'CURLOPT_POSTFIELDS' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestCouldNot_2, "%s Access token request: Could not set 'CURLOPT_POSTFIELDS' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_NOPROGRESS, 1) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s Access token request: Could not disable 'CURLOPT_NOPROGRESS' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestCouldNot_3, "%s Access token request: Could not disable 'CURLOPT_NOPROGRESS' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_WRITEFUNCTION, captureIncomingCURLReply) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s Access token request: Could not set 'CURLOPT_WRITEFUNCTION' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestCouldNot_4, "%s Access token request: Could not set 'CURLOPT_WRITEFUNCTION' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_WRITEDATA, static_cast<void*>(&captureBuffer)) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s Access token request: Could not set 'CURLOPT_WRITEDATA' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestCouldNot_5, "%s Access token request: Could not set 'CURLOPT_WRITEDATA' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_USERAGENT, "HPCC Systems Log Access client") != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s Access token request: Could not set 'CURLOPT_USERAGENT' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestCouldNot_6, "%s Access token request: Could not set 'CURLOPT_USERAGENT' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_FAILONERROR, 0L) != CURLE_OK) // Do not treat non-ok HTTP codes as an error
-            throw makeStringExceptionV(-1, "%s Access token request: Could not set 'CURLOPT_FAILONERROR' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestCouldNot_7, "%s Access token request: Could not set 'CURLOPT_FAILONERROR' option!", COMPONENT_NAME);
 
         try
         {
@@ -126,7 +127,7 @@ static void requestLogAnalyticsAccessToken(StringBuffer & token, const char * cl
         }
         catch (...)
         {
-            throw makeStringExceptionV(-1, "%s Access token request: Unknown error!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestUnknownError, "%s Access token request: Unknown error!", COMPONENT_NAME);
         }
 
         StringBuffer tokenReqResponse;
@@ -160,17 +161,17 @@ static void requestLogAnalyticsAccessToken(StringBuffer & token, const char * cl
                         }
                         else
                         {
-                            throw makeStringExceptionV(-1, "Received invalid token request response: '%s'",  tokenReqResponse.str());
+                            throw makeStringExceptionV(SYSTEMERR_ReceivedInvalidTokenRequestResponseS, "Received invalid token request response: '%s'",  tokenReqResponse.str());
                         }
                     }
                     catch(const std::exception& e)
                     {
-                        throw makeStringExceptionV(-1, "%s Could not parse response for Azure Log Analytics API access token request: %s", COMPONENT_NAME, e.what());
+                        throw makeStringExceptionV(SYSTEMERR_SCouldNotParseResponseFor, "%s Could not parse response for Azure Log Analytics API access token request: %s", COMPONENT_NAME, e.what());
                     }
                 }
                 else
                 {
-                    throw makeStringExceptionV(-1, "%s Access token request: Empty response received! This could indicate a problem with the request or the server", COMPONENT_NAME);
+                    throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestEmptyResponse, "%s Access token request: Empty response received! This could indicate a problem with the request or the server", COMPONENT_NAME);
                 }
             }
             else
@@ -189,29 +190,29 @@ static void requestLogAnalyticsAccessToken(StringBuffer & token, const char * cl
                 switch (httpResponseCode)
                 {
                     case 400L:
-                        throw makeStringExceptionV(-1,"%s Access token request: Error (400): Bad Request - Request is badly formed and failed (permanently): '%s'", COMPONENT_NAME, tokenReqResponse.str());
+                        throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestError400, "%s Access token request: Error (400): Bad Request - Request is badly formed and failed (permanently): '%s'", COMPONENT_NAME, tokenReqResponse.str());
                     case 401L:
-                        throw makeStringExceptionV(-1,"%s Access token request: Error (401): Unauthorized - Client needs to authenticate first: '%s'", COMPONENT_NAME, tokenReqResponse.str());
+                        throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestError401, "%s Access token request: Error (401): Unauthorized - Client needs to authenticate first: '%s'", COMPONENT_NAME, tokenReqResponse.str());
                     case 403L:
-                        throw makeStringExceptionV(-1,"%s Access token request: Error (403): Forbidden - Client request is denied: '%s'", COMPONENT_NAME, tokenReqResponse.str());
+                        throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestError403, "%s Access token request: Error (403): Forbidden - Client request is denied: '%s'", COMPONENT_NAME, tokenReqResponse.str());
                     case 404L:
-                        throw makeStringExceptionV(-1,"%s Access token request: Error (404): NotFound - Request references a non-existing entity. Ensure configured tenantID is valid!: '%s'", COMPONENT_NAME, tokenReqResponse.str());
+                        throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestError404, "%s Access token request: Error (404): NotFound - Request references a non-existing entity. Ensure configured tenantID is valid!: '%s'", COMPONENT_NAME, tokenReqResponse.str());
                     case 408L:
-                        throw makeStringExceptionV(-1,"%s Access token request: Error (408): Timeout - Request has timed out: '%s'", COMPONENT_NAME, tokenReqResponse.str());
+                        throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestError408, "%s Access token request: Error (408): Timeout - Request has timed out: '%s'", COMPONENT_NAME, tokenReqResponse.str());
                     case 500L:
-                        throw makeStringExceptionV(-1,"%s Access token request: Error (500): Internal Server Error - Azure AD service found an error while processing the request: '%s'", COMPONENT_NAME, tokenReqResponse.str());
+                        throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestError500, "%s Access token request: Error (500): Internal Server Error - Azure AD service found an error while processing the request: '%s'", COMPONENT_NAME, tokenReqResponse.str());
                     case 502L:
                     case 503L:
                     case 504L:
-                        throw makeStringExceptionV(-1,"%s Access token request: Error (%ld): Gateway/Service Unavailable/Timeout - Temporary Azure AD or network issues: '%s'", COMPONENT_NAME, httpResponseCode, tokenReqResponse.str());
+                        throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestErrorLd, "%s Access token request: Error (%ld): Gateway/Service Unavailable/Timeout - Temporary Azure AD or network issues: '%s'", COMPONENT_NAME, httpResponseCode, tokenReqResponse.str());
                     default:
-                        throw makeStringExceptionV(-1,"%s Access token request: Error (%ld): '%s'", COMPONENT_NAME, httpResponseCode, tokenReqResponse.str());
+                        throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestErrorLd_1, "%s Access token request: Error (%ld): '%s'", COMPONENT_NAME, httpResponseCode, tokenReqResponse.str());
                 }
             }
         }
         else
         {
-            throw makeStringExceptionV(-1, "%s Access token request: CURL ACTION FAILED! '%s'", COMPONENT_NAME, curl_easy_strerror(curlResponseCode));
+            throw makeStringExceptionV(SYSTEMERR_SAccessTokenRequestCurlAction, "%s Access token request: CURL ACTION FAILED! '%s'", COMPONENT_NAME, curl_easy_strerror(curlResponseCode));
         }
     }
 }
@@ -225,16 +226,16 @@ size_t stringCallback(char *contents, size_t size, size_t nmemb, void *userp)
 static void submitKQLQuery(std::string & readBuffer, const char * token, const char * kql, const char * workspaceID, const char * timeSpan)
 {
     if (isEmptyString(token))
-        throw makeStringExceptionV(-1, "%s KQL request: Empty LogAnalytics Workspace Token detected!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SKqlRequestEmptyLoganalyticsWorkspace, "%s KQL request: Empty LogAnalytics Workspace Token detected!", COMPONENT_NAME);
 
     if (isEmptyString(kql))
-        throw makeStringExceptionV(-1, "%s KQL request: Empty KQL query detected!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SKqlRequestEmptyKqlQuery, "%s KQL request: Empty KQL query detected!", COMPONENT_NAME);
 
     if (isEmptyString(workspaceID))
-        throw makeStringExceptionV(-1, "%s KQL request: Empty WorkspaceID detected!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SKqlRequestEmptyWorkspaceidDetected, "%s KQL request: Empty WorkspaceID detected!", COMPONENT_NAME);
 
     if (isEmptyString(timeSpan))
-        throw makeStringExceptionV(-1, "%s KQL request: Empty timeSpan detected!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SKqlRequestEmptyTimespanDetected, "%s KQL request: Empty timeSpan detected!", COMPONENT_NAME);
 
     OwnedPtrCustomFree<CURL, curl_easy_cleanup> curlHandle = curl_easy_init();
     if (curlHandle)
@@ -262,34 +263,34 @@ static void submitKQLQuery(std::string & readBuffer, const char * token, const c
         headers = curl_slist_append(headers, bearerHeader.str());
 
         if (curl_easy_setopt(curlHandle, CURLOPT_HTTPHEADER, headers.getClear()) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_HTTPHEADER'", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot, "%s: Log query request: Could not set 'CURLOPT_HTTPHEADER'", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_URL, kqlQueryString.str()) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_URL' (%s)!", COMPONENT_NAME, kqlQueryString.str());
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_1, "%s: Log query request: Could not set 'CURLOPT_URL' (%s)!", COMPONENT_NAME, kqlQueryString.str());
 
         if (curl_easy_setopt(curlHandle, CURLOPT_POST, 0) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not disable 'CURLOPT_POST' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_2, "%s: Log query request: Could not disable 'CURLOPT_POST' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_HTTPGET' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_3, "%s: Log query request: Could not set 'CURLOPT_HTTPGET' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_NOPROGRESS, 1) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_NOPROGRESS' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_4, "%s: Log query request: Could not set 'CURLOPT_NOPROGRESS' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_WRITEFUNCTION, stringCallback) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_WRITEFUNCTION' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_5, "%s: Log query request: Could not set 'CURLOPT_WRITEFUNCTION' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_WRITEDATA, &readBuffer) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_WRITEDATA' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_6, "%s: Log query request: Could not set 'CURLOPT_WRITEDATA' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_USERAGENT, "HPCC Systems Log Access client") != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_USERAGENT' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_7, "%s: Log query request: Could not set 'CURLOPT_USERAGENT' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_ERRORBUFFER, curlErrBuffer) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_ERRORBUFFER' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_8, "%s: Log query request: Could not set 'CURLOPT_ERRORBUFFER' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_FAILONERROR, 1L) != CURLE_OK) // non HTTP Success treated as error
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_FAILONERROR'option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_9, "%s: Log query request: Could not set 'CURLOPT_FAILONERROR'option!", COMPONENT_NAME);
 
         try
         {
@@ -297,7 +298,7 @@ static void submitKQLQuery(std::string & readBuffer, const char * token, const c
         }
         catch (...)
         {
-            throw makeStringExceptionV(-1, "%s KQL request: Unknown libcurl error", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SKqlRequestUnknownLibcurlError, "%s KQL request: Unknown libcurl error", COMPONENT_NAME);
         }
 
         if (curlResponseCode != CURLE_OK)
@@ -309,27 +310,27 @@ static void submitKQLQuery(std::string & readBuffer, const char * token, const c
             switch (response_code)
             {
             case 400L:
-                throw makeStringExceptionV(-1,"%s KQL response: Error (400): Request is badly formed and failed (permanently): '%s'", COMPONENT_NAME, curlErrBuffer);
+                throw makeStringExceptionV(SYSTEMERR_SKqlResponseError400Request, "%s KQL response: Error (400): Request is badly formed and failed (permanently): '%s'", COMPONENT_NAME, curlErrBuffer);
             case 401L:
-                throw makeStringExceptionV(-1,"%s KQL response: Error (401): Unauthorized - Client needs to authenticate first: '%s'", COMPONENT_NAME, curlErrBuffer);
+                throw makeStringExceptionV(SYSTEMERR_SKqlResponseError401Unauthorized, "%s KQL response: Error (401): Unauthorized - Client needs to authenticate first: '%s'", COMPONENT_NAME, curlErrBuffer);
             case 403L:
-                throw makeStringExceptionV(-1,"%s KQL response: Error (403): Forbidden - Client request is denied: '%s'", COMPONENT_NAME, curlErrBuffer);
+                throw makeStringExceptionV(SYSTEMERR_SKqlResponseError403Forbidden, "%s KQL response: Error (403): Forbidden - Client request is denied: '%s'", COMPONENT_NAME, curlErrBuffer);
             case 404L:
-                throw makeStringExceptionV(-1,"%s KQL request: Error (404): NotFound - Request references a non-existing entity. Ensure configured WorkspaceID is valid!: '%s'", COMPONENT_NAME, curlErrBuffer);
+                throw makeStringExceptionV(SYSTEMERR_SKqlRequestError404Notfound, "%s KQL request: Error (404): NotFound - Request references a non-existing entity. Ensure configured WorkspaceID is valid!: '%s'", COMPONENT_NAME, curlErrBuffer);
             case 413:
-                throw makeStringExceptionV(-1,"%s KQL request: Error (413): PayloadTooLarge - Request payload exceeded limits: '%s'", COMPONENT_NAME, curlErrBuffer);
+                throw makeStringExceptionV(SYSTEMERR_SKqlRequestError413Payloadtoolarge, "%s KQL request: Error (413): PayloadTooLarge - Request payload exceeded limits: '%s'", COMPONENT_NAME, curlErrBuffer);
             case 429:
-                throw makeStringExceptionV(-1,"%s KQL request: Error (429): TooManyRequests - Request has been denied because of throttling: '%s'", COMPONENT_NAME, curlErrBuffer);
+                throw makeStringExceptionV(SYSTEMERR_SKqlRequestError429Toomanyrequests, "%s KQL request: Error (429): TooManyRequests - Request has been denied because of throttling: '%s'", COMPONENT_NAME, curlErrBuffer);
             case 504:
-                throw makeStringExceptionV(-1,"%s KQL request: Error (504): Timeout - Request has timed out: '%s'", COMPONENT_NAME, (curlErrBuffer[0] ? curlErrBuffer : "" ));
+                throw makeStringExceptionV(SYSTEMERR_SKqlRequestError504Timeout, "%s KQL request: Error (504): Timeout - Request has timed out: '%s'", COMPONENT_NAME, (curlErrBuffer[0] ? curlErrBuffer : "" ));
             case 520:
-                throw makeStringExceptionV(-1,"%s KQL request: Error (520): Azure ServiceError - Service found an error while processing the request: '%s'", COMPONENT_NAME, curlErrBuffer);
+                throw makeStringExceptionV(SYSTEMERR_SKqlRequestError520Azure, "%s KQL request: Error (520): Azure ServiceError - Service found an error while processing the request: '%s'", COMPONENT_NAME, curlErrBuffer);
             default:
-                throw makeStringExceptionV(-1,"%s KQL request: Error (%d): '%s'", COMPONENT_NAME, curlResponseCode, (curlErrBuffer[0] ? curlErrBuffer : "Unknown Error"));
+                throw makeStringExceptionV(SYSTEMERR_SKqlRequestErrorDS, "%s KQL request: Error (%d): '%s'", COMPONENT_NAME, curlResponseCode, (curlErrBuffer[0] ? curlErrBuffer : "Unknown Error"));
             }
         }
         else if (readBuffer.length() == 0)
-            throw makeStringExceptionV(-1, "%s KQL request: Empty response!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SKqlRequestEmptyResponse, "%s KQL request: Empty response!", COMPONENT_NAME);
     }
 }
 
@@ -347,7 +348,7 @@ AzureLogAnalyticsCurlClient::AzureLogAnalyticsCurlClient(IPropertyTree & logAcce
 
     Owned<const IPropertyTree> secretTree = getSecret(azureLogAccessSecretCategory, azureLogAccessSecretName);
     if (!secretTree)
-        throw makeStringExceptionV(-1, "%s: Could not fetch %s information!", COMPONENT_NAME, azureLogAccessSecretName);
+        throw makeStringExceptionV(SYSTEMERR_SCouldNotFetchSInformation, "%s: Could not fetch %s information!", COMPONENT_NAME, azureLogAccessSecretName);
 
     getSecretKeyValue(m_aadTenantID.clear(), secretTree, azureLogAccessSecretAADTenantID);
     if (m_aadTenantID.isEmpty())
@@ -355,7 +356,7 @@ AzureLogAnalyticsCurlClient::AzureLogAnalyticsCurlClient(IPropertyTree & logAcce
         WARNLOG("%s: Could not find '%s.%s' secret value!", COMPONENT_NAME, azureLogAccessSecretName, azureLogAccessSecretAADTenantID);
         m_aadTenantID.set(logAccessPluginConfig.queryProp("connection/@tenantID"));
         if (m_aadTenantID.isEmpty())
-            throw makeStringExceptionV(-1, "%s: Could not find AAD Tenant ID, provide it as part of '%s.%s' secret, or connection/@tenantID in AzureClient LogAccess configuration!", COMPONENT_NAME, azureLogAccessSecretName, azureLogAccessSecretAADTenantID);
+            throw makeStringExceptionV(SYSTEMERR_SCouldNotFindAadTenant, "%s: Could not find AAD Tenant ID, provide it as part of '%s.%s' secret, or connection/@tenantID in AzureClient LogAccess configuration!", COMPONENT_NAME, azureLogAccessSecretName, azureLogAccessSecretAADTenantID);
     }
 
     getSecretKeyValue(m_aadClientID.clear(), secretTree, azureLogAccessSecretAADClientID);
@@ -365,13 +366,13 @@ AzureLogAnalyticsCurlClient::AzureLogAnalyticsCurlClient(IPropertyTree & logAcce
         m_aadClientID.set(logAccessPluginConfig.queryProp("connection/@clientID"));
 
         if (m_aadClientID.isEmpty())
-            throw makeStringExceptionV(-1, "%s: Could not find AAD Client ID, provide it as part of %s.%s secret, or connection/@clientID in AzureClient LogAccess configuration!", COMPONENT_NAME, azureLogAccessSecretName, azureLogAccessSecretAADClientID);
+            throw makeStringExceptionV(SYSTEMERR_SCouldNotFindAadClient, "%s: Could not find AAD Client ID, provide it as part of %s.%s secret, or connection/@clientID in AzureClient LogAccess configuration!", COMPONENT_NAME, azureLogAccessSecretName, azureLogAccessSecretAADClientID);
     }
 
     getSecretKeyValue(m_aadClientSecret.clear(),secretTree, azureLogAccessSecretAADClientSecret);
     if (m_aadClientSecret.isEmpty())
     {
-        throw makeStringExceptionV(-1, "%s: Required secret '%s.%s' not found!", COMPONENT_NAME, azureLogAccessSecretName, azureLogAccessSecretAADClientSecret);
+        throw makeStringExceptionV(SYSTEMERR_SRequiredSecretSSNot, "%s: Required secret '%s.%s' not found!", COMPONENT_NAME, azureLogAccessSecretName, azureLogAccessSecretAADClientSecret);
     }
 
     getSecretKeyValue(m_logAnalyticsWorkspaceID.clear(), secretTree, azureLogAccessSecretWorkspaceID);
@@ -381,7 +382,7 @@ AzureLogAnalyticsCurlClient::AzureLogAnalyticsCurlClient(IPropertyTree & logAcce
         m_logAnalyticsWorkspaceID.set(logAccessPluginConfig.queryProp("connection/@workspaceID"));
 
         if (m_logAnalyticsWorkspaceID.isEmpty())
-            throw makeStringExceptionV(-1, "%s: Could not find ALA Workspace ID, provide it as part of %s.%s secret, or connection/@workspaceID in AzureClient LogAccess configuration!", COMPONENT_NAME, azureLogAccessSecretName, azureLogAccessSecretWorkspaceID);
+            throw makeStringExceptionV(SYSTEMERR_SCouldNotFindAlaWorkspace, "%s: Could not find ALA Workspace ID, provide it as part of %s.%s secret, or connection/@workspaceID in AzureClient LogAccess configuration!", COMPONENT_NAME, azureLogAccessSecretName, azureLogAccessSecretWorkspaceID);
     }
 
     m_pluginCfg.set(&logAccessPluginConfig);
@@ -597,7 +598,7 @@ bool generateHPCCLogColumnstAllColumns(StringBuffer & kql, const char * colName,
     else if (!targetsV2 && strcmp(colName, "LogEntry")==0)
         sourceCol.append(colName);
     else
-        throw makeStringExceptionV(-1, "%s: Invalid Azure Log Analytics log message column name detected: '%s'. Review logAccess configuration.", COMPONENT_NAME, colName);
+        throw makeStringExceptionV(SYSTEMERR_SInvalidAzureLogAnalyticsLog, "%s: Invalid Azure Log Analytics log message column name detected: '%s'. Review logAccess configuration.", COMPONENT_NAME, colName);
 
     if (!blobMode)
     {
@@ -662,12 +663,12 @@ void AzureLogAnalyticsCurlClient::searchMetaData(StringBuffer & search, const Lo
         }
         else
         {
-            throw makeStringExceptionV(-1, "%s: Custom return columns specified, but no columns provided", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SCustomReturnColumnsSpecifiedBut, "%s: Custom return columns specified, but no columns provided", COMPONENT_NAME);
         }
         break;
     }
     default:
-        throw makeStringExceptionV(-1, "%s: Could not determine return colums mode", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SCouldNotDetermineReturnColums, "%s: Could not determine return colums mode", COMPONENT_NAME);
     }
 
     //currently setting default behaviour to sort by timestamp in ascending manner, in future this should be configurable
@@ -683,7 +684,7 @@ void AzureLogAnalyticsCurlClient::searchMetaData(StringBuffer & search, const Lo
 void AzureLogAnalyticsCurlClient::azureLogAnalyticsQueryTimeSpanString(StringBuffer & queryTimeSpan, std::time_t from, std::time_t to)
 {
     if (from == -1)
-        throw makeStringExceptionV(-1, "%s: Invalid 'from' timestamp detected", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SInvalidFromTimestampDetected, "%s: Invalid 'from' timestamp detected", COMPONENT_NAME);
 
     char fromTimeStr[40];
     std::strftime(fromTimeStr, sizeof(fromTimeStr), "%Y-%m-%dT%H:%M:%S", std::gmtime(&from));
@@ -700,7 +701,7 @@ void AzureLogAnalyticsCurlClient::azureLogAnalyticsQueryTimeSpanString(StringBuf
 void AzureLogAnalyticsCurlClient::azureLogAnalyticsTimestampQueryRangeString(StringBuffer & range, const char * timeStampField, std::time_t from, std::time_t to)
 {
     if (isEmptyString(timeStampField))
-        throw makeStringExceptionV(-1, "%s: TimeStamp Field must be provided", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_STimestampFieldMustBeProvided, "%s: TimeStamp Field must be provided", COMPONENT_NAME);
 
     //let startDateTime = datetime('2022-05-11T06:45:00.000Z');
     //let endDateTime = datetime('2022-05-11T13:00:00.000Z');
@@ -715,13 +716,13 @@ void AzureLogAnalyticsCurlClient::azureLogAnalyticsTimestampQueryRangeString(Str
 void throwIfMultiIndexDetected(const char * currentIndex, const char * proposedIndex)
 {
     if (!isEmptyString(currentIndex) && !strsame(currentIndex,proposedIndex))
-        throw makeStringExceptionV(-1, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, currentIndex, proposedIndex);
+        throw makeStringExceptionV(SYSTEMERR_SMultiIndexQueryNotSupported, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, currentIndex, proposedIndex);
 }
 
 void AzureLogAnalyticsCurlClient::populateKQLQueryString(StringBuffer & queryString, StringBuffer & queryIndex, const ILogAccessFilter * filter)
 {
     if (filter == nullptr)
-        throw makeStringExceptionV(-1, "%s: Null filter detected while creating Azure KQL query string", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SNullFilterDetectedWhileCreating, "%s: Null filter detected while creating Azure KQL query string", COMPONENT_NAME);
 
     StringBuffer queryValue;
     std::string queryField = m_globalSearchColName.str();
@@ -738,7 +739,7 @@ void AzureLogAnalyticsCurlClient::populateKQLQueryString(StringBuffer & queryStr
     case LOGACCESS_FILTER_jobid:
     {
         if (m_workunitSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'JobID' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SJobidLogEntryFieldNot, "%s: 'JobID' log entry field not configured", COMPONENT_NAME);
 
         queryField = m_workunitSearchColName.str();
 
@@ -754,7 +755,7 @@ void AzureLogAnalyticsCurlClient::populateKQLQueryString(StringBuffer & queryStr
     case LOGACCESS_FILTER_class:
     {
         if (m_classSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'Class' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SClassLogEntryFieldNot, "%s: 'Class' log entry field not configured", COMPONENT_NAME);
 
         queryField = m_classSearchColName.str();
 
@@ -770,7 +771,7 @@ void AzureLogAnalyticsCurlClient::populateKQLQueryString(StringBuffer & queryStr
     case LOGACCESS_FILTER_trace:
     {
         if (m_traceSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'Trace' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_STraceLogEntryFieldNot, "%s: 'Trace' log entry field not configured", COMPONENT_NAME);
 
         queryField = m_traceSearchColName.str();
 
@@ -786,7 +787,7 @@ void AzureLogAnalyticsCurlClient::populateKQLQueryString(StringBuffer & queryStr
     case LOGACCESS_FILTER_span:
     {
         if (m_spanSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'Span' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SSpanLogEntryFieldNot, "%s: 'Span' log entry field not configured", COMPONENT_NAME);
 
         queryField = m_spanSearchColName.str();
 
@@ -802,7 +803,7 @@ void AzureLogAnalyticsCurlClient::populateKQLQueryString(StringBuffer & queryStr
     case LOGACCESS_FILTER_audience:
     {
         if (m_audienceSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'Audience' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SAudienceLogEntryFieldNot, "%s: 'Audience' log entry field not configured", COMPONENT_NAME);
         
         queryField = m_audienceSearchColName.str();
 
@@ -818,7 +819,7 @@ void AzureLogAnalyticsCurlClient::populateKQLQueryString(StringBuffer & queryStr
     case LOGACCESS_FILTER_component:
     {
         if (m_componentsSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'Host' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SHostLogEntryFieldNot, "%s: 'Host' log entry field not configured", COMPONENT_NAME);
 
         queryField = m_componentsSearchColName.str();
 
@@ -834,7 +835,7 @@ void AzureLogAnalyticsCurlClient::populateKQLQueryString(StringBuffer & queryStr
     case LOGACCESS_FILTER_host:
     {
         if (m_hostSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'Host' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SHostLogEntryFieldNot, "%s: 'Host' log entry field not configured", COMPONENT_NAME);
 
         queryField = m_hostSearchColName.str();
 
@@ -850,7 +851,7 @@ void AzureLogAnalyticsCurlClient::populateKQLQueryString(StringBuffer & queryStr
     case LOGACCESS_FILTER_instance:
     {
         if (m_instanceSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'Instance' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SInstanceLogEntryFieldNot, "%s: 'Instance' log entry field not configured", COMPONENT_NAME);
 
         if (m_instanceLookupKeyColumn.length()>0 && !strsame(m_instanceLookupKeyColumn.str(),m_instanceSearchColName.str()))
             queryField = m_instanceLookupKeyColumn.str();
@@ -868,7 +869,7 @@ void AzureLogAnalyticsCurlClient::populateKQLQueryString(StringBuffer & queryStr
     }
     case LOGACCESS_FILTER_wildcard:
         if (queryValue.isEmpty())
-            throw makeStringExceptionV(-1, "%s: Wildcard filter cannot be empty!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SWildcardFilterCannotBeEmpty, "%s: Wildcard filter cannot be empty!", COMPONENT_NAME);
 
         queryOperator = " contains ";
         DBGLOG("%s: Searching log entries by wildcard filter: '%s %s %s'...", COMPONENT_NAME, queryField.c_str(), queryOperator.c_str(), queryValue.str());
@@ -902,11 +903,11 @@ void AzureLogAnalyticsCurlClient::populateKQLQueryString(StringBuffer & queryStr
     }
     case LOGACCESS_FILTER_column:
         if (filter->getFieldName() == nullptr)
-            throw makeStringExceptionV(-1, "%s: empty field name detected in filter by column!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SEmptyFieldNameDetectedIn, "%s: empty field name detected in filter by column!", COMPONENT_NAME);
         queryField = filter->getFieldName();
         break;
     default:
-        throw makeStringExceptionV(-1, "%s: Unknown query criteria type encountered: '%s'", COMPONENT_NAME, queryValue.str());
+        throw makeStringExceptionV(SYSTEMERR_SUnknownQueryCriteriaTypeEncountered, "%s: Unknown query criteria type encountered: '%s'", COMPONENT_NAME, queryValue.str());
     }
 
     if (queryIndex.isEmpty())
@@ -940,7 +941,7 @@ void AzureLogAnalyticsCurlClient::populateKQLQueryString(StringBuffer & queryStr
     {
         const LogAccessTimeRange & trange = options.getTimeRange();
         if (trange.getStartt().isNull())
-            throw makeStringExceptionV(-1, "%s: start time must be provided!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SStartTimeMustBeProvided, "%s: start time must be provided!", COMPONENT_NAME);
 
         //Forced to format log structure in query until a proper log ingest rule is created
         queryIndex.set(m_globalIndexSearchPattern.str());
@@ -978,21 +979,21 @@ void AzureLogAnalyticsCurlClient::populateKQLQueryString(StringBuffer & queryStr
     }
     catch (std::runtime_error &e)
     {
-        throw makeStringExceptionV(-1, "%s: Error populating KQL search string: %s", COMPONENT_NAME, e.what());
+        throw makeStringExceptionV(SYSTEMERR_SErrorPopulatingKqlSearchString, "%s: Error populating KQL search string: %s", COMPONENT_NAME, e.what());
     }
     catch (IException * e)
     {
         StringBuffer mess;
         e->errorMessage(mess);
         e->Release();
-        throw makeStringExceptionV(-1, "%s: Error populating KQL search string: %s", COMPONENT_NAME, mess.str());
+        throw makeStringExceptionV(SYSTEMERR_SErrorPopulatingKqlSearchString, "%s: Error populating KQL search string: %s", COMPONENT_NAME, mess.str());
     }
 }
 
 unsigned AzureLogAnalyticsCurlClient::processHitsJsonResp(IPropertyTreeIterator * lines, IPropertyTreeIterator * columns, StringBuffer & returnbuf, LogAccessLogFormat format, bool wrapped, bool reportHeader)
 {
     if (!lines)
-        throw makeStringExceptionV(-1, "%s: Detected null 'rows' Azure Log Analytics KQL response", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SDetectedNullRowsAzureLog, "%s: Detected null 'rows' Azure Log Analytics KQL response", COMPONENT_NAME);
 
     StringArray header;
     ForEach(*columns)
@@ -1124,7 +1125,7 @@ bool AzureLogAnalyticsCurlClient::processSearchJsonResp(LogQueryResultDetails & 
 {
     Owned<IPropertyTree> tree = createPTreeFromJSONString(retrievedDocument.c_str());
     if (!tree)
-        throw makeStringExceptionV(-1, "%s: Could not parse query response", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SCouldNotParseQueryResponse, "%s: Could not parse query response", COMPONENT_NAME);
 
     resultDetails.totalReceived = processHitsJsonResp(tree->getElements("tables/rows"), tree->getElements("tables/columns"), returnbuf, format, true, reportHeader);
     resultDetails.totalAvailable = 0;
@@ -1385,7 +1386,7 @@ bool AzureLogAnalyticsCurlClient::fetchLog(LogQueryResultDetails & resultDetails
     requestLogAnalyticsAccessToken(token, m_aadClientID, m_aadClientSecret, m_aadTenantID); //throws if issues encountered
 
     if (token.isEmpty())
-        throw makeStringExceptionV(-1, "%s Could not fetch valid Azure Log Analytics access token!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SCouldNotFetchValidAzure, "%s Could not fetch valid Azure Log Analytics access token!", COMPONENT_NAME);
 
     StringBuffer queryString, queryIndex;
     populateKQLQueryString(queryString, queryIndex, options);

@@ -19,6 +19,7 @@
 #define BASESECURITY_INCL
 
 #include <stdlib.h>
+#include "systemerr.hpp"
 #include "seclib.hpp"
 #include "jliball.hpp"
 #include "authmap.ipp"
@@ -47,9 +48,9 @@ protected:
             location.getProp("@description", description);
 
             if (pathStr.length() == 0)
-                throw makeStringException(-1, "path empty in Authenticate/Location");
+                throw makeStringException(SYSTEMERR_PathEmptyInAuthenticateLocation, "path empty in Authenticate/Location");
             if (rstr.length() == 0)
-                throw makeStringException(-1, "resource empty in Authenticate/Location");
+                throw makeStringException(SYSTEMERR_ResourceEmptyInAuthenticateLocation, "resource empty in Authenticate/Location");
 
             ISecResourceList *rlist = authMap->queryResourceList(pathStr);
             if (rlist == nullptr)

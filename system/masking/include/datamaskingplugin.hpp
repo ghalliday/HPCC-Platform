@@ -18,6 +18,7 @@
 #pragma once
 
 #include "datamaskingshared.hpp"
+#include "systemerr.hpp"
 #include "jexcept.hpp"
 #include "jlog.hpp"
 #include <algorithm>
@@ -324,13 +325,13 @@ namespace DataMasking
         {
             if (container)
                 return container->tracerRef();
-            throw makeStringExceptionV(-1, "%s: invalid profile entity - missing container", tracePrefix());
+            throw makeStringExceptionV(SYSTEMERR_SInvalidProfileEntityMissingContainer, "%s: invalid profile entity - missing container", tracePrefix());
         }
         virtual ITracer& tracerRef(const IDataMaskingProfileContext* context) const override
         {
             if (container)
                 return container->tracerRef(context);
-            throw makeStringExceptionV(-1, "%s: invalid profile entity - missing container", tracePrefix());
+            throw makeStringExceptionV(SYSTEMERR_SInvalidProfileEntityMissingContainer, "%s: invalid profile entity - missing container", tracePrefix());
         }
         virtual const char* tracePrefix() const override
         {
@@ -1751,7 +1752,7 @@ namespace DataMasking
         virtual IDataMaskingProfile& query() override
         {
             if (!isValid())
-                throw makeStringException(-1, "invalid data masking plugin query");
+                throw makeStringException(SYSTEMERR_InvalidDataMaskingPluginQuery, "invalid data masking plugin query");
             return *(*cur);
         }
     protected:

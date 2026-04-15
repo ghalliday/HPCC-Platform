@@ -569,5 +569,8 @@
 #define ESPERR_HttpresponseNotSpecifiedForCflushingwufilebuffer 34765
 #define ESPERR_EsdlErrorProcesselementNotImplementedFor 34766
 #define ESPERR_FeatureNotSupportedDataForOnly 34767
+#define ESPERR_EmptySqlRequest 34768
+#define ESPERR_CouldNotGenerateEclFromSql 34769
+#define ESPERR_RunOutOfResources 34770
 
 #endif // ESPERR_HPP

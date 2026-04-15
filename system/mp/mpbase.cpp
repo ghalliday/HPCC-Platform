@@ -17,6 +17,7 @@
 
 #define mp_decl DECL_EXPORT
 #include "platform.h"
+#include "systemerr.hpp"
 #include "jlib.hpp"
 #include "jlog.hpp"
 #include "jtime.hpp"
@@ -559,7 +560,7 @@ public:
             if (!epa.item(idx).isNull())
                 return createIGroup(epa);
         }
-        throw MakeStringException(0, "Invalid group %s (all nodes null)", s);
+        throw MakeStringException(SYSTEMERR_InvalidGroupSAllNodesNull, "Invalid group %s (all nodes null)", s);
     }
 
     void serialize(MemoryBuffer &tgt) const 
@@ -724,7 +725,7 @@ IGroup *createIGroupRetry(const char *endpointlist,unsigned short defport, unsig
         // on resolve failure, pause for a short time to avoid spinning too fast
         Sleep(5);
     }
-    throw makeStringExceptionV(0, "Timedout trying to resolve group: %s", endpointlist);
+    throw makeStringExceptionV(SYSTEMERR_TimedoutTryingToResolveGroupS, "Timedout trying to resolve group: %s", endpointlist);
 }
 
 IGroup *deserializeIGroup(MemoryBuffer &src)

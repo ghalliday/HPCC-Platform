@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <curl/curl.h>
+#include "systemerr.hpp"
 #include <iostream>
 
 #include <opensslcommon.hpp>
@@ -57,13 +58,13 @@ static std::string hashString(const std::string& s)
     memset(hashedValue, 0, sizeof(hashedValue));
 
     if (!SHA256_Init(&context))
-        throw makeStringException(-1, "CJwtSecurityManager: OpenSSL ERROR calling SHA256_Init while hashing user password");
+        throw makeStringException(SYSTEMERR_CjwtsecuritymanagerOpensslErrorCallingSha256Init, "CJwtSecurityManager: OpenSSL ERROR calling SHA256_Init while hashing user password");
 
     if (!SHA256_Update(&context, (unsigned char*)s.data(), s.size()))
-        throw makeStringException(-1, "CJwtSecurityManager: OpenSSL ERROR calling SHA256_Update while hashing user password");
+        throw makeStringException(SYSTEMERR_CjwtsecuritymanagerOpensslErrorCallingSha256Update, "CJwtSecurityManager: OpenSSL ERROR calling SHA256_Update while hashing user password");
 
     if (!SHA256_Final((unsigned char*)hashedValue, &context))
-        throw makeStringException(-1, "CJwtSecurityManager: OpenSSL ERROR calling SHA256_Final while hashing user password");
+        throw makeStringException(SYSTEMERR_CjwtsecuritymanagerOpensslErrorCallingSha256Final, "CJwtSecurityManager: OpenSSL ERROR calling SHA256_Final while hashing user password");
 
     return std::string(hashedValue, SHA256_DIGEST_LENGTH);
 }

@@ -18,6 +18,7 @@
 #pragma warning(disable:4786)
 
 #include <limits.h>
+#include "systemerr.hpp"
 #include <map>
 #include <string>
 #include <algorithm>
@@ -307,7 +308,7 @@ RestrictionFacetValue CRestrictionType::queryFacetValue(RestrictionFacetType typ
         }
     }
     
-    throw MakeStringException(-1,"Error in CRestrictionType::queryFacetValue: unknown facet: %s", getFacetName(type));  
+    throw MakeStringException(SYSTEMERR_ErrorInCrestrictiontypeQueryfacetvalueUnknownFacet, "Error in CRestrictionType::queryFacetValue: unknown facet: %s", getFacetName(type));  
 }
 
 void CRestrictionType::getSampleValue(StringBuffer& out, const char* fieldName)
@@ -421,7 +422,7 @@ void CRestrictionType::toString(StringBuffer& s, int indent, StringStack& parent
             break;
 
         default:
-            throw MakeStringException(-1,"Unknown/unhandled restriction facet: %d", (int)f.type);
+            throw MakeStringException(SYSTEMERR_UnknownUnhandledRestrictionFacetD, "Unknown/unhandled restriction facet: %d", (int)f.type);
         }
     }
 }
@@ -853,7 +854,7 @@ IXmlType* CXmlSchema::parseComplexType(IPTree* complexDef)
                     StringBuffer schema;
                     toXML(complexDef,schema);
                     DBGLOG(-1,"Invalid schema: %s", schema.str());
-                    throw MakeStringException(-1, "Invalid schema encoutered");
+                    throw MakeStringException(SYSTEMERR_InvalidSchemaEncoutered, "Invalid schema encoutered");
                 }
                 
                 CComplexType* typ = new CComplexType(name,subType,fldCount,types,NULL,nAttrs,attrs, NULL);
@@ -869,7 +870,7 @@ IXmlType* CXmlSchema::parseComplexType(IPTree* complexDef)
                 StringBuffer schema;
                 toXML(complexDef,schema);
                 DBGLOG(-1,"Invalid schema: %s", schema.str());
-                throw MakeStringException(-1, "Invalid schema encoutered");
+                throw MakeStringException(SYSTEMERR_InvalidSchemaEncoutered, "Invalid schema encoutered");
             }
         }
         else
@@ -911,7 +912,7 @@ IXmlType* CXmlSchema::parseComplexType(IPTree* complexDef)
         StringBuffer schema;
         toXML(complexDef,schema);
         DBGLOG(-1,"Parse schema failed: name=%s, schema: %s", name?name:"<no-name>",schema.str());
-        throw MakeStringException(-1, "Internal error: parse schema failed");
+        throw MakeStringException(SYSTEMERR_InternalErrorParseSchemaFailed, "Internal error: parse schema failed");
     }
 
     return NULL;
@@ -927,9 +928,9 @@ IXmlType* CXmlSchema::parseSimpleType(IPTree* simpleDef)
             base += m_xsdNs.length();
         const char* name = simpleDef->queryProp("@name");
         if (!name || !*name)
-            throw MakeStringException(-1, "Invalid schema: missing name for simple restriction type");
+            throw MakeStringException(SYSTEMERR_InvalidSchemaMissingNameForSimple, "Invalid schema: missing name for simple restriction type");
         if (!base || !*base)
-            throw MakeStringException(-1, "Invalid schema: missing base type for simple restriction type: %s", name);
+            throw MakeStringException(SYSTEMERR_InvalidSchemaMissingBaseTypeFor, "Invalid schema: missing base type for simple restriction type: %s", name);
 
         IXmlType* baseType = getNativeSchemaType(base, sub->queryProp("@default"));
         CRestrictionType* type = new CRestrictionType(name,baseType);

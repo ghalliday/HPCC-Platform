@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jliball.hpp"
+#include "toolserr.hpp"
 #include "jhtree.hpp"
 #include "ctfile.hpp"
 #include "keybuild.hpp"
@@ -347,7 +348,7 @@ int main(int argc, const char **argv)
                         {
                             unsigned fieldNum = inrec.getFieldNum(fieldNames.item(idx));
                             if (fieldNum == (unsigned) -1)
-                                throw MakeStringException(0, "Requested output field '%s' not found", fieldNames.item(idx));
+                                throw MakeStringException(TOOLSERR_RequestedOutputFieldSNotFound, "Requested output field '%s' not found", fieldNames.item(idx));
                             const RtlFieldInfo *field = inrec.queryOriginalField(fieldNum);
                             if (field->type->getType() == type_blob)
                             {
@@ -393,7 +394,7 @@ int main(int argc, const char **argv)
                             unsigned idx = thisFilter.queryFieldIndex();
                             const RtlFieldInfo *field = inrec.queryOriginalField(idx);
                             if (field->flags & RFTMispayloadfield)
-                                throw MakeStringException(0, "Cannot filter on payload field '%s'", field->name);
+                                throw MakeStringException(TOOLSERR_CannotFilterOnPayloadFieldS, "Cannot filter on payload field '%s'", field->name);
                         }
                     }
                     rowFilter.createSegmentMonitors(manager);
@@ -417,11 +418,11 @@ int main(int argc, const char **argv)
                     {
                         outFile.setown(createIFile(filename));
                         if(outFile->isFile() != fileBool::notFound && !optOverwrite)
-                            throw MakeStringException(0, "Found preexisting index file %s (overwrite not selected)", filename);
+                            throw MakeStringException(TOOLSERR_FoundPreexistingIndexFileSOverwrite, "Found preexisting index file %s (overwrite not selected)", filename);
                         
                         outFileIO.setown(outFile->openShared(IFOcreate, IFSHfull));
                         if(!outFileIO)
-                            throw MakeStringException(0, "Could not write index file %s", filename);
+                            throw MakeStringException(TOOLSERR_CouldNotWriteIndexFileS, "Could not write index file %s", filename);
                         outFileStream.setown(createBufferedIOStream(outFileIO, 0x200000));
                     }
                     else

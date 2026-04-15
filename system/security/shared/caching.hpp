@@ -23,6 +23,7 @@
 #endif
 
 #include "jliball.hpp"
+#include "systemerr.hpp"
 #include "seclib.hpp"
 #undef new
 #include <map>
@@ -110,7 +111,7 @@ public:
     CachedUser(ISecUser* user)
     {
         if(!user)
-            throw MakeStringException(-1, "can't create CachedUser, NULL user pointer");
+            throw MakeStringException(SYSTEMERR_CanTCreateCacheduserNullUser, "can't create CachedUser, NULL user pointer");
         m_user.setown(user);
         time(&m_timestamp);
     }

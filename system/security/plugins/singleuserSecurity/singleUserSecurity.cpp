@@ -18,6 +18,7 @@
 #pragma warning( disable : 4786 )
 
 #include "basesecurity.hpp"
+#include "systemerr.hpp"
 #include "authmap.ipp"
 #include "singleUserSecurity.hpp"
 
@@ -36,10 +37,10 @@ public:
 
             secMgrCfg->getProp("@SingleUserPass", m_userPass);
             if (m_userPass.isEmpty())
-                throw MakeStringException(-1,"SingleUserAuth: Password not supplied and could not set up security manager!");
+                throw MakeStringException(SYSTEMERR_SingleuserauthPasswordNotSuppliedAndCould, "SingleUserAuth: Password not supplied and could not set up security manager!");
         }
         else
-           throw MakeStringException(-1, "SingleUserAuth did not receive security manager configuration!");
+           throw MakeStringException(SYSTEMERR_SingleuserauthDidNotReceiveSecurityManager, "SingleUserAuth did not receive security manager configuration!");
     }
 
     ~CSingleUserSecurityManager() {}
@@ -100,7 +101,7 @@ protected:
         StringBuffer username;
         username.set(sec_user.getName());
         if (0 == username.length())
-            throw MakeStringException(-1, "SingleUserAuth name is empty");
+            throw MakeStringException(SYSTEMERR_SingleuserauthNameIsEmpty, "SingleUserAuth name is empty");
 
         if (sec_user.credentials().getSessionToken() != 0  || !isEmptyString(sec_user.credentials().getSignature()))//Already authenticated it token or signature exist
             return true;
@@ -112,11 +113,11 @@ protected:
         }
 
         if (m_userPass.isEmpty())
-            throw MakeStringException(-1, "SingleUserAuth password was not set!");
+            throw MakeStringException(SYSTEMERR_SingleuserauthPasswordWasNotSet, "SingleUserAuth password was not set!");
 
         const char * userpass = sec_user.credentials().getPassword();
         if (!userpass || !*userpass)
-            throw MakeStringException(-1, "SingleUserAuth encountered empty password!");
+            throw MakeStringException(SYSTEMERR_SingleuserauthEncounteredEmptyPassword, "SingleUserAuth encountered empty password!");
 
         StringBuffer encpass;
         encrypt(encpass, userpass);

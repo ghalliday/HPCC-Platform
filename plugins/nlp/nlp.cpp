@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "pluginerr.hpp"
 
 #include <stdlib.h>
 #include <string.h>
@@ -104,7 +105,7 @@ namespace nlp
         manifest->extractResources(sb);
         if (sb.length() == 0)
         {
-            throw makeStringExceptionV(1, "No resources found, did you forget to add the manifest?");
+            throw makeStringExceptionV(PLUGINERR_NoResourcesFoundDidYouForget, "No resources found, did you forget to add the manifest?");
         }
 
         tgtLen = sb.length();
@@ -119,7 +120,7 @@ namespace nlp
         MemoryBuffer mb;
         if (!manifest->getResourceData(ana, mb))
         {
-            throw makeStringExceptionV(1, "Resource `%s` not found", ana);
+            throw makeStringExceptionV(PLUGINERR_ResourceSNotFound, "Resource `%s` not found", ana);
         }
 
         tgtLen = mb.length();

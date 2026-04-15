@@ -15,6 +15,7 @@
     limitations under the License.
 ############################################################################## */
 #include "jliball.hpp"
+#include "systemerr.hpp"
 #if defined(_USE_OPENSSL)
 #include <opensslcommon.hpp>
 #include <openssl/pem.h>
@@ -56,7 +57,7 @@ bool digiSign(StringBuffer &b64Signature, size32_t dataSz, const void *data, con
     //compute signature (signed digest)
     OwnedEVPMemory encMsg = OPENSSL_malloc(encMsgLen);
     if (encMsg == nullptr)
-        throw MakeStringException(-1, "digiSign:OPENSSL_malloc(%u) returned NULL", (unsigned)encMsgLen);
+        throw MakeStringException(SYSTEMERR_DigisignOpensslMallocUReturnedNull, "digiSign:OPENSSL_malloc(%u) returned NULL", (unsigned)encMsgLen);
 
     if (EVP_DigestSignFinal(signingCtx, (unsigned char *)encMsg.get(), &encMsgLen) <= 0)
         throwEVPException(-1, "digiSign:EVP_DigestSignFinal2");
@@ -114,7 +115,7 @@ public:
     virtual bool digiSign(StringBuffer & b64Signature, size32_t dataSz, const void *data) const override
     {
         if (!signingConfigured)
-            throw MakeStringException(-1, "digiSign:Creating Digital Signatures not configured");
+            throw MakeStringException(SYSTEMERR_DigisignCreatingDigitalSignaturesNotConfigured, "digiSign:Creating Digital Signatures not configured");
 
         return cryptohelper::digiSign(b64Signature, dataSz, data, *privKey);
     }
@@ -128,7 +129,7 @@ public:
     virtual bool digiVerify(const char *b64Signature, size32_t dataSz, const void *data) const override
     {
         if (!verifyingConfigured)
-            throw MakeStringException(-1, "digiVerify:Verifying Digital Signatures not configured");
+            throw MakeStringException(SYSTEMERR_DigiverifyVerifyingDigitalSignaturesNotConfigured, "digiVerify:Verifying Digital Signatures not configured");
 
         return cryptohelper::digiVerify(b64Signature, dataSz, data, *pubKey);
     }

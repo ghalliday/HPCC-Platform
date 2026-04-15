@@ -1,0 +1,6 @@
+#ifndef SERVICESERR_HPP
+#define SERVICESERR_HPP
+
+#define SERVICESERR_LastError 38000
+
+#endif // SERVICESERR_HPP

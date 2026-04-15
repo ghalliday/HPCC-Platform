@@ -22,6 +22,7 @@
 
 #ifdef _USE_CPPUNIT
 #include <algorithm>
+#include "testingerr.hpp"
 #include <chrono>
 #include <memory>
 #include <random>
@@ -3929,7 +3930,7 @@ protected:
             Owned<IExpander> expander = createZStdExpander();
             size32_t targetSize = expander->init(compressedData);
             if (targetSize == 0 || targetSize > MEMBUFFER_MAXLEN)
-                throw makeStringExceptionV(-1, "Zstd decompressed size %u out of bounds for \"%s\"", targetSize, actualPath);
+                throw makeStringExceptionV(TESTINGERR_ZstdDecompressedSizeUOutOf, "Zstd decompressed size %u out of bounds for \"%s\"", targetSize, actualPath);
 
             output.clear();
             void *dest = output.reserveTruncate(targetSize);
@@ -3950,7 +3951,7 @@ protected:
     {
         Owned<IFile> binaryFile = createIFile(filePath);
         if (!binaryFile->exists())
-            throw makeStringExceptionV(-1, "Binary file \"%s\" does not exist", filePath);
+            throw makeStringExceptionV(TESTINGERR_BinaryFile, "Binary file \"%s\" does not exist", filePath);
 
         Owned<IFileIO> fileIO = binaryFile->open(IFOread);
         output.clear();

@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jstring.hpp"
+#include "systemerr.hpp"
 #include "jdebug.hpp"
 #include "jptree.hpp"
 #include "jexcept.hpp"
@@ -634,14 +635,14 @@ public:
         xmlNodePtr location = m_xpathContext->node;
         xmlParserCtxtPtr parserCtx = xmlCreateDocParserCtxt((const xmlChar *)xml);
         if (!parserCtx)
-            throw MakeStringException(-1, "CLibXpathContext:addXmlContent: Unable to parse xml");
+            throw MakeStringException(SYSTEMERR_ClibxpathcontextAddxmlcontentUnableToParseXml, "CLibXpathContext:addXmlContent: Unable to parse xml");
         parserCtx->node = location;
         xmlParseDocument(parserCtx);
         int wellFormed = parserCtx->wellFormed;
         xmlFreeDoc(parserCtx->myDoc); //dummy document
         xmlFreeParserCtxt(parserCtx);
         if (!wellFormed)
-            throw MakeStringException(-1, "XpathContext:addXmlContent: Unable to parse %s XML content", xml);
+            throw MakeStringException(SYSTEMERR_XpathcontextAddxmlcontentUnableToParseS, "XpathContext:addXmlContent: Unable to parse %s XML content", xml);
     }
     virtual IXmlWriter *createXmlWriter() override
     {
@@ -1040,7 +1041,7 @@ public:
         if (m_xpathContext)
         {
             if (!obj)
-                throw MakeStringException(-1, "addObjectVariable %s error", name);
+                throw MakeStringException(SYSTEMERR_AddobjectvariableSError, "addObjectVariable %s error", name);
             WriteLockBlock wblock(m_rwlock);
             if (!scope && !scopes.empty())
                 scope = scopes.back().get();
@@ -1066,7 +1067,7 @@ public:
         {
             xmlXPathObjectPtr obj = evaluate(xpath);
             if (!obj)
-                throw MakeStringException(-1, "addXpathVariable xpath error %s", xpath);
+                throw MakeStringException(SYSTEMERR_AddxpathvariableXpathErrorS, "addXpathVariable xpath error %s", xpath);
             return addObjectVariable(name, obj, scope);
         }
         return false;
@@ -1081,7 +1082,7 @@ public:
             CLibCompiledXpath * ccXpath = static_cast<CLibCompiledXpath *>(compiled);
             xmlXPathObjectPtr obj = evaluate(ccXpath->getCompiledXPathExpression(), ccXpath->getXpath());
             if (!obj)
-                throw MakeStringException(-1, "addEvaluateVariable xpath error %s", ccXpath->getXpath());
+                throw MakeStringException(SYSTEMERR_AddevaluatevariableXpathErrorS, "addEvaluateVariable xpath error %s", ccXpath->getXpath());
             return addObjectVariable(name, obj, scope);
         }
 
@@ -1662,7 +1663,7 @@ public:
         doc =   xmlParseDoc((const xmlChar *) "<esdl_script_context/>");
         xpathCtx = xmlXPathNewContext(doc);
         if(xpathCtx == nullptr)
-            throw MakeStringException(-1, "CSectionalXmlDocModel: Unable to create new xPath context");
+            throw MakeStringException(SYSTEMERR_CsectionalxmldocmodelUnableToCreateNewXpath, "CSectionalXmlDocModel: Unable to create new xPath context");
 
         root = xmlDocGetRootElement(doc);
         xpathCtx->node = root;
@@ -1678,7 +1679,7 @@ private:
     {
         //sanity check the name, not a full validation
         if (isEmptyString(name) || strpbrk(name, "/[]()*?"))
-            throw MakeStringException(-1, "CSectionalXmlDocModel:removeSection invalid section name %s", name);
+            throw MakeStringException(SYSTEMERR_CsectionalxmldocmodelRemovesectionInvalidSectionNameS, "CSectionalXmlDocModel:removeSection invalid section name %s", name);
     }
     xmlNodePtr getSectionNode(const char *name, const char *xpath="*[1]")
     {
@@ -1844,14 +1845,14 @@ private:
 
         xmlParserCtxtPtr parserCtx = xmlCreateDocParserCtxt((const unsigned char *)xml);
         if (!parserCtx)
-            throw MakeStringException(-1, "CSectionalXmlDocModel:setContent: Unable to init parse of %s XML content", section);
+            throw MakeStringException(SYSTEMERR_CsectionalxmldocmodelSetcontentUnableToInitParse, "CSectionalXmlDocModel:setContent: Unable to init parse of %s XML content", section);
         parserCtx->node = sect;
         xmlParseDocument(parserCtx);
         int wellFormed = parserCtx->wellFormed;
         xmlFreeDoc(parserCtx->myDoc); //dummy document
         xmlFreeParserCtxt(parserCtx);
         if (!wellFormed)
-           throw MakeStringException(-1, "CSectionalXmlDocModel:setContent xml string: Unable to parse %s XML content", section);
+           throw MakeStringException(SYSTEMERR_CsectionalxmldocmodelSetcontentXmlStringUnableTo, "CSectionalXmlDocModel:setContent xml string: Unable to parse %s XML content", section);
     }
     virtual void appendContent(const char *section, const char *name, const char *xml) override
     {
@@ -1995,7 +1996,7 @@ private:
         {
             sect = getSectionNode(section);
             if (!sect)
-                throw MakeStringException(-1, "CSectionalXmlDocModel:createXpathContext: section not found %s", section);
+                throw MakeStringException(SYSTEMERR_CsectionalxmldocmodelCreatexpathcontextSectionNotFoundS, "CSectionalXmlDocModel:createXpathContext: section not found %s", section);
         }
         CLibXpathContext *xpathContext = new CLibXpathContext(static_cast<CLibXpathContext *>(primaryContext), doc, sect, strictParameterDeclaration);
         StringBuffer val;

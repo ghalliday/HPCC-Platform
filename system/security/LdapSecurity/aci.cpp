@@ -17,6 +17,7 @@
 
 #pragma warning(disable:4786)
 #include "platform.h"
+#include "systemerr.hpp"
 #include "aci.ipp"
 #include "ldapsecurity.ipp"
 
@@ -449,14 +450,14 @@ public:
             bptr++;
         eptr = strchr(bptr, '#');
         if(eptr == NULL)
-            throw MakeStringException(-1, "Invalid OpenLDAPaci format");
+            throw MakeStringException(SYSTEMERR_InvalidOpenldapaciFormat, "Invalid OpenLDAPaci format");
         m_name.append(eptr - bptr, bptr);
 
         //skip <scope>
         eptr++;
         eptr = strchr(eptr, '#');
         if(!eptr)
-            throw MakeStringException(-1, "Invalid OpenLDAPaci format");
+            throw MakeStringException(SYSTEMERR_InvalidOpenldapaciFormat, "Invalid OpenLDAPaci format");
 
         //process <rights>
         bptr = eptr + 1;
@@ -464,7 +465,7 @@ public:
             bptr++;
         eptr = strchr(bptr, '#');
         if(!eptr)
-            throw MakeStringException(-1, "Invalid OpenLDAPaci format");
+            throw MakeStringException(SYSTEMERR_InvalidOpenldapaciFormat, "Invalid OpenLDAPaci format");
         if(strncmp(bptr, "deny", 4) == 0)
         {
             m_isDeny = true;
@@ -476,7 +477,7 @@ public:
             bptr += 5;
         }
         else
-            throw MakeStringException(-1, "Invalid OpenLDAPaci format");
+            throw MakeStringException(SYSTEMERR_InvalidOpenldapaciFormat, "Invalid OpenLDAPaci format");
         while(bptr <= eptr && (*bptr == ' ' || *bptr == ';'))
             bptr++;
         while(bptr <= eptr && *bptr != ';')
@@ -489,7 +490,7 @@ public:
         bool isGroup = false;
         eptr = strchr(bptr, '#');
         if(eptr == NULL)
-            throw MakeStringException(-1, "Invalid OpenLDAPaci format");
+            throw MakeStringException(SYSTEMERR_InvalidOpenldapaciFormat, "Invalid OpenLDAPaci format");
         bptr = eptr + 1;
         while(*bptr == ' ')
             bptr++;
@@ -499,7 +500,7 @@ public:
         // <subjectDN>      
         eptr = strchr(bptr, '#');
         if(eptr == NULL)
-            throw MakeStringException(-1, "Invalid OpenLDAPaci format");
+            throw MakeStringException(SYSTEMERR_InvalidOpenldapaciFormat, "Invalid OpenLDAPaci format");
         bptr = eptr + 1;
         while(*bptr == ' ')
             bptr++;
@@ -811,12 +812,12 @@ public:
         if(action.m_account_type == GROUP_ACT && strncmp(action.m_account_name.str(), "cn=Directory Administrators", strlen("cn=Directory Administrators")) == 0)
         {
             if(stricmp(action.m_action.str(), "delete") != 0 && action.m_denies != 0)
-                throw MakeStringException(-1, "Please don't set deny permissions for Directory Administrators");
+                throw MakeStringException(SYSTEMERR_PleaseDonTSetDenyPermissions, "Please don't set deny permissions for Directory Administrators");
         }
         if(action.m_account_type == USER_ACT && stricmp(action.m_account_name.str(), "anyone") == 0)
         {
             if(stricmp(action.m_action.str(), "delete") != 0 && action.m_denies != 0)
-                throw MakeStringException(-1, "Please don't set deny permissions for anyone");
+                throw MakeStringException(SYSTEMERR_PleaseDonTSetDenyPermissions_1, "Please don't set deny permissions for anyone");
         }
 
         // if not add (means it's either update or delete), delete original aci.
@@ -910,7 +911,7 @@ public:
 AciProcessor::AciProcessor(IPropertyTree* cfg)
 {
     if(cfg == NULL)
-        throw MakeStringException(-1, "AciProcessor() - config is NULL");
+        throw MakeStringException(SYSTEMERR_AciprocessorConfigIsNull, "AciProcessor() - config is NULL");
     m_cfg.set(cfg);
 
     m_sidcache.setown(createPTree());
@@ -940,17 +941,17 @@ CSecurityDescriptor* AciProcessor::createDefaultSD(ISecUser * const user, ISecRe
 
 StringBuffer& AciProcessor::sec2aci(SecAccessFlags secperm, StringBuffer& aciperm)
 {
-    throw MakeStringException(-1, "You should call the implementation of the child class");
+    throw MakeStringException(SYSTEMERR_YouShouldCallTheImplementationOf, "You should call the implementation of the child class");
 }
 
 CSecurityDescriptor* AciProcessor::createDefaultSD(ISecUser * const user, const char* name, SecPermissionType ptype)
 {
-    throw MakeStringException(-1, "You should call the implementation of the child class");
+    throw MakeStringException(SYSTEMERR_YouShouldCallTheImplementationOf, "You should call the implementation of the child class");
 }
 
 CSecurityDescriptor* AciProcessor::createDefaultSD(ISecUser * const user, ISecResource* resource, MemoryBuffer& initial_sd)
 {
-    throw MakeStringException(-1, "You should call the implementation of the child class");
+    throw MakeStringException(SYSTEMERR_YouShouldCallTheImplementationOf, "You should call the implementation of the child class");
 }
 
 bool AciProcessor::retrieveUserInfo(ISecUser& user)
@@ -990,7 +991,7 @@ void AciProcessor::cacheSid(const char* name, int len, const void* sidbuf)
 
 void AciProcessor::lookupSid(const char* act_name, MemoryBuffer& act_sid, ACT_TYPE acttype)
 {
-    throw MakeStringException(-1, "You shouldn't need function lookupSid");
+    throw MakeStringException(SYSTEMERR_YouShouldnTNeedFunctionLookupsid, "You shouldn't need function lookupSid");
 /*preserve dead code for reference
     act_sid.clear();
 

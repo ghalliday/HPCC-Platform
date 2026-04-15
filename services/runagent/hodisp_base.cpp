@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "hrpc.hpp"
+#include "serviceserr.hpp"
 #include "hodisp_base.hpp"
 #include "jsocket.hpp"
 #include "jkeyboard.hpp"
@@ -116,7 +117,7 @@ bool user_continue() {
 
 bool m_dispatch::all_done_ex(bool no_abort)
 { bool res=all_done(no_abort);
-  if (last_error&&!user_continue()) throw MakeStringException(1, last_error);
+  if (last_error&&!user_continue()) throw MakeStringException(SERVICESERR_LastError, last_error);
   return res;
 }
 

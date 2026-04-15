@@ -18,6 +18,7 @@
 #pragma once
 
 #include "jlog.hpp"
+#include "systemerr.hpp"
 #include "jmutex.hpp"
 #include "jstring.hpp"
 #include "jutil.hpp"
@@ -200,7 +201,7 @@ namespace DataMasking
                         virtual bool first() override { return false; }
                         virtual bool next() override { return false; }
                         virtual bool isValid() override { return false; }
-                        virtual IDataMaskingProfile& query() override { throw makeStringException(-1, "invalid iterator query"); }
+                        virtual IDataMaskingProfile& query() override { throw makeStringException(SYSTEMERR_InvalidIteratorQuery, "invalid iterator query"); }
                     };
                     profiles.setown(new Empty());
                     tracer->ierrlog("DataMasking::CEngine::Loader: configured plugin returned NULL");

@@ -20,6 +20,7 @@
 #define JLOG_IPP
 
 #include <algorithm>
+#include "systemerr.hpp"
 #include "jmutex.hpp"
 #include "jlog.hpp"
 #include "jiface.hpp"
@@ -939,7 +940,7 @@ public:
     BinaryLogAccessFilter(ILogAccessFilter * _arg1, ILogAccessFilter * _arg2, LogAccessFilterType _type) : arg1(_arg1), arg2(_arg2)
     {
         if (!arg1 || !arg2)
-            throw makeStringException(-1, "Binary Log Access Filter encountered empty operand");
+            throw makeStringException(SYSTEMERR_BinaryLogAccessFilterEncounteredEmpty, "Binary Log Access Filter encountered empty operand");
 
         setType(_type);
     }

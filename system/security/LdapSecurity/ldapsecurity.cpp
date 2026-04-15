@@ -18,6 +18,7 @@
 #define AXA_API DECL_EXPORT
 
 #include "ldapsecurity.ipp"
+#include "systemerr.hpp"
 #include "ldapsecurity.hpp"
 #include "authmap.ipp"
 #include "digisign.hpp"
@@ -566,7 +567,7 @@ CLdapSecManager::CLdapSecManager(const char *serviceName, const char *config)
 
     if(cfg == NULL)
     {
-        throw MakeStringException(-1, "createPTreeFromXMLString() failed for %s", config);
+        throw MakeStringException(SYSTEMERR_CreateptreefromxmlstringFailedForS, "createPTreeFromXMLString() failed for %s", config);
     }
 
     init(serviceName, cfg);
@@ -1261,9 +1262,9 @@ IAuthMap * CLdapSecManager::createAuthMap(IPropertyTree * authconfig, IEspSecure
                 location->getProp("@description", description);
                 
                 if(rstr.length() == 0)
-                    throw MakeStringException(-1, "resource empty in Authenticate/Location");
+                    throw MakeStringException(SYSTEMERR_ResourceEmptyInAuthenticateLocation, "resource empty in Authenticate/Location");
                 if(pathstr.length() == 0)
-                    throw MakeStringException(-1, "path empty in Authenticate/Location for resource '%s'", rstr.str());
+                    throw MakeStringException(SYSTEMERR_PathEmptyInAuthenticateLocationFor, "path empty in Authenticate/Location for resource '%s'", rstr.str());
 
 
                 ISecResourceList* rlist = authmap->queryResourceList(pathstr.str());
@@ -1310,9 +1311,9 @@ IAuthMap * CLdapSecManager::createFeatureMap(IPropertyTree * authconfig, IEspSec
                 if(rlist == NULL)
                 {
                     if(rstr.length() == 0)
-                        throw MakeStringException(-1, "resource empty in Feature Map");
+                        throw MakeStringException(SYSTEMERR_ResourceEmptyInFeatureMap, "resource empty in Feature Map");
                     if(pathstr.length() == 0)
-                        throw MakeStringException(-1, "path empty in Feature Map for resource '%s'", rstr.str());
+                        throw MakeStringException(SYSTEMERR_PathEmptyInFeatureMapFor, "path empty in Feature Map for resource '%s'", rstr.str());
                     rlist = createResourceList(pathstr.str(), secureContext);
                     feature_authmap->add(pathstr.str(), rlist);
                 }
@@ -1632,7 +1633,7 @@ LDAPSECURITY_API IAuthMap *newDefaultAuthMap(IPropertyTree* config)
                 {
                     StringBuffer rstr;
                     location->getProp("@resource", rstr);
-                    throw MakeStringException(-1, "path empty in DefaultAuthMap for resource '%s'", rstr.isEmpty() ? "unspecified" : rstr.str());
+                    throw MakeStringException(SYSTEMERR_PathEmptyInDefaultauthmapForResource, "path empty in DefaultAuthMap for resource '%s'", rstr.isEmpty() ? "unspecified" : rstr.str());
                 }
                 authmap->add(pathstr.str(), NULL);
             }

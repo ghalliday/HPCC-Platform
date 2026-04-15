@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "toolserr.hpp"
 #include "thirdparty.h"
 
 #include "jlib.hpp"
@@ -45,10 +46,10 @@ struct DaliClient
     DaliClient(const char* daliserver): serverGroup(createIGroup(daliserver, DALI_SERVER_PORT))
     {
         if (!serverGroup)
-            throw MakeStringException(0, "Could not instantiate IGroup");
+            throw MakeStringException(TOOLSERR_CouldNotInstantiateIgroup, "Could not instantiate IGroup");
 
         if (!initClientProcess(serverGroup,DCR_SwapNode))
-            throw MakeStringException(0, "Could not initializing client process");
+            throw MakeStringException(TOOLSERR_CouldNotInitializingClientProcess, "Could not initializing client process");
     }
     ~DaliClient()
     {

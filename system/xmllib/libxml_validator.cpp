@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jstring.hpp"
+#include "systemerr.hpp"
 #include "jdebug.hpp"
 #include "jptree.hpp"
 #include "jexcept.hpp"
@@ -57,8 +58,8 @@ public:
     virtual int setSchemaSource(const char *pszFileName);
     virtual int setSchemaSource(const char *pszBuffer, unsigned int nSize);
 
-    virtual int setDTDSource(const char *pszFileName) { throw MakeStringException(-1,"Unsupported"); }
-    virtual int setDTDSource(const char *pszBuffer, unsigned int nSize) { throw MakeStringException(-1,"Unsupported"); }
+    virtual int setDTDSource(const char *pszFileName) { throw MakeStringException(SYSTEMERR_Unsupported, "Unsupported"); }
+    virtual int setDTDSource(const char *pszBuffer, unsigned int nSize) { throw MakeStringException(SYSTEMERR_Unsupported, "Unsupported"); }
 
     virtual void setTargetNamespace(const char* ns);
 

@@ -885,7 +885,7 @@ bool CwssqlEx::onExecuteSQL(IEspContext &context, IEspExecuteSQLRequest &req, IE
         sqltext.set(req.getSqlText());
 
         if (sqltext.length() <= 0)
-            throw MakeStringException(1,"Empty SQL request.");
+            throw MakeStringException(ESPERR_EmptySqlRequest, "Empty SQL request.");
 
         const char * cluster = req.getTargetCluster();
 
@@ -995,7 +995,7 @@ bool CwssqlEx::onExecuteSQL(IEspContext &context, IEspExecuteSQLRequest &req, IE
                 }
 
                 if (isEmpty(ecltext))
-                   throw MakeStringException(1,"Could not generate ECL from SQL.");
+                   throw MakeStringException(ESPERR_CouldNotGenerateEclFromSql, "Could not generate ECL from SQL.");
 
                 ecltext.appendf(EMBEDDEDSQLQUERYCOMMENT, sqltext.str(), normalizedSQL.str());
 
@@ -1425,7 +1425,7 @@ bool CwssqlEx::onPrepareSQL(IEspContext &context, IEspPrepareSQLRequest &req, IE
         sqltext.set(req.getSqlText());
 
         if (sqltext.length() <= 0)
-            throw MakeStringException(1,"Empty SQL request.");
+            throw MakeStringException(ESPERR_EmptySqlRequest, "Empty SQL request.");
 
         Owned<HPCCSQLTreeWalker> parsedSQL;
         parsedSQL.setown(parseSQL(context, sqltext, false));
@@ -1526,7 +1526,7 @@ bool CwssqlEx::onPrepareSQL(IEspContext &context, IEspPrepareSQLRequest &req, IE
 #endif
 
                 if (isEmpty(ecltext))
-                    throw MakeStringException(1,"Could not generate ECL from SQL.");
+                    throw MakeStringException(ESPERR_CouldNotGenerateEclFromSql, "Could not generate ECL from SQL.");
 
                 //ecltext.appendf("\n\n/****************************************************\nOriginal SQL:     \"%s\"\nNormalized SQL: \"%s\"\n****************************************************/\n", sqltext.str(), normalizedSQL.str());
                 ecltext.appendf(EMBEDDEDSQLQUERYCOMMENT, sqltext.str(), normalizedSQL.str());

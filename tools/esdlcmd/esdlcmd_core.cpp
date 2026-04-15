@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <stdio.h>
+#include "toolserr.hpp"
 #include "jlog.hpp"
 #include "jfile.hpp"
 #include "jargv.hpp"
@@ -133,13 +134,13 @@ public:
         if (optSource.isEmpty())
         {
             usage();
-            throw( MakeStringException(0, "\nError: Source esdl parameter required\n"));
+            throw( MakeStringException(TOOLSERR_NerrorSourceEsdlParameterRequiredN, "\nError: Source esdl parameter required\n"));
         }
 
         if( optService.isEmpty() )
         {
             usage();
-            throw( MakeStringException(0, "A service name must be provided") );
+            throw( MakeStringException(TOOLSERR_AServiceNameMustBeProvided, "A service name must be provided") );
         }
 
         if (!optInterfaceVersionStr.isEmpty())
@@ -147,7 +148,7 @@ public:
             optInterfaceVersion = atof( optInterfaceVersionStr.get() );
             if ( optInterfaceVersion <= 0 )
             {
-                throw MakeStringException( 0, "Version option must be followed by a real number > 0" );
+                throw MakeStringException(TOOLSERR_VersionOptionMustBeFollowedBy, "Version option must be followed by a real number > 0" );
             }
         }
 
@@ -178,7 +179,7 @@ public:
             }
             else
             {
-                  throw MakeStringException( 0, "--annotate option must be followed by 'all' or 'none' " );
+                  throw MakeStringException(TOOLSERR_AnnotateOptionMustBeFollowedBy, "--annotate option must be followed by 'all' or 'none' " );
             }
         }
 
@@ -262,7 +263,7 @@ public:
         }
         else
         {
-            throw( MakeStringException(0, "Path to /xslt/esxdl2xsd.xslt is empty, cannot perform transform.") );
+            throw( MakeStringException(TOOLSERR_PathToXsltEsxdl2xsdXsltIs, "Path to /xslt/esxdl2xsd.xslt is empty, cannot perform transform.") );
         }
 
         return 0;
@@ -575,7 +576,7 @@ public:
         }
         else
         {
-            throw( MakeStringException(0, "Path to /xslt/esxdl2xsd.xslt is empty, cannot perform transform.") );
+            throw( MakeStringException(TOOLSERR_PathToXsltEsxdl2xsdXsltIs, "Path to /xslt/esxdl2xsd.xslt is empty, cannot perform transform.") );
         }
 
         return 0;
@@ -713,13 +714,13 @@ public:
         if (optSource.isEmpty())
         {
             usage();
-            throw( MakeStringException(0, "\nError: Source file parameter required\n"));
+            throw( MakeStringException(TOOLSERR_NerrorSourceFileParameterRequiredN, "\nError: Source file parameter required\n"));
         }
 
         if( optService.isEmpty() )
         {
             usage();
-            throw( MakeStringException(0, "A service name must be provided") );
+            throw( MakeStringException(TOOLSERR_AServiceNameMustBeProvided, "A service name must be provided") );
         }
 
         if (!optXsltPath.length())
@@ -945,13 +946,13 @@ public:
         if (optSource.isEmpty())
         {
             usage();
-            throw( MakeStringException(0, "\nError: Source file parameter required\n"));
+            throw( MakeStringException(TOOLSERR_NerrorSourceFileParameterRequiredN, "\nError: Source file parameter required\n"));
         }
 
         if( optService.isEmpty() )
         {
             usage();
-            throw( MakeStringException(0, "A service name must be provided") );
+            throw( MakeStringException(TOOLSERR_AServiceNameMustBeProvided, "A service name must be provided") );
         }
 
         if (!optXsltPath.length())
@@ -1244,7 +1245,7 @@ public:
         if (optSource.isEmpty())
         {
             usage();
-            throw( MakeStringException(0, "\nError: Source file parameter required\n"));
+            throw( MakeStringException(TOOLSERR_NerrorSourceFileParameterRequiredN, "\nError: Source file parameter required\n"));
         }
 
         if (optRollup)
@@ -1252,7 +1253,7 @@ public:
             if(optService.isEmpty())
             {
                 usage();
-                throw( MakeStringException(0, "\nError: `--service` option required when generating rolled-up output\n"));
+                throw( MakeStringException(TOOLSERR_NerrorServiceOptionRequiredWhenGenerating, "\nError: `--service` option required when generating rolled-up output\n"));
             }
         }
 

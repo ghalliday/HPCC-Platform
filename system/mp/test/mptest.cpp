@@ -3,6 +3,7 @@
 // CSocketSelectThread error 10038  
 
 #include <platform.h>
+#include "systemerr.hpp"
 #include <jlib.hpp>
 #include <jthread.hpp>
 #include <jmisc.hpp>
@@ -562,7 +563,7 @@ void MPRing(IGroup *group, ICommunicator *mpicomm, unsigned iters=0)
     rank_t numranks = group->ordinality();
 
     if (numranks < 2)
-        throw MakeStringException(-1, "MPTEST: MPRing Error, numranks (%u) must be > 1", numranks);
+        throw MakeStringException(SYSTEMERR_MptestMpringErrorNumranksUMust, "MPTEST: MPRing Error, numranks (%u) must be > 1", numranks);
 
     if (iters == 0)
         iters = 1000;
@@ -591,14 +592,14 @@ void MPRing(IGroup *group, ICommunicator *mpicomm, unsigned iters=0)
             PROGLOG("MPTEST: MPRing %u send to rank %u", myrank, next);
         bool oksend = mpicomm->send(smb, next, MPTAG_TEST);
         if (!oksend)
-            throw MakeStringException(-1, "MPTEST: MPRing %u send() to rank %u failed", myrank, next);
+            throw MakeStringException(SYSTEMERR_MptestMpringUSendToRank, "MPTEST: MPRing %u send() to rank %u failed", myrank, next);
 
         rmb.clear();
         if ((k%pintvl) == 0)
             PROGLOG("MPTEST: MPRing %u recv from rank %u", myrank, prev);
         bool okrecv = mpicomm->recv(rmb, prev, MPTAG_TEST);
         if (!okrecv)
-            throw MakeStringException(-1, "MPTEST: MPRing %u recv() from rank %u failed", myrank, prev);
+            throw MakeStringException(SYSTEMERR_MptestMpringURecvFromRank, "MPTEST: MPRing %u recv() from rank %u failed", myrank, prev);
         rmb.read(k);
 
         k++;
@@ -624,7 +625,7 @@ void MPAlltoAll(IGroup *group, ICommunicator *mpicomm, size32_t buffsize=0, unsi
     rank_t numranks = group->ordinality();
 
     if (numranks < 2)
-        throw MakeStringException(-1, "MPAlltoAll: MPRing Error, numranks (%u) must be > 1", numranks);
+        throw MakeStringException(SYSTEMERR_MpalltoallMpringErrorNumranksUMust, "MPAlltoAll: MPRing Error, numranks (%u) must be > 1", numranks);
 
     if (buffsize == 0)
         buffsize = MSGLEN;
@@ -662,7 +663,7 @@ void MPAlltoAll(IGroup *group, ICommunicator *mpicomm, size32_t buffsize=0, unsi
             {
                 bool oksend = mpicomm->send(smb, RANK_ALL_OTHER, MPTAG_TEST);
                 if (!oksend)
-                    throw MakeStringException(-1, "MPTEST: MPAlltoAll %u send() failed", myrank);
+                    throw MakeStringException(SYSTEMERR_MptestMpalltoallUSendFailed, "MPTEST: MPAlltoAll %u send() failed", myrank);
                 if ((k%pintvl) == 0)
                     PROGLOG("MPTEST: MPAlltoAll sender %u iteration %u complete", myrank, k);
             }
@@ -694,7 +695,7 @@ void MPAlltoAll(IGroup *group, ICommunicator *mpicomm, size32_t buffsize=0, unsi
             // rmb.clear();
             bool okrecv = mpicomm->recv(rmb, RANK_ALL, MPTAG_TEST);
             if (!okrecv)
-                throw MakeStringException(-1, "MPTEST: MPAlltoAll %u recv() failed", myrank);
+                throw MakeStringException(SYSTEMERR_MptestMpalltoallURecvFailed, "MPTEST: MPAlltoAll %u recv() failed", myrank);
             if (i==1 && (k%pintvl) == 0)
                 PROGLOG("MPTEST: MPAlltoAll receiver rank %u iteration %u complete", myrank, k);
         }

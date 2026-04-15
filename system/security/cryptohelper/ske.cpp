@@ -23,6 +23,7 @@
 #if defined(_USE_OPENSSL)
 
 #include "jliball.hpp"
+#include "systemerr.hpp"
 
 #include <opensslcommon.hpp>
 #include <openssl/pem.h>
@@ -44,7 +45,7 @@ static const EVP_CIPHER *getAesCipher(size32_t keyLen)
     case 256/8:
         return EVP_aes_256_cbc();
     default:
-        throw makeStringException(0, "Invalid AES key size, must be 128, 192 or 256 bit");
+        throw makeStringException(SYSTEMERR_InvalidAesKeySizeMustBe, "Invalid AES key size, must be 128, 192 or 256 bit");
     }
 }
 
@@ -167,7 +168,7 @@ size32_t aesDecryptWithRSAEncryptedKey(MemoryBuffer &out, size32_t inSz, const v
     MemoryBuffer aesKey;
     size32_t decryptedAesKeySz = privateKeyDecrypt(aesKey, encryptedAESKeySz, in.readDirect(encryptedAESKeySz), privateKey);
     if (decryptedAesKeySz != aesMaxKeySize)
-        throw makeStringException(0, "aesDecryptWithRSAEncryptedKey - invalid input");
+        throw makeStringException(SYSTEMERR_AesdecryptwithrsaencryptedkeyInvalidInput, "aesDecryptWithRSAEncryptedKey - invalid input");
 
     unsigned iVPos = in.getPos(); // read directly further down
     in.skip(aesBlockSize);

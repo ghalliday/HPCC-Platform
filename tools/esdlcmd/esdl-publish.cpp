@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "jliball.hpp"
+#include "toolserr.hpp"
 #include "esdl_def.hpp"
 #include "esdlcmd_common.hpp"
 
@@ -109,10 +110,10 @@ public:
     virtual bool finalizeOptions(IProperties *globals)
     {
         if (optWSProcAddress.isEmpty())
-            throw MakeStringException( 0, "Server address of WsESDLConfig process server must be provided" );
+            throw MakeStringException(TOOLSERR_ServerAddressOfWsesdlconfigProcessServer, "Server address of WsESDLConfig process server must be provided" );
 
         if (optWSProcPort.isEmpty())
-            throw MakeStringException( 0, "Port on which WsESDLConfig is listening must be provided" );
+            throw MakeStringException(TOOLSERR_PortOnWhichWsesdlconfigIsListening, "Port on which WsESDLConfig is listening must be provided" );
 
         return true;
     }
@@ -274,7 +275,7 @@ public:
         extractEsdlCmdOption(optIncludePath, globals, ESDLOPT_INCLUDE_PATH_ENV, ESDLOPT_INCLUDE_PATH_INI, NULL, NULL);
 
         if (optSource.isEmpty())
-            throw MakeStringException( 0, "Source ESDL definition file (ecm|esdl|xml) must be provided" );
+            throw MakeStringException(TOOLSERR_SourceEsdlDefinitionFileEcmEsdl, "Source ESDL definition file (ecm|esdl|xml) must be provided" );
 
         return EsdlPublishCmdCommon::finalizeOptions(globals);
     }
@@ -457,16 +458,16 @@ public:
         }
 
         if (optESDLDefID.isEmpty())
-            throw MakeStringException( 0, "ESDL definition ID must be provided!" );
+            throw MakeStringException(TOOLSERR_EsdlDefinitionIdMustBeProvided, "ESDL definition ID must be provided!" );
 
         if (optESDLService.isEmpty())
             fprintf(stderr, "Warning: ESDL service definition name was not provided. Request will fail if ESDL def contains multiple service defined.");
 
         if(optTargetESPProcName.isEmpty())
-            throw MakeStringException( 0, "Name of Target ESP process must be provided!" );
+            throw MakeStringException(TOOLSERR_NameOfTargetEspProcessMust, "Name of Target ESP process must be provided!" );
 
         if (optPortOrName.isEmpty())
-            throw MakeStringException( 0, "Either the target ESP service port of name must be provided!" );
+            throw MakeStringException(TOOLSERR_EitherTheTargetEspServicePort, "Either the target ESP service port of name must be provided!" );
         else
         {
             const char * portorname =  optPortOrName.get();
@@ -589,7 +590,7 @@ public:
     {
 
         if (optBindingId.isEmpty())
-            throw MakeStringException( 0, "Esdl binding id must be provided!" );
+            throw MakeStringException(TOOLSERR_EsdlBindingIdMustBeProvided, "Esdl binding id must be provided!" );
 
         return EsdlPublishCmdCommon::finalizeOptions(globals);
     }
@@ -700,7 +701,7 @@ public:
     {
 
         if (optESDLDefID.isEmpty())
-            throw MakeStringException( 0, "ESDLDefinitionID must be provided!" );
+            throw MakeStringException(TOOLSERR_EsdldefinitionidMustBeProvided, "ESDLDefinitionID must be provided!" );
 
         return EsdlPublishCmdCommon::finalizeOptions(globals);
     }
@@ -1008,10 +1009,10 @@ public:
         }
 
         if (optBindingId.isEmpty())
-            throw MakeStringException( 0, "ESDLBindingID must be provided!" );
+            throw MakeStringException(TOOLSERR_EsdlbindingidMustBeProvided, "ESDLBindingID must be provided!" );
 
         if (optMethod.isEmpty())
-            throw MakeStringException( 0, "Name of ESDL based method must be provided" );
+            throw MakeStringException(TOOLSERR_NameOfEsdlBasedMethodMust, "Name of ESDL based method must be provided" );
 
         return EsdlPublishCmdCommon::finalizeOptions(globals);
     }
@@ -1175,10 +1176,10 @@ public:
     bool finalizeOptions(IProperties *globals)
     {
         if(optBindingId.isEmpty())
-            throw MakeStringException( 0, "Name of Target ESDL Binding must be provided" );
+            throw MakeStringException(TOOLSERR_NameOfTargetEsdlBindingMust, "Name of Target ESDL Binding must be provided" );
 
         if (optMethod.isEmpty())
-            throw MakeStringException( 0, "Name of ESDL based method must be provided" );
+            throw MakeStringException(TOOLSERR_NameOfEsdlBasedMethodMust, "Name of ESDL based method must be provided" );
 
         return EsdlPublishCmdCommon::finalizeOptions(globals);
     }
@@ -1334,10 +1335,10 @@ public:
         }
 
         if (optBindingId.isEmpty())
-            throw MakeStringException( 0, "ESDLBindingID must be provided!" );
+            throw MakeStringException(TOOLSERR_EsdlbindingidMustBeProvided, "ESDLBindingID must be provided!" );
 
         if (optLogTransform.isEmpty() && (strncmp(optInput.str(), "<LogTransforms>", 15) != 0))
-            throw MakeStringException( 0, "Name of ESDL based LogTransform must be provided" );
+            throw MakeStringException(TOOLSERR_NameOfEsdlBasedLogtransformMust, "Name of ESDL based LogTransform must be provided" );
 
         return EsdlPublishCmdCommon::finalizeOptions(globals);
     }
@@ -1510,10 +1511,10 @@ public:
     bool finalizeOptions(IProperties *globals)
     {
         if(optBindingId.isEmpty())
-            throw MakeStringException( 0, "Name of Target ESDL Binding must be provided" );
+            throw MakeStringException(TOOLSERR_NameOfTargetEsdlBindingMust, "Name of Target ESDL Binding must be provided" );
 
         if (optLogTransform.isEmpty())
-            throw MakeStringException( 0, "Name of ESDL based LogTransform must be provided" );
+            throw MakeStringException(TOOLSERR_NameOfEsdlBasedLogtransformMust, "Name of ESDL based LogTransform must be provided" );
 
         return EsdlPublishCmdCommon::finalizeOptions(globals);
     }
@@ -1578,7 +1579,7 @@ class EsdlGetCmd : public EsdlPublishCmdCommon
         bool finalizeOptions(IProperties *globals)
         {
             if (optId.isEmpty())
-                throw MakeStringException( 0, "ESDL ID must be provided" );
+                throw MakeStringException(TOOLSERR_EsdlIdMustBeProvided, "ESDL ID must be provided" );
 
             return EsdlPublishCmdCommon::finalizeOptions(globals);
         }

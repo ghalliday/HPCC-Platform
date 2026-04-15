@@ -16,6 +16,7 @@
 */
 
 #include "jlog.hpp"
+#include "systemerr.hpp"
 #include "prometheusSink.hpp"
 
 using namespace hpccMetrics;
@@ -263,7 +264,7 @@ const std::vector<std::string> &PrometheusMetricSink::getHistogramLabels(const s
 void PrometheusMetricSink::startCollection(MetricsManager *_pManager)
 {
     if (!_pManager)
-        throw MakeStringException(-1, "PrometheusMetricsService: NULL MetricsManager detected!");
+        throw MakeStringException(SYSTEMERR_PrometheusmetricsserviceNullMetricsmanagerDetected, "PrometheusMetricsService: NULL MetricsManager detected!");
 
     m_metricsManager = _pManager;
 

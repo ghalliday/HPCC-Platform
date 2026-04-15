@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <stdio.h>
+#include "toolserr.hpp"
 #include "jlog.hpp"
 #include "keydiff.hpp"
 #include "mpcomm.hpp"
@@ -121,9 +122,9 @@ void getParams(unsigned argc, char * const * argv, KeyPatchParams & params)
             params.tlkPort = atoi(argv[++arg]);
             params.xmitEp.set(argv[++arg]);
             if(params.tlkPort == 0)
-                throw MakeStringException(0, "Bad local port on TLK transmit");
+                throw MakeStringException(TOOLSERR_BadLocalPortOnTlkTransmit, "Bad local port on TLK transmit");
             if(params.xmitEp.port == 0)
-                throw MakeStringException(0, "Bad remote ip:port on TLK transmit");
+                throw MakeStringException(TOOLSERR_BadRemoteIpPortOnTlk, "Bad remote ip:port on TLK transmit");
         }
         else if((strcmp(argv[arg], "-r") == 0) || (strcmp(argv[arg], "--receive") == 0))
         {
@@ -132,9 +133,9 @@ void getParams(unsigned argc, char * const * argv, KeyPatchParams & params)
             params.tlkPort = atoi(argv[++arg]);
             params.recvNum = atoi(argv[++arg]);
             if(params.tlkPort == 0)
-                throw MakeStringException(0, "Bad local port on TLK receive");
+                throw MakeStringException(TOOLSERR_BadLocalPortOnTlkReceive, "Bad local port on TLK receive");
             if(params.recvNum == 0)
-                throw MakeStringException(0, "Bad number of parts on TLK receive");
+                throw MakeStringException(TOOLSERR_BadNumberOfPartsOnTlk, "Bad number of parts on TLK receive");
         }
         else if((strcmp(argv[arg], "-s") == 0) || (stricmp(argv[arg], "--skiptlk") == 0))
             params.ignoreTLK = true;
@@ -155,9 +156,9 @@ void getParams(unsigned argc, char * const * argv, KeyPatchParams & params)
         arg++;
     }
     if((params.mode == KEYPATCH_info) && (params.xmitTLK || params.recvTLK))
-        throw MakeStringException(0, "Cannot specify info option with TLK transmit or receive");
+        throw MakeStringException(TOOLSERR_CannotSpecifyInfoOptionWithTlk, "Cannot specify info option with TLK transmit or receive");
     if(params.xmitTLK && params.recvTLK)
-        throw MakeStringException(0, "Cannot specify both TLK transmit and receive");
+        throw MakeStringException(TOOLSERR_CannotSpecifyBothTlkTransmitAnd, "Cannot specify both TLK transmit and receive");
     unsigned argsRqd = (params.recvTLK ? 4 : 3);
     if((argc == arg+argsRqd) && (params.mode == KEYPATCH_implicit))
     {

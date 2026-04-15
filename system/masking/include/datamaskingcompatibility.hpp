@@ -18,6 +18,7 @@
 #pragma once
 
 #include "jexcept.hpp"
+#include "systemerr.hpp"
 #include "datamasking.h"
 #include "tracer.hpp"
 
@@ -687,7 +688,7 @@ namespace DataMasking
             if (!context)
             {
                 tracer->ierrlog("missing context for compatibility check; call checkAndSetUsing first");
-                throw makeStringException(-1, "compatibility checker not ready");
+                throw makeStringException(SYSTEMERR_CompatibilityCheckerNotReady, "compatibility checker not ready");
             }
         }
         Presence mapPresence(const char* presence) const

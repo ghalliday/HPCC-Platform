@@ -12,6 +12,7 @@
 ############################################################################## */
 
 #include "ElasticStackLogAccess.hpp"
+#include "systemerr.hpp"
 
 #include "platform.h"
 
@@ -304,7 +305,7 @@ static size_t captureIncomingCURLReply(void* contents, size_t size, size_t nmemb
 static void curlPingURL(StringBuffer & resp, const char * targetURL, const char * certFile, const char * caCertFile, bool verifyHost, bool verifyPeer)
 {
     if (isEmptyString(targetURL))
-        throw makeStringExceptionV(-1, "%s Curl ping: targetURL required!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SCurlPingTargeturlRequired, "%s Curl ping: targetURL required!", COMPONENT_NAME);
 
     OwnedPtrCustomFree<CURL, curl_easy_cleanup> curlHandle = curl_easy_init();
     if (curlHandle)
@@ -313,43 +314,43 @@ static void curlPingURL(StringBuffer & resp, const char * targetURL, const char 
         MemoryBuffer            captureBuffer(DEFAULT_CURL_REPLY_BUFFER_SIZE);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_URL, targetURL) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Curl Ping: Could not set 'CURLOPT_URL' (%s)!", COMPONENT_NAME,  targetURL);
+            throw makeStringExceptionV(SYSTEMERR_SCurlPingCouldNotSet, "%s: Curl Ping: Could not set 'CURLOPT_URL' (%s)!", COMPONENT_NAME,  targetURL);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_NOPROGRESS, 1) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Curl Ping: Could not disable 'CURLOPT_NOPROGRESS' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SCurlPingCouldNotDisable, "%s: Curl Ping: Could not disable 'CURLOPT_NOPROGRESS' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_WRITEFUNCTION, captureIncomingCURLReply) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Curl Ping: Could not set 'CURLOPT_WRITEFUNCTION' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SCurlPingCouldNotSet_1, "%s: Curl Ping: Could not set 'CURLOPT_WRITEFUNCTION' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_WRITEDATA, static_cast<void*>(&captureBuffer)) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Curl Ping: Could not set 'CURLOPT_WRITEDATA' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SCurlPingCouldNotSet_2, "%s: Curl Ping: Could not set 'CURLOPT_WRITEDATA' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_USERAGENT, "HPCC Systems Log Access client") != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Curl Ping: Could not set 'CURLOPT_USERAGENT' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SCurlPingCouldNotSet_3, "%s: Curl Ping: Could not set 'CURLOPT_USERAGENT' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_FAILONERROR, 0L) != CURLE_OK) // Do not treat non-ok HTTP codes as an error
-            throw makeStringExceptionV(-1, "%s: Curl Ping: Could not set 'CURLOPT_FAILONERROR' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SCurlPingCouldNotSet_4, "%s: Curl Ping: Could not set 'CURLOPT_FAILONERROR' option!", COMPONENT_NAME);
 
         if (!isEmptyString(certFile))
         {
             /* set the cert for client authentication */
             if (curl_easy_setopt(curlHandle, CURLOPT_SSLCERT, certFile) != CURLE_OK)
-                throw makeStringExceptionV(-1, "%s: Curl Ping: Could not set 'CURLOPT_SSLCERT' option!", COMPONENT_NAME);
+                throw makeStringExceptionV(SYSTEMERR_SCurlPingCouldNotSet_5, "%s: Curl Ping: Could not set 'CURLOPT_SSLCERT' option!", COMPONENT_NAME);
         }
 
         if (!isEmptyString(caCertFile))
         {
             /* set the file with the certs validating the server */
             if (curl_easy_setopt(curlHandle, CURLOPT_CAINFO, caCertFile) != CURLE_OK)
-                throw makeStringExceptionV(-1, "%s: Curl Ping: Could not set 'CURLOPT_CAINFO' option!", COMPONENT_NAME);
+                throw makeStringExceptionV(SYSTEMERR_SCurlPingCouldNotSet_6, "%s: Curl Ping: Could not set 'CURLOPT_CAINFO' option!", COMPONENT_NAME);
         }
 
         if (curl_easy_setopt(curlHandle, CURLOPT_SSL_VERIFYPEER, verifyPeer ? 1L : 0L) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Curl Ping: Could not set 'CURLOPT_SSL_VERIFYPEER' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SCurlPingCouldNotSet_7, "%s: Curl Ping: Could not set 'CURLOPT_SSL_VERIFYPEER' option!", COMPONENT_NAME);
 
         //CURLOPT_SSL_VERIFYHOST should use 2L for verification enabled (per libcurl documentation: 0L disables verification, 1L is not a valid value, and 2L enables full verification of the hostname.)
         if (curl_easy_setopt(curlHandle, CURLOPT_SSL_VERIFYHOST, verifyHost ? 2L : 0L) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Curl Ping: Could not set 'CURLOPT_SSL_VERIFYHOST' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SCurlPingCouldNotSet_8, "%s: Curl Ping: Could not set 'CURLOPT_SSL_VERIFYHOST' option!", COMPONENT_NAME);
 
         try
         {
@@ -357,7 +358,7 @@ static void curlPingURL(StringBuffer & resp, const char * targetURL, const char 
         }
         catch (...)
         {
-            throw makeStringExceptionV(-1, "%s: Curl Ping: Unknown error!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SCurlPingUnknownError, "%s: Curl Ping: Unknown error!", COMPONENT_NAME);
         }
 
         if (captureBuffer.length() > 0)
@@ -384,7 +385,7 @@ static void curlPingURL(StringBuffer & resp, const char * targetURL, const char 
         }
         else
         {
-            throw makeStringExceptionV(-1, "%s: Curl Ping: CURL ACTION FAILED! '%s'", COMPONENT_NAME, curl_easy_strerror(curlResponseCode));
+            throw makeStringExceptionV(SYSTEMERR_SCurlPingCurlActionFailed, "%s: Curl Ping: CURL ACTION FAILED! '%s'", COMPONENT_NAME, curl_easy_strerror(curlResponseCode));
         }
     }
 }
@@ -421,10 +422,10 @@ const IPropertyTree * ElasticStackLogAccess::performAndLogESRequest(Client::HTTP
 const IPropertyTree * ElasticStackLogAccess::getTimestampTypeFormat(const char * indexpattern, const char * fieldname)
 {
     if (isEmptyString(indexpattern))
-        throw makeStringException(-1, "ElasticStackLogAccess::getTimestampTypeFormat: indexpattern must be provided");
+        throw makeStringException(SYSTEMERR_ElasticstacklogaccessGettimestamptypeformatIndexpatternMustBeProvided, "ElasticStackLogAccess::getTimestampTypeFormat: indexpattern must be provided");
 
     if (isEmptyString(fieldname))
-        throw makeStringException(-1, "ElasticStackLogAccess::getTimestampTypeFormat: fieldname must be provided");
+        throw makeStringException(SYSTEMERR_ElasticstacklogaccessGettimestamptypeformatFieldnameMustBeProvided, "ElasticStackLogAccess::getTimestampTypeFormat: fieldname must be provided");
 
     VStringBuffer timestampformatreq("%s/_mapping/field/created_ts?include_type_name=true&format=JSON", indexpattern);
     return performAndLogESRequest(Client::HTTPMethod::GET, timestampformatreq.str(), "", "getTimestampTypeFormat");
@@ -433,7 +434,7 @@ const IPropertyTree * ElasticStackLogAccess::getTimestampTypeFormat(const char *
 const IPropertyTree * ElasticStackLogAccess::getIndexSearchStatus(const char * indexpattern)
 {
     if (!indexpattern || !*indexpattern)
-        throw makeStringException(-1, "ElasticStackLogAccess::getIndexSearchStatus: indexpattern must be provided");
+        throw makeStringException(SYSTEMERR_ElasticstacklogaccessGetindexsearchstatusIndexpatternMustBeProvided, "ElasticStackLogAccess::getIndexSearchStatus: indexpattern must be provided");
 
     VStringBuffer indexsearch("_cat/indices/%s?format=JSON", indexpattern);
     return performAndLogESRequest(Client::HTTPMethod::GET, indexsearch.str(), "", "List of available indexes");
@@ -756,7 +757,7 @@ const IPropertyTree * ElasticStackLogAccess::getESStatus()
 unsigned processHitsJsonResp(IPropertyTreeIterator * iter, StringBuffer & returnbuf, LogAccessLogFormat format, bool wrapped, bool reportHeader)
 {
     if (!iter)
-        throw makeStringExceptionV(-1, "%s: Detected null 'hits' ElasticSearch response", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SDetectedNullHitsElasticsearchResponse, "%s: Detected null 'hits' ElasticSearch response", COMPONENT_NAME);
 
     unsigned recsProcessed = 0;
     switch (format)
@@ -852,10 +853,10 @@ unsigned processHitsJsonResp(IPropertyTreeIterator * iter, StringBuffer & return
 bool processESSearchJsonResp(LogQueryResultDetails & resultDetails, const cpr::Response & retrievedDocument, StringBuffer & returnbuf, LogAccessLogFormat format, bool reportHeader)
 {
     if (retrievedDocument.status_code != 200)
-        throw makeStringExceptionV(-1, "ElasticSearch request failed: '%s'", retrievedDocument.text.c_str());
+        throw makeStringExceptionV(SYSTEMERR_ElasticsearchRequestFailedS, "ElasticSearch request failed: '%s'", retrievedDocument.text.c_str());
 
     if (retrievedDocument.error)
-        throw makeStringExceptionV(-1, "ElasticSearch request failed: CPR error: '%s'", retrievedDocument.error.message.c_str());
+        throw makeStringExceptionV(SYSTEMERR_ElasticsearchRequestFailedCprErrorS, "ElasticSearch request failed: CPR error: '%s'", retrievedDocument.error.message.c_str());
 
 #ifdef _DEBUG
     DBGLOG("Retrieved ES JSON DOC: %s", retrievedDocument.text.c_str());
@@ -863,7 +864,7 @@ bool processESSearchJsonResp(LogQueryResultDetails & resultDetails, const cpr::R
 
     Owned<IPropertyTree> tree = createPTreeFromJSONString(retrievedDocument.text.c_str());
     if (!tree)
-        throw makeStringExceptionV(-1, "%s: Could not parse ElasticSearch query response", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SCouldNotParseElasticsearchQuery, "%s: Could not parse ElasticSearch query response", COMPONENT_NAME);
 
     if (tree->getPropBool("timed_out", false))
         LOG(MCuserProgress,"ES Log Access: timeout reported");
@@ -887,7 +888,7 @@ void processESScrollJsonResp(const char * retValue, StringBuffer & returnbuf, Lo
 {
     Owned<IPropertyTree> tree = createPTreeFromJSONString(retValue);
     if (!tree)
-        throw makeStringExceptionV(-1, "%s: Could not parse ElasticSearch query response", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SCouldNotParseElasticsearchQuery, "%s: Could not parse ElasticSearch query response", COMPONENT_NAME);
 
     Owned<IPropertyTreeIterator> hitsFieldsElements = tree->getElements("hits/fields");
     processHitsJsonResp(hitsFieldsElements, returnbuf, format, wrapped, header);
@@ -896,7 +897,7 @@ void processESScrollJsonResp(const char * retValue, StringBuffer & returnbuf, Lo
 void esTimestampQueryRangeString(std::string & range, const char * timestampfield, std::time_t from, std::time_t to)
 {
     if (isEmptyString(timestampfield))
-        throw makeStringException(-1, "ES Log Access: TimeStamp Field must be provided");
+        throw makeStringException(SYSTEMERR_EsLogAccessTimestampFieldMust, "ES Log Access: TimeStamp Field must be provided");
 
     //Elastic Search Date formats can be customized, but if no format is specified then it uses the default:
     //"strict_date_optional_time||epoch_millis"
@@ -931,7 +932,7 @@ void esTermQueryString(std::string & search, const char *searchval, const char *
     //Avoid using the term query for text fields.
     //By default, Elasticsearch changes the values of text fields as part of analysis. This can make finding exact matches for text field values difficult.
     if (isEmptyString(searchval) || isEmptyString(searchfield))
-        throw makeStringException(-1, "Could not create ES term query string: Either search value or search field is empty");
+        throw makeStringException(SYSTEMERR_CouldNotCreateEsTermQuery, "Could not create ES term query string: Either search value or search field is empty");
 
     search += "\"term\": { \"";
     search += searchfield;
@@ -950,7 +951,7 @@ void esMatchQueryString(std::string & search, const char *searchval, const char 
     //Returns documents that match a provided text, number, date or boolean value. The provided text is analyzed before matching.
     //The match query is the standard query for performing a full-text search, including options for fuzzy matching.
     if (isEmptyString(searchval) || isEmptyString(searchfield))
-        throw makeStringException(-1, "Could not create ES match query string: Either search value or search field is empty");
+        throw makeStringException(SYSTEMERR_CouldNotCreateEsMatchQuery, "Could not create ES match query string: Either search value or search field is empty");
 
     search += "\"match\": { \"";
     search += searchfield;
@@ -1015,12 +1016,12 @@ void ElasticStackLogAccess::esSearchMetaData(std::string & search, const LogAcce
         }
         else
         {
-            throw makeStringExceptionV(-1, "%s: Custom return columns specified, but no columns provided", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SCustomReturnColumnsSpecifiedBut, "%s: Custom return columns specified, but no columns provided", COMPONENT_NAME);
         }
         break;
     }
     default:
-        throw makeStringExceptionV(-1, "%s: Could not determine return colums mode", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SCouldNotDetermineReturnColums, "%s: Could not determine return colums mode", COMPONENT_NAME);
     }
 
     search += "],";
@@ -1118,7 +1119,7 @@ void ElasticStackLogAccess::populateESQueryQueryString(std::string & queryString
     //such as AND or NOT. The query then analyzes each split text independently before returning matching documents.
 
     if (filter == nullptr)
-        throw makeStringExceptionV(-1, "%s: Null filter detected while creating Elastic Stack query string", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SNullFilterDetectedWhileCreating_1, "%s: Null filter detected while creating Elastic Stack query string", COMPONENT_NAME);
 
 
     StringBuffer queryValue;
@@ -1130,14 +1131,14 @@ void ElasticStackLogAccess::populateESQueryQueryString(std::string & queryString
     case LOGACCESS_FILTER_jobid:
     {
         if (m_workunitSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'JobID' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SJobidLogEntryFieldNot, "%s: 'JobID' log entry field not configured", COMPONENT_NAME);
 
         queryField = m_workunitSearchColName.str();
 
         if (!m_workunitIndexSearchPattern.isEmpty())
         {
             if (!queryIndex.empty() && queryIndex != m_workunitIndexSearchPattern.str())
-                throw makeStringExceptionV(-1, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_workunitIndexSearchPattern.str());
+                throw makeStringExceptionV(SYSTEMERR_SMultiIndexQueryNotSupported, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_workunitIndexSearchPattern.str());
             queryIndex = m_workunitIndexSearchPattern;
         }
 
@@ -1147,14 +1148,14 @@ void ElasticStackLogAccess::populateESQueryQueryString(std::string & queryString
     case LOGACCESS_FILTER_trace:
     {
         if (m_traceSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'traceid' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_STraceidLogEntryFieldNot, "%s: 'traceid' log entry field not configured", COMPONENT_NAME);
 
         queryField = m_traceSearchColName.str();
 
         if (!m_traceIndexSearchPattern.isEmpty())
         {
             if (!queryIndex.empty() && queryIndex != m_traceIndexSearchPattern.str())
-                throw makeStringExceptionV(-1, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_workunitIndexSearchPattern.str());
+                throw makeStringExceptionV(SYSTEMERR_SMultiIndexQueryNotSupported, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_workunitIndexSearchPattern.str());
             queryIndex = m_traceIndexSearchPattern;
         }
 
@@ -1164,14 +1165,14 @@ void ElasticStackLogAccess::populateESQueryQueryString(std::string & queryString
     case LOGACCESS_FILTER_span:
     {
         if (m_spanSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'spanid' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SSpanidLogEntryFieldNot, "%s: 'spanid' log entry field not configured", COMPONENT_NAME);
 
         queryField = m_spanSearchColName.str();
 
         if (!m_spanIndexSearchPattern.isEmpty())
         {
             if (!queryIndex.empty() && queryIndex != m_spanIndexSearchPattern.str())
-                throw makeStringExceptionV(-1, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_workunitIndexSearchPattern.str());
+                throw makeStringExceptionV(SYSTEMERR_SMultiIndexQueryNotSupported, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_workunitIndexSearchPattern.str());
             queryIndex = m_spanIndexSearchPattern;
         }
 
@@ -1181,14 +1182,14 @@ void ElasticStackLogAccess::populateESQueryQueryString(std::string & queryString
     case LOGACCESS_FILTER_class:
     {
         if (m_classSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'Class' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SClassLogEntryFieldNot, "%s: 'Class' log entry field not configured", COMPONENT_NAME);
 
         queryField = m_classSearchColName.str();
 
         if (!m_classIndexSearchPattern.isEmpty())
         {
             if (!queryIndex.empty() && queryIndex != m_classIndexSearchPattern.str())
-                throw makeStringExceptionV(-1, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_classIndexSearchPattern.str());
+                throw makeStringExceptionV(SYSTEMERR_SMultiIndexQueryNotSupported, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_classIndexSearchPattern.str());
             queryIndex = m_classIndexSearchPattern.str();
         }
 
@@ -1198,14 +1199,14 @@ void ElasticStackLogAccess::populateESQueryQueryString(std::string & queryString
     case LOGACCESS_FILTER_audience:
     {
         if (m_audienceSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'Audience' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SAudienceLogEntryFieldNot, "%s: 'Audience' log entry field not configured", COMPONENT_NAME);
         
         queryField = m_audienceSearchColName.str();
 
         if (!m_audienceIndexSearchPattern.isEmpty())
         {
             if (!queryIndex.empty() && queryIndex != m_audienceIndexSearchPattern.str())
-                throw makeStringExceptionV(-1, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_audienceIndexSearchPattern.str());
+                throw makeStringExceptionV(SYSTEMERR_SMultiIndexQueryNotSupported, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_audienceIndexSearchPattern.str());
 
             queryIndex = m_audienceIndexSearchPattern.str();
         }
@@ -1216,14 +1217,14 @@ void ElasticStackLogAccess::populateESQueryQueryString(std::string & queryString
     case LOGACCESS_FILTER_component:
     {
         if (m_componentsSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'Host' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SHostLogEntryFieldNot, "%s: 'Host' log entry field not configured", COMPONENT_NAME);
 
         queryField = m_componentsSearchColName.str();
 
         if (!m_componentsIndexSearchPattern.isEmpty())
         {
             if (!queryIndex.empty() && queryIndex != m_componentsIndexSearchPattern.str())
-                throw makeStringExceptionV(-1, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_componentsIndexSearchPattern.str());
+                throw makeStringExceptionV(SYSTEMERR_SMultiIndexQueryNotSupported, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_componentsIndexSearchPattern.str());
 
             queryIndex = m_componentsIndexSearchPattern.str();
         }
@@ -1234,14 +1235,14 @@ void ElasticStackLogAccess::populateESQueryQueryString(std::string & queryString
     case LOGACCESS_FILTER_host:
     {
         if (m_hostSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'Host' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SHostLogEntryFieldNot, "%s: 'Host' log entry field not configured", COMPONENT_NAME);
 
         queryField = m_hostSearchColName.str();
 
         if (!m_hostIndexSearchPattern.isEmpty())
         {
             if (!queryIndex.empty() && queryIndex != m_hostIndexSearchPattern.str())
-                throw makeStringExceptionV(-1, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_hostIndexSearchPattern.str());
+                throw makeStringExceptionV(SYSTEMERR_SMultiIndexQueryNotSupported, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_hostIndexSearchPattern.str());
 
             queryIndex = m_hostIndexSearchPattern.str();
         }
@@ -1252,14 +1253,14 @@ void ElasticStackLogAccess::populateESQueryQueryString(std::string & queryString
     case LOGACCESS_FILTER_instance:
     {
         if (m_instanceSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'Instance' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SInstanceLogEntryFieldNot, "%s: 'Instance' log entry field not configured", COMPONENT_NAME);
 
         queryField = m_instanceSearchColName.str();
 
         if (!m_instanceIndexSearchPattern.isEmpty())
         {
             if (!queryIndex.empty() && queryIndex != m_instanceIndexSearchPattern.str())
-                throw makeStringExceptionV(-1, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_instanceIndexSearchPattern.str());
+                throw makeStringExceptionV(SYSTEMERR_SMultiIndexQueryNotSupported, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_instanceIndexSearchPattern.str());
 
             queryIndex = m_instanceIndexSearchPattern.str();
         }
@@ -1269,7 +1270,7 @@ void ElasticStackLogAccess::populateESQueryQueryString(std::string & queryString
     }
     case LOGACCESS_FILTER_wildcard:
         if (queryValue.isEmpty())
-            throw makeStringExceptionV(-1, "%s: Wildcard filter cannot be empty!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SWildcardFilterCannotBeEmpty, "%s: Wildcard filter cannot be empty!", COMPONENT_NAME);
 
         DBGLOG("%s: Searching log entries by wildcard filter: '%s: %s'...", COMPONENT_NAME, queryField.c_str(), queryValue.str());
         break;
@@ -1286,20 +1287,20 @@ void ElasticStackLogAccess::populateESQueryQueryString(std::string & queryString
         return; // queryString populated, need to break out
     case LOGACCESS_FILTER_column:
         if (filter->getFieldName() == nullptr)
-            throw makeStringExceptionV(-1, "%s: empty field name detected in filter by column!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SEmptyFieldNameDetectedIn, "%s: empty field name detected in filter by column!", COMPONENT_NAME);
         queryField = filter->getFieldName();
         break;
     case LOGACCESS_FILTER_pod:
     {
         if (m_podSearchColName.isEmpty())
-            throw makeStringExceptionV(-1, "%s: 'pod' log entry field not configured", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SPodLogEntryFieldNot, "%s: 'pod' log entry field not configured", COMPONENT_NAME);
 
         queryField = m_podSearchColName.str();
 
         if (!m_podIndexSearchPattern.isEmpty())
         {
             if (!queryIndex.empty() && queryIndex != m_podIndexSearchPattern.str())
-                throw makeStringExceptionV(-1, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_instanceIndexSearchPattern.str());
+                throw makeStringExceptionV(SYSTEMERR_SMultiIndexQueryNotSupported, "%s: Multi-index query not supported: '%s' - '%s'", COMPONENT_NAME, queryIndex.c_str(), m_instanceIndexSearchPattern.str());
 
             queryIndex = m_podIndexSearchPattern.str();
         }
@@ -1307,7 +1308,7 @@ void ElasticStackLogAccess::populateESQueryQueryString(std::string & queryString
         break;
     }
     default:
-        throw makeStringExceptionV(-1, "%s: Unknown query criteria type encountered: '%s'", COMPONENT_NAME, queryValue.str());
+        throw makeStringExceptionV(SYSTEMERR_SUnknownQueryCriteriaTypeEncountered, "%s: Unknown query criteria type encountered: '%s'", COMPONENT_NAME, queryValue.str());
     }
 
     queryString += queryField + ":" + queryValue.str();
@@ -1339,7 +1340,7 @@ void ElasticStackLogAccess::populateQueryStringAndQueryIndex(std::string & query
         const LogAccessTimeRange & trange = options.getTimeRange();
         //Bail out earlier?
         if (trange.getStartt().isNull())
-            throw makeStringExceptionV(-1, "%s: start time must be provided!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SStartTimeMustBeProvided, "%s: start time must be provided!", COMPONENT_NAME);
 
         esTimestampQueryRangeString(range, m_globalIndexTimestampField.str(), trange.getStartt().getSimple(),trange.getEndt().isNull() ? -1 : trange.getEndt().getSimple());
 
@@ -1351,14 +1352,14 @@ void ElasticStackLogAccess::populateQueryStringAndQueryIndex(std::string & query
     catch (std::runtime_error &e)
     {
         const char * wha = e.what();
-        throw makeStringExceptionV(-1, "%s: Error populating ES search string: %s", COMPONENT_NAME, wha);
+        throw makeStringExceptionV(SYSTEMERR_SErrorPopulatingEsSearchString, "%s: Error populating ES search string: %s", COMPONENT_NAME, wha);
     }
     catch (IException * e)
     {
         StringBuffer mess;
         e->errorMessage(mess);
         e->Release();
-        throw makeStringExceptionV(-1, "%s: Error populating ES search string: %s", COMPONENT_NAME, mess.str());
+        throw makeStringExceptionV(SYSTEMERR_SErrorPopulatingEsSearchString, "%s: Error populating ES search string: %s", COMPONENT_NAME, mess.str());
     }
 }
 
@@ -1377,14 +1378,14 @@ cpr::Response ElasticStackLogAccess::performESQuery(const LogAccessConditions & 
     catch (std::runtime_error &e)
     {
         const char * wha = e.what();
-        throw makeStringExceptionV(-1, "%s: fetchLog: Error searching doc: %s", COMPONENT_NAME, wha);
+        throw makeStringExceptionV(SYSTEMERR_SFetchlogErrorSearchingDocS, "%s: fetchLog: Error searching doc: %s", COMPONENT_NAME, wha);
     }
     catch (IException * e)
     {
         StringBuffer mess;
         e->errorMessage(mess);
         e->Release();
-        throw makeStringExceptionV(-1, "%s: fetchLog: Error searching doc: %s", COMPONENT_NAME, mess.str());
+        throw makeStringExceptionV(SYSTEMERR_SFetchlogErrorSearchingDocS, "%s: fetchLog: Error searching doc: %s", COMPONENT_NAME, mess.str());
     }
 }
 

@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "platform.h"
+#include "toolserr.hpp"
 #include "thirdparty.h"
 
 #include "jlib.hpp"
@@ -65,7 +66,7 @@ static bool ensureThorIsDown(const char *cluster, bool nofail, bool wait)
                     retry = true;
                     break;
                 }
-                throw MakeStringException(-1, "A Thor cluster node swap requires the cluster to be offline.  Please stop the Thor cluster '%s' and try again.", cluster);
+                throw MakeStringException(TOOLSERR_AThorClusterNodeSwapRequires, "A Thor cluster node swap requires the cluster to be offline.  Please stop the Thor cluster '%s' and try again.", cluster);
             }
         }
     } while (retry);

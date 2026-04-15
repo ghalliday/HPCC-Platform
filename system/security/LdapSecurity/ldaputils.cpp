@@ -22,6 +22,7 @@
 #endif
 
 #include "ldaputils.hpp"
+#include "systemerr.hpp"
 
 #ifndef _WIN32
 # include <signal.h>
@@ -38,7 +39,7 @@ LDAP* LdapUtils::LdapInit(const char* protocol, const char* host, int port, int 
 #ifdef _WIN32
         ld = ldap_sslinit((char*)host, secure_port, 1);
         if (ld == NULL )
-            throw MakeStringException(-1, "ldap_sslinit error" );
+            throw MakeStringException(SYSTEMERR_LdapSslinitError, "ldap_sslinit error" );
 
         int rc = 0;
         unsigned long version = LDAP_VERSION3;
@@ -48,25 +49,25 @@ LDAP* LdapUtils::LdapInit(const char* protocol, const char* host, int port, int 
             LDAP_OPT_PROTOCOL_VERSION,
             (void*)&version);
         if (rc != LDAP_SUCCESS)
-            throw MakeStringException(-1, "ldap_set_option error - %s", ldap_err2string(rc));
+            throw MakeStringException(SYSTEMERR_LdapSetOptionErrorS, "ldap_set_option error - %s", ldap_err2string(rc));
 
         rc = ldap_get_option(ld,LDAP_OPT_SSL,(void*)&lv);
         if (rc != LDAP_SUCCESS)
-            throw MakeStringException(-1, "ldap_get_option error - %s", ldap_err2string(rc));
+            throw MakeStringException(SYSTEMERR_LdapGetOptionErrorS, "ldap_get_option error - %s", ldap_err2string(rc));
 
         // If SSL is not enabled, enable it.
         if ((void*)lv != LDAP_OPT_ON)
         {
             rc = ldap_set_option(ld, LDAP_OPT_SSL, LDAP_OPT_ON);
             if (rc != LDAP_SUCCESS)
-                throw MakeStringException(-1, "ldap_set_option error - %s", ldap_err2string(rc));
+                throw MakeStringException(SYSTEMERR_LdapSetOptionErrorS, "ldap_set_option error - %s", ldap_err2string(rc));
         }
 
         ldap_set_option(ld, LDAP_OPT_SERVER_CERTIFICATE, verifyServerCert);
 #else
         // Initialize an LDAP session for TLS/SSL
 #ifndef HAVE_TLS
-        //throw MakeStringException(-1, "openldap client library libldap not compiled with TLS support");
+        //throw MakeStringException(SYSTEMERR_OpenldapClientLibraryLibldapNotCompiled, "openldap client library libldap not compiled with TLS support");
 #endif
         int rc;
         rc = ldap_set_option(nullptr, LDAP_OPT_X_TLS_CIPHER_SUITE, isEmptyString(cipherSuite) ? nullptr : cipherSuite);
@@ -88,7 +89,7 @@ LDAP* LdapUtils::LdapInit(const char* protocol, const char* host, int port, int 
         if(rc != LDAP_SUCCESS)
         {
             if (throwOnError)
-                throw MakeStringException(-1, "ldap_initialize error %s", ldap_err2string(rc));
+                throw MakeStringException(SYSTEMERR_LdapInitializeErrorS, "ldap_initialize error %s", ldap_err2string(rc));
             DBGLOG("ldap_initialize error %s", ldap_err2string(rc));
             return nullptr;
         }
@@ -101,7 +102,7 @@ LDAP* LdapUtils::LdapInit(const char* protocol, const char* host, int port, int 
         ld = LDAP_INIT(host, port);
         if(NULL == ld)
         {
-            throw MakeStringException(-1, "ldap_init(%s,%d) error %s", host, port, ldap_err2string(LdapGetLastError()));
+            throw MakeStringException(SYSTEMERR_LdapInitSDErrorS, "ldap_init(%s,%d) error %s", host, port, ldap_err2string(LdapGetLastError()));
         }
 #else
         StringBuffer uri("ldap://");
@@ -110,7 +111,7 @@ LDAP* LdapUtils::LdapInit(const char* protocol, const char* host, int port, int 
         if(rc != LDAP_SUCCESS)
         {
             if (throwOnError)
-                throw MakeStringException(-1, "ldap_initialize(%s,%d) error %s", host, port, ldap_err2string(rc));
+                throw MakeStringException(SYSTEMERR_LdapInitializeSDErrorS, "ldap_initialize(%s,%d) error %s", host, port, ldap_err2string(rc));
             DBGLOG("ldap_initialize error %s", ldap_err2string(rc));
             return nullptr;
         }

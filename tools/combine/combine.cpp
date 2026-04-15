@@ -18,6 +18,7 @@
 #ifdef _WIN32
 #define _WIN32_WINNT 0x0400
 #include <windows.h>
+#include "toolserr.hpp"
 #endif
 
 #include "platform.h"
@@ -136,10 +137,10 @@ static void genPrefix(MemoryBuffer &out,const char *prefix,const char *filename,
             else if (c == 'L')
                 bigEndian = false;
             else
-                throw MakeStringException(-1,"Invalid prefix format %s", format);
+                throw MakeStringException(TOOLSERR_InvalidPrefixFormatS, "Invalid prefix format %s", format);
             c = format[1];
             if ((c <= '0') || (c > '8'))
-                throw MakeStringException(-1,"Invalid prefix format %s", format);
+                throw MakeStringException(TOOLSERR_InvalidPrefixFormatS, "Invalid prefix format %s", format);
 
             unsigned l = (c - '0');
             unsigned __int64 value = length;
@@ -149,7 +150,7 @@ static void genPrefix(MemoryBuffer &out,const char *prefix,const char *filename,
                 value >>= 8;
             }
             if (value)
-                throw MakeStringException(-1,"Prefix too small");
+                throw MakeStringException(TOOLSERR_PrefixTooSmall, "Prefix too small");
             if (bigEndian)
             {
                 byte temp2[8];
@@ -160,7 +161,7 @@ static void genPrefix(MemoryBuffer &out,const char *prefix,const char *filename,
                 out.append(l, &temp);
         }
         else
-            throw MakeStringException(-1,"Invalid prefix format %s", command.get());
+            throw MakeStringException(TOOLSERR_InvalidPrefixFormatS, "Invalid prefix format %s", command.get());
     }
 }
 

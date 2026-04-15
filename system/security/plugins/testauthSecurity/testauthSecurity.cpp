@@ -18,6 +18,7 @@
 #pragma warning( disable : 4786 )
 
 #include "basesecurity.hpp"
+#include "systemerr.hpp"
 
 #include "authmap.ipp"
 #include "testauthSecurity.hpp"
@@ -225,18 +226,18 @@ class CTestAuthSecurityManager : public CBaseSecurityManager
     {
         userName.set(userSettings.queryProp("@userName"));
         if (isEmptyString(userName))
-            throw makeStringExceptionV(-1, "Error retrieving userName.");
+            throw makeStringExceptionV(SYSTEMERR_ErrorRetrievingUsername, "Error retrieving userName.");
 
         const char* secretKey = userSettings.queryProp("@secretKey");
         if (!isEmptyString(secretKey))
         {
             Owned<const IPropertyTree> secretTree = getSecret("authn", secretKey);
             if (!secretTree)
-                throw makeStringExceptionV(-1, "Error retrieving the secret for %s.", secretKey);
+                throw makeStringExceptionV(SYSTEMERR_ErrorRetrievingTheSecretForS, "Error retrieving the secret for %s.", secretKey);
 
             getSecretKeyValue(password, secretTree, "password");
             if (password.isEmpty())
-                throw makeStringExceptionV(-1, "Error retrieving password for %s.", secretKey);
+                throw makeStringExceptionV(SYSTEMERR_ErrorRetrievingPasswordForS, "Error retrieving password for %s.", secretKey);
         }
         else
         {

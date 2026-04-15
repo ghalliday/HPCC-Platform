@@ -25,6 +25,7 @@
 */
 
 #include <future>
+#include "systemerr.hpp"
 #include <vector>
 #include <list>
 #include <array>
@@ -2470,7 +2471,7 @@ bool CMPConnectThread::handleAcceptedSocket(CConnectSelectHandler::CSocketHandle
             StringBuffer responseText; // filled if denied, NB: if amount sent is > sizeof(ConnectHdr) we can differentiate exception from success
             if (!allowListCallback->isAllowListed(handler->queryPeerHostText(), connectHdr.getRole(), &responseText))
             {
-                Owned<IException> e = makeStringException(-1, responseText);
+                Owned<IException> e = makeStringException(SYSTEMERR_Responsetext, responseText);
                 OWARNLOG(e, nullptr);
 
                 // NB: from 9.6 legacy clients are no longer supported (legacy clients in this context are older than 7.4.2)

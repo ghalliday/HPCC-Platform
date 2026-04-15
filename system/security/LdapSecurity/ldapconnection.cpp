@@ -17,6 +17,7 @@
 
 // LDAP prototypes use char* where they should be using const char *, resulting in lots of spurious warnings
 #include "jlog.hpp"
+#include "systemerr.hpp"
 #pragma warning( disable : 4786 )
 #ifdef __GNUC__
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -200,7 +201,7 @@ public:
 
             if(m_hostArray.length() == 0)
             {
-                throw MakeStringException(-1, "No valid ldap server address specified");
+                throw MakeStringException(SYSTEMERR_NoValidLdapServerAddressSpecified, "No valid ldap server address specified");
             }
 
             m_curHostIdx = 0;
@@ -356,14 +357,14 @@ public:
             else if (0 == stricmp(m_cfgServerType, "iPlanet"))
                 m_serverType = IPLANET;
             else
-                throw MakeStringException(-1, "Unknown LDAP serverType '%s' specified",m_cfgServerType.get());
+                throw MakeStringException(SYSTEMERR_UnknownLdapServertypeSSpecified, "Unknown LDAP serverType '%s' specified",m_cfgServerType.get());
         }
         
         StringBuffer hostsbuf;
         cfg->getProp(".//@ldapAddress", hostsbuf);
         if(hostsbuf.length() == 0)
         {
-            throw MakeStringException(-1, "ldapAddress not found in config");
+            throw MakeStringException(SYSTEMERR_LdapaddressNotFoundInConfig, "ldapAddress not found in config");
         }
         s_hostManager.populateHosts(hostsbuf.str());
 
@@ -410,14 +411,14 @@ public:
 
             Owned<const IPropertyTree> secretTree(getSecret("authn", adminUserSecretKey.str(), vaultId, nullptr));
             if (!secretTree)
-                throw MakeStringException(-1, "Error retrieving LDAP Admin username/password");
+                throw MakeStringException(SYSTEMERR_ErrorRetrievingLdapAdminUsernamePassword, "Error retrieving LDAP Admin username/password");
 
             getSecretKeyValue(m_sysuser_commonname, secretTree, "username");
             getSecretKeyValue(m_sysuser_password, secretTree, "password");
 
             if (m_sysuser_commonname.isEmpty() || m_sysuser_password.isEmpty())
             {
-                throw MakeStringException(-1, "Error extracting LDAP Admin username/password");
+                throw MakeStringException(SYSTEMERR_ErrorExtractingLdapAdminUsernamePassword, "Error extracting LDAP Admin username/password");
             }
             m_sysuser.set(m_sysuser_commonname);
         }
@@ -426,19 +427,19 @@ public:
             //Legacy component config from environment.xml configuration
             cfg->getProp(".//@systemCommonName", m_sysuser_commonname);
             if (m_sysuser_commonname.isEmpty())
-                throw MakeStringException(-1, "systemCommonName is empty");
+                throw MakeStringException(SYSTEMERR_SystemcommonnameIsEmpty, "systemCommonName is empty");
 
             StringBuffer pwd;
             cfg->getProp(".//@systemPassword", pwd);
             if (pwd.isEmpty())
-                throw MakeStringException(-1, "systemPassword is empty");
+                throw MakeStringException(SYSTEMERR_SystempasswordIsEmpty, "systemPassword is empty");
             decrypt(m_sysuser_password, pwd.str());//MD5 encrypted in config
         }
 
         StringBuffer sysBasedn;
         cfg->getProp(".//@systemBasedn", sysBasedn);
         if (sysBasedn.isEmpty())
-            throw MakeStringException(-1, "systemBasedn is empty");
+            throw MakeStringException(SYSTEMERR_SystembasednIsEmpty, "systemBasedn is empty");
 
         //----------------------------------------------------
         //Ensure at least one specified LDAP host is available
@@ -477,7 +478,7 @@ public:
 
         if(rc != LDAP_SUCCESS)
         {
-            throw MakeStringException(-1, "getServerInfo error - %s", ldap_err2string(rc));
+            throw MakeStringException(SYSTEMERR_GetserverinfoErrorS, "getServerInfo error - %s", ldap_err2string(rc));
         }
 
         //------------------------------------------------
@@ -513,7 +514,7 @@ public:
         cfg->getProp(".//@usersBasedn", user_basedn);
         if(user_basedn.length() == 0)
         {
-            throw MakeStringException(-1, "users basedn not found in config");
+            throw MakeStringException(SYSTEMERR_UsersBasednNotFoundInConfig, "users basedn not found in config");
         }
         LdapUtils::normalizeDn(user_basedn.str(), m_basedn.str(), m_user_basedn);
         
@@ -521,7 +522,7 @@ public:
         cfg->getProp(".//@groupsBasedn", group_basedn);
         if(group_basedn.length() == 0)
         {
-            throw MakeStringException(-1, "groups basedn not found in config");
+            throw MakeStringException(SYSTEMERR_GroupsBasednNotFoundInConfig, "groups basedn not found in config");
         }
         LdapUtils::normalizeDn(group_basedn.str(), m_basedn.str(), m_group_basedn);
 
@@ -590,7 +591,7 @@ public:
         
         if(m_resource_basedn.length() + m_filescope_basedn.length() + m_workunitscope_basedn.length() == 0)
         {
-            throw MakeStringException(-1, "One of the following basedns need to be defined: modulesBasedn, resourcesBasedn, filesBasedn or workunitScopesBasedn.");
+            throw MakeStringException(SYSTEMERR_OneOfTheFollowingBasednsNeed, "One of the following basedns need to be defined: modulesBasedn, resourcesBasedn, filesBasedn or workunitScopesBasedn.");
         }
 
         cfg->getProp(".//@templateName", m_template_name);
@@ -1098,7 +1099,7 @@ public:
                 if(curcon->validate())
                     return LINK(curcon);
                 else
-                    throw MakeStringException(-1, "Connecting/authenticating to ldap server in re-validation failed");
+                    throw MakeStringException(SYSTEMERR_ConnectingAuthenticatingToLdapServerIn, "Connecting/authenticating to ldap server in re-validation failed");
             }
         }
 
@@ -1108,7 +1109,7 @@ public:
         {
             if(!newcon->connect())
             {
-                throw MakeStringException(-1, "Connecting/authenticating to ldap server failed");
+                throw MakeStringException(SYSTEMERR_ConnectingAuthenticatingToLdapServerFailed, "Connecting/authenticating to ldap server failed");
             }
             
             if(m_currentsize <= m_maxsize)
@@ -1124,7 +1125,7 @@ public:
         }
         else
         {
-            throw MakeStringException(-1, "Failed to create new ldap connection");
+            throw MakeStringException(SYSTEMERR_FailedToCreateNewLdapConnection, "Failed to create new ldap connection");
         }
     }
 
@@ -1135,13 +1136,13 @@ public:
         {
             if(!newcon->connect(true))
             {
-                throw MakeStringException(-1, "Connecting/authenticating to ldap server via ldaps failed");
+                throw MakeStringException(SYSTEMERR_ConnectingAuthenticatingToLdapServerVia, "Connecting/authenticating to ldap server via ldaps failed");
             }
             return newcon;
         }
         else
         {
-            throw MakeStringException(-1, "Failed to create new ldap connection");
+            throw MakeStringException(SYSTEMERR_FailedToCreateNewLdapConnection, "Failed to create new ldap connection");
         }
     }
 
@@ -1169,14 +1170,14 @@ public:
         {
             if(!newcon->connect())
             {
-                throw MakeStringException(-1, "Connecting/authenticating to ldap server failed");
+                throw MakeStringException(SYSTEMERR_ConnectingAuthenticatingToLdapServerFailed, "Connecting/authenticating to ldap server failed");
             }
             
             return newcon;
         }
         else
         {
-            throw MakeStringException(-1, "Failed to create new ldap connection");
+            throw MakeStringException(SYSTEMERR_FailedToCreateNewLdapConnection, "Failed to create new ldap connection");
         }
     }
 };
@@ -1227,10 +1228,10 @@ public:
             if(con->validate())
                 return con.getLink();
             else
-                throw MakeStringException(-1, "Connecting/authenticating to ldap server in re-validation failed");
+                throw MakeStringException(SYSTEMERR_ConnectingAuthenticatingToLdapServerIn, "Connecting/authenticating to ldap server in re-validation failed");
         }
         else
-                throw MakeStringException(-1, "Failed to get an LDAP Connection.");
+                throw MakeStringException(SYSTEMERR_FailedToGetAnLdapConnection, "Failed to get an LDAP Connection.");
     }
 
     virtual ILdapConnection* getSSLConnection()
@@ -1240,13 +1241,13 @@ public:
         {
             if(!newcon->connect(true))
             {
-                throw MakeStringException(-1, "Connecting/authenticating to ldap server via ldaps failed");
+                throw MakeStringException(SYSTEMERR_ConnectingAuthenticatingToLdapServerVia, "Connecting/authenticating to ldap server via ldaps failed");
             }
             return newcon;
         }
         else
         {
-            throw MakeStringException(-1, "Failed to create new ldap connection");
+            throw MakeStringException(SYSTEMERR_FailedToCreateNewLdapConnection, "Failed to create new ldap connection");
         }
     }
 };
@@ -1368,7 +1369,7 @@ private:
             if (rc != LDAP_SUCCESS)
             {
                 int err = GetLastError();
-                throw MakeStringException(-1, "ldap_create_page_control failed with 0x%x (%s)",err, ldap_err2string( err ));
+                throw MakeStringException(SYSTEMERR_LdapCreatePageControlFailedWith, "ldap_create_page_control failed with 0x%x (%s)",err, ldap_err2string( err ));
             }
             pageCtrlMem.setPageControl(pageControl);
             LDAPControl * svrCtrls[] = { pageControl, NULL };
@@ -1399,7 +1400,7 @@ private:
                         ber_bvfree(m_pCookie);
                         m_pCookie = NULL;
                     }
-                    throw MakeStringException(-1, "ldap_search_ext_s failed with 0x%x (%s)",err, ldap_err2string( err ));
+                    throw MakeStringException(SYSTEMERR_LdapSearchExtSFailedWith, "ldap_search_ext_s failed with 0x%x (%s)",err, ldap_err2string( err ));
                 }
                 if (!m_pPageBlock)
                 {
@@ -1432,7 +1433,7 @@ private:
                 int err = GetLastError();
                 if (err)
                 {
-                    throw MakeStringException(-1, "ldap_parse_result failed with 0x%x (%s)",err, ldap_err2string( err ));
+                    throw MakeStringException(SYSTEMERR_LdapParseResultFailedWith0x, "ldap_parse_result failed with 0x%x (%s)",err, ldap_err2string( err ));
                 }
                 else
                 {
@@ -1452,7 +1453,7 @@ private:
                 int err = GetLastError();
                 if (err)
                 {
-                    throw MakeStringException(-1, "ldap_parse_page_control failed with 0x%x (%s)",err, ldap_err2string( err ));
+                    throw MakeStringException(SYSTEMERR_LdapParsePageControlFailedWith, "ldap_parse_page_control failed with 0x%x (%s)",err, ldap_err2string( err ));
                 }
                 else
                 {
@@ -1467,7 +1468,7 @@ private:
             m_morePages = false;
             if (rc != LDAP_SUCCESS)
             {
-                throw MakeStringException(-1, "ldap_search_ext_s failed with 0x%x (%s)",rc, ldap_err2string( rc ));
+                throw MakeStringException(SYSTEMERR_LdapSearchExtSFailedWith, "ldap_search_ext_s failed with 0x%x (%s)",rc, ldap_err2string( rc ));
             }
 #endif
         }
@@ -1476,12 +1477,12 @@ private:
         {
             StringBuffer emsg;
             e->errorMessage(emsg);
-            throw MakeStringException(-1, "LDAP Paged Search - %s", emsg.str());
+            throw MakeStringException(SYSTEMERR_LdapPagedSearchS, "LDAP Paged Search - %s", emsg.str());
         }
 
         catch(...)
         {
-            throw MakeStringException(-1, "Unknown Exception calling LDAP Paged Search");
+            throw MakeStringException(SYSTEMERR_UnknownExceptionCallingLdapPagedSearch, "Unknown Exception calling LDAP Paged Search");
         }
 
         return true;
@@ -2365,9 +2366,9 @@ public:
             if(rc != 0)
                 sysuser.append(len, uname);
             else
-                throw MakeStringException(-1, "Error getting current user's username, error code = %d", rc);
+                throw MakeStringException(SYSTEMERR_ErrorGettingCurrentUserSUsername, "Error getting current user's username, error code = %d", rc);
 #else
-            throw MakeStringException(-1, "systemUser not found in config");
+            throw MakeStringException(SYSTEMERR_SystemuserNotFoundInConfig, "systemUser not found in config");
 #endif
         }
         
@@ -2380,7 +2381,7 @@ public:
                 m_pp->lookupSid(sysuser.str(), usersidbuf);
             if(usersidbuf.length() == 0)
             {
-                throw MakeStringException(-1, "system user %s's SID not found", sysuser.str());
+                throw MakeStringException(SYSTEMERR_SystemUserSSSidNot, "system user %s's SID not found", sysuser.str());
             }
 
             int sidlen = usersidbuf.length();
@@ -2980,7 +2981,7 @@ public:
                 cnbuf.append(fname).append(" ").append(lname);
             }
             else
-                throw MakeStringException(-1, "Please specify both firstname and lastname");
+                throw MakeStringException(SYSTEMERR_PleaseSpecifyBothFirstnameAndLastname, "Please specify both firstname and lastname");
 
             char *gn_values[] = { (char*)fname, NULL };
             LDAPMod gn_attr = {
@@ -3065,12 +3066,12 @@ public:
         else if(stricmp(type, "posixenable") == 0)
         {
             if(m_ldapconfig->getServerType() == ACTIVE_DIRECTORY)
-                throw MakeStringException(-1, "posixAccount isn't applicable to Active Directory");
+                throw MakeStringException(SYSTEMERR_PosixaccountIsnTApplicableToActive, "posixAccount isn't applicable to Active Directory");
 
             CLdapSecUser* ldapuser = dynamic_cast<CLdapSecUser*>(&user);
             if (ldapuser == nullptr)
             {
-                throw MakeStringException(-1, "Unable to cast user %s to CLdapSecUser", username);
+                throw MakeStringException(SYSTEMERR_UnableToCastUserSTo, "Unable to cast user %s to CLdapSecUser", username);
             }
 
             char* oc_values[] = {"posixAccount", NULL};
@@ -3146,7 +3147,7 @@ public:
         else if(stricmp(type, "posixdisable") == 0)
         {
             if(m_ldapconfig->getServerType() == ACTIVE_DIRECTORY)
-                throw MakeStringException(-1, "posixAccount isn't applicable to Active Directory");
+                throw MakeStringException(SYSTEMERR_PosixaccountIsnTApplicableToActive, "posixAccount isn't applicable to Active Directory");
 
             Owned<ILdapConnection> lconn = m_connections->getConnection();
             LDAP* ld = lconn.get()->getLd();
@@ -3221,7 +3222,7 @@ public:
         }
 
         if (rc != LDAP_SUCCESS )
-            throw MakeStringException(-1, "Error updating user %s - %s", username, ldap_err2string( rc ));
+            throw MakeStringException(SYSTEMERR_ErrorUpdatingUserSS, "Error updating user %s - %s", username, ldap_err2string( rc ));
 
         return true;
     }
@@ -3238,7 +3239,7 @@ public:
             catch (IException *e)
             {
                 e->Release();
-                throw MakeStringException(-1, "Failed to set user %s's password because of not being able to create an SSL connection to the ldap server. To set an Active Directory user's password from Linux, you need to enable SSL on the Active Directory ldap server", username);
+                throw MakeStringException(SYSTEMERR_FailedToSetUserSS, "Failed to set user %s's password because of not being able to create an SSL connection to the ldap server. To set an Active Directory user's password from Linux, you need to enable SSL on the Active Directory ldap server", username);
             }
             ld = lconn.get()->getLd();
         }
@@ -3282,7 +3283,7 @@ public:
 
         if(userdn.length() == 0)
         {
-            throw MakeStringException(-1, "can't find dn for user %s", username);
+            throw MakeStringException(SYSTEMERR_CanTFindDnForUser, "can't find dn for user %s", username);
         }
 
         LDAPMod modPassword;
@@ -3317,7 +3318,7 @@ public:
             if(rc == LDAP_UNWILLING_TO_PERFORM)
                 errmsg.append(" The ldap server refused to change the password. Usually this is because your new password doesn't satisfy the domain policy.");
 
-            throw MakeStringExceptionDirect(-1, errmsg.str());
+            throw MakeStringExceptionDirect(SYSTEMERR_ErrmsgStr, errmsg.str());
         }
 
         return true;
@@ -3361,7 +3362,7 @@ public:
             //password" form (use the one they type, not the one in the secuser)
             bool validated = queryPasswordStatus(user, currPassword);
             if (!validated)
-                throw MakeStringException(-1, "Password not changed, invalid credentials");
+                throw MakeStringException(SYSTEMERR_PasswordNotChangedInvalidCredentials, "Password not changed, invalid credentials");
         }
 
         return updateUserPassword(username, newPassword, ld);
@@ -3374,7 +3375,7 @@ public:
 
         const char* sysuser = m_ldapconfig->getSysUser();
         if(sysuser && *sysuser && strcmp(username, sysuser) == 0)
-            throw MakeStringException(-1, "You can't change password of the system user.");
+            throw MakeStringException(SYSTEMERR_YouCanTChangePasswordOf, "You can't change password of the system user.");
 
         LdapServerType servertype = m_ldapconfig->getServerType();
         bool ret = true;
@@ -3449,7 +3450,7 @@ public:
                 }
                 // For certain errors just return, other errors try changePasswordSSL.
                 if(nStatus == ERROR_INVALID_PASSWORD || nStatus == NERR_UserNotFound || nStatus == NERR_PasswordTooShort)
-                    throw MakeStringException(-1, "An error has occurred while setting password with NetUserSetInfo for %s: %s - %s\n", username, errcode.str(), errmsg.str());
+                    throw MakeStringException(SYSTEMERR_AnErrorHasOccurredWhileSetting, "An error has occurred while setting password with NetUserSetInfo for %s: %s - %s\n", username, errcode.str(), errmsg.str());
                 else
                     DBGLOG("An error has occurred while setting password with NetUserSetInfo for %s: %s - %s\n", username, errcode.str(), errmsg.str());
             }
@@ -3507,7 +3508,7 @@ public:
                 if(rc == LDAP_UNWILLING_TO_PERFORM)
                     errmsg.append(" The ldap server refused to execute the password change action, one of the reasons might be that the new password you entered doesn't satisfy the policy requirement.");
 
-                throw MakeStringExceptionDirect(-1, errmsg.str());
+                throw MakeStringExceptionDirect(SYSTEMERR_ErrmsgStr, errmsg.str());
             }
         }
         return true;
@@ -3952,7 +3953,7 @@ public:
             if (!isEmptyString(p))
             {
                 if (strchr(p, '=') >= strchr(p, ','))//ensure contain ou= and comma separator
-                    throw MakeStringException(-1, "changePermission 'action.m_basedn' (%s) appears malformed", action.m_basedn.str());
+                    throw MakeStringException(SYSTEMERR_ChangepermissionActionMBasednSAppears, "changePermission 'action.m_basedn' (%s) appears malformed", action.m_basedn.str());
                 //Isolate OU name as resource name (ie "ou=workunits,ou=ecl,ou=hpcc",
                 // m_rname will be "workunits", m_basedn will be "ou=ecl,ou=hpcc")
                 while (*p != '=')
@@ -3964,15 +3965,15 @@ public:
                         action.m_rname.append((char)*p++);
                     action.m_basedn.remove(0, p - action.m_basedn.str() + 1 );//strip off leading "ou=workunits,"
                     if (action.m_basedn.isEmpty())
-                        throw MakeStringException(-1, "changePermission action.m_basedn cannot be empty");
+                        throw MakeStringException(SYSTEMERR_ChangepermissionActionMBasednCannotBe, "changePermission action.m_basedn cannot be empty");
                     if (action.m_rname.isEmpty())
-                        throw MakeStringException(-1, "changePermission action.m_rname cannot be empty");
+                        throw MakeStringException(SYSTEMERR_ChangepermissionActionMRnameCannotBe, "changePermission action.m_rname cannot be empty");
                 }
                 else
-                    throw MakeStringException(-1, "changePermission 'action.m_basedn' (%s) appears malformed", action.m_basedn.str());
+                    throw MakeStringException(SYSTEMERR_ChangepermissionActionMBasednSAppears, "changePermission 'action.m_basedn' (%s) appears malformed", action.m_basedn.str());
              }
              else
-                throw MakeStringException(-1, "changePermission 'action.m_basedn' must be specified");
+                throw MakeStringException(SYSTEMERR_ChangepermissionActionMBasednMustBe, "changePermission 'action.m_basedn' must be specified");
          }
 
         //Get security descriptor for Resource Name
@@ -4068,7 +4069,7 @@ public:
         else
         {
             if(m_ldapconfig->getServerType() == OPEN_LDAP)
-                throw MakeStringException(-1, "removing all permissions for openldap is currently not supported");
+                throw MakeStringException(SYSTEMERR_RemovingAllPermissionsForOpenldapIs, "removing all permissions for openldap is currently not supported");
 
             sd_attr.mod_op = LDAP_MOD_DELETE;
             sd_attr.mod_type = (char*)m_ldapconfig->getSdFieldName();
@@ -4086,7 +4087,7 @@ public:
         int rc = ldap_modify_ext_s(ld, (char*)normdnbuf.str(), attrs, ctlwrapper.ctls, NULL);
         if ( rc != LDAP_SUCCESS )
         {
-            throw MakeStringException(-1, "ldap_modify_ext_s error: %d %s", rc, ldap_err2string( rc ));
+            throw MakeStringException(SYSTEMERR_LdapModifyExtSErrorD, "ldap_modify_ext_s error: %d %s", rc, ldap_err2string( rc ));
         }
 
         return true;
@@ -4208,7 +4209,7 @@ public:
 
         if ( rc != LDAP_SUCCESS )
         {
-            throw MakeStringException(-1, "error deleting user %s: %s", username, ldap_err2string(rc));
+            throw MakeStringException(SYSTEMERR_ErrorDeletingUserSS, "error deleting user %s: %s", username, ldap_err2string(rc));
         }
 
         StringArray grps;
@@ -4226,7 +4227,7 @@ public:
     virtual void addGroup(const char* groupname, const char * groupOwner, const char * groupDesc)
     {
         if(groupname == NULL || *groupname == '\0')
-            throw MakeStringException(-1, "Can't add group, groupname is empty");
+            throw MakeStringException(SYSTEMERR_CanTAddGroupGroupnameIs, "Can't add group, groupname is empty");
 
         addGroup(groupname, groupOwner, groupDesc, m_ldapconfig->getGroupBasedn());
     }
@@ -4239,12 +4240,12 @@ public:
         if(m_ldapconfig->getServerType() == ACTIVE_DIRECTORY)
         {
             if(stricmp(groupname, "Administrators") == 0)
-                throw MakeStringException(-1, "Can't add group %s, it's reserved by the system.", groupname);
+                throw MakeStringException(SYSTEMERR_CanTAddGroupSIt, "Can't add group %s, it's reserved by the system.", groupname);
         }
         else
         {
             if(stricmp(groupname, "Directory Administrators") == 0)
-                throw MakeStringException(-1, "Can't add group %s, it's reserved by the system.", groupname);
+                throw MakeStringException(SYSTEMERR_CanTAddGroupSIt, "Can't add group %s, it's reserved by the system.", groupname);
         }
 
         StringBuffer dn;
@@ -4325,12 +4326,12 @@ public:
         {
             if(rc == LDAP_ALREADY_EXISTS)
             {
-                throw MakeStringException(-1, "can't add group %s, an LDAP object with this name already exists", groupname);
+                throw MakeStringException(SYSTEMERR_CanTAddGroupSAn, "can't add group %s, an LDAP object with this name already exists", groupname);
             }
             else
             {
                 DBGLOG("error addGroup %s, ldap_add_ext_s error: %s", groupname, ldap_err2string( rc ));
-                throw MakeStringException(-1, "error addGroup %s, ldap_add_ext_s error: %s", groupname, ldap_err2string( rc ));
+                throw MakeStringException(SYSTEMERR_ErrorAddgroupSLdapAddExt, "error addGroup %s, ldap_add_ext_s error: %s", groupname, ldap_err2string( rc ));
             }
         }
 
@@ -4339,17 +4340,17 @@ public:
     virtual void deleteGroup(const char* groupname, const char * groupsDN=nullptr)
     {
         if(groupname == NULL || *groupname == '\0')
-            throw MakeStringException(-1, "group name can't be empty");
+            throw MakeStringException(SYSTEMERR_GroupNameCanTBeEmpty, "group name can't be empty");
 
         if(m_ldapconfig->getServerType() == ACTIVE_DIRECTORY)
         {
             if(stricmp(groupname, "Administrators") == 0 || stricmp(groupname, "Authenticated Users") == 0)
-                throw MakeStringException(-1, "you can't delete Authenticated Users or Administrators group");
+                throw MakeStringException(SYSTEMERR_YouCanTDeleteAuthenticatedUsers, "you can't delete Authenticated Users or Administrators group");
         }
         else
         {
             if(stricmp(groupname, "Directory Administrators") == 0)
-                throw MakeStringException(-1, "you can't delete Directory Administrators group");
+                throw MakeStringException(SYSTEMERR_YouCanTDeleteDirectoryAdministrators, "you can't delete Directory Administrators group");
         }
 
         StringBuffer dn;
@@ -4362,7 +4363,7 @@ public:
 
         if ( rc != LDAP_SUCCESS )
         {
-            throw MakeStringException(-1, "error deleting group %s: %s", groupname, ldap_err2string(rc));
+            throw MakeStringException(SYSTEMERR_ErrorDeletingGroupSS, "error deleting group %s: %s", groupname, ldap_err2string(rc));
         }
     }
 
@@ -4372,7 +4373,7 @@ public:
         LDAPMessage *message;
 
         if(groupname == NULL || strlen(groupname) == 0)
-            throw MakeStringException(-1, "group name can't be empty");
+            throw MakeStringException(SYSTEMERR_GroupNameCanTBeEmpty, "group name can't be empty");
 
         StringBuffer grpdn;
         getGroupDN(groupname, grpdn, groupsDN);
@@ -4536,7 +4537,7 @@ public:
     virtual void renameResource(SecResourceType rtype, const char* oldname, const char* newname, const char* basedn)
     {
         if(oldname == NULL || *oldname == '\0' || newname == NULL || *newname == '\0')
-            throw MakeStringException(-1, "please specfiy old and new names");
+            throw MakeStringException(SYSTEMERR_PleaseSpecfiyOldAndNewNames, "please specfiy old and new names");
 
         if(basedn == NULL || *basedn == '\0')
             basedn = m_ldapconfig->getResourceBasedn(rtype);
@@ -4566,7 +4567,7 @@ public:
             if (rc != LDAP_SUCCESS )
             {
                 DBGLOG("Error changing unc %s to %s - %s", oldname, newname, ldap_err2string( rc ));
-                //throw MakeStringException(-1, "Error changing unc %s to %s - %s", oldname, newname, ldap_err2string( rc ));
+                //throw MakeStringException(SYSTEMERR_ErrorChangingUncSToS, "Error changing unc %s to %s - %s", oldname, newname, ldap_err2string( rc ));
             }
         }
 
@@ -4578,14 +4579,14 @@ public:
         if (rc != LDAP_SUCCESS )
         {
             DBGLOG("Error renaming %s to %s - %s", oldname, newname, ldap_err2string( rc ));
-            //throw MakeStringException(-1, "Error renaming %s to %s - %s", oldname, newname, ldap_err2string( rc ));
+            //throw MakeStringException(SYSTEMERR_ErrorRenamingSToSS, "Error renaming %s to %s - %s", oldname, newname, ldap_err2string( rc ));
         }
     }
 
     virtual void copyResource(SecResourceType rtype, const char* oldname, const char* newname, const char* basedn)
     {
         if(oldname == NULL || *oldname == '\0' || newname == NULL || *newname == '\0')
-            throw MakeStringException(-1, "please specfiy old and new names");
+            throw MakeStringException(SYSTEMERR_PleaseSpecfiyOldAndNewNames, "please specfiy old and new names");
 
         if(basedn == NULL || *basedn == '\0')
             basedn = m_ldapconfig->getResourceBasedn(rtype);
@@ -4599,7 +4600,7 @@ public:
             getSecurityDescriptors(sdlist, basedn);
 
         if(sd->getDescriptor().length() == 0)
-            throw MakeStringException(-1, "error copying %s to %s, %s doesn't exist", oldname, newname, oldname);
+            throw MakeStringException(SYSTEMERR_ErrorCopyingSToSS, "error copying %s to %s, %s doesn't exist", oldname, newname, oldname);
         
         ISecUser* user = NULL;
         CLdapSecResource resource(newname);
@@ -4789,12 +4790,12 @@ private:
         {
             if(rc == LDAP_ALREADY_EXISTS)
             {
-                throw MakeStringException(-1, "can't add dc %s, an LDAP object with this name already exists", dc);
+                throw MakeStringException(SYSTEMERR_CanTAddDcSAn, "can't add dc %s, an LDAP object with this name already exists", dc);
             }
             else
             {
                 DBGLOG("error addDC %s, ldap_add_ext_s error: 0x%0x %s", dc, rc, ldap_err2string( rc ));
-                throw MakeStringException(-1, "error addDC %s, ldap_add_ext_s error: %s", dc, ldap_err2string( rc ));
+                throw MakeStringException(SYSTEMERR_ErrorAdddcSLdapAddExt, "error addDC %s, ldap_add_ext_s error: %s", dc, ldap_err2string( rc ));
             }
         }
     }
@@ -4824,7 +4825,7 @@ private:
 
             if ( rc != LDAP_SUCCESS )
             {
-                throw MakeStringException(-1, "ldap_search_ext_s error: %s, when searching %s under %s", ldap_err2string( rc ), filter.str(), m_ldapconfig->getUserBasedn());
+                throw MakeStringException(SYSTEMERR_LdapSearchExtSErrorS, "ldap_search_ext_s error: %s, when searching %s under %s", ldap_err2string( rc ), filter.str(), m_ldapconfig->getUserBasedn());
             }
 
             unsigned entries = ldap_count_entries(ld, searchResult);
@@ -4835,7 +4836,7 @@ private:
 
                 if ( rc != LDAP_SUCCESS )
                 {
-                    throw MakeStringException(-1, "ldap_search_ext_s error: %s, when searching %s under %s", ldap_err2string( rc ), filter.str(), m_ldapconfig->getSysUserBasedn());
+                    throw MakeStringException(SYSTEMERR_LdapSearchExtSErrorS, "ldap_search_ext_s error: %s, when searching %s under %s", ldap_err2string( rc ), filter.str(), m_ldapconfig->getSysUserBasedn());
                 }
             }
 
@@ -4853,7 +4854,7 @@ private:
                 }
             }
             if(userdn.length() == 0)
-                throw MakeStringException(-1, "user %s can't be found", username);
+                throw MakeStringException(SYSTEMERR_UserSCanTBeFound, "user %s can't be found", username);
         }
         else
         {
@@ -4900,7 +4901,7 @@ private:
 
         if ( rc != LDAP_SUCCESS )
         {
-            throw MakeStringException(-1, "ldap_search_ext_s error: %s, when searching %s under %s", ldap_err2string( rc ), filter.str(), m_ldapconfig->getUserBasedn());
+            throw MakeStringException(SYSTEMERR_LdapSearchExtSErrorS, "ldap_search_ext_s error: %s, when searching %s under %s", ldap_err2string( rc ), filter.str(), m_ldapconfig->getUserBasedn());
         }
 
         message = LdapFirstEntry( ld, searchResult);
@@ -4977,7 +4978,7 @@ private:
         int rc = ldap_modify_ext_s(ld, (char*)userdn, grp_attrs, NULL, NULL);
         if ( rc != LDAP_SUCCESS )
         {
-            throw MakeStringException(-1, "error changing group for user %s, ldap_modify_ext_s error: %s", userdn, ldap_err2string( rc ));
+            throw MakeStringException(SYSTEMERR_ErrorChangingGroupForUserS, "error changing group for user %s, ldap_modify_ext_s error: %s", userdn, ldap_err2string( rc ));
         }
     }
 
@@ -5011,9 +5012,9 @@ private:
         if ( rc != LDAP_SUCCESS )
         {
             if (action != NULL && stricmp(action, "delete") == 0)
-                throw MakeStringException(-1, "Failed in deleting member from group: ldap_modify_ext_s error: %s; userdn: %s; groupdn: %s", ldap_err2string( rc ), userdn, groupdn);
+                throw MakeStringException(SYSTEMERR_FailedInDeletingMemberFromGroup, "Failed in deleting member from group: ldap_modify_ext_s error: %s; userdn: %s; groupdn: %s", ldap_err2string( rc ), userdn, groupdn);
             else
-                throw MakeStringException(-1, "Failed in adding member to group, ldap_modify_ext_s error: %s; userdn: %s; groupdn: %s", ldap_err2string( rc ), userdn, groupdn);
+                throw MakeStringException(SYSTEMERR_FailedInAddingMemberToGroup, "Failed in adding member to group, ldap_modify_ext_s error: %s; userdn: %s; groupdn: %s", ldap_err2string( rc ), userdn, groupdn);
         }
     }
 
@@ -5089,7 +5090,7 @@ private:
             ISecResource& res = resources.item(y);
             const char* rname = res.getName();
             if(rname == NULL || *rname == '\0')
-                throw MakeStringException(-1, "resource name can't be empty inside authorizeScope");
+                throw MakeStringException(SYSTEMERR_ResourceNameCanTBeEmpty, "resource name can't be empty inside authorizeScope");
 
             CSecurityDescriptor* matchedsd = NULL;
             ForEachItemIn(z, sdlist)
@@ -5579,7 +5580,7 @@ private:
             if(rc == LDAP_ALREADY_EXISTS)
                 return false;
             else
-                throw MakeStringException(-1, "ldap_add_ext_s error for ou=%s,%s: %d %s", name, basedn, rc, ldap_err2string( rc ));
+                throw MakeStringException(SYSTEMERR_LdapAddExtSErrorFor, "ldap_add_ext_s error for ou=%s,%s: %d %s", name, basedn, rc, ldap_err2string( rc ));
         }
 
         return true;
@@ -5861,11 +5862,11 @@ private:
                     return false;
                 }
                 else
-                    throw MakeStringException(-1, "Can't insert %s, an LDAP object with this name already exists", resourcename);
+                    throw MakeStringException(SYSTEMERR_CanTInsertSAnLdap, "Can't insert %s, an LDAP object with this name already exists", resourcename);
             }
             else
             {
-                throw MakeStringException(-1, "ldap_add_ext_s error for %s: %d %s", resourcename, rc, ldap_err2string( rc ));
+                throw MakeStringException(SYSTEMERR_LdapAddExtSErrorFor_1, "ldap_add_ext_s error for %s: %d %s", resourcename, rc, ldap_err2string( rc ));
             }
         }
 
@@ -5891,7 +5892,7 @@ private:
         if ( rc != LDAP_SUCCESS )
         {
             DBGLOG("ldap_search_ext_s error: %s, when searching %s under %s", ldap_err2string( rc ), filter.str(), m_ldapconfig->getUserBasedn());
-            throw MakeStringException(-1, "ldap_search_ext_s error: %s, when searching %s under %s", ldap_err2string( rc ), filter.str(), m_ldapconfig->getUserBasedn());
+            throw MakeStringException(SYSTEMERR_LdapSearchExtSErrorS, "ldap_search_ext_s error: %s, when searching %s under %s", ldap_err2string( rc ), filter.str(), m_ldapconfig->getUserBasedn());
         }
 
         StringBuffer act_ctrl;
@@ -5918,7 +5919,7 @@ private:
         if(act_ctrl.length() == 0)
         {
             DBGLOG("enableUser: userAccountControl doesn't exist for user %s",username);
-            throw MakeStringException(-1, "enableUser: userAccountControl doesn't exist for user %s",username);
+            throw MakeStringException(SYSTEMERR_EnableuserUseraccountcontrolDoesnTExistFor, "enableUser: userAccountControl doesn't exist for user %s",username);
         }
 
         unsigned act_ctrl_val = atoi(act_ctrl.str());
@@ -5947,7 +5948,7 @@ private:
         rc = ldap_modify_ext_s(ld, (char*)dn, cattrs, NULL, NULL);
         if ( rc != LDAP_SUCCESS )
         {
-            throw MakeStringException(-1, "error enableUser %s, ldap_modify_ext_s error: %s", username, ldap_err2string( rc ));
+            throw MakeStringException(SYSTEMERR_ErrorEnableuserSLdapModifyExt, "error enableUser %s, ldap_modify_ext_s error: %s", username, ldap_err2string( rc ));
         }
 
         // set the password.
@@ -5955,7 +5956,7 @@ private:
         if (!updateUserPassword(*tmpuser, user->credentials().getPassword(), nullptr, ld))
         {
             DBGLOG("Error updating password for %s",username);
-            throw MakeStringException(-1, "Error updating password for %s",username);
+            throw MakeStringException(SYSTEMERR_ErrorUpdatingPasswordForS, "Error updating password for %s",username);
         }
 
         //Now that the password is set, we can ensure passwords are always required
@@ -5972,7 +5973,7 @@ private:
         rc = ldap_modify_ext_s(ld, (char*)dn, cattrs, NULL, NULL);
         if ( rc != LDAP_SUCCESS )
         {
-            throw MakeStringException(-1, "error enableUser2 %s, ldap_modify_ext_s error2: %s", username, ldap_err2string( rc ));
+            throw MakeStringException(SYSTEMERR_ErrorEnableuser2SLdapModifyExt, "error enableUser2 %s, ldap_modify_ext_s error2: %s", username, ldap_err2string( rc ));
         }
 
     }
@@ -5989,12 +5990,12 @@ private:
         LdapServerType serverType = m_ldapconfig->getServerType();
         const char* username = user.getName();
         if(username == NULL || *username == '\0')
-            throw MakeStringException(-1, "Can't add user, username not set");
+            throw MakeStringException(SYSTEMERR_CanTAddUserUsernameNot, "Can't add user, username not set");
 
         const char* userPassword = user.credentials().getPassword();
         if(isEmptyString(userPassword))
         {
-            throw MakeStringException(-1, "Can't add user, password not set");
+            throw MakeStringException(SYSTEMERR_CanTAddUserPasswordNot, "Can't add user, password not set");
         }
 
         const char* fname = user.getFirstName();
@@ -6172,9 +6173,9 @@ private:
         if ( rc != LDAP_SUCCESS )
         {
             if(rc == LDAP_ALREADY_EXISTS)
-                throw MakeStringException(-1, "Can't add user %s, an LDAP object with this name already exists", username);
+                throw MakeStringException(SYSTEMERR_CanTAddUserSAn, "Can't add user %s, an LDAP object with this name already exists", username);
             else
-                throw MakeStringException(-1, "Error addUser %s, ldap_add_ext_s error: %s", username, ldap_err2string( rc ));
+                throw MakeStringException(SYSTEMERR_ErrorAdduserSLdapAddExt, "Error addUser %s, ldap_add_ext_s error: %s", username, ldap_err2string( rc ));
         }
 
         if(serverType == ACTIVE_DIRECTORY)
@@ -6349,11 +6350,11 @@ private:
     void createView(const char * viewName, const char * viewDescription)
     {
         if(viewName == nullptr || *viewName == '\0')
-            throw MakeStringException(-1, "Can't add view, viewname is empty");
+            throw MakeStringException(SYSTEMERR_CanTAddViewViewnameIs, "Can't add view, viewname is empty");
 
         if (isReservedGroupName(viewName))
         {
-            throw MakeStringException(-1, "Can't add view, '%s' is a reserved name", viewName);
+            throw MakeStringException(SYSTEMERR_CanTAddViewSIs, "Can't add view, '%s' is a reserved name", viewName);
         }
 
         addGroup(viewName, nullptr, nullptr, m_ldapconfig->getViewBasedn());//TODO Save description
@@ -6362,7 +6363,7 @@ private:
     void deleteView(const char * viewName)
     {
         if(viewName == nullptr || *viewName == '\0')
-            throw MakeStringException(-1, "Can't delete view, viewname is empty");
+            throw MakeStringException(SYSTEMERR_CanTDeleteViewViewnameIs, "Can't delete view, viewname is empty");
 
         deleteGroup(viewName, (const char *)m_ldapconfig->getViewBasedn());
     }
@@ -6390,10 +6391,10 @@ private:
     bool userInView(const char * user, const char* viewName)
     {
         if(user == nullptr || *user == '\0')
-            throw MakeStringException(-1, "Can't check user in view, user name is empty");
+            throw MakeStringException(SYSTEMERR_CanTCheckUserInView, "Can't check user in view, user name is empty");
 
         if(viewName == nullptr || *viewName == '\0')
-            throw MakeStringException(-1, "Can't check user in view, viewName is empty");
+            throw MakeStringException(SYSTEMERR_CanTCheckUserInView_1, "Can't check user in view, viewName is empty");
 
         try
         {
@@ -6417,7 +6418,7 @@ private:
     void updateViewContents(const char * viewName, const char * content)
     {
         if(viewName == nullptr || *viewName == '\0')
-            throw MakeStringException(-1, "Can't updateViewContents, viewName is empty");
+            throw MakeStringException(SYSTEMERR_CanTUpdateviewcontentsViewnameIsEmpty, "Can't updateViewContents, viewName is empty");
 
         //Update LDAP description
         char *desc_values[] = { (content && *content != '\0') ? (char*)content : (char*)"|", NULL };
@@ -6439,14 +6440,14 @@ private:
         dn.appendf("CN=%s,%s", viewName, (char*) m_ldapconfig->getViewBasedn());
         unsigned rc = ldap_modify_ext_s(ld, (char*)dn.str(), attrs, nullptr, nullptr);
         if (rc != LDAP_SUCCESS )
-            throw MakeStringException(-1, "Error updating view %s - %s", viewName, ldap_err2string( rc ));
+            throw MakeStringException(SYSTEMERR_ErrorUpdatingViewSS, "Error updating view %s - %s", viewName, ldap_err2string( rc ));
     }
 
 
     void addViewColumns(const char * viewName, StringArray & files, StringArray & columns)
     {
         if(viewName == nullptr || *viewName == '\0')
-            throw MakeStringException(-1, "Can't addViewColumns, viewName is empty");
+            throw MakeStringException(SYSTEMERR_CanTAddviewcolumnsViewnameIsEmpty, "Can't addViewColumns, viewName is empty");
 
         StringArray currFiles;
         StringArray currCols;
@@ -6480,7 +6481,7 @@ private:
 
         if (!changed)
         {
-            throw MakeStringException(-1, "Specified columns already exist in view");
+            throw MakeStringException(SYSTEMERR_SpecifiedColumnsAlreadyExistInView, "Specified columns already exist in view");
         }
 
         ///build description buffer containing one or more ||lfn|col
@@ -6497,7 +6498,7 @@ private:
     void removeViewColumns(const char * viewName, StringArray & files, StringArray & columns)
     {
         if(viewName == nullptr || *viewName == '\0')
-            throw MakeStringException(-1, "Can't removeViewColumns, viewName is empty");
+            throw MakeStringException(SYSTEMERR_CanTRemoveviewcolumnsViewnameIsEmpty, "Can't removeViewColumns, viewName is empty");
 
         StringArray currFiles;
         StringArray currCols;
@@ -6525,7 +6526,7 @@ private:
 
         if (!changed)
         {
-            throw MakeStringException(-1, "Specified columns do not exist in view");
+            throw MakeStringException(SYSTEMERR_SpecifiedColumnsDoNotExistIn, "Specified columns do not exist in view");
         }
 
         ///build description buffer containing one or more ||lfn|col
@@ -6542,7 +6543,7 @@ private:
     void queryViewColumns(const char * viewName, StringArray & files, StringArray & columns)
     {
         if(viewName == nullptr || *viewName == '\0')
-            throw MakeStringException(-1, "Can't queryViewColumns, viewName is empty");
+            throw MakeStringException(SYSTEMERR_CanTQueryviewcolumnsViewnameIsEmpty, "Can't queryViewColumns, viewName is empty");
 
        StringBuffer filter;
 
@@ -6606,7 +6607,7 @@ private:
     void addViewMembers(const char * viewName, StringArray & viewUsers, StringArray & viewGroups)
     {
         if(viewName == nullptr || *viewName == '\0')
-            throw MakeStringException(-1, "Can't addViewMembers, viewName is empty");
+            throw MakeStringException(SYSTEMERR_CanTAddviewmembersViewnameIsEmpty, "Can't addViewMembers, viewName is empty");
 
         unsigned len = viewUsers.ordinality();
         for (unsigned idx = 0; idx < len; idx++)
@@ -6620,7 +6621,7 @@ private:
     void removeViewMembers(const char * viewName, StringArray & viewUsers, StringArray & viewGroups)
     {
         if(viewName == nullptr || *viewName == '\0')
-            throw MakeStringException(-1, "Can't removeViewMembers, viewName is empty");
+            throw MakeStringException(SYSTEMERR_CanTRemoveviewmembersViewnameIsEmpty, "Can't removeViewMembers, viewName is empty");
 
         unsigned len = viewUsers.ordinality();
         for (unsigned idx = 0; idx < len; idx++)
@@ -6633,7 +6634,7 @@ private:
     void queryViewMembers(const char * viewName, StringArray & viewUsers, StringArray & viewGroups)
     {
         if(viewName == nullptr || *viewName == '\0')
-            throw MakeStringException(-1, "Can't queryViewMembers, viewName is empty");
+            throw MakeStringException(SYSTEMERR_CanTQueryviewmembersViewnameIsEmpty, "Can't queryViewMembers, viewName is empty");
 
         getGroupMembers(viewName, viewUsers, m_ldapconfig->getViewBasedn());
         //TODO get viewGroups

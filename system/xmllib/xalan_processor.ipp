@@ -26,6 +26,7 @@
 #endif
 
 #include <xercesc/util/PlatformUtils.hpp>
+#include "systemerr.hpp"
 #include <xalanc/XalanTransformer/XalanTransformer.hpp>
 #include <xalanc/XPath/Function.hpp>
 #include <xercesc/util/XMLString.hpp>
@@ -104,7 +105,7 @@ public:
                                         const XMLCh* const systemId)
     {
         if(m_includehandler.get() == NULL)
-            throw MakeStringException(-1, "MemSourceResolver::resolveEntity() - m_includehandler is NULL");
+            throw MakeStringException(SYSTEMERR_MemsourceresolverResolveentityMIncludehandlerIsNull, "MemSourceResolver::resolveEntity() - m_includehandler is NULL");
 
         InputSource* inputsrc=NULL;
         MemoryBuffer buf;
@@ -186,9 +187,9 @@ public:
     CXslSource(IIncludeHandler* handler, const char *cacheId, const char *rootpath) : m_XalanTransformer()
     {
         if (!handler)
-            throw MakeStringException(-1, "xsl embedded include handler not set");
+            throw MakeStringException(SYSTEMERR_XslEmbeddedIncludeHandlerNotSet, "xsl embedded include handler not set");
         if (!rootpath || !*rootpath)
-            throw MakeStringException(-1, "xsl embedded resource path not set");
+            throw MakeStringException(SYSTEMERR_XslEmbeddedResourcePathNotSet, "xsl embedded resource path not set");
         m_sourcetype = IO_TYPE_BUFFER;
         m_CompiledStylesheet = NULL;
         m_cacheId.set(cacheId);
@@ -257,7 +258,7 @@ public:
         if(m_CompiledStylesheet == NULL)
         {   
             if((m_sourcetype == IO_TYPE_FILE && m_filename.length() == 0) || (m_sourcetype == IO_TYPE_BUFFER && m_xsltext.length() == 0))
-                throw MakeStringException(-1, "XslSource::getStylesheet() - xsl source not set");
+                throw MakeStringException(SYSTEMERR_XslsourceGetstylesheetXslSourceNotSet, "XslSource::getStylesheet() - xsl source not set");
             
             m_includes.popAll();
             
@@ -331,7 +332,7 @@ public:
     {
         if(handler == NULL)
         {
-            throw MakeStringException(-1, "From CXslTransform::setIncludeHandler: a NULL handler is passed in");
+            throw MakeStringException(SYSTEMERR_FromCxsltransformSetincludehandlerANullHandler, "From CXslTransform::setIncludeHandler: a NULL handler is passed in");
         }
 
         if(m_sourceResolver.get() == NULL)

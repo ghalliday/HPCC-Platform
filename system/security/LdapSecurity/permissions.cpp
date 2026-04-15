@@ -18,6 +18,7 @@
 #pragma warning(disable:4786)
 
 #include "permissions.ipp"
+#include "systemerr.hpp"
 #include "ldapsecurity.ipp"
 
 #if defined(__linux__)
@@ -53,7 +54,7 @@ static const unsigned char administrators_sid[] =
 PermissionProcessor::PermissionProcessor(IPropertyTree* config)
 {
     if(config == NULL)
-        throw MakeStringException(-1, "PermissionProcessor() - config is NULL");
+        throw MakeStringException(SYSTEMERR_PermissionprocessorConfigIsNull, "PermissionProcessor() - config is NULL");
     m_cfg.set(config);
 
     m_sidcache.setown(createPTree());
@@ -251,7 +252,7 @@ void PermissionProcessor::lookupSid(const char* act_name, MemoryBuffer& act_sid,
         if(ret == 0)
         {
             int error = GetLastError();
-            throw MakeStringException(-1, "Error getting SID of user %s - error code = %d", act_name, error);
+            throw MakeStringException(SYSTEMERR_ErrorGettingSidOfUserS, "Error getting SID of user %s - error code = %d", act_name, error);
         }
         else
         {
@@ -1031,7 +1032,7 @@ bool PermissionProcessor::getPermissions(ISecUser& user, IArrayOf<CSecurityDescr
     int ret = LogonUser((char*)username, NULL, (char*)password, LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT, &usertoken);
     if(ret == 0)
     {
-        throw MakeStringException(-1, "LogonUser %s error, error code = %d\n", username, GetLastError());
+        throw MakeStringException(SYSTEMERR_LogonuserSErrorErrorCodeD, "LogonUser %s error, error code = %d\n", username, GetLastError());
         return false;
     }
     for(int i = 0; i < num_resources; i++)
@@ -1155,7 +1156,7 @@ bool PermissionProcessor::getPermissionsArray(CSecurityDescriptor *sd, IArrayOf<
     MemoryBuffer& sdbuf = sd->getDescriptor();
     if(sdbuf.length() == 0)
     {
-        throw MakeStringException(-1, "security descriptor is empty");
+        throw MakeStringException(SYSTEMERR_SecurityDescriptorIsEmpty, "security descriptor is empty");
     }
     PSECURITY_DESCRIPTOR psd = (PSECURITY_DESCRIPTOR)(sdbuf.toByteArray());
 
@@ -1261,7 +1262,7 @@ CSecurityDescriptor* PermissionProcessor::changePermission(CSecurityDescriptor* 
     {
         if(stricmp(action.m_action.str(), "delete") != 0 && action.m_denies != 0)
         {
-            throw MakeStringException(-1, "Please don't set deny permissions for Administrators or Authenticated Users");
+            throw MakeStringException(SYSTEMERR_PleaseDonTSetDenyPermissions_2, "Please don't set deny permissions for Administrators or Authenticated Users");
         }
         act_psid = (PSID)administrators_sid;
     }
@@ -1269,7 +1270,7 @@ CSecurityDescriptor* PermissionProcessor::changePermission(CSecurityDescriptor* 
     {
         if(stricmp(action.m_action.str(), "delete") != 0 && action.m_denies != 0)
         {
-            throw MakeStringException(-1, "Please don't set deny permissions for Administrators or Authenticated Users");
+            throw MakeStringException(SYSTEMERR_PleaseDonTSetDenyPermissions_2, "Please don't set deny permissions for Administrators or Authenticated Users");
         }
         act_psid = (PSID)authenticated_users_sid;
     }
@@ -1281,7 +1282,7 @@ CSecurityDescriptor* PermissionProcessor::changePermission(CSecurityDescriptor* 
     {
         lookupSid(action.m_account_name.str(), act_sidbuf, action.m_account_type);
         if(act_sidbuf.length() == 0)
-            throw MakeStringException(-1, "account %s's sid can't be found", action.m_account_name.str());
+            throw MakeStringException(SYSTEMERR_AccountSSSidCanT, "account %s's sid can't be found", action.m_account_name.str());
         act_psid = (PSID)act_sidbuf.toByteArray();
     }
 
@@ -1311,9 +1312,9 @@ CSecurityDescriptor* PermissionProcessor::changePermission(CSecurityDescriptor* 
     {
 #ifdef _WIN32
         int error = GetLastError();
-        throw MakeStringException(-1, "Error MakeAbsoluteSD - error code = %d", error);
+        throw MakeStringException(SYSTEMERR_ErrorMakeabsolutesdErrorCodeD, "Error MakeAbsoluteSD - error code = %d", error);
 #else
-        throw MakeStringException(-1, "Error MakeAbsoluteSD");
+        throw MakeStringException(SYSTEMERR_ErrorMakeabsolutesd, "Error MakeAbsoluteSD");
 #endif
     }
 
@@ -1371,7 +1372,7 @@ CSecurityDescriptor* PermissionProcessor::changePermission(CSecurityDescriptor* 
         if(rc != ERROR_SUCCESS)
         {
             int error = GetLastError();
-            throw MakeStringException(-1, "Error SetEntriesInAcl - error code = %d", error);
+            throw MakeStringException(SYSTEMERR_ErrorSetentriesinaclErrorCodeD, "Error SetEntriesInAcl - error code = %d", error);
         }
     }
 
@@ -1395,7 +1396,7 @@ CSecurityDescriptor* PermissionProcessor::changePermission(CSecurityDescriptor* 
         if(rc != ERROR_SUCCESS)
         {
             int error = GetLastError();
-            throw MakeStringException(-1, "Error SetEntriesInAcl - error code = %d", error);
+            throw MakeStringException(SYSTEMERR_ErrorSetentriesinaclErrorCodeD, "Error SetEntriesInAcl - error code = %d", error);
         }
     }
 #else
@@ -1409,7 +1410,7 @@ CSecurityDescriptor* PermissionProcessor::changePermission(CSecurityDescriptor* 
         if(rc == 0)
         {
             int error = GetLastError();
-            throw MakeStringException(-1, "Error AddAccessAllowedAce - error code = %d", error);
+            throw MakeStringException(SYSTEMERR_ErrorAddaccessallowedaceErrorCodeD, "Error AddAccessAllowedAce - error code = %d", error);
         }       
     }
 
@@ -1424,7 +1425,7 @@ CSecurityDescriptor* PermissionProcessor::changePermission(CSecurityDescriptor* 
         if(rc == 0)
         {
             int error = GetLastError();
-            throw MakeStringException(-1, "Error AddAccessAllowedAce - error code = %d", error);
+            throw MakeStringException(SYSTEMERR_ErrorAddaccessallowedaceErrorCodeD, "Error AddAccessAllowedAce - error code = %d", error);
         }       
     }
 #endif
@@ -1433,7 +1434,7 @@ CSecurityDescriptor* PermissionProcessor::changePermission(CSecurityDescriptor* 
     if(rc == 0)
     {
         int error = GetLastError();
-        throw MakeStringException(-1, "Error SetSecurityDescriptorDacl - error code = %d", error);
+        throw MakeStringException(SYSTEMERR_ErrorSetsecuritydescriptordaclErrorCodeD, "Error SetSecurityDescriptorDacl - error code = %d", error);
     }
 
     CSecurityDescriptor* csd = new CSecurityDescriptor(action.m_rname.str());   
@@ -1478,7 +1479,7 @@ CSecurityDescriptor* PermissionProcessor::createDefaultSD(ISecUser * const user,
         {
             rc = AddAccessAllowedAce(pacl, ACL_REVISION, sec2ldap(DEFAULT_ADMINISTRATORS_PERMISSION), psid);
             if (rc == 0)
-                throw MakeStringException(-1, "Error AddAccessAllowedAce - error code = %d", GetLastError());
+                throw MakeStringException(SYSTEMERR_ErrorAddaccessallowedaceErrorCodeD, "Error AddAccessAllowedAce - error code = %d", GetLastError());
         }
     }
 
@@ -1496,7 +1497,7 @@ CSecurityDescriptor* PermissionProcessor::createDefaultSD(ISecUser * const user,
                 if(rc == 0)
                 {
                     int error = GetLastError();
-                    throw MakeStringException(-1, "Error AddAccessAllowedAce - error code = %d", error);
+                    throw MakeStringException(SYSTEMERR_ErrorAddaccessallowedaceErrorCodeD, "Error AddAccessAllowedAce - error code = %d", error);
                 }
             }
         }
@@ -1510,7 +1511,7 @@ CSecurityDescriptor* PermissionProcessor::createDefaultSD(ISecUser * const user,
             if(rc == 0)
             {
                 int error = GetLastError();
-                throw MakeStringException(-1, "Error AddAccessAllowedAce - error code = %d", error);
+                throw MakeStringException(SYSTEMERR_ErrorAddaccessallowedaceErrorCodeD, "Error AddAccessAllowedAce - error code = %d", error);
             }
         }
     }
@@ -1557,9 +1558,9 @@ CSecurityDescriptor* PermissionProcessor::createDefaultSD(ISecUser * const user,
     {
 #ifdef _WIN32
         int error = GetLastError();
-        throw MakeStringException(-1, "Error MakeAbsoluteSD - error code = %d", error);
+        throw MakeStringException(SYSTEMERR_ErrorMakeabsolutesdErrorCodeD, "Error MakeAbsoluteSD - error code = %d", error);
 #else
-        throw MakeStringException(-1, "Error MakeAbsoluteSD");
+        throw MakeStringException(SYSTEMERR_ErrorMakeabsolutesd, "Error MakeAbsoluteSD");
 #endif
 
     }
@@ -1587,7 +1588,7 @@ CSecurityDescriptor* PermissionProcessor::createDefaultSD(ISecUser * const user,
         if(rc != ERROR_SUCCESS)
         {
             int error = GetLastError();
-            throw MakeStringException(-1, "Error SetEntriesInAcl - error code = %d", error);
+            throw MakeStringException(SYSTEMERR_ErrorSetentriesinaclErrorCodeD, "Error SetEntriesInAcl - error code = %d", error);
         }
         rc = SetSecurityDescriptorDacl(psd, true, pnewdacl, false); 
 #else
@@ -1598,14 +1599,14 @@ CSecurityDescriptor* PermissionProcessor::createDefaultSD(ISecUser * const user,
         if(rc == 0)
         {
             int error = GetLastError();
-            throw MakeStringException(-1, "Error AddAccessAllowedAce - error code = %d", error);
+            throw MakeStringException(SYSTEMERR_ErrorAddaccessallowedaceErrorCodeD, "Error AddAccessAllowedAce - error code = %d", error);
         }       
         rc = SetSecurityDescriptorDacl(psd, true, pnewdacl, false); 
 #endif
         if(rc == 0)
         {
             int error = GetLastError();
-            throw MakeStringException(-1, "Error SetSecurityDescriptorDacl - error code = %d", error);
+            throw MakeStringException(SYSTEMERR_ErrorSetsecuritydescriptordaclErrorCodeD, "Error SetSecurityDescriptorDacl - error code = %d", error);
         }
     }
     
@@ -1628,7 +1629,7 @@ CSecurityDescriptor* PermissionProcessor::createDefaultSD(ISecUser * const user,
 CSecurityDescriptor::CSecurityDescriptor(const char* name)
 {
     if(name == NULL || name[0] == '\0')
-        throw MakeStringException(-1, "name can't be empty for CSecurityDescriptor");
+        throw MakeStringException(SYSTEMERR_NameCanTBeEmptyFor, "name can't be empty for CSecurityDescriptor");
 
     const char* resourcename = name;
     if(resourcename[0] == '/')

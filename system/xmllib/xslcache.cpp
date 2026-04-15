@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "xslcache.hpp"
+#include "systemerr.hpp"
 
 class CXslIncludeSignature : public CInterface, implements IInterface
 {
@@ -30,7 +31,7 @@ public:
     CXslIncludeSignature(const char* path)
     {
         if(!path || !*path)
-            throw MakeStringException(-1, "CXslIncludeSignature : path can't be emtpy");
+            throw MakeStringException(SYSTEMERR_CxslincludesignaturePathCanTBeEmtpy, "CXslIncludeSignature : path can't be emtpy");
         filePath.append(path);
         Owned<IFile> f = createIFile(path);
         if(f)

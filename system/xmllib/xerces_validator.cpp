@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "xmlvalidator.hpp"
+#include "systemerr.hpp"
 #include "jstring.hpp"
 #include "jdebug.hpp"
 #include "jptree.hpp"
@@ -91,7 +92,7 @@ void ParseErrorHandler::handleSAXParserException(const SAXParseException& e, con
     col.appendlong(e.getColumnNumber());
     msg.appendf("%s at \"%s\", line %s, char %s:  %s", errorType,
         (publicId&&publicId[0]) ? publicId : systemId, line.str(), col.str(), message);
-    appendException(MakeStringException(-1,"%s", msg.str()));
+    appendException(MakeStringException(SYSTEMERR_S, "%s", msg.str()));
 
     XMLString::release(&message);
 }
@@ -190,8 +191,8 @@ public:
     virtual int setSchemaSource(const char *pszFileName);
     virtual int setSchemaSource(const char *pszBuffer, unsigned int nSize);
 
-    virtual int setDTDSource(const char *pszFileName) { throw MakeStringException(-1,"Unsupported"); }
-    virtual int setDTDSource(const char *pszBuffer, unsigned int nSize) { throw MakeStringException(-1,"Unsupported"); }
+    virtual int setDTDSource(const char *pszFileName) { throw MakeStringException(SYSTEMERR_Unsupported, "Unsupported"); }
+    virtual int setDTDSource(const char *pszBuffer, unsigned int nSize) { throw MakeStringException(SYSTEMERR_Unsupported, "Unsupported"); }
 
     virtual void setTargetNamespace(const char* ns);
 

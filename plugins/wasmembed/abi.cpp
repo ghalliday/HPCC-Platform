@@ -4,6 +4,7 @@
 */
 
 #include "abi.hpp"
+#include "pluginerr.hpp"
 
 #include "jexcept.hpp"
 
@@ -209,7 +210,7 @@ std::tuple<uint32_t /*ptr*/, std::string /*encoding*/, uint32_t /*byte length*/>
 
     if (ptr + byte_length > data.size())
     {
-        throw makeStringException(1, "Out of bounds");
+        throw makeStringException(PLUGINERR_OutOfBounds, "Out of bounds");
     }
 
     return std::make_tuple(ptr, encoding, byte_length);
@@ -248,7 +249,7 @@ std::vector<T> load_list_from_range(const wasmtime::Span<uint8_t> &data, uint32_
     if (!isAligned(ptr, alignment(T{})))
         throw makeStringException(2, "Pointer is not aligned");
     if (ptr + length * sizeof(T) > data.size())
-        throw makeStringException(1, "Out of bounds access");
+        throw makeStringException(PLUGINERR_OutOfBoundsAccess, "Out of bounds access");
     std::vector<T> a;
     for (uint32_t i = 0; i < length; i++)
     {

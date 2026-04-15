@@ -20,6 +20,7 @@
 #define JSMARTSOCK_IPP
 
 #include "jsmartsock.hpp"
+#include "systemerr.hpp"
 #include "jlog.hpp"
 
 
@@ -33,7 +34,7 @@ struct SmartSocketEndpoint
     SmartSocketEndpoint(const char *_name,unsigned short port=0) : ep(_name, port)
     {
         if (ep.isNull()) 
-            throw MakeStringException(-1,"SmartSocketEndpoint resolution failed for '%s' %d",_name,port);
+            throw MakeStringException(SYSTEMERR_SmartsocketendpointResolutionFailedForSD, "SmartSocketEndpoint resolution failed for '%s' %d",_name,port);
         StringBuffer ipStr;
         ep.getHostText(ipStr);
         if (strcmp(ipStr.str(), _name)!=0)

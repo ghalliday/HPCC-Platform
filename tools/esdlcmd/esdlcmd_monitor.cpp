@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include <stdio.h>
+#include "toolserr.hpp"
 #include "jlog.hpp"
 #include "jfile.hpp"
 #include "jargv.hpp"
@@ -143,19 +144,19 @@ public:
         if (optSource.isEmpty())
         {
             usage();
-            throw( MakeStringException(0, "Error: Path to ESDL Source required"));
+            throw( MakeStringException(TOOLSERR_ErrorPathToEsdlSourceRequired, "Error: Path to ESDL Source required"));
         }
 
         if( optService.isEmpty() )
         {
             usage();
-            throw( MakeStringException(0, "An ESDL service name must be specified") );
+            throw( MakeStringException(TOOLSERR_AnEsdlServiceNameMustBe, "An ESDL service name must be specified") );
         }
 
         if( optMethod.isEmpty() )
         {
             usage();
-            throw( MakeStringException(0, "An ESDL method name must be specified") );
+            throw( MakeStringException(TOOLSERR_AnEsdlMethodNameMustBe, "An ESDL method name must be specified") );
         }
         cmdHelper.verbose = optVerbose;
         return true;
@@ -368,25 +369,25 @@ public:
         if (optSource.isEmpty())
         {
             usage();
-            throw( MakeStringException(0, "\nError: Path to ESDL source file required\n"));
+            throw( MakeStringException(TOOLSERR_NerrorPathToEsdlSourceFile, "\nError: Path to ESDL source file required\n"));
         }
 
         if( optService.isEmpty() )
         {
             usage();
-            throw( MakeStringException(0, "\nAn ESDL service name must be specified\n") );
+            throw( MakeStringException(TOOLSERR_NanEsdlServiceNameMustBe, "\nAn ESDL service name must be specified\n") );
         }
 
         if( optMethod.isEmpty() )
         {
             usage();
-            throw( MakeStringException(0, "\nAn ESDL method name must be specified\n") );
+            throw( MakeStringException(TOOLSERR_NanEsdlMethodNameMustBe, "\nAn ESDL method name must be specified\n") );
         }
 
         if (!diffTemplatePath.length())
         {
             usage();
-            throw( MakeStringException(0, "\nA differencing template name must be provided\n") );
+            throw( MakeStringException(TOOLSERR_NaDifferencingTemplateNameMustBe, "\nA differencing template name must be provided\n") );
         }
 
         if (optXsltPath.isEmpty())
@@ -1018,13 +1019,13 @@ public:
         VStringBuffer xpath("EsdlMethod[@name='%s']/@response_type", optMethod.str());
         StringAttr esp_resp_type = depTree->queryProp(xpath);
         if (esp_resp_type.isEmpty())
-            throw( MakeStringException(0, "Esdl Method or response_type not found %s", optMethod.str()));
+            throw( MakeStringException(TOOLSERR_EsdlMethodOrResponseTypeNot, "Esdl Method or response_type not found %s", optMethod.str()));
 
         IPropertyTree *espRespTree = depTree->queryPropTree(xpath.setf("EsdlResponse[@name='%s']", esp_resp_type.str()));
         if (!espRespTree)
             espRespTree = depTree->queryPropTree(xpath.setf("EsdlStruct[@name='%s']", esp_resp_type.str()));
         if (!espRespTree)
-            throw( MakeStringException(0, "Esdl Response type '%s' definition not found", esp_resp_type.str()));
+            throw( MakeStringException(TOOLSERR_EsdlResponseTypeSDefinitionNot, "Esdl Response type '%s' definition not found", esp_resp_type.str()));
 
         bool skipOutputResponseTag = false;
         StringBuffer resp_type(esp_resp_type.get());

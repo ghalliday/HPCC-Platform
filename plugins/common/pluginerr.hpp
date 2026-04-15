@@ -154,5 +154,9 @@
 #define PLUGINERR_TimeOutToSashaServerOn 35150
 #define PLUGINERR_WorkunitservicesInvalidApplicationValueFilterS 35151
 #define PLUGINERR_WorkunitservicesTooManyFilters 35152
+#define PLUGINERR_NoResourcesFoundDidYouForget 35153
+#define PLUGINERR_ResourceSNotFound 35154
+#define PLUGINERR_OutOfBounds 35155
+#define PLUGINERR_OutOfBoundsAccess 35156
 
 #endif // PLUGINERR_HPP

@@ -20,6 +20,7 @@
 #endif
 
 #include "platform.h"
+#include "toolserr.hpp"
 
 #include "hidl_utils.hpp"
 #include "hidlcomp.h"
@@ -4254,7 +4255,7 @@ void EspServInfo::write_esp_binding(const char *packagename)
             if (hasMinVer)
             {
                 outf("\t\t\tif (clientVer!=-1.0 && clientVer<%s)\n", minVer.str());
-                outs("\t\t\t\tthrow MakeStringException(-1, \"Client version is too old, please update your client application.\");\n");
+                outs("\t\t\t\tthrow MakeStringException(TOOLSERR_ClientVersionIsTooOld, \"Client version is too old, please update your client application.\");\n");
             }
 
             if (mthi->getMetaInt("do_not_log",0))
@@ -4278,7 +4279,7 @@ void EspServInfo::write_esp_binding(const char *packagename)
             if (hasMinVer)
             {
                 outf(2, "if (clientVer!=-1.0 && clientVer<%s)\n", minVer.str());
-                outf(3, "throw MakeStringException(-1, \"This method is not supported in version %%g, minimum version is %s. Please update your client application.\", clientVer);\n", minVer.str());
+                outf(3, "throw MakeStringException(TOOLSERR_ThisMethodIsNotSupportedIn, \"This method is not supported in version %%g, minimum version is %s. Please update your client application.\", clientVer);\n", minVer.str());
             }
             if (mthi->getMetaInt("do_not_log",0))
                 outs(2, "context.queryRequestParameters()->setProp(\"do_not_log\",1);\n");
@@ -4812,7 +4813,7 @@ void EspServInfo::write_catch_blocks(EspMethodInfo* mthi, catch_type ct, int ind
     outs(indents,"catch (...)\n");
     outs(indents,"{\n");
 
-    outs(indents+1,"me->append(*MakeStringExceptionDirect(-1, \"Unknown Exception\"));\n");
+    outs(indents+1,"me->append(*MakeStringExceptionDirect(TOOLSERR_UnknownException, \"Unknown Exception\"));\n");
     outs(indents,"}\n");
 
     //apply any xslt on the error(s), if it is specified in scm file
@@ -4971,7 +4972,7 @@ void EspServInfo::write_esp_client()
 
         outf("\nIClient%s * CClient%s::%s(IClient%s *request)\n", mthi->getResp(), name_, mthi->getName(), mthi->getReq());
         outs("{\n");
-        outs("\tif(soap_url.length()== 0){ throw MakeStringExceptionDirect(-1, \"url not set\"); }\n\n");
+        outs("\tif(soap_url.length()== 0){ throw MakeStringExceptionDirect(TOOLSERR_UrlNotSet, \"url not set\"); }\n\n");
         outf("\tC%s* esprequest = static_cast<C%s*>(request);\n", mthi->getReq(), mthi->getReq());
         outf("\tOwned<C%s> espresponse = new C%s(\"%s\");\n\n", mthi->getResp(), mthi->getResp(), name_);
         outs("\tespresponse->setReqId(soap_reqid++);\n");
@@ -4986,7 +4987,7 @@ void EspServInfo::write_esp_client()
 
         outf("\nvoid CClient%s::async_%s(IClient%s *request, IClient%sEvents *events,IInterface* state)\n", name_, mthi->getName(), mthi->getReq(), name_);
         outs("{\n");
-        outs("\tif(soap_url.length()==0){ throw MakeStringExceptionDirect(-1, \"url not set\"); }\n\n");
+        outs("\tif(soap_url.length()==0){ throw MakeStringExceptionDirect(TOOLSERR_UrlNotSet, \"url not set\"); }\n\n");
         outf("\tC%s* esprequest = static_cast<C%s*>(request);\n", mthi->getReq(), mthi->getReq());
         outf("\tesprequest->setMethod(\"%s\");\n", mthi->getName());
         outs("\tesprequest->setReqId(soap_reqid++);\n");

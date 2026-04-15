@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "evtool.hpp"
+#include "toolserr.hpp"
 #include "eventfilter.h"
 #include "jevent.hpp"
 #include "jfile.hpp"
@@ -239,7 +240,7 @@ IPropertyTree* CEvToolCommand::loadConfiguration(const char* path) const
     StringBuffer markup;
     markup.loadFile(path);
     if (markup.isEmpty())
-        throw makeStringExceptionV(-1, "failed to load configuration '%s'", path);
+        throw makeStringExceptionV(TOOLSERR_FailedToLoadConfigurationS, "failed to load configuration '%s'", path);
     if (markup.charAt(0) == '<') // looks like XML
         tree.setown(createPTreeFromXMLString(markup));
     else if (markup.charAt(0) == '{') // looks like JSON
@@ -247,7 +248,7 @@ IPropertyTree* CEvToolCommand::loadConfiguration(const char* path) const
     else // assume YAML
         tree.setown(createPTreeFromYAMLString(markup));
     if (!tree)
-        throw makeStringExceptionV(-1, "invalid configuration '%s'", path);
+        throw makeStringExceptionV(TOOLSERR_InvalidConfigurationS, "invalid configuration '%s'", path);
     return tree.getClear();
 }
 

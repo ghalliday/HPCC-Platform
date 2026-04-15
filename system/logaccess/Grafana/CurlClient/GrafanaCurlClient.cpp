@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "GrafanaCurlClient.hpp"
+#include "systemerr.hpp"
 
 #include "platform.h"
 #include <curl/curl.h>
@@ -61,7 +62,7 @@ size_t stringCallback(char *contents, size_t size, size_t nmemb, void *userp)
 void submit(std::string & readBuffer, const char * url, const char * user, const char * pass)
 {
     if (isEmptyString(url))
-        throw makeStringExceptionV(-1, "%s Cannot submit query, empty request URI detected!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SCannotSubmitQueryEmptyRequest, "%s Cannot submit query, empty request URI detected!", COMPONENT_NAME);
 
     OwnedPtrCustomFree<CURL, curl_easy_cleanup> curlHandle = curl_easy_init();
     if (curlHandle)
@@ -72,45 +73,45 @@ void submit(std::string & readBuffer, const char * url, const char * user, const
         curlErrBuffer[0] = '\0';
 
         if (curl_easy_setopt(curlHandle, CURLOPT_URL, url) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_URL' (%s)!", COMPONENT_NAME, url);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_1, "%s: Log query request: Could not set 'CURLOPT_URL' (%s)!", COMPONENT_NAME, url);
     
         int curloptretcode = curl_easy_setopt(curlHandle, CURLOPT_HTTPAUTH, (long)CURLAUTH_BASIC);
         if (curloptretcode != CURLE_OK)
         {
             if (curloptretcode == CURLE_UNKNOWN_OPTION)
-                throw makeStringExceptionV(-1, "%s: Log query request: UNKNONW option 'CURLOPT_HTTPAUTH'!", COMPONENT_NAME);
+                throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestUnknonwOption, "%s: Log query request: UNKNONW option 'CURLOPT_HTTPAUTH'!", COMPONENT_NAME);
             if (curloptretcode == CURLE_NOT_BUILT_IN)
-                throw makeStringExceptionV(-1, "%s: Log query request: bitmask specified not built-in! 'CURLOPT_HTTPAUTH'/'CURLAUTH_BASIC'!", COMPONENT_NAME);
+                throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestBitmaskSpecified, "%s: Log query request: bitmask specified not built-in! 'CURLOPT_HTTPAUTH'/'CURLAUTH_BASIC'!", COMPONENT_NAME);
 
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_HTTPAUTH':'CURLAUTH_BASIC'!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_10, "%s: Log query request: Could not set 'CURLOPT_HTTPAUTH':'CURLAUTH_BASIC'!", COMPONENT_NAME);
         }
 
         if (curl_easy_setopt(curlHandle, CURLOPT_USERNAME, user))
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set  'CURLOPT_USERNAME' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_11, "%s: Log query request: Could not set  'CURLOPT_USERNAME' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_PASSWORD, pass))
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set  'CURLOPT_PASSWORD' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_12, "%s: Log query request: Could not set  'CURLOPT_PASSWORD' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_POST, 0) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not disable 'CURLOPT_POST' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_2, "%s: Log query request: Could not disable 'CURLOPT_POST' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_HTTPGET, 1) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_HTTPGET' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_3, "%s: Log query request: Could not set 'CURLOPT_HTTPGET' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_NOPROGRESS, 1) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_NOPROGRESS' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_4, "%s: Log query request: Could not set 'CURLOPT_NOPROGRESS' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_WRITEFUNCTION, stringCallback) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_WRITEFUNCTION' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_5, "%s: Log query request: Could not set 'CURLOPT_WRITEFUNCTION' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_WRITEDATA, &readBuffer) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_WRITEDATA' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_6, "%s: Log query request: Could not set 'CURLOPT_WRITEDATA' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_USERAGENT, "HPCC Systems LogAccess client") != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_USERAGENT' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_7, "%s: Log query request: Could not set 'CURLOPT_USERAGENT' option!", COMPONENT_NAME);
 
         if (curl_easy_setopt(curlHandle, CURLOPT_ERRORBUFFER, curlErrBuffer) != CURLE_OK)
-            throw makeStringExceptionV(-1, "%s: Log query request: Could not set 'CURLOPT_ERRORBUFFER' option!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestCouldNot_8, "%s: Log query request: Could not set 'CURLOPT_ERRORBUFFER' option!", COMPONENT_NAME);
 
         //If we set CURLOPT_FAILONERROR, we'll miss the actual error message returned in the response
         //(curl_easy_setopt(curlHandle, CURLOPT_FAILONERROR, 1L) != CURLE_OK) // non HTTP Success treated as error
@@ -121,7 +122,7 @@ void submit(std::string & readBuffer, const char * url, const char * user, const
         }
         catch (...)
         {
-            throw makeStringExceptionV(-1, "%s LogQL request: Unknown libcurl error", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogqlRequestUnknownLibcurlError, "%s LogQL request: Unknown libcurl error", COMPONENT_NAME);
         }
 
         long response_code;
@@ -129,10 +130,10 @@ void submit(std::string & readBuffer, const char * url, const char * user, const
 
         if (curlResponseCode != CURLE_OK || response_code != 200)
         {
-            throw makeStringExceptionV(-1,"%s Error (%d): '%s'", COMPONENT_NAME, curlResponseCode, (readBuffer.length() != 0 ? readBuffer.c_str() : curlErrBuffer[0] ? curlErrBuffer : "Unknown Error"));
+            throw makeStringExceptionV(SYSTEMERR_SErrorDS, "%s Error (%d): '%s'", COMPONENT_NAME, curlResponseCode, (readBuffer.length() != 0 ? readBuffer.c_str() : curlErrBuffer[0] ? curlErrBuffer : "Unknown Error"));
         }
         else if (readBuffer.length() == 0)
-            throw makeStringExceptionV(-1, "%s LogQL request: Empty response!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SLogqlRequestEmptyResponse, "%s LogQL request: Empty response!", COMPONENT_NAME);
     }
 }
 
@@ -144,20 +145,20 @@ void submit(std::string & readBuffer, const char * url, const char * user, const
 void GrafanaLogAccessCurlClient::submitQuery(std::string & readBuffer, const char * targetURI, bool targetDataSource)
 {
     if (isEmptyString(m_grafanaConnectionStr.str()))
-        throw makeStringExceptionV(-1, "%s Cannot submit query, empty connection string detected!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SCannotSubmitQueryEmptyConnection, "%s Cannot submit query, empty connection string detected!", COMPONENT_NAME);
 
     if (isEmptyString(targetURI))
-        throw makeStringExceptionV(-1, "%s Cannot submit query, empty request URI detected!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SCannotSubmitQueryEmptyRequest, "%s Cannot submit query, empty request URI detected!", COMPONENT_NAME);
 
     VStringBuffer requestURL("%s%s%s", m_grafanaConnectionStr.str(), targetDataSource ? m_dataSourcesAPIURI.str() : "", targetURI);
 
     //allow annonymous connections??
     if (isEmptyString(m_grafanaUserName.str()))
-        throw makeStringExceptionV(-1, "%s: Log query request: Empty user name detected!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestEmptyUser, "%s: Log query request: Empty user name detected!", COMPONENT_NAME);
 
     //allow non-secure connections??
     if (isEmptyString(m_grafanaPassword.str()))
-        throw makeStringExceptionV(-1, "%s: Log query request: Empty password detected!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SLogQueryRequestEmptyPassword, "%s: Log query request: Empty password detected!", COMPONENT_NAME);
 
     submit(readBuffer, requestURL, m_grafanaUserName.str(), m_grafanaPassword.str());
 }
@@ -173,7 +174,7 @@ void GrafanaLogAccessCurlClient::processDatasourceJsonResp(const std::string & r
 {
     Owned<IPropertyTree> tree = createPTreeFromJSONString(retrievedDocument.c_str());
     if (!tree)
-        throw makeStringExceptionV(-1, "%s: Could not parse data source query response!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SCouldNotParseDataSource, "%s: Could not parse data source query response!", COMPONENT_NAME);
 
     if (tree->hasProp("uid"))
         m_targetDataSource.uid.set(tree->queryProp("uid"));
@@ -189,9 +190,9 @@ void GrafanaLogAccessCurlClient::processDatasourceJsonResp(const std::string & r
     //url=http://myloki4hpcclogs:3100, secureJsonFields, user, password, basicAuth, jsonData, typeLogoUrl
 
     if (isEmptyString(m_targetDataSource.id.get()))
-        throw makeStringExceptionV(-1, "%s: DataSource query response does not include 'id'", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SDatasourceQueryResponseDoesNot, "%s: DataSource query response does not include 'id'", COMPONENT_NAME);
     if (isEmptyString(m_targetDataSource.type.get()))
-        throw makeStringExceptionV(-1, "%s: DataSource query response does not include 'type'", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SDatasourceQueryResponseDoesNot_1, "%s: DataSource query response does not include 'type'", COMPONENT_NAME);
 
     //This URI is used to access the Loki API, if not properly populated, nothing will work!
     m_dataSourcesAPIURI.setf("/api/datasources/proxy/%s/%s/api/v1" , m_targetDataSource.id.get(), m_targetDataSource.type.get());
@@ -322,7 +323,7 @@ void GrafanaLogAccessCurlClient::processValues(StringBuffer & returnbuf, IProper
         }
         else
         {
-            throw makeStringExceptionV(-1, "%s: Detected unexpected Grafana/Loki values response format!: %s", COMPONENT_NAME, values.queryProp("."));
+            throw makeStringExceptionV(SYSTEMERR_SDetectedUnexpectedGrafanaLokiValues, "%s: Detected unexpected Grafana/Loki values response format!: %s", COMPONENT_NAME, values.queryProp("."));
         }
     }
 }
@@ -382,14 +383,14 @@ void GrafanaLogAccessCurlClient::processQueryJsonResp(LogQueryResultDetails & re
 {
     Owned<IPropertyTree> tree = createPTreeFromJSONString(retrievedDocument.c_str());
     if (!tree)
-        throw makeStringExceptionV(-1, "%s: Could not parse log query response", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SCouldNotParseLogQuery, "%s: Could not parse log query response", COMPONENT_NAME);
 
     if (!tree->hasProp("data"))
-        throw makeStringExceptionV(-1, "%s: Query respose did not contain data element!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SQueryResposeDidNotContain, "%s: Query respose did not contain data element!", COMPONENT_NAME);
 
     IPropertyTree * data = tree->queryPropTree("data");
     if (!data)
-        throw makeStringExceptionV(-1, "%s: Could no parse data element!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SCouldNoParseDataElement, "%s: Could no parse data element!", COMPONENT_NAME);
 
     //process stats first, in case reported entries returned can help preallocate return buffer?
     if (data->hasProp("stats"))
@@ -446,7 +447,7 @@ void GrafanaLogAccessCurlClient::fetchDatasourceByName(const char * targetDataSo
 {
     DBGLOG("%s: Fetching data source by name: '%s'", COMPONENT_NAME, targetDataSourceName);
     if (isEmptyString(targetDataSourceName))
-        throw makeStringExceptionV(-1, "%s: fetchDatasourceByName: Empty data source name!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SFetchdatasourcebynameEmptyDataSourceName, "%s: fetchDatasourceByName: Empty data source name!", COMPONENT_NAME);
 
     std::string readBuffer;
     VStringBuffer targetURI("/api/datasources/name/%s", targetDataSourceName);
@@ -497,7 +498,7 @@ void GrafanaLogAccessCurlClient::fetchHealth(std::string & readBuffer)
 void GrafanaLogAccessCurlClient::populateQueryFilterAndStreamSelector(StringBuffer & queryString, StringBuffer & streamSelector, const ILogAccessFilter * filter)
 {
     if (filter == nullptr)
-        throw makeStringExceptionV(-1, "%s: Null filter detected while creating LogQL query string", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SNullFilterDetectedWhileCreating_2, "%s: Null filter detected while creating LogQL query string", COMPONENT_NAME);
 
     const char * queryOperator = " |~ ";
     StringBuffer queryValue;
@@ -567,13 +568,13 @@ void GrafanaLogAccessCurlClient::populateQueryFilterAndStreamSelector(StringBuff
     case LOGACCESS_FILTER_column:
     {
         if (filter->getFieldName() == nullptr)
-            throw makeStringExceptionV(-1, "%s: empty field name detected in filter by column!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SEmptyFieldNameDetectedIn, "%s: empty field name detected in filter by column!", COMPONENT_NAME);
         break;
     }
     //case LOGACCESS_FILTER_trace:
     //case LOGACCESS_FILTER_span:
     default:
-        throw makeStringExceptionV(-1, "%s: Unknown query criteria type encountered: '%s'", COMPONENT_NAME, queryValue.str());
+        throw makeStringExceptionV(SYSTEMERR_SUnknownQueryCriteriaTypeEncountered, "%s: Unknown query criteria type encountered: '%s'", COMPONENT_NAME, queryValue.str());
     }
 
     //We're constructing two clauses, the stream selector and the query filter
@@ -620,7 +621,7 @@ const char * sortByDirection(SortByDirection direction)
 bool GrafanaLogAccessCurlClient::fetchLog(LogQueryResultDetails & resultDetails, const LogAccessConditions & options, StringBuffer & returnbuf, LogAccessLogFormat format)
 {
     if (m_dataSourcesAPIURI.isEmpty())
-        throw makeStringExceptionV(-1, "%s: Cannot query because Grafana datasource was not established, check logaccess configuration!", COMPONENT_NAME);
+        throw makeStringExceptionV(SYSTEMERR_SCannotQueryBecauseGrafanaDatasource, "%s: Cannot query because Grafana datasource was not established, check logaccess configuration!", COMPONENT_NAME);
 
     try
     {
@@ -629,7 +630,7 @@ bool GrafanaLogAccessCurlClient::fetchLog(LogQueryResultDetails & resultDetails,
 
         const LogAccessTimeRange & trange = options.getTimeRange();
         if (trange.getStartt().isNull())
-            throw makeStringExceptionV(-1, "%s: start time must be provided!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SStartTimeMustBeProvided, "%s: start time must be provided!", COMPONENT_NAME);
 
         StringBuffer fullQuery;
         fullQuery.set("/query_range?");
@@ -652,7 +653,7 @@ bool GrafanaLogAccessCurlClient::fetchLog(LogQueryResultDetails & resultDetails,
             case LOGACCESS_MAPPEDFIELD_host:
             case LOGACCESS_MAPPEDFIELD_unmapped:
             default:
-                throw makeStringExceptionV(-1, "%s: LogQL sorting is only supported by ingest timestamp!", COMPONENT_NAME);
+                throw makeStringExceptionV(SYSTEMERR_SLogqlSortingIsOnlySupported, "%s: LogQL sorting is only supported by ingest timestamp!", COMPONENT_NAME);
             }
 
             const char * direction = sortByDirection(condition.direction);
@@ -1126,11 +1127,11 @@ GrafanaLogAccessCurlClient::GrafanaLogAccessCurlClient(IPropertyTree & logAccess
 
         getSecretKeyValue(m_grafanaUserName.clear(), secretTree, "username");
         if (isEmptyString(m_grafanaUserName.str()))
-            throw makeStringExceptionV(-1, "%s: Empty Grafana user name detected!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SEmptyGrafanaUserNameDetected, "%s: Empty Grafana user name detected!", COMPONENT_NAME);
 
         getSecretKeyValue(m_grafanaPassword.clear(), secretTree, "password");
         if (isEmptyString(m_grafanaPassword.str()))
-            throw makeStringExceptionV(-1, "%s: Empty Grafana password detected!", COMPONENT_NAME);
+            throw makeStringExceptionV(SYSTEMERR_SEmptyGrafanaPasswordDetected, "%s: Empty Grafana password detected!", COMPONENT_NAME);
     }
     else
     {

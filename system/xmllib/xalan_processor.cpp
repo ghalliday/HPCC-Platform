@@ -16,6 +16,7 @@
 ############################################################################## */
 
 #include "xalan_processor.ipp"
+#include "systemerr.hpp"
 #include "xpathprocessor.hpp"
 #include "jencrypt.hpp"
 #include "jexcept.hpp"
@@ -346,7 +347,7 @@ bool CXslTransform::checkSanity()
 int CXslTransform::transform(StringBuffer &target)
 {
     if(!m_ParsedSource)
-        throw MakeStringException(1, "[XML source not set]");
+        throw MakeStringException(SYSTEMERR_XmlSourceNotSet, "[XML source not set]");
     else if(!m_xslsource)
         throw MakeStringException(2, "[XSL stylesheet not set]");
 
@@ -390,7 +391,7 @@ int CXslTransform::transform(StringBuffer &target)
 int CXslTransform::transform()
 {
     if(!m_ParsedSource)
-        throw MakeStringException(1, "[XML source not set for XSLT[");
+        throw MakeStringException(SYSTEMERR_XmlSourceNotSetForXslt, "[XML source not set for XSLT[");
     else if(!m_xslsource)
         throw MakeStringException(2, "[XSL stylesheet not set]");
     else if(!m_resultTarget)
@@ -432,7 +433,7 @@ int CXslTransform::transform()
 int CXslTransform::transform(ISocket* targetSocket)
 {
     if(!m_ParsedSource)
-        throw MakeStringException(1, "[XML source not set for XSLT[");
+        throw MakeStringException(SYSTEMERR_XmlSourceNotSetForXslt, "[XML source not set for XSLT[");
     else if(!m_xslsource)
         throw MakeStringException(2, "[XSL stylesheet not set]");
 
@@ -585,7 +586,7 @@ int CXslTransform::setResultTarget(const char *pszFileName)
     }
     catch(...)
     {
-        throw MakeStringException(1, "Exception opening file %s", pszFileName);
+        throw MakeStringException(SYSTEMERR_ExceptionOpeningFileS, "Exception opening file %s", pszFileName);
     }
     return 0;
 }
@@ -604,7 +605,7 @@ int CXslTransform::setResultTarget(char *pszBuffer, unsigned int nSize)
     }
     catch(...)
     {
-        throw MakeStringException(1, "Exception in setting character buffer as XSLT result target.");
+        throw MakeStringException(SYSTEMERR_ExceptionInSettingCharacterBufferAs, "Exception in setting character buffer as XSLT result target.");
     }
     return 0;
 }
@@ -642,7 +643,7 @@ int CXslTransform::setIncludeHandler(IIncludeHandler* handler)
 {
     if(handler == NULL)
     {
-        throw MakeStringException(-1, "From CXslTransform::setIncludeHandler: a NULL handler is passed in");
+        throw MakeStringException(SYSTEMERR_FromCxsltransformSetincludehandlerANullHandler, "From CXslTransform::setIncludeHandler: a NULL handler is passed in");
     }
 
     if(m_sourceResolver == NULL)
@@ -667,7 +668,7 @@ int CXslTransform::setExternalFunction(const char* pszNameSpace, IXslFunction* p
     CXslFunction* pFn = (CXslFunction*) pXslFunction;
 
     if (pFn == NULL || pFn->get() == NULL)
-        throw MakeStringException(-1, "Null pointer violation in CXslTransform::setExternalFunction.");
+        throw MakeStringException(SYSTEMERR_NullPointerViolationInCxsltransformSetexternalfunction, "Null pointer violation in CXslTransform::setExternalFunction.");
 
     XalanDOMString nameSpace(pszNameSpace);
     XalanDOMString functionName(pFn->getName());
@@ -680,7 +681,7 @@ int CXslTransform::setExternalFunction(const char* pszNameSpace, IXslFunction* p
         if (!set && bAssigned)
             m_XalanTransformer.uninstallExternalFunction(nameSpace, functionName);
         else
-            throw MakeStringException(-1, "XSLT external function assignment error!");
+            throw MakeStringException(SYSTEMERR_XsltExternalFunctionAssignmentError, "XSLT external function assignment error!");
     }
 
     pFn->setAssigned(set);

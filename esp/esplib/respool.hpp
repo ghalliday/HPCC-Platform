@@ -19,6 +19,7 @@
 #define __RESPOOL_HPP
 
 #include "jwrapper.hpp"
+#include "esperr.hpp"
 #include "jexcept.hpp"
 #include <vector>
 
@@ -90,7 +91,7 @@ public:
                 timeout-=elapsed;
         }
 
-        throw MakeStringException(1, "Run out of resources");
+        throw MakeStringException(ESPERR_RunOutOfResources, "Run out of resources");
     }
 
     void release()

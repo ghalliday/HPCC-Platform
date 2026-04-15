@@ -22,6 +22,7 @@
 
 //jlib
 #include "jliball.hpp"
+#include "systemerr.hpp"
 #include "string.h"
 
 #ifdef _WIN32
@@ -216,7 +217,7 @@ public:
 
     virtual size32_t get_max_send_size()
     {
-        throw MakeStringException(-1, "CSecureSocket::get_max_send_size: not implemented");
+        throw MakeStringException(SYSTEMERR_CsecuresocketGetMaxSendSizeNot, "CSecureSocket::get_max_send_size: not implemented");
     }
 
     //
@@ -224,7 +225,7 @@ public:
     //
     virtual ISocket* accept(bool allowcancel=false) // not needed for UDP
     {
-        throw MakeStringException(-1, "CSecureSocket::accept: not implemented");
+        throw MakeStringException(SYSTEMERR_CsecuresocketAcceptNotImplemented, "CSecureSocket::accept: not implemented");
     }
 
     //
@@ -331,12 +332,12 @@ public:
     //
     virtual bool connectionless() // true if accept need not be called (i.e. UDP)
     {
-        throw MakeStringException(-1, "CSecureSocket::connectionless: not implemented");
+        throw MakeStringException(SYSTEMERR_CsecuresocketConnectionlessNotImplemented, "CSecureSocket::connectionless: not implemented");
     }
 
     virtual void set_return_addr(int port,const char *name) // used for UDP servers only
     {
-        throw MakeStringException(-1, "CSecureSocket::set_return_addr: not implemented");
+        throw MakeStringException(SYSTEMERR_CsecuresocketSetReturnAddrNotImplemented, "CSecureSocket::set_return_addr: not implemented");
     }
 
     // Block functions 
@@ -436,39 +437,39 @@ public:
 
     virtual size32_t get_send_buffer_size() // get OS send buffer
     {
-        throw MakeStringException(-1, "CSecureSocket::get_send_buffer_size: not implemented");
+        throw MakeStringException(SYSTEMERR_CsecuresocketGetSendBufferSizeNot, "CSecureSocket::get_send_buffer_size: not implemented");
     }
 
     void set_send_buffer_size(size32_t sz)  // set OS send buffer size
     {
-        throw MakeStringException(-1, "CSecureSocket::set_send_buffer_size: not implemented");
+        throw MakeStringException(SYSTEMERR_CsecuresocketSetSendBufferSizeNot, "CSecureSocket::set_send_buffer_size: not implemented");
     }
 
     bool join_multicast_group(SocketEndpoint &ep)   // for udp multicast
     {
-        throw MakeStringException(-1, "CSecureSocket::join_multicast_group: not implemented");
+        throw MakeStringException(SYSTEMERR_CsecuresocketJoinMulticastGroupNotImplemented, "CSecureSocket::join_multicast_group: not implemented");
         return false;
     }
 
     bool leave_multicast_group(SocketEndpoint &ep)  // for udp multicast
     {
-        throw MakeStringException(-1, "CSecureSocket::leave_multicast_group: not implemented");
+        throw MakeStringException(SYSTEMERR_CsecuresocketLeaveMulticastGroupNotImplemented, "CSecureSocket::leave_multicast_group: not implemented");
         return false;
     }
 
     void set_ttl(unsigned _ttl)   // set ttl
     {
-        throw MakeStringException(-1, "CSecureSocket::set_ttl: not implemented");
+        throw MakeStringException(SYSTEMERR_CsecuresocketSetTtlNotImplemented, "CSecureSocket::set_ttl: not implemented");
     }
 
     size32_t get_receive_buffer_size()  // get OS send buffer
     {
-        throw MakeStringException(-1, "CSecureSocket::get_receive_buffer_size: not implemented");
+        throw MakeStringException(SYSTEMERR_CsecuresocketGetReceiveBufferSizeNot, "CSecureSocket::get_receive_buffer_size: not implemented");
     }
 
     void set_receive_buffer_size(size32_t sz)   // set OS send buffer size
     {
-        throw MakeStringException(-1, "CSecureSocket::set_receive_buffer_size: not implemented");
+        throw MakeStringException(SYSTEMERR_CsecuresocketSetReceiveBufferSizeNot, "CSecureSocket::set_receive_buffer_size: not implemented");
     }
 
     virtual void set_keep_alive(bool set) // set option SO_KEEPALIVE
@@ -478,7 +479,7 @@ public:
 
     virtual size32_t udp_write_to(const SocketEndpoint &ep, void const* buf, size32_t size)
     {
-        throw MakeStringException(-1, "CSecureSocket::udp_write_to: not implemented");
+        throw MakeStringException(SYSTEMERR_CsecuresocketUdpWriteToNotImplemented, "CSecureSocket::udp_write_to: not implemented");
     }
 
     virtual bool check_connection()
@@ -538,7 +539,7 @@ CSecureSocket::CSecureSocket(ISocket* sock, ISecureSocketContextCallback * callb
 #endif
     if(m_ssl == NULL)
     {
-        throw MakeStringException(-1, "Can't create ssl");
+        throw MakeStringException(SYSTEMERR_CanTCreateSsl, "Can't create ssl");
     }
 
     // there is no MSG_NOSIGNAL or SO_NOSIGPIPE for SSL_write() ...
@@ -652,7 +653,7 @@ bool CSecureSocket::verify_cert(X509* cert)
     get_cn(cert, cn);
 
     if(cn.length() == 0)
-        throw MakeStringException(-1, "cn of the certificate can't be found");
+        throw MakeStringException(SYSTEMERR_CnOfTheCertificateCanT, "cn of the certificate can't be found");
 
     if(m_address_match)
     {
@@ -706,7 +707,7 @@ int CSecureSocket::secure_accept(int logLevel)
                 }
 
                 if (!verified)
-                    throw MakeStringException(-1, "certificate verification failed");
+                    throw MakeStringException(SYSTEMERR_CertificateVerificationFailed, "certificate verification failed");
             }
 
             m_isSecure = true;
@@ -882,7 +883,7 @@ int CSecureSocket::secure_connect(int logLevel)
         }
 
         if(!verified)
-            throw MakeStringException(-1, "certificate verification failed");
+            throw MakeStringException(SYSTEMERR_CertificateVerificationFailed, "certificate verification failed");
 
     }
 
@@ -1389,7 +1390,7 @@ private:
         m_ctx.setown(SSL_CTX_new(m_meth));
 
         if(!m_ctx)
-            throw makeStringException(-1, "ctx can't be created");
+            throw makeStringException(SYSTEMERR_CtxCanTBeCreated, "ctx can't be created");
 
         if (sockettype == ServerSocket)
             setSessionIdContext();
@@ -1425,7 +1426,7 @@ private:
             throw makeEVPExceptionV(-1, "error loading private key file %s", privKeyFileOrBuf);
 
         if (!SSL_CTX_check_private_key(m_ctx))
-            throw makeStringException(-1, "Private key does not match the certificate public key");
+            throw makeStringException(SYSTEMERR_PrivateKeyDoesNotMatchThe, "Private key does not match the certificate public key");
     }
 
     void setVerifyCerts(const char *caCertsPathOrBuf)
@@ -1437,10 +1438,10 @@ private:
         {
             // can have multiple certs in buffer
             if (!setVerifyCertsPEMBuffer(m_ctx, caCertsPathOrBuf))
-                throw makeStringException(-1, "Error loading CA certificates");
+                throw makeStringException(SYSTEMERR_ErrorLoadingCaCertificates, "Error loading CA certificates");
         }
         else if (SSL_CTX_load_verify_locations(m_ctx, caCertsPathOrBuf, NULL) != 1)
-            throw makeStringExceptionV(-1, "Error loading CA certificates from %s", caCertsPathOrBuf);
+            throw makeStringExceptionV(SYSTEMERR_ErrorLoadingCaCertificatesFromS, "Error loading CA certificates from %s", caCertsPathOrBuf);
     }
 
     void createNewContext(const IPropertyTree* config)
@@ -1612,13 +1613,13 @@ private:
         X509_NAME_ENTRY *ent;
         
         if ((nid = OBJ_txt2nid ((char*)name)) == NID_undef)
-            throw MakeStringException(-1, "Error finding NID for %s\n", name);
+            throw MakeStringException(SYSTEMERR_ErrorFindingNidForSN, "Error finding NID for %s\n", name);
         
         if (!(ent = X509_NAME_ENTRY_create_by_NID(NULL, nid, MBSTRING_ASC, (unsigned char*)value, -1)))
-            throw MakeStringException(-1, "Error creating Name entry from NID");
+            throw MakeStringException(SYSTEMERR_ErrorCreatingNameEntryFromNid, "Error creating Name entry from NID");
         
         if (X509_NAME_add_entry (subj, ent, -1, 0) != 1)
-            throw MakeStringException(-1, "Error adding entry to subject");
+            throw MakeStringException(SYSTEMERR_ErrorAddingEntryToSubject, "Error adding entry to subject");
     }
 
 public:
@@ -1682,11 +1683,11 @@ public:
     virtual int generate(StringBuffer& certificate, StringBuffer& privkey)
     {
         if(m_destaddr.length() == 0)
-            throw MakeStringException(-1, "Common Name (server's hostname or IP address) not set for certificate");
+            throw MakeStringException(SYSTEMERR_CommonNameServerSHostnameOr, "Common Name (server's hostname or IP address) not set for certificate");
         if(m_passphrase.length() == 0)
-            throw MakeStringException(-1, "passphrase not set.");
+            throw MakeStringException(SYSTEMERR_PassphraseNotSet, "passphrase not set.");
         if(m_days <= 0)
-            throw MakeStringException(-1, "The number of days should be a positive integer");
+            throw MakeStringException(SYSTEMERR_TheNumberOfDaysShouldBe, "The number of days should be a positive integer");
         
         if(m_c.length() == 0)
             m_c.set("US");
@@ -1702,10 +1703,10 @@ public:
         bio_err=BIO_new_fp(stderr, BIO_NOCLOSE);
 
         if ((pkey=EVP_PKEY_new()) == NULL)
-            throw MakeStringException(-1, "can't create private key");
+            throw MakeStringException(SYSTEMERR_CanTCreatePrivateKey, "can't create private key");
 
         if ((x509=X509_new()) == NULL)
-            throw MakeStringException(-1, "can't create X509 structure");
+            throw MakeStringException(SYSTEMERR_CanTCreateX509Structure, "can't create X509 structure");
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
         RSA *rsa = RSA_generate_key(m_bits, RSA_F4, NULL, NULL);
@@ -1727,7 +1728,7 @@ public:
         {
             char errbuf[512];
             ERR_error_string_n(ERR_get_error(), errbuf, 512);
-            throw MakeStringException(-1, "EVP_PKEY_ASSIGN_RSA error - %s", errbuf);
+            throw MakeStringException(SYSTEMERR_EvpPkeyAssignRsaErrorS, "EVP_PKEY_ASSIGN_RSA error - %s", errbuf);
         }
 
         X509_NAME *name=NULL;
@@ -1805,7 +1806,7 @@ public:
         {
             char errbuf[512];
             ERR_error_string_n(ERR_get_error(), errbuf, 512);
-            throw MakeStringException(-1, "X509_sign error %s", errbuf);
+            throw MakeStringException(SYSTEMERR_X509SignErrorS, "X509_sign error %s", errbuf);
         }
 
         const EVP_CIPHER *enc = EVP_des_ede3_cbc();
@@ -1834,11 +1835,11 @@ public:
     virtual int generate(StringBuffer& certificate, const char* privkey)
     {
         if(m_destaddr.length() == 0)
-            throw MakeStringException(-1, "Common Name (server's hostname or IP address) not set for certificate");
+            throw MakeStringException(SYSTEMERR_CommonNameServerSHostnameOr, "Common Name (server's hostname or IP address) not set for certificate");
         if(m_passphrase.length() == 0)
-            throw MakeStringException(-1, "passphrase not set.");
+            throw MakeStringException(SYSTEMERR_PassphraseNotSet, "passphrase not set.");
         if(m_days <= 0)
-            throw MakeStringException(-1, "The number of days should be a positive integer");
+            throw MakeStringException(SYSTEMERR_TheNumberOfDaysShouldBe, "The number of days should be a positive integer");
         
         if(m_c.length() == 0)
             m_c.set("US");
@@ -1860,10 +1861,10 @@ public:
         pmem = BIO_new(BIO_s_mem());
         BIO_puts(pmem, privkey);
         if (!(pkey = PEM_read_bio_PrivateKey (pmem, NULL, NULL, (void*)m_passphrase.get())))
-            throw MakeStringException(-1, "Error reading private key");
+            throw MakeStringException(SYSTEMERR_ErrorReadingPrivateKey, "Error reading private key");
 
         if ((x509=X509_new()) == NULL)
-            throw MakeStringException(-1, "can't create X509 structure");
+            throw MakeStringException(SYSTEMERR_CanTCreateX509Structure, "can't create X509 structure");
 
         X509_NAME *name=NULL;
         X509_set_version(x509,3);
@@ -1940,7 +1941,7 @@ public:
         {
             char errbuf[512];
             ERR_error_string_n(ERR_get_error(), errbuf, 512);
-            throw MakeStringException(-1, "X509_sign error %s", errbuf);
+            throw MakeStringException(SYSTEMERR_X509SignErrorS, "X509_sign error %s", errbuf);
         }
 
         cmem = BIO_new(BIO_s_mem());
@@ -1970,9 +1971,9 @@ public:
     virtual int generateCSR(const char* privkey, StringBuffer& csr)
     {
         if(m_destaddr.length() == 0)
-            throw MakeStringException(-1, "Common Name (server's hostname or IP address) not set for certificate");
+            throw MakeStringException(SYSTEMERR_CommonNameServerSHostnameOr, "Common Name (server's hostname or IP address) not set for certificate");
         if(m_passphrase.length() == 0)
-            throw MakeStringException(-1, "passphrase not set.");
+            throw MakeStringException(SYSTEMERR_PassphraseNotSet, "passphrase not set.");
         
         if(m_c.length() == 0)
             m_c.set("US");
@@ -1998,18 +1999,18 @@ public:
         BIO_puts(pmem, privkey);
 
         if (!(pkey = PEM_read_bio_PrivateKey (pmem, NULL, NULL, (void*)m_passphrase.get())))
-            throw MakeStringException(-1, "Error reading private key");
+            throw MakeStringException(SYSTEMERR_ErrorReadingPrivateKey, "Error reading private key");
 
         /* create a new request and add the key to it */
         if (!(req = X509_REQ_new ()))
-            throw MakeStringException(-1, "Failed to create X509_REQ object");
+            throw MakeStringException(SYSTEMERR_FailedToCreateX509ReqObject, "Failed to create X509_REQ object");
 
         X509_REQ_set_version(req,0L);
 
         X509_REQ_set_pubkey (req, pkey);
 
         if (!(subj = X509_NAME_new ()))
-            throw MakeStringException(-1, "Failed to create X509_NAME object");
+            throw MakeStringException(SYSTEMERR_FailedToCreateX509NameObject, "Failed to create X509_NAME object");
 
         addNameEntry(subj, "countryName", m_c.get());
 
@@ -2030,7 +2031,7 @@ public:
         addNameEntry(subj, "commonName", m_destaddr.get());
 
         if (X509_REQ_set_subject_name (req, subj) != 1)
-            throw MakeStringException(-1, "Error adding subject to request");
+            throw MakeStringException(SYSTEMERR_ErrorAddingSubjectToRequest, "Error adding subject to request");
 
         /* pick the correct digest and sign the request */
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
@@ -2042,20 +2043,20 @@ public:
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
             digest = EVP_dss1 ();
 #else
-            throw MakeStringException(-1, "Error checking public key for a valid digest (DSA not supported by openSSL 1.1)");
+            throw MakeStringException(SYSTEMERR_ErrorCheckingPublicKeyForA, "Error checking public key for a valid digest (DSA not supported by openSSL 1.1)");
 #endif
         else if (type == EVP_PKEY_RSA)
             digest = EVP_sha1 ();
         else
-            throw MakeStringException(-1, "Error checking public key for a valid digest");
+            throw MakeStringException(SYSTEMERR_ErrorCheckingPublicKeyForA_1, "Error checking public key for a valid digest");
 
         if (!(X509_REQ_sign (req, pkey, digest)))
-            throw MakeStringException(-1, "Error signing request");
+            throw MakeStringException(SYSTEMERR_ErrorSigningRequest, "Error signing request");
 
         /* write the completed request */
         BIO* reqmem = BIO_new(BIO_s_mem());
         if (PEM_write_bio_X509_REQ(reqmem, req) != 1)
-            throw MakeStringException(-1, "Error while writing request");
+            throw MakeStringException(SYSTEMERR_ErrorWhileWritingRequest, "Error while writing request");
 
         readBio(reqmem, csr);
 
@@ -2166,21 +2167,21 @@ SECURESOCKET_API int signCertificate(const char* csr, const char* ca_certificate
     BIO *csrmem = BIO_new(BIO_s_mem());
     BIO_puts(csrmem, csr);
     if (!(req = PEM_read_bio_X509_REQ(csrmem, NULL, NULL, NULL)))
-        throw MakeStringException(-1, "Error reading request from buffer");
+        throw MakeStringException(SYSTEMERR_ErrorReadingRequestFromBuffer, "Error reading request from buffer");
     if (!(pkey = X509_REQ_get_pubkey(req)))
-        throw MakeStringException(-1, "Error getting public key from request");
+        throw MakeStringException(SYSTEMERR_ErrorGettingPublicKeyFromRequest, "Error getting public key from request");
     if (X509_REQ_verify (req, pkey) != 1)
-        throw MakeStringException(-1, "Error verifying signature on certificate");
+        throw MakeStringException(SYSTEMERR_ErrorVerifyingSignatureOnCertificate, "Error verifying signature on certificate");
 
     // read in the CA certificate and private key
     BIO *cacertmem = BIO_new(BIO_s_mem());
     BIO_puts(cacertmem, ca_certificate);
     if (!(CAcert = PEM_read_bio_X509(cacertmem, NULL, NULL, NULL)))
-        throw MakeStringException(-1, "Error reading CA's certificate from buffer");
+        throw MakeStringException(SYSTEMERR_ErrorReadingCaSCertificateFrom, "Error reading CA's certificate from buffer");
     BIO *capkeymem = BIO_new(BIO_s_mem());
     BIO_puts(capkeymem, ca_privkey);
     if (!(CApkey = PEM_read_bio_PrivateKey (capkeymem, NULL, NULL, (void*)ca_passphrase)))
-        throw MakeStringException(-1, "Error reading CA private key");
+        throw MakeStringException(SYSTEMERR_ErrorReadingCaPrivateKey, "Error reading CA private key");
 
     cert = X509_new();
     X509_set_version(cert,3);
@@ -2213,15 +2214,15 @@ SECURESOCKET_API int signCertificate(const char* csr, const char* ca_certificate
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
         digest = EVP_dss1 ();
 #else
-        throw MakeStringException(-1, "Error checking public key for a valid digest (DSA not supported by openSSL 1.1)");
+        throw MakeStringException(SYSTEMERR_ErrorCheckingPublicKeyForA, "Error checking public key for a valid digest (DSA not supported by openSSL 1.1)");
 #endif
     else if (type == EVP_PKEY_RSA)
         digest = EVP_sha1 ();
     else
-        throw MakeStringException(-1, "Error checking public key for a valid digest");
+        throw MakeStringException(SYSTEMERR_ErrorCheckingPublicKeyForA_1, "Error checking public key for a valid digest");
     
     if (!(X509_sign (cert, CApkey, digest)))
-        throw MakeStringException(-1, "Error signing certificate");
+        throw MakeStringException(SYSTEMERR_ErrorSigningCertificate, "Error signing certificate");
 
     // write the completed certificate
     BIO* cmem = BIO_new(BIO_s_mem());
@@ -2269,7 +2270,7 @@ public:
             // secure_connect may also DBGLOG() errors ...
             int res = ssock->secure_connect();
             if (res < 0)
-                throw MakeStringException(-1, "connect_timeout : Failed to establish secure connection");
+                throw MakeStringException(SYSTEMERR_ConnectTimeoutFailedToEstablishSecure, "connect_timeout : Failed to establish secure connection");
         }
         catch (IException *)
         {

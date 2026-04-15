@@ -18,6 +18,7 @@
 #ifdef _WIN32
 #define _WIN32_WINNT 0x0400
 #include <windows.h>
+#include "toolserr.hpp"
 #endif
 #include "platform.h"
 #include "thirdparty.h"
@@ -293,7 +294,7 @@ static void CopyDirectory(const char *source, const char *target, unsigned numSl
                     if (first && !checkMode)
                     {
                         if (!recursiveCreateDirectory(target)) {
-                            throw MakeStringException(-1,"Cannot create directory %s",target);
+                            throw MakeStringException(TOOLSERR_CannotCreateDirectoryS, "Cannot create directory %s",target);
                         }
                         first = false;
                     }
@@ -641,7 +642,7 @@ int main(int argc, const char *argv[])
             if (!slaveNum || slaveNum>numSlaves)
             {
                 printerr("'%s' is not a valid slave number (range is 1 to %d)", args.item(1), numSlaves);
-                throw MakeStringException(-1, "'%s' is not a valid slave number (range is 1 to %d)", args.item(1), numSlaves);
+                throw MakeStringException(TOOLSERR_SIsNotAValidSlave, "'%s' is not a valid slave number (range is 1 to %d)", args.item(1), numSlaves);
             }
             if (!forceSlaveIP)
             {
@@ -654,7 +655,7 @@ int main(int argc, const char *argv[])
                     myipfromSlaves.getHostText(ips1);
                     myip.getHostText(ips2);
                     printerr("IP address %d in slaves file %s does not match this machine %s", slaveNum, ips1.str(), ips2.str());
-                    throw MakeStringException(-1, "IP address %d in slaves file %s does not match this machine %s", slaveNum, ips1.str(), ips2.str());
+                    throw MakeStringException(TOOLSERR_IpAddressDInSlavesFile, "IP address %d in slaves file %s does not match this machine %s", slaveNum, ips1.str(), ips2.str());
                 }
             }
             StringBuffer datafile(errdatdir);
@@ -683,7 +684,7 @@ int main(int argc, const char *argv[])
                 applyPartsFile(fio,syncFile);
             else {
                 printerr("Could not read file %s",datafile.str());
-                throw MakeStringException(-1, "Could not read file %s",datafile.str());
+                throw MakeStringException(TOOLSERR_CouldNotReadFileS, "Could not read file %s",datafile.str());
             }
         }
         else if (waitMode) {
@@ -707,7 +708,7 @@ int main(int argc, const char *argv[])
                     println("Creating part lists, please wait...");
                 StringBuffer errstr;
                 if (!outputPartsFiles(args.item(0),args.item(1),args.item(2),errstr,verbose))
-                    throw MakeStringExceptionDirect(-1, errstr.str());
+                    throw MakeStringExceptionDirect(TOOLSERR_ErrstrStr, errstr.str());
             }
         }
         else

@@ -21,5 +21,6 @@
 #define RTLERR_InvalidFilterStringExpectedBetweenRanges 6617
 #define RTLERR_CouldNotProcessFilterS 6618
 #define RTLERR_RequiredUBytesButOnlyU 6619
+#define RTLERR_InvalidRangeBounds 6620
 
 #endif // RTLERR_HPP

@@ -18,6 +18,7 @@
 #ifndef _SECLOADER_HPP__
 #define _SECLOADER_HPP__
 #include "seclib.hpp"
+#include "systemerr.hpp"
 
 typedef IAuthMap* (*createDefaultAuthMap_t_)(IPropertyTree* config);
 typedef ISecManager* (*newSecManager_t_)(const char *serviceName, IPropertyTree &config);
@@ -52,7 +53,7 @@ public:
             // @libName is commonly used
             secMgrCfg->getProp("@libName", libName);
             if (libName.isEmpty())
-                throw MakeStringException(-1, "%s library name not specified for %s", lsm, bindingName);
+                throw MakeStringException(SYSTEMERR_SLibraryNameNotSpecifiedFor, "%s library name not specified for %s", lsm, bindingName);
         }
         //TODO Search for LibName in plugins folder, or in specified location
 
@@ -68,26 +69,26 @@ public:
         //Load the DLL/SO
         HINSTANCE pluggableSecLib = LoadSharedObject(libName.str(), true, false);
         if(pluggableSecLib == NULL)
-            throw MakeStringException(-1, "%s can't load library %s for %s", lsm, libName.str(), bindingName);
+            throw MakeStringException(SYSTEMERR_SCanTLoadLibraryS, "%s can't load library %s for %s", lsm, libName.str(), bindingName);
 
         //Retrieve address of exported SECMGR instance factory
         newPluggableSecManager_t_ xproc = NULL;
         xproc = (newPluggableSecManager_t_)GetSharedProcedure(pluggableSecLib, instFactory.str());
         if (xproc == NULL)
-            throw MakeStringException(-1, "%s cannot locate procedure %s of '%s'", lsm, instFactory.str(), libName.str());
+            throw MakeStringException(SYSTEMERR_SCannotLocateProcedureSOf, "%s cannot locate procedure %s of '%s'", lsm, instFactory.str(), libName.str());
 
         //Call SECMGR instance factory and return the new instance
         DBGLOG("Calling '%s' in pluggable security manager '%s'", instFactory.str(), libName.str());
         SECMGR* pPSM = dynamic_cast<SECMGR*>(xproc(bindingName, *secMgrCfg, *bindingCfg));
         if (pPSM == nullptr)
-            throw MakeStringException(-1, "%s Security Manager %s failed to instantiate in call to %s", lsm, libName.str(), instFactory.str());
+            throw MakeStringException(SYSTEMERR_SSecurityManagerSFailedTo, "%s Security Manager %s failed to instantiate in call to %s", lsm, libName.str(), instFactory.str());
         return pPSM;
     }
 
     static ISecManager* loadSecManager(const char* model_name, const char* servicename, IPropertyTree* cfg)
     {
         if (!model_name || !*model_name)
-            throw MakeStringExceptionDirect(-1, "Security model not specified");
+            throw MakeStringExceptionDirect(SYSTEMERR_SecurityModelNotSpecified, "Security model not specified");
 
         StringBuffer realName;
 
@@ -96,7 +97,7 @@ public:
             realName.append(SharedObjectPrefix).append(LDAPSECLIB).append(SharedObjectExtension);
             HINSTANCE ldapseclib = LoadSharedObject(realName.str(), true, false);
             if(ldapseclib == NULL)
-                throw MakeStringException(-1, "can't load library %s", realName.str());
+                throw MakeStringException(SYSTEMERR_CanTLoadLibraryS, "can't load library %s", realName.str());
 
             newSecManager_t_ xproc = NULL;
             xproc = (newSecManager_t_)GetSharedProcedure(ldapseclib, "newLdapSecManager");
@@ -104,17 +105,17 @@ public:
             if (xproc)
                 return xproc(servicename, *cfg);
             else
-                throw MakeStringException(-1, "procedure newLdapSecManager of %s can't be loaded", realName.str());
+                throw MakeStringException(SYSTEMERR_ProcedureNewldapsecmanagerOfSCanT, "procedure newLdapSecManager of %s can't be loaded", realName.str());
         }
         else
-            throw MakeStringException(-1, "Security model %s not supported", model_name);
+            throw MakeStringException(SYSTEMERR_SecurityModelSNotSupported, "Security model %s not supported", model_name);
     }
 
     static IAuthMap* loadTheDefaultAuthMap(IPropertyTree* cfg)
     {
         HINSTANCE seclib = LoadSharedObject(LDAPSECLIB, true, false);       // ,false,true may actually be more helpful.
         if(seclib == NULL)
-            throw MakeStringException(-1, "can't load library %s", LDAPSECLIB);
+            throw MakeStringException(SYSTEMERR_CanTLoadLibraryS, "can't load library %s", LDAPSECLIB);
 
         createDefaultAuthMap_t_ xproc = NULL;
         xproc = (createDefaultAuthMap_t_)GetSharedProcedure(seclib, "newDefaultAuthMap");
@@ -122,7 +123,7 @@ public:
         if (xproc)
             return xproc(cfg);
         else
-            throw MakeStringException(-1, "procedure newDefaultAuthMap of %s can't be loaded", LDAPSECLIB);
+            throw MakeStringException(SYSTEMERR_ProcedureNewdefaultauthmapOfSCanT, "procedure newDefaultAuthMap of %s can't be loaded", LDAPSECLIB);
     }
 };
 

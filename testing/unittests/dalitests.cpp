@@ -24,6 +24,7 @@
 
 #ifdef _USE_CPPUNIT
 #include "mpbase.hpp"
+#include "testingerr.hpp"
 #include "mpcomm.hpp"
 #include "daclient.hpp"
 #include "dadfs.hpp"
@@ -3518,7 +3519,7 @@ public:
         unsigned testCaseId = 7;
         auto matched = std::find_if(writtenMessages.begin(), writtenMessages.end(), [testCaseId] (const auto & wm){ return (wm.testCaseIndex == testCaseId); });
         if (matched==writtenMessages.end())
-            throw makeStringExceptionV(-1, "Can't find test case %u in written messages", testCaseId);
+            throw makeStringExceptionV(TESTINGERR_CanTFindTestCaseU, "Can't find test case %u in written messages", testCaseId);
 
         Owned<ISysInfoLoggerMsgFilter> msgFilter = createSysInfoLoggerMsgFilter(matched->msgId, SOURCE_COMPONENT_UNITTEST);
         ASSERT(deleteLogSysInfoMsg(msgFilter)==1);
