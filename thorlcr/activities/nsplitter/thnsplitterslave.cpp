@@ -72,6 +72,7 @@ public:
     virtual void stop() override;
     virtual const void *nextRow() override;
     virtual void resetEOF() { throwUnexpected(); }
+    virtual memsize_t getPeakRowMemory() const override { return 0; }
 };
 
 
@@ -413,7 +414,10 @@ public:
     {
         PARENT::gatherActiveStats(activeStats);
         if (sharedRowStream)
+        {
             mergeRemappedStats(activeStats, sharedRowStream, diskToTempStatsMap);
+            activeStats.setStatistic(StSizePeakRowMemory, sharedRowStream->getPeakRowMemory());
+        }
     }
 // ISharedSmartBufferCallback impl.
     virtual void paged() { pagedOut = true; }
